@@ -71,3 +71,16 @@ export function heatingExample(): Project {
     edges: [edge("s1", "F-301", "H-301"), edge("s2", "H-301", "P-301")],
   };
 }
+
+export function solutionExample(): Project {
+  const project = distillationExample();
+  project.name = "Benzene / toluene TP separation";
+  project.thermo = {
+    modelId: "ideal-solution",
+    mixture: "aromatics",
+    extrapolate: false,
+  };
+  project.units[0].params.temperature = 350;
+  project.units[0].params.pressure = 55000;
+  return project;
+}

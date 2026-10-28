@@ -5,10 +5,17 @@ import {
   reactorExample,
   distillationExample,
   heatingExample,
+  solutionExample,
 } from "@/domain/examples";
 import { type Project } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
 const examples = [
+  {
+    id: "solution",
+    name: "Raoult’s law separation",
+    description: "Flash a benzene / toluene sample at 350 K and 55 kPa.",
+    project: solutionExample(),
+  },
   {
     id: "heating",
     name: "Simple heating",

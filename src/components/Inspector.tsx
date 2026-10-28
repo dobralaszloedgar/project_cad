@@ -7,7 +7,13 @@ import {
   paramsSchema,
   unitSchema,
 } from "@/domain/schema";
-import { type Result, flow, volume } from "@/domain/solver";
+import { type Result, flow } from "@/domain/solver";
+import {
+  defaultThermo,
+  modelInfo,
+  type ThermoSettings,
+} from "@/domain/thermo/registry";
+import { sampleMixtures } from "@/domain/thermo/catalog";
 import { EquipmentIcon, equipmentLabels } from "./EquipmentIcon";
 interface Props {
   project: Project;
@@ -19,9 +25,11 @@ interface Props {
 function UnitEditor({
   unit,
   onApply,
+  settings,
 }: {
   unit: Unit;
   onApply: (u: Unit) => void;
+  settings: ThermoSettings;
 }) {
   const [params, setParams] = useState(unit.params);
   const [name, setName] = useState(unit.name);
@@ -81,7 +89,7 @@ function UnitEditor({
       max: 0.95,
       step: "0.05",
     });
-  if (unit.kind === "Distillation")
+  if (unit.kind === "Distillation" && settings.modelId === "ideal-gas")
     fields.push(
       {
         key: "relativeVolatility",
@@ -155,12 +163,26 @@ function UnitEditor({
         </form>
       ) : (
         <div className="model-notes">
-          <h3>Deterministic ideal model</h3>
-          <p>
-            A and B are synthetic species with equal molecular weight (28
-            g/mol).
-          </p>
-          <p>Constant heat capacity: 30 J/(mol·K). Ideal gas volume: nRT/P.</p>
+          <h3>{modelInfo(settings.modelId).name}</h3>
+          <p>Components A / B: {sampleMixtures[settings.mixture].name}.</p>
+          <p>{modelInfo(settings.modelId).limitations}</p>
+          {settings.mixture === "demo" ? (
+            <>
+              <p>
+                A and B are synthetic species with equal molecular weight (28
+                g/mol).
+              </p>
+              <p>
+                Constant heat capacity: 30 J/(mol·K). Ideal gas volume: nRT/P.
+              </p>
+            </>
+          ) : (
+            <p>
+              Sample constant heat capacities. Vapor pressures use
+              temperature-bounded Antoine records. Volume is reported only for a
+              wholly vapor stream.
+            </p>
+          )}
           {unit.kind === "PBR" ? (
             <p>
               Isothermal first-order plug flow: X = 1 − exp(−kτ). k(450 K) = 0.1
@@ -168,22 +190,26 @@ function UnitEditor({
               independent of flow.
             </p>
           ) : null}
-          {unit.kind === "Distillation" ? (
+          {unit.kind === "Distillation" && settings.modelId === "ideal-gas" ? (
             <p>
               One ideal equilibrium contact: y = αx / (1 + (α − 1)x). Fixed cut;
               no latent heat or stage design.
             </p>
           ) : null}
+          {unit.kind === "Distillation" && settings.modelId !== "ideal-gas" && (
+            <p>
+              One TP equilibrium flash at feed temperature and pressure. Vapor
+              leaves the first outlet; liquid leaves the second. No column
+              stages or reflux calculation.
+            </p>
+          )}
           {unit.kind === "Splitter" ? (
             <p>
               Both species split equally. The secondary outlet fraction is not a
               selective recovery.
             </p>
           ) : null}
-          <p>
-            No UNIFAC, real-fluid properties, pressure drop or mechanical
-            certification.
-          </p>
+          <p>No pressure drop or mechanical certification.</p>
         </div>
       )}
     </>
@@ -198,8 +224,10 @@ export default function Inspector({
 }: Props) {
   const unit = project.units.find((n) => n.id === selected),
     edge = project.edges.find((e) => e.id === selected);
+  const settings = project.thermo ?? defaultThermo;
   if (edge) {
     const s = result?.streams[edge.id];
+    const properties = result?.properties[edge.id];
     return (
       <aside className="panel inspector">
         <h2>Material stream</h2>
@@ -244,7 +272,31 @@ export default function Inspector({
               {s.a.toFixed(3)} / {s.b.toFixed(3)} mol/s
             </dd>
             <dt>Ideal gas volume*</dt>
-            <dd>{volume(s).toFixed(5)} m³/s</dd>
+            <dd>
+              {properties?.gasMolarVolume != null
+                ? `${(properties.gasMolarVolume * flow(s)).toFixed(5)} m³/s`
+                : "Unavailable for liquid / mixed phase"}
+            </dd>
+            <dt>Phase</dt>
+            <dd>{properties?.phase ?? "—"}</dd>
+            <dt>Vapor fraction</dt>
+            <dd>
+              {properties?.vaporFraction != null
+                ? properties.vaporFraction.toFixed(5)
+                : "Undefined"}
+            </dd>
+            {properties?.liquidComposition && (
+              <>
+                <dt>Liquid A fraction</dt>
+                <dd>{properties.liquidComposition[0].toFixed(5)}</dd>
+              </>
+            )}
+            {properties?.vaporComposition && (
+              <>
+                <dt>Vapor A fraction</dt>
+                <dd>{properties.vaporComposition[0].toFixed(5)}</dd>
+              </>
+            )}
           </dl>
         ) : (
           <p className="muted">Run to calculate stream properties.</p>
@@ -290,6 +342,7 @@ export default function Inspector({
       <UnitEditor
         key={JSON.stringify(unit)}
         unit={unit}
+        settings={settings}
         onApply={(next) => {
           try {
             unitSchema.parse(next);

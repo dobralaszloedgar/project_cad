@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { thermoSchema } from "./thermo/registry";
 export const kinds = [
   "Feed",
   "Product",
@@ -60,6 +61,7 @@ export const projectSchema = z
     name: z.string().min(1).max(80),
     units: z.array(unitSchema).max(40),
     edges: z.array(edgeSchema).max(80),
+    thermo: thermoSchema.optional(),
   })
   .strict();
 export type Unit = z.infer<typeof unitSchema>;

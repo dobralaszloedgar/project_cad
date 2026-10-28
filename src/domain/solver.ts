@@ -5,6 +5,9 @@ import {
   type Unit,
   type Connection,
 } from "./schema";
+import { evaluateProperties, provenance, type Properties } from "./thermo";
+import { defaultThermo, type ThermoSettings } from "./thermo/registry";
+import { sampleCatalog, sampleMixtures } from "./thermo/catalog";
 // Original synthetic teaching parameters; no claim to fit a real chemical system.
 export const MODEL = {
   cp: 30,
@@ -28,6 +31,8 @@ export interface EquipmentResult {
   extent: number;
 }
 export interface Result {
+  properties: Record<string, Properties>;
+  provenance: ReturnType<typeof provenance>;
   streams: Record<string, Stream>;
   equipment: Record<string, EquipmentResult>;
   converged: boolean;
@@ -42,11 +47,52 @@ export interface Result {
   tearId?: string;
 }
 export const flow = (s: Stream) => s.a + s.b;
-export const enthalpy = (s: Stream) =>
-  flow(s) * MODEL.cp * (s.temperature - MODEL.referenceTemperature) +
-  s.b * MODEL.reactionEnthalpy;
-export const volume = (s: Stream) =>
-  (flow(s) * MODEL.R * s.temperature) / s.pressure;
+export function streamProperties(
+  s: Stream,
+  settings: ThermoSettings = defaultThermo,
+): Properties {
+  if (flow(s) === 0)
+    return {
+      phase: "empty",
+      vaporFraction: null,
+      liquidComposition: null,
+      vaporComposition: null,
+      kValues: null,
+      activityCoefficients: [],
+      saturationPressures: null,
+      partialPressures: null,
+      molarEnthalpy: null,
+      gasMolarVolume: null,
+      molecularWeight: 0,
+      iterations: 0,
+      equilibriumResidual: 0,
+      componentResidual: 0,
+      warnings: ["Zero flow: composition and phase are undefined."],
+    };
+  return evaluateProperties(
+    s.temperature,
+    s.pressure,
+    [s.a / flow(s), s.b / flow(s)],
+    settings,
+  );
+}
+export function enthalpy(
+  s: Stream,
+  settings: ThermoSettings = defaultThermo,
+): number {
+  if (flow(s) === 0) return 0;
+  const h = streamProperties(s, settings).molarEnthalpy;
+  if (h === null)
+    throw new Error(
+      "Phase amount is indeterminate at saturation; specify a nonsaturated state.",
+    );
+  return flow(s) * h;
+}
+export function volume(s: Stream, settings: ThermoSettings = defaultThermo) {
+  if (flow(s) === 0) return 0;
+  const molarVolume = streamProperties(s, settings).gasMolarVolume;
+  return molarVolume === null ? null : flow(s) * molarVolume;
+}
 export const rate = (t: number) =>
   MODEL.kRef *
   Math.exp((-MODEL.activationEnergy / MODEL.R) * (1 / t - 1 / MODEL.tRef));
@@ -58,6 +104,7 @@ const scale = (s: Stream, f: number): Stream => ({
 export function operate(
   unit: Unit,
   inputs: Stream[],
+  settings: ThermoSettings = defaultThermo,
 ): { outputs: Stream[]; result: EquipmentResult } {
   const p = unit.params;
   const result: EquipmentResult = { duty: 0, extent: 0 };
@@ -83,6 +130,49 @@ export function operate(
       : inputs[0].temperature,
     pressure: Math.min(...inputs.map((s) => s.pressure)),
   };
+  if (inputs.length > 1 && total > 0) {
+    const target = inputs.reduce((sum, s) => sum + enthalpy(s, settings), 0);
+    if (settings.modelId === "ideal-gas") {
+      const [a, b] = sampleMixtures[settings.mixture].ids.map((id) =>
+        sampleCatalog.get(id),
+      );
+      const capacity = mixed.a * a.cp + mixed.b * b.cp;
+      mixed.temperature =
+        MODEL.referenceTemperature +
+        (target -
+          mixed.a * (a.formationEnthalpy ?? 0) -
+          mixed.b * (b.formationEnthalpy ?? 0)) /
+          capacity;
+    } else {
+      let low = Math.min(...inputs.map((s) => s.temperature));
+      let high = Math.max(...inputs.map((s) => s.temperature));
+      if (
+        Math.abs(enthalpy({ ...mixed, temperature: low }, settings) - target) >
+        1e-6
+      ) {
+        const lowerH = enthalpy({ ...mixed, temperature: low }, settings);
+        const upperH = enthalpy({ ...mixed, temperature: high }, settings);
+        if (target < lowerH - 1e-6 || target > upperH + 1e-6)
+          throw new Error(
+            "Mixer enthalpy is outside the supported inlet temperature bracket.",
+          );
+        for (let i = 0; i < 80; i++) {
+          const t = (low + high) / 2;
+          if (enthalpy({ ...mixed, temperature: t }, settings) < target)
+            low = t;
+          else high = t;
+        }
+        mixed.temperature = (low + high) / 2;
+      } else mixed.temperature = low;
+      if (
+        Math.abs(enthalpy(mixed, settings) - target) >
+        1e-5 * Math.max(1, Math.abs(target))
+      )
+        throw new Error(
+          "Mixer energy balance did not converge within the sample property range.",
+        );
+    }
+  }
   let outputs: Stream[] = [mixed];
   switch (unit.kind) {
     case "Product":
@@ -101,9 +191,13 @@ export function operate(
           `${unit.name}: cooler target is above inlet temperature.`,
         );
       outputs = [{ ...mixed, temperature: p.temperature }];
-      result.duty = enthalpy(outputs[0]) - enthalpy(mixed);
+      result.duty = enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
       break;
     case "PBR": {
+      if (settings.mixture !== "demo" || settings.modelId !== "ideal-gas")
+        throw new Error(
+          "The sample PBR reaction supports synthetic A/B with the ideal-gas model only.",
+        );
       const conversion = -Math.expm1(-rate(p.temperature) * p.residenceTime);
       const extent = mixed.a * conversion;
       outputs = [
@@ -116,7 +210,7 @@ export function operate(
       ];
       result.extent = extent;
       result.conversion = conversion;
-      result.duty = enthalpy(outputs[0]) - enthalpy(mixed);
+      result.duty = enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
       break;
     }
     case "Splitter":
@@ -126,6 +220,32 @@ export function operate(
       ];
       break;
     case "Distillation": {
+      if (settings.modelId !== "ideal-gas") {
+        const props = streamProperties(mixed, settings);
+        const beta = props.vaporFraction;
+        if (total === 0) {
+          outputs = [scale(mixed, 0), scale(mixed, 0)];
+          break;
+        }
+        if (beta === null)
+          throw new Error(
+            "TP alone does not determine the saturated phase split.",
+          );
+        const vaporA = total * beta * (props.vaporComposition?.[0] ?? 0);
+        const vaporB = total * beta * (props.vaporComposition?.[1] ?? 0);
+        outputs = [
+          { ...mixed, a: vaporA, b: vaporB },
+          {
+            ...mixed,
+            a: Math.max(0, mixed.a - vaporA),
+            b: Math.max(0, mixed.b - vaporB),
+          },
+        ];
+        result.duty =
+          outputs.reduce((sum, s) => sum + enthalpy(s, settings), 0) -
+          enthalpy(mixed, settings);
+        break;
+      }
       // One ideal equilibrium contact: y=alpha*x/(1+(alpha-1)*x), z=d*y+(1-d)*x.
       // Fixed distillate cut; no stages, latent heat, condenser or reboiler prediction.
       const z = total ? mixed.a / total : 0;
@@ -176,6 +296,11 @@ export function simulate(
   options: { maxIterations?: number; tolerance?: number } = {},
 ): Result {
   const project = projectSchema.parse(raw);
+  const settings = project.thermo ?? defaultThermo;
+  if (settings.modelId !== "ideal-gas" && settings.mixture === "demo")
+    throw new Error(
+      "Choose a real sample mixture for the liquid-solution models; synthetic A/B has no vapor-pressure or group data.",
+    );
   const errors = validateGraph(project, true);
   if (errors.length) throw new Error(errors.join(" "));
   let sorted = order(project),
@@ -214,7 +339,7 @@ export function simulate(
       const incoming = project.edges
         .filter((e) => e.target === n.id)
         .map((e) => (e.id === tear?.id ? guess : streams[e.id]));
-      const op = operate(n, incoming);
+      const op = operate(n, incoming, settings);
       equipment[n.id] = op.result;
       for (const e of project.edges.filter((e) => e.source === n.id))
         streams[e.id] = op.outputs[e.sourcePort === "out2" ? 1 : 0];
@@ -237,7 +362,7 @@ export function simulate(
   }
   const feeds = project.units
     .filter((n) => n.kind === "Feed")
-    .map((n) => operate(n, []).outputs[0]);
+    .map((n) => operate(n, [], settings).outputs[0]);
   const products = project.edges
     .filter(
       (e) => project.units.find((n) => n.id === e.target)?.kind === "Product",
@@ -247,22 +372,38 @@ export function simulate(
     a.reduce((s, n) => s + fn(n), 0);
   const heatDuty = Object.values(equipment).reduce((s, n) => s + n.duty, 0);
   const feedA = sum(feeds, (s) => s.a);
+  const properties = Object.fromEntries(
+    Object.entries(streams).map(([id, s]) => [
+      id,
+      streamProperties(s, settings),
+    ]),
+  );
+  const [chemicalA, chemicalB] = sampleMixtures[settings.mixture].ids.map(
+    (id) => sampleCatalog.get(id),
+  );
+  const mass = (s: Stream) =>
+    s.a * chemicalA.molecularWeight + s.b * chemicalB.molecularWeight;
+  const h = (s: Stream) => enthalpy(s, settings);
   const result: Result = {
+    properties,
+    provenance: provenance(settings),
     streams,
     equipment,
     converged,
     iterations: tear ? history.length : 1,
     residual: history.at(-1) ?? 0,
     history,
-    massResidual:
-      (sum(products, flow) - sum(feeds, flow)) * MODEL.molecularWeight,
-    energyResidual: sum(products, enthalpy) - sum(feeds, enthalpy) - heatDuty,
+    massResidual: sum(products, mass) - sum(feeds, mass),
+    energyResidual: sum(products, h) - sum(feeds, h) - heatDuty,
     conversion: feedA ? (feedA - sum(products, (s) => s.a)) / feedA : 0,
     heatDuty,
-    warnings: [
-      "Synthetic A/B species; equal 28 g/mol molecular weight and constant 30 J/(mol·K) heat capacity.",
-      "Isothermal first-order PBR surrogate; no catalyst transport, pressure drop or mechanical design.",
-    ],
+    warnings:
+      settings.mixture === "demo"
+        ? [
+            "Synthetic A/B species; equal 28 g/mol molecular weight and constant 30 J/(mol·K) heat capacity.",
+            "Isothermal first-order PBR surrogate; no catalyst transport, pressure drop or mechanical design.",
+          ]
+        : [...new Set(Object.values(properties).flatMap((p) => p.warnings))],
     tearId: tear?.id,
   };
   if (project.units.some((n) => n.kind === "Splitter"))
@@ -271,7 +412,9 @@ export function simulate(
     );
   if (project.units.some((n) => n.kind === "Distillation"))
     result.warnings.push(
-      "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility. No stage count, latent heat or reboiler/condenser duties.",
+      settings.modelId === "ideal-gas"
+        ? "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility. No stage count, latent heat or reboiler/condenser duties."
+        : "Distillation is a single TP equilibrium flash at feed temperature and pressure. No stage count, reflux or column design; outlet phase amounts come from the selected model.",
     );
   if (!converged)
     result.warnings.unshift(

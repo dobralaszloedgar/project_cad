@@ -10,6 +10,8 @@ import {
 import { type Project } from "@/domain/schema";
 import { flow, type Result, simulate } from "@/domain/solver";
 import { type Revision, diff } from "@/lib/revisions";
+import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
+import { sampleMixtures } from "@/domain/thermo/catalog";
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("en-US", { maximumFractionDigits: digits });
 export default function Results({
@@ -95,7 +97,14 @@ export default function Results({
           <div className="result-detail">
             <div className="stream-table">
               <h3>
-                Stream table <small>SI units · synthetic A / B</small>
+                Stream table{" "}
+                <small>
+                  SI units ·{" "}
+                  {
+                    sampleMixtures[(project.thermo ?? defaultThermo).mixture]
+                      .name
+                  }
+                </small>
               </h3>
               <table className="table">
                 <thead>
@@ -104,6 +113,8 @@ export default function Results({
                     <th>Flow (mol/s)</th>
                     <th>Temp. (K)</th>
                     <th>A fraction</th>
+                    <th>Phase</th>
+                    <th>Vapor fraction</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -124,7 +135,13 @@ export default function Results({
                         <td>{s ? fmt(flow(s), 4) : "—"}</td>
                         <td>{s ? fmt(s.temperature, 2) : "—"}</td>
                         <td>
-                          {s ? fmt(s.a / Math.max(flow(s), 1e-12), 4) : "—"}
+                          {s && flow(s) > 0 ? fmt(s.a / flow(s), 4) : "—"}
+                        </td>
+                        <td>{result?.properties[e.id]?.phase ?? "—"}</td>
+                        <td>
+                          {result?.properties[e.id]?.vaporFraction != null
+                            ? fmt(result.properties[e.id].vaporFraction!, 4)
+                            : "—"}
                         </td>
                       </tr>
                     );
@@ -138,6 +155,10 @@ export default function Results({
               {result ? (
                 <>
                   <h3>{result.converged ? "Converged" : "Not converged"}</h3>
+                  <p>
+                    {modelInfo(result.provenance.modelId).name} ·{" "}
+                    {result.provenance.modelVersion}
+                  </p>
                   <p>
                     {result.tearId
                       ? `${result.iterations} recycle iterations`
@@ -193,6 +214,13 @@ export default function Results({
                 ))}
               </ul>
               <p>
+                Data: {result.provenance.dataVersion}. Kernel:{" "}
+                {result.provenance.kernelHash.slice(0, 12)}.{" "}
+                {result.provenance.parameterHash
+                  ? `Parameters: ${result.provenance.parameterHash.slice(0, 12)}.`
+                  : ""}
+              </p>
+              <p>
                 Recycle convergence uses scaled A, B, temperature and pressure
                 changes; tolerance 10⁻⁹, maximum 500 iterations. Energy balance
                 includes formation enthalpy. Finite precision residuals are
@@ -236,6 +264,18 @@ export default function Results({
                 <p>
                   Streams: +{changes.streamsAdded} / −{changes.streamsRemoved}
                 </p>
+                {changes.modelChanged && (
+                  <p>
+                    Thermodynamic settings changed:{" "}
+                    {
+                      modelInfo(
+                        (baseline!.project.thermo ?? defaultThermo).modelId,
+                      ).name
+                    }{" "}
+                    →{" "}
+                    {modelInfo((project.thermo ?? defaultThermo).modelId).name}
+                  </p>
+                )}
                 <p>
                   Equipment:{" "}
                   {[...changes.added, ...changes.changed, ...changes.removed]

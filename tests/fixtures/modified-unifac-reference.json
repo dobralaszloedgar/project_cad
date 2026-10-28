@@ -1,0 +1,131 @@
+{
+  "source": "thermo 0.6.1 UNIFAC.from_subgroups; DOUF2IP; DOUFSG; version=1",
+  "rows": [
+    {
+      "mixture": "aromatics",
+      "temperature": 340.0,
+      "composition": [0.2, 0.8],
+      "gamma": [1.0184922407861086, 1.0010211672262561],
+      "excessEnthalpy": 33.33780991750856
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 340.0,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0076934570558103, 1.0068479966799218],
+      "excessEnthalpy": 53.50584454205227
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 340.0,
+      "composition": [0.8, 0.19999999999999996],
+      "gamma": [1.0013182299614636, 1.0189277425542846],
+      "excessEnthalpy": 35.205158680984034
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 350.0,
+      "composition": [0.2, 0.8],
+      "gamma": [1.017088583083727, 1.000942391763131],
+      "excessEnthalpy": 33.702961520840425
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 350.0,
+      "composition": [0.5, 0.5],
+      "gamma": [1.007120587621348, 1.006325593183072],
+      "excessEnthalpy": 54.10947620211536
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 350.0,
+      "composition": [0.8, 0.19999999999999996],
+      "gamma": [1.0012218838568048, 1.0174976813851757],
+      "excessEnthalpy": 35.613990918091694
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 360.0,
+      "composition": [0.2, 0.8],
+      "gamma": [1.0157502857087313, 1.0008672735887314],
+      "excessEnthalpy": 34.05304963358138
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 360.0,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0065736175605555, 1.0058273217088352],
+      "excessEnthalpy": 54.688924377889
+    },
+    {
+      "mixture": "aromatics",
+      "temperature": 360.0,
+      "composition": [0.8, 0.19999999999999996],
+      "gamma": [1.001129794138637, 1.0161339502085902],
+      "excessEnthalpy": 36.006972175001316
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 340.0,
+      "composition": [0.2, 0.8],
+      "gamma": [1.999615122181124, 1.0924302789208913],
+      "excessEnthalpy": -27.472486707714552
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 340.0,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1909779507954747, 1.415416518246169],
+      "excessEnthalpy": 121.01697919620767
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 340.0,
+      "composition": [0.8, 0.19999999999999996],
+      "gamma": [1.0198529677594186, 1.857865152427683],
+      "excessEnthalpy": 168.1954592373698
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 350.0,
+      "composition": [0.2, 0.8],
+      "gamma": [1.993700234708368, 1.0932998681257056],
+      "excessEnthalpy": 17.968280676669565
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 350.0,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1856381571500223, 1.4169696338155437],
+      "excessEnthalpy": 213.93207818166923
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 350.0,
+      "composition": [0.8, 0.19999999999999996],
+      "gamma": [1.018673482834519, 1.847012488322796],
+      "excessEnthalpy": 246.52784047826123
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 360.0,
+      "composition": [0.2, 0.8],
+      "gamma": [1.9844199090786523, 1.09408526207116],
+      "excessEnthalpy": 56.432460364045824
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 360.0,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1791481085366409, 1.4178503199879837],
+      "excessEnthalpy": 294.80262849574336
+    },
+    {
+      "mixture": "aqueous",
+      "temperature": 360.0,
+      "composition": [0.8, 0.19999999999999996],
+      "gamma": [1.017236149104037, 1.8325919868699023],
+      "excessEnthalpy": 318.1241309802582
+    }
+  ]
+}

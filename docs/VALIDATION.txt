@@ -1,5 +1,19 @@
 LOCAL VALIDATION — 2026-10-27
 
+Thermodynamics extension (Windows, Node 24.19.0, Chromium, Rust 1.90 via Docker):
+PASS: npm run thermo:build — formatting, 2 native Rust tests and wasm build.
+PASS: npm test — 38 tests, including 18 independent Modified UNIFAC reference states.
+PASS: npm run typecheck; npm run lint; npm run format:check.
+PASS: npm run build — workspace and deterministic /api/simulate endpoint.
+PASS: isolated Playwright on port 3107 — 5 selected desktop workflows:
+  three models and persistence, simulation API, reactor/revisions/import/export,
+  synchronized 3D editing, and reviewed Meta proposal application.
+PASS: source/documentation name scan and git diff --check.
+Desktop screenshots were inspected for model settings and phase results.
+These checks cover sample data and numerical consistency, not a 2,000-chemical
+catalog, industrial validity, liquid-liquid stability or live Meta inference.
+The previous baseline validation record follows below.
+
 PASS: npm test — 23 unit/contract tests across 3 files.
 PASS: npm run test:e2e — 13 Playwright Chromium workflow tests.
 PASS: npm run typecheck.
