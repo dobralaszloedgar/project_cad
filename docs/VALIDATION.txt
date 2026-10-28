@@ -86,8 +86,8 @@ the limitations record. This verdict covers those fixes, not an additional full
 application audit. Focus and Recent evidence is also captured as
 projects-search-focus.png, projects-sort-focus.png, and projects-recent.png.
 
-The UI uses Figtree, a pale dotted canvas, muted green controls, supplied equipment
-SVG geometry, a large movable assistant, and a reduced local Projects library.
+The UI uses Figtree, a pale dotted canvas, muted green controls, equipment
+SVG symbols, a large movable assistant, and a reduced local Projects library.
 Mobile previews scale to their card, and opening a project or assistant collapses
 the mobile equipment drawer. Functional simplifications remain explicit: local
 storage, eight equipment types, ideal teaching models, Meta-only optional AI.

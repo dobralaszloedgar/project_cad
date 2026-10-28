@@ -210,8 +210,8 @@ No additional elevation levels are prescribed.
 Shapes
 
 Small rounded controls sit inside more generously rounded containers. Fields use
-the field radius; toolbar interiors use the control-inner radius. Equipment keeps
-its supplied SVG silhouette and a 128px coordinate system. Nodes have transparent
+the field radius; toolbar interiors use the control-inner radius. Equipment uses
+process-diagram SVG silhouettes in a 128px coordinate system. Nodes have transparent
 backgrounds, with a dashed accent boundary when selected. Ports and routing come
 from the same geometry helpers in the canvas and project previews.
 

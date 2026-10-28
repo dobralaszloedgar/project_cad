@@ -65,6 +65,6 @@ Source modules:
   src/server/meta.ts and src/app/api/ai/route.ts: server-only Meta gateway
   src/components/: editor, inspector, results, revisions and derived 3D geometry
 
-Documents are plain text. The pre-existing tracked README is intentionally
-unchanged. Markdown, agent tooling, Muse CLI artifacts, secrets and build outputs
-are ignored by Git. No supplied specification document was copied into this repo.
+Project documentation is plain text, with a tracked README for the overview.
+Local planning documents, agent tooling, Muse CLI artifacts, secrets and build
+outputs are ignored by Git.
