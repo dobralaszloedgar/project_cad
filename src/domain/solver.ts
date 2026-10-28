@@ -1,5 +1,6 @@
 import {
   projectSchema,
+  unitSchema,
   validateGraph,
   type Project,
   type Unit,
@@ -8,6 +9,7 @@ import {
 import { evaluateProperties, provenance, type Properties } from "./thermo";
 import { defaultThermo, type ThermoSettings } from "./thermo/registry";
 import { sampleCatalog, sampleMixtures } from "./thermo/catalog";
+import { integratePackedBed, type BedPoint } from "./equipment/packed-bed";
 // Original synthetic teaching parameters; no claim to fit a real chemical system.
 export const MODEL = {
   cp: 30,
@@ -29,6 +31,7 @@ export interface EquipmentResult {
   duty: number;
   conversion?: number;
   extent: number;
+  profile?: BedPoint[];
 }
 export interface Result {
   properties: Record<string, Properties>;
@@ -47,10 +50,25 @@ export interface Result {
   tearId?: string;
 }
 export const flow = (s: Stream) => s.a + s.b;
+function validateStream(s: Stream) {
+  if (
+    !s ||
+    ![s.a, s.b, s.temperature, s.pressure].every(Number.isFinite) ||
+    s.a < 0 ||
+    s.b < 0 ||
+    s.temperature < 250 ||
+    s.temperature > 800 ||
+    s.pressure <= 0
+  )
+    throw new Error(
+      "Nonphysical stream: require nonnegative finite flows, 250–800 K and positive pressure.",
+    );
+}
 export function streamProperties(
   s: Stream,
   settings: ThermoSettings = defaultThermo,
 ): Properties {
+  validateStream(s);
   if (flow(s) === 0)
     return {
       phase: "empty",
@@ -80,6 +98,7 @@ export function enthalpy(
   s: Stream,
   settings: ThermoSettings = defaultThermo,
 ): number {
+  validateStream(s);
   if (flow(s) === 0) return 0;
   const h = streamProperties(s, settings).molarEnthalpy;
   if (h === null)
@@ -89,6 +108,7 @@ export function enthalpy(
   return flow(s) * h;
 }
 export function volume(s: Stream, settings: ThermoSettings = defaultThermo) {
+  validateStream(s);
   if (flow(s) === 0) return 0;
   const molarVolume = streamProperties(s, settings).gasMolarVolume;
   return molarVolume === null ? null : flow(s) * molarVolume;
@@ -106,21 +126,33 @@ export function operate(
   inputs: Stream[],
   settings: ThermoSettings = defaultThermo,
 ): { outputs: Stream[]; result: EquipmentResult } {
+  unit = unitSchema.parse(unit);
   const p = unit.params;
   const result: EquipmentResult = { duty: 0, extent: 0 };
-  if (unit.kind === "Feed")
+  const maxInlets =
+    unit.kind === "Feed" ? 0 : ["Mixer", "PBR"].includes(unit.kind) ? 2 : 1;
+  if (inputs.length > maxInlets)
+    throw new Error(`${unit.name}: too many material inlets.`);
+  // The exported evaluator uses the same selected-model validity checks as
+  // a complete flowsheet, including for pass-through units and splitters.
+  inputs.forEach((input) => streamProperties(input, settings));
+  if (unit.kind === "Feed") {
+    const stream = {
+      a: p.flow * p.fractionA,
+      b: p.flow * (1 - p.fractionA),
+      temperature: p.temperature,
+      pressure: p.pressure,
+    };
+    streamProperties(stream, settings);
     return {
-      outputs: [
-        {
-          a: p.flow * p.fractionA,
-          b: p.flow * (1 - p.fractionA),
-          temperature: p.temperature,
-          pressure: p.pressure,
-        },
-      ],
+      outputs: [stream],
       result,
     };
+  }
   if (!inputs.length) throw new Error(`${unit.name}: missing inlet.`);
+  // A zero-flow recycle guess has no pressure or enthalpy contribution.
+  const flowing = inputs.filter((s) => flow(s) > 0);
+  if (flowing.length) inputs = flowing;
   const total = inputs.reduce((s, n) => s + flow(n), 0);
   const mixed: Stream = {
     a: inputs.reduce((s, n) => s + n.a, 0),
@@ -181,24 +213,74 @@ export function operate(
     case "Mixer":
       break;
     case "Heater":
-    case "Cooler":
-      if (unit.kind === "Heater" && p.temperature < mixed.temperature - 1e-7)
+    case "Cooler": {
+      let target = p.temperature;
+      if (p.thermalMode === "duty") {
+        if (settings.modelId !== "ideal-gas")
+          throw new Error(
+            `${unit.name}: specified duty supports the ideal-gas model only; select an outlet temperature for liquid models.`,
+          );
+        if (
+          (unit.kind === "Heater" && p.heatDuty < 0) ||
+          (unit.kind === "Cooler" && p.heatDuty > 0)
+        )
+          throw new Error(
+            `${unit.name}: heater duty must be nonnegative and cooler duty nonpositive.`,
+          );
+        if (!total && p.heatDuty !== 0)
+          throw new Error(`${unit.name}: nonzero duty requires material flow.`);
+        const chemicals = sampleMixtures[settings.mixture].ids.map((id) =>
+          sampleCatalog.get(id),
+        );
+        const capacity = mixed.a * chemicals[0].cp + mixed.b * chemicals[1].cp;
+        target = mixed.temperature + (capacity ? p.heatDuty / capacity : 0);
+      }
+      if (unit.kind === "Heater" && target < mixed.temperature - 1e-7)
         throw new Error(
           `${unit.name}: heater target is below inlet temperature.`,
         );
-      if (unit.kind === "Cooler" && p.temperature > mixed.temperature + 1e-7)
+      if (unit.kind === "Cooler" && target > mixed.temperature + 1e-7)
         throw new Error(
           `${unit.name}: cooler target is above inlet temperature.`,
         );
-      outputs = [{ ...mixed, temperature: p.temperature }];
+      outputs = [{ ...mixed, temperature: target }];
+      validateStream(outputs[0]);
       result.duty = enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
+      if (
+        (unit.kind === "Heater" && result.duty < -1e-7) ||
+        (unit.kind === "Cooler" && result.duty > 1e-7)
+      )
+        throw new Error(
+          `${unit.name}: calculated duty has the wrong sign for this equipment.`,
+        );
       break;
+    }
     case "PBR": {
       if (settings.mixture !== "demo" || settings.modelId !== "ideal-gas")
         throw new Error(
           "The sample PBR reaction supports synthetic A/B with the ideal-gas model only.",
         );
-      const conversion = -Math.expm1(-rate(p.temperature) * p.residenceTime);
+      let conversion = mixed.a
+        ? -Math.expm1(-rate(p.temperature) * p.residenceTime)
+        : 0;
+      if (p.reactorMode === "catalyst-weight") {
+        const bed = integratePackedBed({
+          catalystMass: p.catalystMass,
+          rateConstant:
+            p.catalystRateConstant *
+            Math.exp(
+              (-MODEL.activationEnergy / MODEL.R) *
+                (1 / p.temperature - 1 / MODEL.tRef),
+            ),
+          totalFlow: total,
+          temperature: p.temperature,
+          pressure: mixed.pressure,
+        });
+        conversion = mixed.a ? bed.conversion : 0;
+        result.profile = mixed.a
+          ? bed.profile
+          : bed.profile.map((point) => ({ ...point, conversion: 0 }));
+      }
       const extent = mixed.a * conversion;
       outputs = [
         {
@@ -241,9 +323,29 @@ export function operate(
             b: Math.max(0, mixed.b - vaporB),
           },
         ];
-        result.duty =
+        for (const [index, output] of outputs.entries()) {
+          if (
+            flow(output) > 0 &&
+            streamProperties(output, settings).phase !==
+              (index === 0 ? "vapor" : "liquid")
+          )
+            throw new Error(
+              "The separated outlet phase is not supported at these conditions by the sample equilibrium model.",
+            );
+        }
+        const phaseEnergyResidual =
           outputs.reduce((sum, s) => sum + enthalpy(s, settings), 0) -
           enthalpy(mixed, settings);
+        if (
+          Math.abs(phaseEnergyResidual) >
+          1e-7 * Math.max(1, Math.abs(enthalpy(mixed, settings)))
+        )
+          throw new Error(
+            "The separated equilibrium phases do not close the energy balance in this sample model.",
+          );
+        // An equilibrium phase separator at inlet T/P adds no heat. Do not
+        // disguise a failed phase calculation as a condenser or reboiler duty.
+        result.duty = 0;
         break;
       }
       // One ideal equilibrium contact: y=alpha*x/(1+(alpha-1)*x), z=d*y+(1-d)*x.
@@ -251,6 +353,12 @@ export function operate(
       const z = total ? mixed.a / total : 0;
       const d = p.distillateFraction,
         alpha = p.relativeVolatility;
+      if (mixed.a === 0 || mixed.b === 0) {
+        // Pure-component endpoints are exact; numerical bisection must not
+        // manufacture a trace of an absent component.
+        outputs = [scale(mixed, d), scale(mixed, 1 - d)];
+        break;
+      }
       let low = 0,
         high = 1;
       for (let i = 0; i < 80; i++) {
@@ -269,9 +377,7 @@ export function operate(
       break;
     }
   }
-  for (const s of outputs)
-    if (!Object.values(s).every(Number.isFinite) || s.a < 0 || s.b < 0)
-      throw new Error("Nonphysical numerical result.");
+  outputs.forEach(validateStream);
   return { outputs, result };
 }
 function order(project: Project, tear?: Connection): Unit[] | null {
@@ -401,11 +507,14 @@ export function simulate(
       settings.mixture === "demo"
         ? [
             "Synthetic A/B species; equal 28 g/mol molecular weight and constant 30 J/(mol·K) heat capacity.",
-            "Isothermal first-order PBR surrogate; no catalyst transport, pressure drop or mechanical design.",
           ]
         : [...new Set(Object.values(properties).flatMap((p) => p.warnings))],
     tearId: tear?.id,
   };
+  if (project.units.some((n) => n.kind === "PBR"))
+    result.warnings.push(
+      "Isothermal first-order synthetic A → B; no catalyst transport, pressure drop, reversible kinetics or mechanical design. Catalyst-weight and residence-time modes use distinct rate-constant units.",
+    );
   if (project.units.some((n) => n.kind === "Splitter"))
     result.warnings.push(
       "A splitter recycles both A and B in equal proportions; it does not selectively recover unreacted A.",

@@ -20,13 +20,19 @@ R = 8.314462618 J/(mol K). This is not a liquid volume estimate.
 Feed: user-specified flow, composition, temperature and pressure.
 Product: terminal stream sink.
 Mixer: two physical inlets; component and enthalpy sums; minimum inlet pressure.
-Heater/Cooler: fixed outlet temperature, sensible enthalpy difference as duty;
-wrong-direction temperature targets are rejected.
-PBR: an isothermal first-order plug-flow surrogate using residence time in seconds.
+Heater/Cooler: outlet-temperature mode computes selected-model enthalpy duty;
+specified-duty mode solves temperature for ideal gas only. Wrong-direction
+targets, wrong-sign duties and unsupported calculated states are rejected.
+PBR: an isothermal first-order synthetic reaction with two available bases.
+New units integrate dFA/dW=-k(T)CA against catalyst mass, where
+  CA = FA P/(Ftotal R T), k450 = 0.01 m3/(kg-cat s) by default.
+The profile is checked against X=1-exp[-k(T)PW/(Ftotal RT)]. One or two feeds
+mix by component and enthalpy balance before reaction. Existing projects and
+the original recycle template retain residence time in seconds:
   k(T) = 0.1 exp[-40000/R (1/T - 1/450)] s^-1
   X = 1 - exp(-k tau); extent = FA,in X
-Duty includes reaction heat and sensible heating. There is no catalyst-weight
-model, pressure drop, transport resistance, changing residence time with flow,
+Duty includes reaction heat and sensible heating. There is no bed-geometry
+calculation, pressure drop, transport resistance, changing residence time with flow,
 kinetic regression, equilibrium reversal or mechanical sizing.
 Splitter: equal composition in both outlets. The secondary fraction is bounded
 0..0.95. It recycles A and B together, not selectively unreacted A.
@@ -44,7 +50,8 @@ maximum scaled change in A flow, B flow, T and P to be below 1e-9. Multiple
 independent cycles are rejected. Non-convergence is displayed honestly; values
 are the last iterate. Mass and energy residuals are independently reported.
 
-3D: schematic cylinders, pipes and direction markers derived from graph positions.
+3D: schematic source/sink arrows, manifolds, heat exchangers, packed vessels,
+tray columns and pipes derived from graph positions and material ports.
 No dimensions, collisions, pressure-vessel certification, fabrication data or
 mechanical CAD claims. A WebGL fallback preserves the 2D editor.
 

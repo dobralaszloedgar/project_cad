@@ -1,15 +1,24 @@
 "use client";
-import { Component, useState, useRef, type ReactNode } from "react";
+import {
+  Component,
+  useState,
+  useRef,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Grid, Line } from "@react-three/drei";
-import { type Project, type Unit } from "@/domain/schema";
+import { OrbitControls, Grid } from "@react-three/drei";
+import { ports, type Project, type Unit } from "@/domain/schema";
 import { Vector3, Quaternion } from "three";
 import { streamColors } from "./ProcessCanvas";
-const position = (n: Unit): [number, number, number] => [
-  n.position.x / 100,
-  0,
-  n.position.y / 100,
-];
+import {
+  plantHeight,
+  plantPort,
+  plantPosition,
+  plantStreamPath,
+  type Point3,
+} from "./flow-geometry";
+
 class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -25,73 +34,259 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
     );
   }
 }
+
+function subscribeTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+    subtree: true,
+  });
+  return () => observer.disconnect();
+}
+const isDark = () =>
+  document.querySelector(".workspace")?.getAttribute("data-theme") === "dark";
+
+function Tube({
+  from,
+  to,
+  color,
+  radius = 0.055,
+}: {
+  from: Point3;
+  to: Point3;
+  color: string;
+  radius?: number;
+}) {
+  const a = new Vector3(...from);
+  const b = new Vector3(...to);
+  const delta = b.clone().sub(a);
+  const length = delta.length();
+  if (length < 1e-9) return null;
+  const rotation = new Quaternion().setFromUnitVectors(
+    new Vector3(0, 1, 0),
+    delta.normalize(),
+  );
+  return (
+    <mesh position={a.add(b).multiplyScalar(0.5)} quaternion={rotation}>
+      <cylinderGeometry args={[radius, radius, length, 10]} />
+      <meshStandardMaterial color={color} roughness={0.6} metalness={0.2} />
+    </mesh>
+  );
+}
+
+function Ring({
+  position,
+  color,
+  horizontal = false,
+  radius = 0.32,
+}: {
+  position: Point3;
+  color: string;
+  horizontal?: boolean;
+  radius?: number;
+}) {
+  return (
+    <mesh
+      position={position}
+      rotation={horizontal ? [0, Math.PI / 2, 0] : [Math.PI / 2, 0, 0]}
+    >
+      <torusGeometry args={[radius, 0.025, 8, 24]} />
+      <meshStandardMaterial color={color} roughness={0.65} metalness={0.2} />
+    </mesh>
+  );
+}
+
 function Vessel({
   unit,
   selected,
+  dark,
   onSelect,
 }: {
   unit: Unit;
   selected: boolean;
+  dark: boolean;
   onSelect: (id: string) => void;
 }) {
-  const tall = unit.kind === "PBR" || unit.kind === "Distillation",
-    height = unit.kind === "Distillation" ? 2.4 : tall ? 1.8 : 0.85;
+  const body = selected ? "#529b83" : dark ? "#839a90" : "#c9d5ce";
+  const detail = dark ? "#b2c5bb" : "#6c8377";
+  const thermal = unit.kind === "Heater" ? "#b68a50" : "#648c9b";
+  const tall = unit.kind === "PBR" || unit.kind === "Distillation";
+  const exchanger = unit.kind === "Heater" || unit.kind === "Cooler";
+  const arrow = unit.kind === "Feed" || unit.kind === "Product";
+  const unitPorts = ports(unit.kind);
+  const origin = plantPosition(unit);
   return (
-    <group position={position(unit)}>
-      <mesh
-        position={[0, height / 2, 0]}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(unit.id);
-        }}
-      >
-        <cylinderGeometry args={[0.32, 0.32, height, 24]} />
-        <meshStandardMaterial
-          color={
-            selected
-              ? "#286f5d"
-              : unit.kind === "Heater"
-                ? "#e0ad62"
-                : "#c9d6cf"
-          }
-          roughness={0.4}
-          metalness={0.2}
-        />
-      </mesh>
-      {tall &&
-        [0.25, 0.7, 1.15, 1.6].map((y) => (
-          <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.325, 0.025, 8, 24]} />
-            <meshStandardMaterial color="#69849d" />
+    <group
+      position={origin}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect(unit.id);
+      }}
+    >
+      {arrow ? (
+        <>
+          <mesh position={[-0.2, 0.7, 0]}>
+            <boxGeometry args={[0.65, 0.2, 0.25]} />
+            <meshStandardMaterial color={body} roughness={0.65} />
           </mesh>
-        ))}
+          <mesh position={[0.3, 0.7, 0]} rotation={[0, 0, -Math.PI / 2]}>
+            <coneGeometry args={[0.29, 0.48, 4]} />
+            <meshStandardMaterial color={body} roughness={0.65} />
+          </mesh>
+          {unit.kind === "Product" && (
+            <Ring
+              position={[0.61, 0.7, 0]}
+              horizontal
+              radius={0.28}
+              color={detail}
+            />
+          )}
+        </>
+      ) : exchanger ? (
+        <>
+          <mesh position={[0, 0.7, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <capsuleGeometry args={[0.27, 0.55, 6, 20]} />
+            <meshStandardMaterial
+              color={body}
+              roughness={0.5}
+              metalness={0.25}
+            />
+          </mesh>
+          {[-0.28, 0.28].map((x) => (
+            <group key={x}>
+              <Ring
+                position={[x, 0.7, 0]}
+                horizontal
+                radius={0.275}
+                color={thermal}
+              />
+              <mesh position={[x, 0.25, 0]}>
+                <boxGeometry args={[0.1, 0.4, 0.45]} />
+                <meshStandardMaterial color={detail} roughness={0.75} />
+              </mesh>
+            </group>
+          ))}
+          <Tube
+            from={[-0.25, 0.98, 0]}
+            to={[0.25, 0.98, 0]}
+            radius={0.035}
+            color={thermal}
+          />
+        </>
+      ) : tall ? (
+        <>
+          <mesh position={[0, unit.kind === "PBR" ? 1.175 : 1.475, 0]}>
+            <capsuleGeometry
+              args={[0.32, unit.kind === "PBR" ? 1.1 : 1.7, 8, 24]}
+            />
+            <meshStandardMaterial
+              color={body}
+              roughness={0.5}
+              metalness={0.2}
+            />
+          </mesh>
+          {[-0.22, 0.22].map((x) => (
+            <Tube
+              key={x}
+              from={[x, 0.05, 0]}
+              to={[x, 0.5, 0]}
+              radius={0.045}
+              color={detail}
+            />
+          ))}
+          {(unit.kind === "PBR"
+            ? [0.62, 1.15, 1.7]
+            : [0.65, 0.98, 1.31, 1.64, 1.97, 2.3]
+          ).map((y) => (
+            <Ring key={y} position={[0, y, 0]} color={detail} />
+          ))}
+          {unit.kind === "PBR" &&
+            [0.85, 1.04, 1.39, 1.58].map((y, row) =>
+              [-0.13, 0.13].map((x) => (
+                <mesh key={`${row}-${x}`} position={[x, y, 0.295]}>
+                  <sphereGeometry args={[0.055, 8, 6]} />
+                  <meshStandardMaterial color={detail} roughness={0.8} />
+                </mesh>
+              )),
+            )}
+          {unit.kind === "Distillation" && (
+            <Tube
+              from={[0.34, 0.55, 0.1]}
+              to={[0.34, 2.35, 0.1]}
+              radius={0.025}
+              color={detail}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <mesh position={[0, 0.7, 0]}>
+            <boxGeometry args={[0.42, 0.38, 0.85]} />
+            <meshStandardMaterial
+              color={body}
+              roughness={0.65}
+              metalness={0.15}
+            />
+          </mesh>
+          <mesh position={[0, 0.3, 0]}>
+            <boxGeometry args={[0.12, 0.4, 0.45]} />
+            <meshStandardMaterial color={detail} roughness={0.75} />
+          </mesh>
+        </>
+      )}
+      {[...unitPorts.inputs, ...unitPorts.outputs].map((port) => {
+        const anchor = plantPort(unit, port as "in" | "in2" | "out" | "out2");
+        const end = anchor.point.map(
+          (value, axis) => value - origin[axis],
+        ) as Point3;
+        const start = [...end] as Point3;
+        if (anchor.direction[1])
+          start[1] += anchor.direction[1] > 0 ? -0.15 : 0.2;
+        else
+          start[0] =
+            Math.sign(end[0]) * (tall ? 0.3 : exchanger || arrow ? 0.48 : 0.2);
+        return (
+          <Tube
+            key={port}
+            from={start}
+            to={end}
+            color={detail}
+            radius={0.065}
+          />
+        );
+      })}
     </group>
   );
 }
+
 function Direction({
   from,
   to,
   color,
 }: {
-  from: [number, number, number];
-  to: [number, number, number];
+  from: Point3;
+  to: Point3;
   color: string;
 }) {
-  const a = new Vector3(...from),
-    b = new Vector3(...to),
-    direction = b.clone().sub(a).normalize();
-  const midpoint = a.clone().lerp(b, 0.7);
-  const quaternion = new Quaternion().setFromUnitVectors(
-    new Vector3(0, 1, 0),
-    direction,
-  );
+  const a = new Vector3(...from);
+  const b = new Vector3(...to);
+  const delta = b.clone().sub(a);
+  if (delta.lengthSq() < 1e-12) return null;
   return (
-    <mesh position={midpoint} quaternion={quaternion}>
-      <coneGeometry args={[0.1, 0.25, 12]} />
-      <meshStandardMaterial color={color} />
+    <mesh
+      position={a.lerp(b, 0.5)}
+      quaternion={new Quaternion().setFromUnitVectors(
+        new Vector3(0, 1, 0),
+        delta.normalize(),
+      )}
+    >
+      <coneGeometry args={[0.09, 0.15, 12]} />
+      <meshStandardMaterial color={color} roughness={0.6} />
     </mesh>
   );
 }
+
 function ProjectLabels({
   project,
   onProject,
@@ -101,22 +296,23 @@ function ProjectLabels({
 }) {
   useFrame(({ camera, size }) => {
     for (const n of project.units) {
-      const p = position(n);
+      const p = plantPosition(n);
       const projected = new Vector3(
         p[0],
-        n.kind === "Distillation" ? 2.75 : n.kind === "PBR" ? 2.15 : 1.2,
+        plantHeight(n.kind) + 0.3,
         p[2],
       ).project(camera);
       onProject(
         n.id,
         ((projected.x + 1) * size.width) / 2,
         ((-projected.y + 1) * size.height) / 2,
-        projected.z <= 1,
+        projected.z >= -1 && projected.z <= 1,
       );
     }
   });
   return null;
 }
+
 export default function Plant3D({
   project,
   selected,
@@ -129,15 +325,20 @@ export default function Plant3D({
   const labels = useRef<Record<string, HTMLButtonElement | null>>({});
   const [camera, setCamera] = useState(0);
   const [lost, setLost] = useState(false);
-  const center = project.units.length
-    ? project.units.reduce((s, n) => s + n.position.x / 100, 0) /
+  const dark = useSyncExternalStore(subscribeTheme, isDark, () => false);
+  const centerX = project.units.length
+    ? project.units.reduce((sum, unit) => sum + unit.position.x / 100, 0) /
       project.units.length
     : 4;
+  const centerZ = project.units.length
+    ? project.units.reduce((sum, unit) => sum + unit.position.y / 100, 0) /
+      project.units.length
+    : 1;
   return (
     <div className="plant-view">
       <button
         className="btn btn-sm camera-reset"
-        onClick={() => setCamera((v) => v + 1)}
+        onClick={() => setCamera((value) => value + 1)}
       >
         Reset camera
       </button>
@@ -149,7 +350,8 @@ export default function Plant3D({
         ) : (
           <Canvas
             key={camera}
-            camera={{ position: [center + 3, 9, 11], fov: 45 }}
+            frameloop="demand"
+            camera={{ position: [centerX + 3, 9, centerZ + 10], fov: 45 }}
             fallback={
               <div className="empty-state">
                 WebGL unavailable. Use the 2D flowsheet.
@@ -158,15 +360,15 @@ export default function Plant3D({
             onCreated={({ gl }) =>
               gl.domElement.addEventListener(
                 "webglcontextlost",
-                (e) => {
-                  e.preventDefault();
+                (event) => {
+                  event.preventDefault();
                   setLost(true);
                 },
                 { once: true },
               )
             }
           >
-            <color attach="background" args={["#f5f7f5"]} />
+            <color attach="background" args={[dark ? "#18231e" : "#f5f7f5"]} />
             <ambientLight intensity={1.6} />
             <directionalLight position={[4, 10, 5]} intensity={2} />
             <Grid
@@ -174,45 +376,49 @@ export default function Plant3D({
               cellSize={1}
               sectionSize={5}
               fadeDistance={30}
-              cellColor="#d9e1db"
-              sectionColor="#becac2"
+              cellColor={dark ? "#2d3d34" : "#d9e1db"}
+              sectionColor={dark ? "#3d5145" : "#becac2"}
             />
-            {project.units.map((n) => (
+            {project.units.map((unit) => (
               <Vessel
-                key={n.id}
-                unit={n}
-                selected={selected === n.id}
+                key={unit.id}
+                unit={unit}
+                selected={selected === unit.id}
+                dark={dark}
                 onSelect={onSelect}
               />
             ))}
-            {project.edges.map((e) => {
-              const source = project.units.find((n) => n.id === e.source),
-                target = project.units.find((n) => n.id === e.target);
+            {project.edges.map((edge) => {
+              const source = project.units.find(
+                (unit) => unit.id === edge.source,
+              );
+              const target = project.units.find(
+                (unit) => unit.id === edge.target,
+              );
               if (!source || !target) return null;
-              const a = position(source),
-                b = position(target);
-              a[1] = 0.45;
-              b[1] = 0.45;
-              const points: [number, number, number][] =
-                e.targetPort === "in2"
-                  ? [a, [a[0], 0.45, a[2] + 2], [b[0], 0.45, a[2] + 2], b]
-                  : [
-                      a,
-                      [(a[0] + b[0]) / 2, 0.45, a[2]],
-                      [(a[0] + b[0]) / 2, 0.45, b[2]],
-                      b,
-                    ];
+              const points = plantStreamPath(source, target, edge);
+              const color = streamColors[edge.color];
               return (
-                <group key={e.id}>
-                  <Line
-                    points={points}
-                    color={streamColors[e.color]}
-                    lineWidth={3}
-                  />
+                <group key={edge.id}>
+                  {points.slice(1).map((point, index) => (
+                    <Tube
+                      key={index}
+                      from={points[index]}
+                      to={point}
+                      color={color}
+                      radius={0.035}
+                    />
+                  ))}
+                  {points.slice(1, -1).map((point, index) => (
+                    <mesh key={`joint-${index}`} position={point}>
+                      <sphereGeometry args={[0.035, 8, 6]} />
+                      <meshStandardMaterial color={color} roughness={0.6} />
+                    </mesh>
+                  ))}
                   <Direction
                     from={points[points.length - 2]}
-                    to={b}
-                    color={streamColors[e.color]}
+                    to={points[points.length - 1]}
+                    color={color}
                   />
                 </group>
               );
@@ -220,39 +426,39 @@ export default function Plant3D({
             <ProjectLabels
               project={project}
               onProject={(id, x, y, visible) => {
-                const el = labels.current[id];
-                if (el) {
-                  el.style.transform = `translate(-50%,-100%) translate(${x}px,${y}px)`;
-                  el.style.visibility = visible ? "visible" : "hidden";
+                const element = labels.current[id];
+                if (element) {
+                  element.style.transform = `translate(-50%,-100%) translate(${x}px,${y}px)`;
+                  element.style.visibility = visible ? "visible" : "hidden";
                 }
               }}
             />
             <OrbitControls
               makeDefault
-              target={[center, 0.5, 1]}
+              target={[centerX, 0.7, centerZ]}
               minDistance={3}
-              maxDistance={30}
+              maxDistance={50}
             />
           </Canvas>
         )}
       </Boundary>
       <div className="plant-labels">
-        {project.units.map((n) => (
+        {project.units.map((unit) => (
           <button
-            key={n.id}
-            ref={(el) => {
-              labels.current[n.id] = el;
+            key={unit.id}
+            ref={(element) => {
+              labels.current[unit.id] = element;
             }}
-            className={`plant-label ${selected === n.id ? "active" : ""}`}
-            onClick={() => onSelect(n.id)}
+            className={`plant-label ${selected === unit.id ? "active" : ""}`}
+            onClick={() => onSelect(unit.id)}
           >
-            {n.id}
-            <small>{n.name}</small>
+            {unit.id}
+            <small>{unit.name}</small>
           </button>
         ))}
       </div>
       <div className="canvas-footnote">
-        Illustrative geometry · orbit to explore · select a vessel to edit
+        Illustrative geometry · orbit to explore · select equipment to edit
       </div>
     </div>
   );

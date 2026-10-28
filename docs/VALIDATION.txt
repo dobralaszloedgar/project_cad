@@ -1,4 +1,32 @@
-LOCAL VALIDATION — 2026-10-27
+LOCAL VALIDATION — 2026-10-28
+
+Equipment extension (Windows, Node 24.19.0, npm 11.17.0, Chromium):
+PASS: npm test — 80 tests across 9 files.
+PASS: npm run typecheck; npm run lint; npm run format:check.
+PASS: npm run build — optimized workspace and API routes.
+PASS: PLAYWRIGHT_PORT=3118 npx playwright test — all 18 browser workflows.
+PASS: git diff --check and app/test/documentation project-name scan.
+
+New coverage includes catalyst-weight RK4 against analytical conversion,
+tiny conversion accuracy, two reactor feeds, duty/temperature specification,
+selected-model range rejection, zero-flow behavior, exactly absent species,
+mass/energy closure, optional ports and saved-project compatibility. The API
+and browser use the same deterministic equipment evaluator. Geometry tests
+check all valid material-port pairs and orthogonal 3D stream segments.
+
+Visually inspected the catalyst setup, results/profile and 3D piping captures.
+Adjusted the chart to fit beside numerical results in the desktop inspector.
+Local captures: test-results/equipment-catalyst.png and equipment-3d.png.
+The existing full browser suite also covers persistence, editing, themes,
+responsive layouts, revisions, drag/drop and unavailable-WebGL behavior.
+
+The Rust thermodynamic kernel and chemical dataset are unchanged in this
+extension. Specified-duty operation is restricted to ideal gas; liquid-model
+enthalpy inversion retains its documented sample-model bounds. Numerical
+agreement does not establish real catalyst kinetics, mechanical sizing or
+industrial column accuracy. Live Meta inference is not part of this validation.
+
+EARLIER VALIDATION — 2026-10-27
 
 Thermodynamics extension (Windows, Node 24.19.0, Chromium, Rust 1.90 via Docker):
 PASS: npm run thermo:build — formatting, 2 native Rust tests and wasm build.

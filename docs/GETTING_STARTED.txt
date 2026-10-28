@@ -15,6 +15,12 @@ Checks:
   npm run test:e2e
 
 The default example is a real deterministic calculation, not an AI response.
+The template menu includes Heating and cooling, Mixing and splitting, and
+Catalyst-weight reactor. The catalyst example connects two feeds to the PBR;
+after Simulate, open its properties to see conversion versus catalyst mass.
+Heater/Cooler setup selects either outlet temperature or ideal-gas heat duty.
+See EQUIPMENT.txt for equations, units and supported limits.
+
 Choose Simulate to open results. Double-click equipment, or select it and choose
 Edit, to open Properties. Applying conditions reruns the current graph. Results
 opens from the floating canvas toolbar; the header history button opens revisions.

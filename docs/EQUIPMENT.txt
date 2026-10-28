@@ -1,0 +1,105 @@
+EQUIPMENT MODELS
+
+Eight operations are available: Feed, Product, Mixer, Splitter, Heater, Cooler,
+Packed-bed reactor and simplified Distillation. All calculations are steady
+state. Molar flows are mol/s, temperatures K, pressures Pa and heat duties W.
+The 2D symbols and 3D shapes are schematic, not mechanical dimensions.
+
+Feed and Product
+Feed sets total molar flow F, fraction zA, temperature and pressure:
+  FA = F zA; FB = F (1-zA).
+Product is a terminal material sink and reports its incoming stream unchanged.
+One connection per port prevents accidental duplication of material.
+
+Mixing and splitting
+Mixer accepts a primary inlet and an optional second physical inlet:
+  Fi,out = sum(Fi,in); Hout = sum(Hin).
+With ideal gas and constant component heat capacities, the outlet temperature
+is solved from this enthalpy balance, including formation enthalpies. It is
+not generally the arithmetic average of inlet temperatures. For liquid models,
+the existing sample enthalpy method is inverted within the inlet temperature
+bracket; unavailable, indeterminate or unbracketed solutions are rejected.
+Pressure is the minimum pressure of the flowing inlets. An empty recycle guess
+does not set the pressure of a real feed. No pump, pressure recovery or shaft
+work is modeled.
+
+Splitter uses a secondary fraction f from 0 to 0.95:
+  Fi,out = (1-f) Fi,in; Fi,out2 = f Fi,in.
+Both outputs retain the inlet composition, temperature and pressure. Q=0.
+The upper bound leaves a primary outlet in the one-loop recycle examples.
+This is a proportional split, not selective recovery of unreacted A.
+
+Heating and cooling
+Choose one active specification: outlet temperature or heat duty. The inactive
+field is retained for switching modes but is not used in the calculation.
+  Q = Hout - Hin.
+For specified duty with the ideal-gas method:
+  Tout = Tin + Q / sum(Fi Cp,i).
+Heater duty is nonnegative and Cooler duty is nonpositive. Opposite-direction
+temperature targets, invalid calculated temperatures, and nonzero duty on an
+empty stream are rejected. Zero duty on an empty stream leaves its temperature.
+Specified-duty mode currently supports ideal gas only. Temperature mode uses
+the selected enthalpy method, including its documented phase approximations.
+There is no area sizing, heat-transfer coefficient, utility circuit or pressure
+drop. Supported calculated temperatures remain inside 250-800 K.
+
+Packed-bed reactor
+This is a deliberately small synthetic A -> B reaction, with equal molecular
+weights of 0.028 kg/mol, Cp=30 J/(mol K), and formation enthalpies 0 and -20000
+J/mol at 298.15 K. It supports only the ideal-gas synthetic A/B mixture. Real
+sample chemicals are not assigned invented reaction kinetics. One or two
+physical feeds are mixed by component and enthalpy balance before reaction.
+
+New reactors use a catalyst-mass basis, W in kg of catalyst:
+  dFA/dW = -k(T) CA; dFB/dW = k(T) CA
+  CA = FA P / (Ftotal R T)
+  k(T) = k450 exp[-40000/R (1/T - 1/450)].
+Here k450 defaults to 0.01 m3/(kg-cat s), with an editable synthetic value.
+Temperature and pressure are constant along the bed; equal molar stoichiometry
+keeps Ftotal constant. A bounded fourth-order Runge-Kutta integration solves
+conversion in coordinate u=kPW/(Ftotal RT), producing a 41-point
+conversion-versus-catalyst-mass profile. The independent analytical benchmark is
+  X = 1-exp[-k(T)PW/(Ftotal RT)].
+Increasing flow reduces conversion at fixed catalyst mass in this model.
+Zero catalyst gives zero conversion; an inlet without A has zero conversion
+and reaction extent. Material and energy accounting includes both inlets.
+
+Existing projects retain the residence-time basis unless explicitly changed:
+  k(T) = 0.1 exp[-40000/R (1/T - 1/450)] s^-1
+  X = 1-exp[-k(T) tau].
+The original recycle template retains this basis for reproducible saved results.
+For either basis, extent=FA,in X and Q=Hout-Hin includes sensible and reaction
+enthalpy. No pressure drop, transport resistance, catalyst deactivation,
+equilibrium reversal, fitted real kinetics or mechanical bed sizing is claimed.
+
+Simplified separation
+With ideal gas, Distillation represents one binary equilibrium contact:
+  yA = alpha*xA / (1+(alpha-1)*xA)
+  zA = d*yA + (1-d)*xA.
+The fixed top fraction d and relative volatility alpha determine the two
+component-balanced outlet streams through a bounded scalar solve. This contact
+uses the same sensible enthalpy basis at the inlet T/P; its zero modeled duty
+is not a prediction of real condenser or reboiler energy.
+
+With either liquid model, the unit separates the equilibrium vapor and liquid
+at the inlet T/P using the selected model's flash. Component and phase energy
+closure are checked. Unsupported phase endpoints or ambiguous saturation are
+rejected instead of inventing a phase amount or heat duty. There are no stages,
+reflux, column hydraulics, reboiler/condenser design or azeotrope-breaking claims.
+
+Examples and verification
+Templates cover heating/cooling, two-feed mixing/splitting, a two-feed catalyst
+reactor, the legacy reactor recycle and both simplified separation methods.
+tests/equipment-physics.test.ts checks independent analytical and edge cases;
+tests/equipment-flowsheets.test.ts checks connected balances and compatibility;
+tests/equipment-setup.test.ts checks validated actions and ports;
+tests/e2e/equipment.spec.ts checks editing, persistence, profile and server API.
+
+Public equation references
+University of Michigan, packed-bed mole balance and reactor design:
+https://kinetics.engin.umich.edu/asyLearn/bits/pbr/index.htm
+LearnChemE, steady-state energy balances with reaction:
+https://learncheme.com/quiz-yourself/interactive-self-study-modules/energy-balances-with-reaction/energy-balances-with-reaction-screencasts/
+Property sources and thermodynamic limitations remain in SOURCES.txt and
+THERMODYNAMICS.txt. Agreement with analytical cases is numerical verification,
+not experimental validation of the synthetic kinetic constants.

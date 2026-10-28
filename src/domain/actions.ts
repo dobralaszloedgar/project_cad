@@ -16,6 +16,13 @@ const updateParamsSchema = z
     flow: paramsSchema.shape.flow.removeDefault().optional(),
     fractionA: paramsSchema.shape.fractionA.removeDefault().optional(),
     residenceTime: paramsSchema.shape.residenceTime.removeDefault().optional(),
+    reactorMode: paramsSchema.shape.reactorMode.removeDefault().optional(),
+    catalystMass: paramsSchema.shape.catalystMass.removeDefault().optional(),
+    catalystRateConstant: paramsSchema.shape.catalystRateConstant
+      .removeDefault()
+      .optional(),
+    thermalMode: paramsSchema.shape.thermalMode.removeDefault().optional(),
+    heatDuty: paramsSchema.shape.heatDuty.removeDefault().optional(),
     recycleFraction: paramsSchema.shape.recycleFraction
       .removeDefault()
       .optional(),

@@ -6,6 +6,8 @@ Project CAD is a local process-flowsheet demonstration with 2D/3D views and a Ru
 
 Three thermodynamic models are available: ideal gas, ideal solution (Raoult’s law), and Modified UNIFAC 2.0. A six-record sample catalog is included; the full chemical database is future work.
 
+Eight equipment types have simple setup controls and distinct 2D/3D schematics. Packed-bed reactors support a synthetic catalyst-mass model with a calculated conversion profile, plus the legacy residence-time model. Heaters and coolers accept an outlet temperature or, for ideal gas, a specified duty. The new templates exercise two-feed mixing, heating/cooling and catalyst-bed balances. Equations and limits are in [docs/EQUIPMENT.txt](docs/EQUIPMENT.txt).
+
 ## Getting started
 
 ```bash
