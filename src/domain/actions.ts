@@ -24,6 +24,12 @@ const updateParamsSchema = z
     distillateFraction: paramsSchema.shape.distillateFraction
       .removeDefault()
       .optional(),
+    trayCount: paramsSchema.shape.trayCount
+      .removeDefault()
+      .optional()
+      .describe(
+        "Visible 3D column trays only; does not change the single equilibrium contact calculation.",
+      ),
   })
   .strict();
 export const actionSchema = z.discriminatedUnion("type", [

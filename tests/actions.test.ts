@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { applyActions, planSchema } from "../src/domain/actions";
-import { reactorExample } from "../src/domain/examples";
+import { distillationExample, reactorExample } from "../src/domain/examples";
 import { checkpoint, restore, diff } from "../src/lib/revisions";
 import { parseImport } from "../src/lib/storage";
 describe("actions and local revisions", () => {
@@ -63,4 +63,68 @@ it("a partial AI update preserves existing non-default operating conditions", ()
   expect(updated.units[3].params.temperature).toBe(500);
   expect(updated.units[3].params.residenceTime).toBe(42);
   expect(updated.units[3].params.pressure).toBe(200000);
+});
+
+it("tray-only actions preserve operating conditions and later operating edits preserve the tray count", () => {
+  const project = distillationExample();
+  const column = project.units[1];
+  column.params.relativeVolatility = 6;
+  column.params.distillateFraction = 0.3;
+  column.params.pressure = 200000;
+  for (const trayCount of [2, 80]) {
+    const resized = applyActions(project, {
+      summary: "Resize the visible column",
+      actions: [{ type: "update", id: column.id, params: { trayCount } }],
+    });
+    expect(resized.units[1].params).toEqual({
+      ...column.params,
+      trayCount,
+    });
+    const edited = applyActions(resized, {
+      summary: "Change the ideal separation setting",
+      actions: [
+        { type: "update", id: column.id, params: { relativeVolatility: 7 } },
+      ],
+    });
+    expect(edited.units[1].params.trayCount).toBe(trayCount);
+    expect(resized.units[1].params.relativeVolatility).toBe(6);
+  }
+  expect(column.params.trayCount).toBe(8);
+});
+
+it.each([1, 81, 2.5])(
+  "rejects invalid tray count %s atomically",
+  (trayCount) => {
+    const project = distillationExample();
+    const before = structuredClone(project);
+    expect(() =>
+      applyActions(project, {
+        summary: "Invalid visual edit",
+        actions: [
+          { type: "update", id: "D-201", params: { relativeVolatility: 7 } },
+          { type: "update", id: "D-201", params: { trayCount } },
+        ],
+      }),
+    ).toThrow();
+    expect(project).toEqual(before);
+  },
+);
+
+it("keeps old project and action payloads compatible without injecting update defaults", () => {
+  const legacy = JSON.parse(JSON.stringify(distillationExample()));
+  for (const unit of legacy.units) delete unit.params.trayCount;
+  const plan = planSchema.parse({
+    summary: "An older operating update",
+    actions: [
+      { type: "update", id: "D-201", params: { relativeVolatility: 5 } },
+    ],
+  });
+  expect(plan.actions[0]).toEqual({
+    type: "update",
+    id: "D-201",
+    params: { relativeVolatility: 5 },
+  });
+  const updated = applyActions(legacy, plan);
+  expect(updated.units[1].params.trayCount).toBe(8);
+  expect(updated.units[1].params.relativeVolatility).toBe(5);
 });

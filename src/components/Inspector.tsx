@@ -84,11 +84,18 @@ function UnitEditor({
   if (unit.kind === "Distillation")
     fields.push(
       {
+        key: "trayCount",
+        label: "Visible trays (3D)",
+        min: 2,
+        max: 80,
+        step: "1",
+      },
+      {
         key: "relativeVolatility",
         label: "Relative volatility A/B",
         min: 1.01,
         max: 20,
-        step: "0.1",
+        step: "0.01",
       },
       {
         key: "distillateFraction",
@@ -149,6 +156,12 @@ function UnitEditor({
               />
             </label>
           ))}
+          {unit.kind === "Distillation" ? (
+            <p className="muted">
+              Visible trays resize the 3D column; the ideal equilibrium
+              calculation is unchanged.
+            </p>
+          ) : null}
           <button className="btn btn-primary wide" type="submit">
             Apply conditions
           </button>

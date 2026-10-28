@@ -37,6 +37,7 @@ import { useFloatingDrag } from "./useFloatingDrag";
 import Dialog from "./Dialog";
 import EquipmentLibrary from "./EquipmentLibrary";
 import Templates from "./Templates";
+import { plantTemplate } from "@/domain/plant-templates";
 import ProjectsPage from "./ProjectsPage";
 import {
   type Project,
@@ -237,12 +238,12 @@ export default function Workspace() {
           ? reactorExample()
           : name === "distillation"
             ? distillationExample()
-            : {
+            : (plantTemplate(name) ?? {
                 version: 1 as const,
                 name: "Untitled process",
                 units: [],
                 edges: [],
-              };
+              });
     if (showProjects) {
       void createProject(next);
       return;
@@ -781,6 +782,7 @@ export default function Workspace() {
             ) : null}
             {view !== "2D" ? (
               <Plant3D
+                dark={theme === "dark"}
                 project={project}
                 selected={selected}
                 onSelect={inspect}

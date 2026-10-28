@@ -233,7 +233,9 @@ Grid/list changes composition without replacing the saved graph with decoration.
 
 Canvas: equipment labels remain outside the symbol silhouette. Selected nodes use a
 dashed accent border. 2D/3D/Split controls share the floating toolbar treatment.
-The schematic 3D view derives from graph positions; it is not fabrication geometry.
+The detailed 3D view derives a compact arrangement from saved equipment and streams,
+preserving saved 2D positions. Transparent shells are on by default. The models are
+illustrative, not fabrication geometry.
 Rainbow dash motion is 1.4s linear and does not encode calculated speed/composition.
 Reduced-motion preferences disable animation and transitions.
 
