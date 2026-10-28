@@ -1,0 +1,259 @@
+---
+name: Project CAD
+description: Calm local process canvas and lightweight Projects library.
+colors:
+  primary: "#286e5c"
+  primary-content: "#fff"
+  surface: "#fff"
+  canvas: "#fafbf9"
+  library-ground: "#f5f7f6"
+  ink: "#263730"
+  muted: "#66736c"
+  subtle: "#87918c"
+  border: "#dce1dd"
+  hover: "#f0f3f1"
+  active: "#e3eeea"
+  symbol-fill: "#fff"
+  symbol-stroke: "#7f8b85"
+  canvas-dot: "#bfcac4"
+  destructive: "#a7463e"
+  provider-ground: "#f2f3f3"
+  dark-surface: "#000"
+  dark-canvas: "#000"
+  dark-ink: "#e8e8e8"
+  dark-muted: "#a5a5a5"
+  dark-subtle: "#858585"
+  dark-border: "#393939"
+  dark-hover: "#212121"
+  dark-active: "#2e2e2e"
+  dark-primary: "#c4cbd4"
+  dark-primary-content: "#000"
+  dark-symbol-fill: "#000"
+  dark-symbol-stroke: "#c4cbd4"
+  dark-assistant: "#212121"
+  dark-library-ground: "#101010"
+typography:
+  headline:
+    fontFamily: "Figtree Variable, sans-serif"
+    fontSize: "20px"
+    fontWeight: 550
+    letterSpacing: "-0.45px"
+  title:
+    fontFamily: "Figtree Variable, sans-serif"
+    fontSize: "16px"
+    fontWeight: 600
+    letterSpacing: "-0.3px"
+  body:
+    fontFamily: "Figtree Variable, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.5
+  label:
+    fontFamily: "Figtree Variable, sans-serif"
+    fontSize: "12px"
+    fontWeight: 500
+  meta:
+    fontFamily: "Figtree Variable, sans-serif"
+    fontSize: "11px"
+rounded:
+  control-inner: "4px"
+  icon: "5px"
+  field: "6px"
+  provider: "7px"
+  toolbar: "8px"
+  preview: "9px"
+  dialog: "12px"
+  project-card: "15px"
+  projects-content: "18px"
+  assistant: "20px"
+  navigation: "22px"
+  search: "24px"
+spacing:
+  4: "4px"
+  8: "8px"
+  10: "10px"
+  12: "12px"
+  16: "16px"
+  20: "20px"
+  24: "24px"
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.primary-content}"
+    typography: "{typography.label}"
+    rounded: "{rounded.field}"
+    padding: "0 12px"
+    height: "34px"
+  button-secondary:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.field}"
+    padding: "0 12px"
+    height: "34px"
+  button-destructive:
+    backgroundColor: "{colors.destructive}"
+    textColor: "{colors.primary-content}"
+    typography: "{typography.label}"
+    rounded: "{rounded.field}"
+    padding: "0 12px"
+    height: "34px"
+  input-field:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.field}"
+    padding: "0 12px"
+    height: "35px"
+  project-search:
+    backgroundColor: "{colors.library-ground}"
+    textColor: "{colors.muted}"
+    rounded: "{rounded.search}"
+    padding: "0 16px"
+    height: "40px"
+  project-navigation:
+    textColor: "{colors.muted}"
+    rounded: "{rounded.navigation}"
+    padding: "0 14px"
+    height: "38px"
+  project-navigation-active:
+    backgroundColor: "{colors.active}"
+    textColor: "{colors.primary}"
+    rounded: "{rounded.navigation}"
+    padding: "0 14px"
+    height: "38px"
+  provider-chip:
+    backgroundColor: "{colors.provider-ground}"
+    textColor: "{colors.muted}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.provider}"
+    padding: "0 8px"
+    height: "26px"
+  project-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.project-card}"
+    width: "220px"
+  view-switch:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.toolbar}"
+    padding: "4px"
+  equipment-node:
+    textColor: "{colors.symbol-stroke}"
+    rounded: "{rounded.control-inner}"
+    width: "128px"
+    height: "128px"
+---
+
+Design System: Project CAD
+
+Overview
+
+Creative North Star: Calm local process canvas and lightweight Projects library.
+
+The working surface stays quiet around readable process geometry. Compact controls,
+restrained green accents, pale dotted ground and white surfaces give the graph the
+most space. Projects provides a small local library with recognizable graph previews.
+Dark mode uses a black canvas and surfaces, gray controls and a charcoal assistant.
+
+Key characteristics: self-hosted Figtree Variable; compact typography; thin process
+symbols; lightly lifted floating controls; a movable, minimizable optional assistant.
+This document records the implemented system. Token values above are normative;
+source files remain authoritative for behavior. The companion JSON holds extensions
+and static component samples, without adding unimplemented tonal scales.
+
+Colors
+
+Primary: muted deep green identifies primary actions, active controls and selection.
+Neutral: soft off-white canvas, white surfaces, green-gray ink, subdued text and fine
+borders. Equipment uses its own muted stroke and surface fill. The destructive color
+belongs to destructive actions. Rainbow streams are an optional illustration.
+Dark mode substitutes the dark tokens; the assistant and library backgrounds retain
+separate tonal layers. See globals.css for the variable mapping and state selectors.
+
+Typography
+
+Figtree Variable is loaded locally through the bundled font package. The workspace
+body establishes the body token. The headline token describes the Projects heading;
+title describes ordinary section headings; label describes buttons and unit tags;
+meta describes dates, counts and provider labels. The brand is 23px, weight 550,
+letter spacing -0.8px in the workspace; Projects uses 22px. Dialog titles use 17px.
+There is no separate decorative display or monospace family.
+
+Layout
+
+The workspace occupies 100dvh with a fixed 64px header and a flexible canvas. The
+optional equipment drawer starts at 260px. Floating Equipment/Results controls and
+rainbow, 2D/3D/Split, Edit and Arrange controls sit within the canvas. Saved status is
+subtle. The graph remains pannable; canvas dots use a 24px gap and size 1.
+
+Projects has a 56px header, 186px navigation column and rounded scrolling content.
+The desktop grid repeats 220px cards with a 14px gap; previews are 200 by 132px with
+a 12px dotted ground. Search, sorting and grid/list controls precede the cards.
+Recent orders by updatedAt descending and keeps Last modified selected.
+
+At 1280px and 1080px, workspace controls tighten and the drawer becomes 240px then
+220px. At 900px, Projects reduces navigation and list widths. At 760px, the workspace
+header is 56px, the drawer overlays at 245px, controls wrap and Split stacks vertically.
+Opening a project or assistant on mobile collapses the equipment drawer. The graph
+keeps readable scale and panning rather than shrinking the entire graph to fit.
+At 600px, Projects navigation becomes a row; cards use minmax(150px, 1fr), producing
+two columns when available width allows, while search occupies a full row.
+
+Elevation & Depth
+
+Borders and surface tones separate most content. Floating tool groups use a small
+shadow; the assistant and dialogs receive broader shadows. Project cards stay flat
+and change border color on hover. Exact shadow values are in the companion sidecar.
+No additional elevation levels are prescribed.
+
+Shapes
+
+Small rounded controls sit inside more generously rounded containers. Fields use
+the field radius; toolbar interiors use the control-inner radius. Equipment keeps
+its supplied SVG silhouette and a 128px coordinate system. Nodes have transparent
+backgrounds, with a dashed accent boundary when selected. Ports and routing come
+from the same geometry helpers in the canvas and project previews.
+
+Components
+
+Buttons: compact primary, neutral and destructive variants share height, padding
+and label typography. Primary hover darkens the current primary with color-mix;
+neutral hover uses the hover surface. Disabled buttons use reduced opacity (0.45).
+The general keyboard focus treatment is a 2px accent outline with a 3px offset.
+
+Fields: bordered inputs and selects share the field token. Projects search is a
+pill-shaped surface. Search and Sort visibly outline their wrappers on focus-within;
+Sort dims while disabled. Navigation is a pill-shaped row; active rows use active
+surface and primary text. The provider chip is a small quiet status label.
+
+Cards: previews render saved equipment and streams, including their actual ports,
+through shared geometry. The current card has a distinct border; hover uses accent.
+Grid/list changes composition without replacing the saved graph with decoration.
+
+Canvas: equipment labels remain outside the symbol silhouette. Selected nodes use a
+dashed accent border. 2D/3D/Split controls share the floating toolbar treatment.
+The schematic 3D view derives from graph positions; it is not fabrication geometry.
+Rainbow dash motion is 1.4s linear and does not encode calculated speed/composition.
+Reduced-motion preferences disable animation and transitions.
+
+Assistant: the 44px corner bubble has a 14px radius and docks within visible canvas
+corners. The desktop window is at most 840px wide and 720px tall, with 20px corners.
+Its header is the drag handle; it can be minimized. Mobile uses inset margins and a
+16px radius. The dark assistant uses its charcoal token. Meta is optional; unavailable
+inference remains explicitly unavailable, and deterministic examples stay labeled.
+
+Do's and Don'ts
+
+Do keep the local graph and its labels readable while retaining panning on mobile.
+Do reuse the shared equipment SVG, port and routing geometry for canvas and previews.
+Do keep keyboard focus visible on Search and Sort as well as ordinary controls.
+Do respect reduced-motion preferences for rainbow flow and other transitions.
+Don't present illustrative rainbow motion or schematic 3D as calculated physics.
+Don't introduce accounts, cloud sync, teams, billing, folders or trash into this local UI.
+Don't replace original Project CAD branding or the optional Meta-only assistant contract.
+
+Evidence: src/app/globals.css; src/app/layout.tsx;
+src/components/Workspace.tsx, ProjectsPage.tsx, ProcessCanvas.tsx, EquipmentIcon.tsx,
+equipment-symbols.ts, flow-geometry.ts and useFloatingDrag.ts;
+docs/MODEL_CARD.txt and docs/DEMO_LIMITATIONS.txt.

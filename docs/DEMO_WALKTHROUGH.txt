@@ -1,0 +1,40 @@
+REPRODUCIBLE DEMO
+
+1. Run npm run dev and open http://127.0.0.1:3000.
+2. The heated reactor template loads without AI. Choose Simulate. At 450 K,
+   residence time 10 s and secondary outlet fraction 0.5, overall A conversion
+   is approximately 77.46%. Single-pass conversion is approximately 63.21%.
+   Review actual iteration count and balance residuals in Results.
+3. Close Results, then select 3D. Select the reactor or splitter label to inspect it.
+   Orbit the scene and use Reset camera. Split shows the same graph in both views.
+4. In 2D, double-click the reactor, set temperature to 500 K and Apply conditions.
+   Close Properties. Results update from a new deterministic solve. Use the header
+   history button and choose Initial example to compare conversion, net duty,
+   equipment changes and stream changes.
+5. Restore Initial example. Run again; conversion returns to about 77.46%.
+   The later hotter revision remains available in history.
+6. Use the project menu (...) to export JSON. Choose Templates in the same menu,
+   then Blank flowsheet. Import the JSON from the project menu to recover the graph
+   and revisions. Wait for Saved on this device, then refresh to verify persistence.
+7. Choose Home to open Projects, then New > Ideal separation. This creates a
+   separate project. Simulate and open Model limits. Inspect distillate and
+   bottoms compositions. Explain that this is a single ideal contact, not a
+   multistage distillation design or a real energy estimate.
+8. Return Home. Rename or duplicate a project from its card menu, star it, search
+   its name, and try list view. Reopen the reactor project to find its own history.
+9. Drag the chat bubble and release it near a corner. It docks inside the canvas.
+   Open it, drag the assistant header, then minimize it. Toggle rainbow flow and
+   switch between 2D, 3D, and Split using the visible canvas controls.
+
+With configured Meta credentials:
+Choose Blank flowsheet from the project menu's Templates, then open the green chat
+button. Enter:
+  Build a process to convert A to B using a heated packed-bed reactor and
+  recycle unreacted feed.
+Generate actions; inspect the proposal and its stated model limitations. Apply
+reviewed actions; the deterministic solver evaluates the resulting graph. No
+specific model response or success is guaranteed. If a proposed graph is invalid
+or incomplete, the app shows validation errors instead of a fabricated success.
+
+Meta tooling usefulness is not proven by the offline example. Record a real
+configured run before describing the prompt-to-process path as live-verified.

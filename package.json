@@ -1,0 +1,44 @@
+{
+  "name": "project-cad",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"*.{ts,mjs,json}\""
+  },
+  "dependencies": {
+    "@fontsource-variable/figtree": "5.3.0",
+    "@react-three/drei": "10.7.9",
+    "@react-three/fiber": "9.8.2",
+    "@xyflow/react": "12.12.0",
+    "idb": "8.0.4",
+    "lucide-react": "1.62.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "0.186.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.186.0",
+    "daisyui": "5.7.50",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.3",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  },
+  "type": "module"
+}

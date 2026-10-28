@@ -1,0 +1,64 @@
+PROJECT CAD — LOCAL ENGINEERING WORKSPACE
+
+Requirements: Node.js >= 20.9; npm. Built and checked with Node 26.9.0.
+Install: npm ci
+Develop: npm run dev
+Open: http://127.0.0.1:3000
+Production: npm run build && npm start
+
+Checks:
+  npm run typecheck
+  npm run lint
+  npm run format:check
+  npm test
+  npx playwright install chromium
+  npm run test:e2e
+
+The default example is a real deterministic calculation, not an AI response.
+Choose Simulate to open results. Double-click equipment, or select it and choose
+Edit, to open Properties. Applying conditions reruns the current graph. Results
+opens from the floating canvas toolbar; the header history button opens revisions.
+Use the visible 2D / 3D / Split control to change views. The rainbow button toggles
+animated stream colors; reduced-motion settings stop the animation.
+
+Choose the brand or Home button to open Projects. New creates a separate project
+from simple heating, reactor with recycle, ideal separation, or a blank flowsheet.
+Each project keeps its own graph and revision history. Search, sort, star, rename,
+duplicate, and switch between grid/list views in the project library. Project menu
+(...) > Templates replaces the flowsheet in the current project, keeping history.
+The same menu holds JSON import/export and Preferences. Storage stays in this
+browser on this device. Export JSON for a portable copy of a project and its history.
+
+The green chat button opens the optional Meta assistant. Drag the button to dock
+at the nearest canvas corner; it stays within the visible canvas on resize. Drag
+the assistant header to move its window. The minus button minimizes it. A focused
+bubble also moves between corners with Shift + arrow keys. The equipment drawer
+can be collapsed; the mobile canvas supports panning and zooming.
+
+Optional Meta inference (trusted local server only):
+1. Copy .env.example to .env.local.
+2. Set MODEL_API_KEY locally; never add it to browser storage or Git.
+3. Set META_AI_ENABLED=true. Leave META_MODEL=muse-spark-1.3.
+4. Restart the server. Review each proposal before Apply reviewed actions.
+No credentials were available for live-inference verification during this build.
+There are no accounts and no alternate inference provider.
+
+Architecture:
+  React workspace -> validated graph -> deterministic domain solver -> results
+  React Flow and React Three Fiber both derive from the same graph.
+  Meta server gateway -> typed proposal -> user review -> atomic action reducer
+  IndexedDB stores separate projects and revision snapshots; JSON exports include
+  the current project's graph and history. Existing single-project saves upgrade
+  automatically when the Projects library is introduced.
+
+Source modules:
+  src/domain/schema.ts: bounded units, ports and graph contracts
+  src/domain/solver.ts: equipment balances, ideal models and one-loop iteration
+  src/domain/actions.ts: validated declarative operations, no executable tools
+  src/lib/: local storage, import/export and non-destructive restoration
+  src/server/meta.ts and src/app/api/ai/route.ts: server-only Meta gateway
+  src/components/: editor, inspector, results, revisions and derived 3D geometry
+
+Documents are plain text. The pre-existing tracked README is intentionally
+unchanged. Markdown, agent tooling, Muse CLI artifacts, secrets and build outputs
+are ignored by Git. No supplied specification document was copied into this repo.

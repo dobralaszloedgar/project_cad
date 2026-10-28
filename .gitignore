@@ -1,0 +1,30 @@
+node_modules/
+.next/
+.env*
+!.env.example
+*.tsbuildinfo
+playwright-report/
+test-results/
+.DS_Store
+
+# Local documentation and agent tooling
+*.[mM][dD]
+*.[mM][dD][xX]
+.agents/
+.agent/
+.codex/
+.claude/
+.cursor/
+.impeccable/
+agent-artifacts/
+agents/
+
+# Muse CLI local configuration, sessions, cache and diagnostics
+.muse/
+.muse
+.muse-*/
+.muse-*
+.muse.*
+muse-debug.log*
+muse-error.log*
+muse.local.*

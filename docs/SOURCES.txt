@@ -1,0 +1,36 @@
+INDEPENDENCE, REFERENCES AND RELEASE STATUS
+
+The application is implemented in this repository using public packages.
+Equipment SVGs supplied by the project owner are bundled locally, as requested.
+No external application logic, screenshots, coefficients, data tables or weights
+are included. Scientific constants other than the gas constant are explicitly
+synthetic teaching choices.
+
+Public technical references consulted 2026-10-27:
+Next.js App Router: https://nextjs.org/docs/app/getting-started/installation
+React Flow handles: https://reactflow.dev/learn/customization/handles
+Meta API quickstart: https://dev.meta.ai/docs/quickstart
+Meta Responses: https://dev.meta.ai/docs/protocols/responses
+Relative-volatility teaching context:
+https://www.homepages.ed.ac.uk/jwp/newMSOcopy/section3/study/relative.html
+https://learncheme.com/quiz-yourself/interactive-self-study-modules/raoults-law-and-vle/raoults-law-and-vle-simulations/
+No text, figures, tables, code or empirical parameters from these teaching pages
+are redistributed. The equations were independently implemented.
+
+Hackathon verification:
+https://dev.meta.ai/events/global-hackathon
+https://events.cerebralvalley.ai/e/meta-ai-developer-hackathon
+The official public pages list Push the Frontier and a project deadline of
+November 4, 2026 at 9 PM Eastern (8 PM Central). They state that selected entrants
+must accept separate Official Rules. The accepted-participant rules, submission
+form, eligibility, development-tool restrictions, video requirements and licensing
+conditions have NOT been verified from an accepted-participant portal. No entry,
+acceptance, compliance or judging score is claimed. No terms were accepted.
+
+Licensing:
+dependency-licenses.json records installed package versions, declared licenses,
+and source repositories from package metadata. See each package's own license
+for its applicable notices. The package lock pins the full dependency graph.
+The project itself has not been assigned an open-source license; that is a
+release decision for the repository owner. Public hosting alone is not a license.
+No commit, push, deployment or submission was performed.

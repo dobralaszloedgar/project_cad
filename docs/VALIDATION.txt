@@ -1,0 +1,60 @@
+LOCAL VALIDATION — 2026-10-27
+
+PASS: npm test — 23 unit/contract tests across 3 files.
+PASS: npm run test:e2e — 13 Playwright Chromium workflow tests.
+PASS: npm run typecheck.
+PASS: npm run lint — no errors or warnings.
+PASS: npm run format:check.
+PASS: npm run build — static workspace and dynamic /api/ai route.
+
+Browser checks use isolated Playwright Chromium contexts, as requested in the
+build specification. The built-in in-app browser was unavailable. The user's
+existing browser projects were not modified by the test contexts.
+Development URL: http://127.0.0.1:3000.
+Visual captures: 1440x900 desktop, 2003x1248 wide canvas, 390x844 mobile.
+Workflow suite default viewport: 1536x1024; tests also resize for responsive cases.
+
+Interaction coverage:
+- Reactor calculation, temperature edit, KPI/topology comparison, and restore.
+- History preservation, JSON export/import, and reload persistence.
+- 3D/Split views, synchronized selection, parameter editing, and camera reset.
+- Ideal separation and model limits; manual equipment connection/duplication/deletion.
+- Invalid imports; cross-origin and disabled AI requests rejected.
+- Test-only Meta transport, proposal review/apply, and stale-proposal rejection.
+- Unavailable WebGL leaves a usable 2D simulation.
+- Clear-current-project confirmation and persistence of an empty graph.
+- Repeated dragging of loaded/new equipment without React Flow initialization
+  warnings; positions survive reload. This regression test failed before the fix.
+- Chat-bubble corner docking, canvas bounds on resize, and movable assistant panel.
+- Rainbow stream toggle, animated dashes, and reduced-motion behavior.
+- Project creation, rename, search, star, duplicate, grid/list, independent history,
+  reopen/reload, mobile preview containment, and mobile assistant accessibility.
+- Legacy IndexedDB single-project storage upgrades without losing graph/history.
+
+Visual evidence in /tmp/project-cad-redesign/:
+desktop.png, user-2003.png, assistant.png, dark-assistant.png,
+projects.png, dark-projects.png, mobile.png, mobile-assistant.png,
+mobile-projects.png.
+These are temporary local verification captures, not application assets.
+
+Finish review: a generic agent performed the specialized visual-review role.
+The reviewer returned "ship" for four resolved findings: accurate thumbnail
+connections and visible dots, Search/Sort keyboard focus, Recent ordering, and
+the limitations record. This verdict covers those fixes, not an additional full
+application audit. Focus and Recent evidence is also captured as
+projects-search-focus.png, projects-sort-focus.png, and projects-recent.png.
+
+The UI uses Figtree, a pale dotted canvas, muted green controls, supplied equipment
+SVG geometry, a large movable assistant, and a reduced local Projects library.
+Mobile previews scale to their card, and opening a project or assistant collapses
+the mobile equipment drawer. Functional simplifications remain explicit: local
+storage, eight equipment types, ideal teaching models, Meta-only optional AI.
+
+Earlier checks in this build found zero reported npm audit vulnerabilities for
+the same dependency set. The dependency/license inventory is in
+docs/dependency-licenses.json. This records tooling output, not a security warranty.
+
+Not verified: live Meta inference (credentials unavailable), Safari/Firefox,
+real-chemical predictions, and participant-only event rules. Mocked transport
+tests do not verify a live model response. See DEMO_LIMITATIONS.txt.
+No commits, pushes, deployments, submissions, or terms acceptance were performed.
