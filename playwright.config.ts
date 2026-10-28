@@ -6,7 +6,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 60000,
-  outputDir: "/tmp/project-cad-test-results",
+  outputDir: "test-results/playwright",
   use: {
     baseURL,
     viewport: { width: 1536, height: 1024 },

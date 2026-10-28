@@ -50,6 +50,9 @@ import {
   distillationExample,
   heatingExample,
   solutionExample,
+  thermalCycleExample,
+  mixingExample,
+  catalystExample,
 } from "@/domain/examples";
 import ThermoSettingsPanel from "./ThermoSettings";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
@@ -234,21 +237,18 @@ export default function Workspace() {
     }
   }
   function loadExample(name: string) {
-    const next =
-      name === "solution"
-        ? solutionExample()
-        : name === "heating"
-          ? heatingExample()
-          : name === "reactor"
-            ? reactorExample()
-            : name === "distillation"
-              ? distillationExample()
-              : {
-                  version: 1 as const,
-                  name: "Untitled process",
-                  units: [],
-                  edges: [],
-                };
+    const factories: Record<string, () => Project> = {
+      solution: solutionExample,
+      heating: heatingExample,
+      reactor: reactorExample,
+      distillation: distillationExample,
+      "thermal-cycle": thermalCycleExample,
+      mixing: mixingExample,
+      catalyst: catalystExample,
+    };
+    const next = Object.hasOwn(factories, name)
+      ? factories[name]()
+      : { version: 1 as const, name: "Untitled process", units: [], edges: [] };
     if (showProjects) {
       void createProject(next);
       return;

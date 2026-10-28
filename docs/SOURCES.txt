@@ -1,7 +1,8 @@
 REFERENCES AND RELEASE STATUS
 
 The application is implemented in this repository using public packages.
-Equipment SVGs supplied by the project owner are bundled locally, as requested.
+Equipment symbols and schematic 3D forms are constructed from original geometry
+in this repository. Equipment equations and scope are documented in EQUIPMENT.txt.
 Thermodynamic calculations use the local Rust kernel. Sample gas heat capacities
 are explicitly approximate; the A/B reaction constants are synthetic choices.
 The sample Antoine coefficients and molecular weights use NIST Chemistry WebBook:

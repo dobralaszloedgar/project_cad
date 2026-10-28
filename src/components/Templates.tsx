@@ -6,10 +6,32 @@ import {
   distillationExample,
   heatingExample,
   solutionExample,
+  thermalCycleExample,
+  mixingExample,
+  catalystExample,
 } from "@/domain/examples";
 import { type Project } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
 const examples = [
+  {
+    id: "catalyst",
+    name: "Catalyst-weight reactor",
+    description: "Mix two feeds and calculate conversion along a catalyst bed.",
+    project: catalystExample(),
+  },
+  {
+    id: "thermal-cycle",
+    name: "Heating and cooling",
+    description: "Add a specified heat duty, then cool back to 300 K.",
+    project: thermalCycleExample(),
+  },
+  {
+    id: "mixing",
+    name: "Mixing and splitting",
+    description:
+      "Combine two feeds and divide the mixture between two products.",
+    project: mixingExample(),
+  },
   {
     id: "solution",
     name: "Raoult’s law separation",
