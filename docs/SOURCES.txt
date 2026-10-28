@@ -11,6 +11,14 @@ https://webbook.nist.gov/cgi/cbook.cgi?ID=C64175&Mask=4&Type=ANTOINE
 https://webbook.nist.gov/cgi/cbook.cgi?ID=C7732185&Mask=4&Type=ANTOINE
 NIST specifies kelvin and bar for these Antoine records. Each record retains
 its temperature interval and source link. This is a small sample catalog.
+As of 2026-10-28, water saturation pressure uses IAPWS SR1-86(1992), Eq. 1:
+https://iapws.org/public/documents/6dGkr/Supp-sat.pdf
+https://www.iapws.org/relguide/Supp-sat.html
+The release permits unrestricted publication. The implemented six coefficients,
+critical constants and analytic pressure derivative follow that release.
+Only saturation pressure is used; sample caloric estimates remain approximate.
+Overlapping Antoine records use a documented smooth blend; the original
+published coefficients and their source ranges remain unchanged.
 
 Modified UNIFAC 2.0 sample parameters:
 Nicolas Hayer, Hans Hasse and Fabian Jirasek (2025), Modified UNIFAC 2.0—A

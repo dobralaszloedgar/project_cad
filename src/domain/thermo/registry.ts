@@ -31,10 +31,10 @@ export const models = [
   {
     id: "ideal-solution",
     name: "Ideal solution · Raoult’s law",
-    description: "Antoine vapor pressures and a bracketed TP flash.",
-    version: "1.0.0",
+    description: "Continuous vapor pressures and bracketed TP/PH flashes.",
+    version: "1.1.0",
     pressureRange: [1000, 200000],
-    source: "NIST Chemistry WebBook Antoine records",
+    source: "NIST Antoine records; IAPWS water saturation pressure",
     limitations:
       "Ideal liquid and vapor; no azeotropes or liquid–liquid equilibrium.",
   },
@@ -43,7 +43,7 @@ export const models = [
     name: "Modified UNIFAC 2.0",
     description:
       "Group activity coefficients and low-pressure vapor–liquid equilibrium.",
-    version: "1.0.0",
+    version: "1.1.0",
     pressureRange: [1000, 200000],
     source: "https://doi.org/10.1021/acs.iecr.5c00077",
     limitations:

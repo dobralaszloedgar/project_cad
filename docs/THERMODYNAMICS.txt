@@ -35,7 +35,7 @@ components in one mixture, independently of total catalog size. The current
 flowsheet editor remains binary and maps its A/B fields to the selected pair.
 Adding catalog records does not add models or establish property coverage.
 Each record needs molecular weight and sample Cp; liquid models also need
-Antoine records and Modified UNIFAC needs covered subgroup assignments.
+vapor-pressure coverage and Modified UNIFAC needs covered subgroup assignments.
 Missing groups, definitions, interactions and vapor-pressure data are errors.
 
 Equations and limits
@@ -43,9 +43,19 @@ Ideal gas: molar volume RT/P, partial pressures y_i P, constant-Cp component
 enthalpies referenced to 298.15 K. Gas is assumed, not established by a
 stability calculation. Cp values are sample approximations, not measured fits.
 
-Raoult: log10(Psat/bar) = A-B/(T/K+C); K_i = Psat_i/P. A bracketed Rachford-Rice
-solve yields phase amounts and normalized compositions, with single-phase
-endpoints. Pure-component saturation returns an indeterminate phase fraction
+Raoult: Antoine log10(Psat/bar) = A-B/(T/K+C); K_i = Psat_i/P. Overlapping
+Antoine records are ordered by lower temperature bound (wider fit first on a
+tie); contained fits do not extend coverage. A quintic smoothstep blends ln(Psat)
+over the full overlap. Its analytic derivative includes the derivative of the
+blend weight, keeping pressure, enthalpy and heat capacity continuous at the
+joins. Source coefficients are unchanged; values inside overlaps are blended
+estimates. Disjoint source intervals remain unsupported without extrapolation.
+Water uses IAPWS SR1-86(1992), Eq. 1, from 273.16 to 647.096 K instead of the
+gapped Antoine records. IAPWS extrapolation is never permitted. Only its
+saturation-pressure equation is used; this does not add an IAPWS caloric model.
+A bracketed Rachford-Rice solve yields phase amounts and normalized
+compositions, with single-phase endpoints. TP-only pure-component saturation
+returns an indeterminate phase fraction
 and enthalpy instead of choosing an arbitrary phase. Antoine extrapolation is
 rejected by default and allowed only by a saved explicit setting with warnings.
 
@@ -57,7 +67,7 @@ matrix. Damped K iteration and the same Rachford-Rice solver evaluate VLE.
 There is no liquid-liquid stability search or general azeotrope qualification.
 The sample source notice is retained in rust/thermo/sample-groups.json.
 
-Both liquid methods are restricted to 1–200 kPa and per-component Antoine
+Both liquid methods are restricted to 1–200 kPa and per-component vapor-pressure
 temperature ranges, inside a 250–800 K numerical envelope. Caloric estimates
 use gas enthalpy minus R T^2 d(ln Psat)/dT for liquid, plus excess enthalpy for
 Modified UNIFAC. These are demonstration estimates, not a validated caloric
@@ -71,8 +81,18 @@ The Raoult's law separation template uses benzene/toluene at 350 K and 55 kPa.
 For either liquid model, Distillation is a single TP flash: vapor exits out,
 liquid exits out2. Fixed cut and relative volatility apply only to the existing
 ideal-gas teaching contact. No multistage column or reflux claim is made.
-Mixers conserve enthalpy within the supported temperature bracket. Conditions
-outside that bracket are rejected. Heaters/coolers include the phase enthalpy
+Mixers use a pressure–enthalpy (PH) flash over the intersection of active
+components' supported temperature intervals, allowing an outlet temperature
+outside the inlet-temperature bracket due to mixing or phase change. The PH
+solver bisects each supported interval and accepts only an enthalpy residual
+within 1e-7 + 1e-11*abs(target) J/mol. It does not bridge data gaps. A target
+outside those intervals is rejected; extrapolation still requires the saved
+explicit setting. The temperature solve assumes monotonic equilibrium enthalpy
+within each interval; it is not a general search for multiple energy roots.
+At saturation, PH resolves the vapor fraction from the phase enthalpies. Streams
+retain this fraction through splitters and phase separators; a changed heater
+or cooler outlet temperature is evaluated afresh. TP alone still reports an
+indeterminate saturated phase amount. Heaters/coolers include the phase enthalpy
 estimate; splitters preserve total composition and state. Zero flow has no
 composition or phase. Convergence does not establish experimental validity.
 
@@ -91,5 +111,8 @@ tests/fixtures/modified-unifac-reference.json contains 18 independent reference
 states generated using thermo 0.6.1 UNIFAC.from_subgroups with DOUF2IP, DOUFSG
 and version=1. Activity coefficients and excess enthalpy are compared to the
 Rust results. This is numerical agreement, not experimental validation.
+tests/thermo-energy.test.ts covers correlation joins and derivatives, water
+coverage/reference pressures, PH round trips, true data gaps, equal-temperature
+nonideal mixing and saturated-stream energy conservation through equipment.
 tests/e2e/thermo.spec.ts checks model selection, persistence, phase results and
 the deterministic simulation endpoint.

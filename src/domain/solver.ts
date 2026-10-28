@@ -5,7 +5,12 @@ import {
   type Unit,
   type Connection,
 } from "./schema";
-import { evaluateProperties, provenance, type Properties } from "./thermo";
+import {
+  evaluateProperties,
+  flashPressureEnthalpy,
+  provenance,
+  type Properties,
+} from "./thermo";
 import { defaultThermo, type ThermoSettings } from "./thermo/registry";
 import { sampleCatalog, sampleMixtures } from "./thermo/catalog";
 // Original synthetic teaching parameters; no claim to fit a real chemical system.
@@ -24,6 +29,8 @@ export interface Stream {
   b: number;
   temperature: number;
   pressure: number;
+  // Preserves a PH-resolved phase amount, including pure-component saturation.
+  vaporFraction?: number;
 }
 export interface EquipmentResult {
   duty: number;
@@ -53,6 +60,7 @@ export function streamProperties(
 ): Properties {
   if (flow(s) === 0)
     return {
+      temperature: s.temperature,
       phase: "empty",
       vaporFraction: null,
       liquidComposition: null,
@@ -67,6 +75,7 @@ export function streamProperties(
       iterations: 0,
       equilibriumResidual: 0,
       componentResidual: 0,
+      enthalpyResidual: null,
       warnings: ["Zero flow: composition and phase are undefined."],
     };
   return evaluateProperties(
@@ -74,6 +83,9 @@ export function streamProperties(
     s.pressure,
     [s.a / flow(s), s.b / flow(s)],
     settings,
+    sampleCatalog,
+    sampleMixtures[settings.mixture].ids,
+    s.vaporFraction,
   );
 }
 export function enthalpy(
@@ -123,6 +135,7 @@ export function operate(
   if (!inputs.length) throw new Error(`${unit.name}: missing inlet.`);
   const total = inputs.reduce((s, n) => s + flow(n), 0);
   const mixed: Stream = {
+    ...(inputs.length === 1 ? inputs[0] : {}),
     a: inputs.reduce((s, n) => s + n.a, 0),
     b: inputs.reduce((s, n) => s + n.b, 0),
     temperature: total
@@ -144,33 +157,14 @@ export function operate(
           mixed.b * (b.formationEnthalpy ?? 0)) /
           capacity;
     } else {
-      let low = Math.min(...inputs.map((s) => s.temperature));
-      let high = Math.max(...inputs.map((s) => s.temperature));
-      if (
-        Math.abs(enthalpy({ ...mixed, temperature: low }, settings) - target) >
-        1e-6
-      ) {
-        const lowerH = enthalpy({ ...mixed, temperature: low }, settings);
-        const upperH = enthalpy({ ...mixed, temperature: high }, settings);
-        if (target < lowerH - 1e-6 || target > upperH + 1e-6)
-          throw new Error(
-            "Mixer enthalpy is outside the supported inlet temperature bracket.",
-          );
-        for (let i = 0; i < 80; i++) {
-          const t = (low + high) / 2;
-          if (enthalpy({ ...mixed, temperature: t }, settings) < target)
-            low = t;
-          else high = t;
-        }
-        mixed.temperature = (low + high) / 2;
-      } else mixed.temperature = low;
-      if (
-        Math.abs(enthalpy(mixed, settings) - target) >
-        1e-5 * Math.max(1, Math.abs(target))
-      )
-        throw new Error(
-          "Mixer energy balance did not converge within the sample property range.",
-        );
+      const state = flashPressureEnthalpy(
+        mixed.pressure,
+        target / total,
+        [mixed.a / total, mixed.b / total],
+        settings,
+      );
+      mixed.temperature = state.temperature;
+      mixed.vaporFraction = state.vaporFraction!;
     }
   }
   let outputs: Stream[] = [mixed];
@@ -190,7 +184,14 @@ export function operate(
         throw new Error(
           `${unit.name}: cooler target is above inlet temperature.`,
         );
-      outputs = [{ ...mixed, temperature: p.temperature }];
+      outputs = [
+        {
+          a: mixed.a,
+          b: mixed.b,
+          pressure: mixed.pressure,
+          temperature: p.temperature,
+        },
+      ];
       result.duty = enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
       break;
     case "PBR": {
@@ -234,11 +235,12 @@ export function operate(
         const vaporA = total * beta * (props.vaporComposition?.[0] ?? 0);
         const vaporB = total * beta * (props.vaporComposition?.[1] ?? 0);
         outputs = [
-          { ...mixed, a: vaporA, b: vaporB },
+          { ...mixed, a: vaporA, b: vaporB, vaporFraction: 1 },
           {
             ...mixed,
             a: Math.max(0, mixed.a - vaporA),
             b: Math.max(0, mixed.b - vaporB),
+            vaporFraction: 0,
           },
         ];
         result.duty =
@@ -352,6 +354,7 @@ export function simulate(
       Math.abs(actual.temperature - guess.temperature) /
         Math.max(1, actual.temperature),
       Math.abs(actual.pressure - guess.pressure) / Math.max(1, actual.pressure),
+      Math.abs((actual.vaporFraction ?? 0) - (guess.vaporFraction ?? 0)),
     );
     history.push(residual);
     if (residual < tolerance) {

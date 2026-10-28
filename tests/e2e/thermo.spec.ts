@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { solutionExample } from "../../src/domain/examples";
+import { newUnit, type Project } from "../../src/domain/schema";
 
 test("three model choices, real flash, model change and saved settings", async ({
   page,
@@ -64,4 +65,82 @@ test("server simulation uses the same selected model and rejects bad data", asyn
   expect(
     (await request.post("/api/simulate", { data: project })).status(),
   ).toBe(422);
+});
+
+test("nonideal mixer energy balance agrees in the browser and simulation API", async ({
+  page,
+  request,
+}) => {
+  const ethanol = newUnit("Feed", "ethanol", 0, 0);
+  const water = newUnit("Feed", "water", 0, 200);
+  for (const feed of [ethanol, water]) {
+    feed.params.flow = 1;
+    feed.params.temperature = 350;
+    feed.params.pressure = 200000;
+  }
+  water.params.fractionA = 0;
+  const project: Project = {
+    version: 1,
+    name: "Nonideal mixing regression",
+    thermo: {
+      modelId: "modified-unifac-2.0",
+      mixture: "aqueous",
+      extrapolate: false,
+    },
+    units: [
+      ethanol,
+      water,
+      newUnit("Mixer", "mixer", 300, 100),
+      newUnit("Product", "product", 600, 100),
+    ],
+    edges: [
+      {
+        id: "feed1",
+        source: "ethanol",
+        target: "mixer",
+        sourcePort: "out",
+        targetPort: "in",
+        color: "teal",
+      },
+      {
+        id: "feed2",
+        source: "water",
+        target: "mixer",
+        sourcePort: "out",
+        targetPort: "in2",
+        color: "blue",
+      },
+      {
+        id: "mixed",
+        source: "mixer",
+        target: "product",
+        sourcePort: "out",
+        targetPort: "in",
+        color: "teal",
+      },
+    ],
+  };
+  const response = await request.post("/api/simulate", { data: project });
+  expect(response.status()).toBe(200);
+  const result = await response.json();
+  expect(Math.abs(result.energyResidual)).toBeLessThan(2e-6);
+  expect(Math.abs(result.massResidual)).toBeLessThan(1e-10);
+  expect(result.streams.mixed.temperature).toBeLessThan(350);
+  expect(result.streams.mixed.temperature).toBeGreaterThan(340);
+  await page.goto("/");
+  await expect(
+    page.getByRole("button", { name: "Run simulation" }),
+  ).toBeEnabled();
+  await page.getByLabel("Import project file").setInputFiles({
+    name: "mixing.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByRole("button", { name: "Run simulation" }).click();
+  await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
+  const row = page
+    .locator(".stream-table tbody tr")
+    .filter({ has: page.getByRole("button", { name: "mixed", exact: true }) });
+  await expect(row).toContainText(result.streams.mixed.temperature.toFixed(2));
+  await expect(row).toContainText("liquid");
 });

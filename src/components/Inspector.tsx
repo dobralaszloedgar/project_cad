@@ -179,7 +179,7 @@ function UnitEditor({
           ) : (
             <p>
               Sample constant heat capacities. Vapor pressures use
-              temperature-bounded Antoine records. Volume is reported only for a
+              temperature-bounded correlations. Volume is reported only for a
               wholly vapor stream.
             </p>
           )}

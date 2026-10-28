@@ -1,3 +1,26 @@
+LOCAL VALIDATION — 2026-10-28
+
+Mixer energy and vapor-pressure continuity fixes (Windows, Rust 1.90 via Docker):
+PASS: npm run thermo:build — Rust formatting, 2 native tests, rebuilt WASM bundle.
+PASS: npm test — 58 tests, including 20 new energy/correlation regressions.
+PASS: npm run typecheck; npm run lint; npm run format:check.
+PASS: npm run build — production compilation and TypeScript checks.
+PASS: Playwright thermodynamics suite on isolated port 3119 — 3 tests, including
+  browser/API agreement for equal-temperature ethanol/water mixing.
+PASS: git diff --check.
+
+Reproduced and fixed: 1 mol/s each of ethanol and water, both at 350 K and
+200 kPa, now mix to 347.723204757 K with Modified UNIFAC 2.0; the energy residual
+is -3.65e-7 W. This is the selected model's prediction, not experimental data.
+Regression coverage includes PH liquid/two-phase/vapor round trips, saturated
+stream phase amounts through downstream equipment, explicit extrapolation,
+true data-gap rejection, benzene pressure/enthalpy/heat-capacity continuity,
+and water saturation pressures and temperature coverage.
+The caloric properties remain sample estimates. PH assumes monotonic enthalpy
+within each supported interval; no general multiple-root or LLE search was added.
+
+Previous validation records follow.
+
 LOCAL VALIDATION — 2026-10-27
 
 Thermodynamics extension (Windows, Node 24.19.0, Chromium, Rust 1.90 via Docker):

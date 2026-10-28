@@ -20,6 +20,7 @@ interface Kernel extends WebAssembly.Exports {
 }
 let kernel: Kernel | undefined;
 export interface Properties {
+  temperature: number;
   phase: "vapor" | "liquid" | "two-phase" | "saturation" | "empty";
   vaporFraction: number | null;
   liquidComposition: number[] | null;
@@ -34,6 +35,7 @@ export interface Properties {
   iterations: number;
   equilibriumResidual: number;
   componentResidual: number;
+  enthalpyResidual: number | null;
   warnings: string[];
 }
 export function evaluateProperties(
@@ -43,6 +45,54 @@ export function evaluateProperties(
   settings: ThermoSettings = defaultThermo,
   catalog: ChemicalProvider = sampleCatalog,
   chemicalIds: readonly string[] = sampleMixtures[settings.mixture].ids,
+  vaporFraction?: number,
+): Properties {
+  if (vaporFraction !== undefined && !Number.isFinite(vaporFraction))
+    throw new Error("Invalid specified vapor fraction");
+  return execute(
+    temperature,
+    pressure,
+    composition,
+    settings,
+    catalog,
+    chemicalIds,
+    {
+      vaporFraction,
+    },
+  );
+}
+
+export function flashPressureEnthalpy(
+  pressure: number,
+  molarEnthalpy: number,
+  composition: number[],
+  settings: ThermoSettings = defaultThermo,
+  catalog: ChemicalProvider = sampleCatalog,
+  chemicalIds: readonly string[] = sampleMixtures[settings.mixture].ids,
+): Properties {
+  if (!Number.isFinite(molarEnthalpy))
+    throw new Error("Invalid target enthalpy");
+  return execute(
+    298.15,
+    pressure,
+    composition,
+    settings,
+    catalog,
+    chemicalIds,
+    {
+      molarEnthalpy,
+    },
+  );
+}
+
+function execute(
+  temperature: number,
+  pressure: number,
+  composition: number[],
+  settings: ThermoSettings,
+  catalog: ChemicalProvider,
+  chemicalIds: readonly string[],
+  specification: { molarEnthalpy?: number; vaporFraction?: number },
 ): Properties {
   thermoSchema.parse(settings);
   kernel ??= new WebAssembly.Instance(
@@ -56,6 +106,7 @@ export function evaluateProperties(
       composition,
       chemicals: chemicalIds.map((id) => catalog.get(id)),
       extrapolate: settings.extrapolate,
+      ...specification,
     }),
   );
   const pointer = kernel.thermo_alloc(bytes.length);

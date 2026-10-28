@@ -14,6 +14,7 @@ export interface Chemical {
   cp: number; // sample constant ideal-gas Cp, J/(mol K)
   formationEnthalpy?: number; // J/mol at 298.15 K
   antoine: AntoineRecord[]; // log10(P/bar) = a - b/(T/K+c)
+  vaporPressure?: { model: "iapws-1992"; source: string };
   groups?: Record<string, number>;
 }
 const nist = (cas: string) =>
@@ -93,40 +94,11 @@ export const sampleChemicals: readonly Chemical[] = [
     molecularWeight: 0.0180153,
     cp: 34,
     groups: { "16": 1 },
-    antoine: [
-      {
-        a: 5.40221,
-        b: 1838.675,
-        c: -31.737,
-        min: 273,
-        max: 303,
-        source: nist("C7732185"),
-      },
-      {
-        a: 5.20389,
-        b: 1733.926,
-        c: -39.485,
-        min: 304,
-        max: 333,
-        source: nist("C7732185"),
-      },
-      {
-        a: 5.0768,
-        b: 1659.793,
-        c: -45.854,
-        min: 334,
-        max: 363,
-        source: nist("C7732185"),
-      },
-      {
-        a: 5.08354,
-        b: 1663.125,
-        c: -45.622,
-        min: 344,
-        max: 373,
-        source: nist("C7732185"),
-      },
-    ],
+    antoine: [],
+    vaporPressure: {
+      model: "iapws-1992",
+      source: "https://iapws.org/public/documents/6dGkr/Supp-sat.pdf",
+    },
   },
 ];
 export interface ChemicalProvider {
@@ -136,7 +108,7 @@ export interface ChemicalProvider {
 }
 const byId = new Map(sampleChemicals.map((c) => [c.id, c]));
 export const sampleCatalog: ChemicalProvider = {
-  version: "sample-2026-10-27",
+  version: "sample-2026-10-28",
   get(id) {
     const chemical = byId.get(id);
     if (!chemical)

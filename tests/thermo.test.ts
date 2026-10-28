@@ -67,13 +67,14 @@ describe("three-model Rust thermodynamics kernel", () => {
     expect(p.molarEnthalpy).toBeCloseTo(30 * (400 - 298.15) - 0.75 * 20000, 8);
   });
   it("checks NIST pressures and binary flash against the analytic RR solution", () => {
-    const p = evaluateProperties(350, 55000, [0.5, 0.5], raoult);
-    const pa = 1e5 * 10 ** (4.01814 - 1203.835 / (350 - 53.226));
-    const pb = 1e5 * 10 ** (4.07827 - 1343.943 / (350 - 53.773));
+    // Outside the benzene overlap: compare directly to the unblended source fit.
+    const p = evaluateProperties(330, 25000, [0.5, 0.5], raoult);
+    const pa = 1e5 * 10 ** (4.01814 - 1203.835 / (330 - 53.226));
+    const pb = 1e5 * 10 ** (4.07827 - 1343.943 / (330 - 53.773));
     expect(p.saturationPressures![0]).toBeCloseTo(pa, 7);
     expect(p.saturationPressures![1]).toBeCloseTo(pb, 7);
-    const ka = pa / 55000,
-      kb = pb / 55000;
+    const ka = pa / 25000,
+      kb = pb / 25000;
     const beta = -(0.5 * (ka - 1) + 0.5 * (kb - 1)) / ((ka - 1) * (kb - 1));
     expect(p.vaporFraction).toBeCloseTo(beta, 11);
     expect(p.phase).toBe("two-phase");
@@ -85,7 +86,7 @@ describe("three-model Rust thermodynamics kernel", () => {
       expect(
         (1 - beta) * p.liquidComposition![i] + beta * p.vaporComposition![i],
       ).toBeCloseTo(0.5, 11);
-      expect(p.vaporComposition![i] * 55000).toBeCloseTo(
+      expect(p.vaporComposition![i] * 25000).toBeCloseTo(
         p.liquidComposition![i] * p.saturationPressures![i],
         6,
       );
@@ -144,8 +145,8 @@ describe("three-model Rust thermodynamics kernel", () => {
     ).toThrow();
   });
   it("reports saturation without inventing a phase amount", () => {
-    const pressure = 1e5 * 10 ** (4.01814 - 1203.835 / (350 - 53.226));
-    const p = evaluateProperties(350, pressure, [1, 0], raoult);
+    const pressure = 1e5 * 10 ** (4.01814 - 1203.835 / (330 - 53.226));
+    const p = evaluateProperties(330, pressure, [1, 0], raoult);
     expect(p.phase).toBe("saturation");
     expect(p.vaporFraction).toBeNull();
     expect(p.molarEnthalpy).toBeNull();
