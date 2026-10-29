@@ -18,7 +18,7 @@ export function useFloatingDrag(
 ) {
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
   const moved = useRef(false),
-    dock = useRef<Corner | null>(snapToCorners ? "bottomRight" : null);
+    dock = useRef<Corner | null>(snapToCorners ? "topRight" : null);
   const drag = useRef<{
     pointer: number;
     clientX: number;

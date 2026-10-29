@@ -1,5 +1,13 @@
 "use client";
-import { memo, useCallback, useMemo, useState, useRef, useEffect } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { Maximize, Minus, Plus } from "lucide-react";
 import {
   ReactFlow,
@@ -13,9 +21,11 @@ import {
   BaseEdge,
   useReactFlow,
   useNodesInitialized,
+  useStore,
   type NodeProps,
   type Node,
   type EdgeProps,
+  type Edge,
   type NodeChange,
 } from "@xyflow/react";
 import {
@@ -31,8 +41,14 @@ import { equipmentPort, streamPath } from "./flow-geometry";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
-import { projectStreamColors, streamColors } from "./stream-colors";
-export { streamColors } from "./stream-colors";
+import { availableStreamName } from "@/domain/stream-names";
+import { projectStreamColors, streamColor } from "./stream-colors";
+import { inlineStreamLabelPosition } from "./stream-label-placement";
+import {
+  routeStreams,
+  type StreamRoute,
+  type RouteEndpoint,
+} from "./stream-routing";
 const mixerDropHandle = "mixer-center";
 type EquipmentNode = Node<
   { unit: Unit; connected: string[]; change?: string },
@@ -103,9 +119,81 @@ const UnitNode = memo(function UnitNode({
     </div>
   );
 });
-const PipeEdge = memo(function PipeEdge(props: EdgeProps) {
+type Pipe = Edge<{
+  compositionColors: boolean;
+  name: string;
+  color: string;
+  route?: StreamRoute;
+}>;
+const STREAM_LABEL_DETAIL_ZOOM = 0.65;
+const STREAM_LABEL_FONT_SIZE = 11 + 96 / 72;
+const PipeEdge = memo(function PipeEdge(props: EdgeProps<Pipe>) {
   const colored = props.data?.compositionColors === true;
-  const path = streamPath(props);
+  const path = props.data?.route?.path ?? streamPath(props);
+  const zoom = useStore((state) => state.transform[2]);
+  const name = props.data?.name;
+  const textRef = useRef<SVGTextElement>(null);
+  const [textBounds, setTextBounds] = useState({
+    name,
+    width: 0,
+    height: 14,
+    offsetY: 0,
+  });
+  useLayoutEffect(() => {
+    const measure = () => {
+      const text = textRef.current;
+      const bounds = text?.getBBox();
+      if (text && bounds?.width) {
+        const scale = STREAM_LABEL_FONT_SIZE / parseFloat(text.style.fontSize);
+        setTextBounds({
+          name,
+          width: bounds.width * scale,
+          height: bounds.height * scale,
+          offsetY:
+            (bounds.y + bounds.height / 2 - Number(text.getAttribute("y"))) *
+            scale,
+        });
+      }
+    };
+    measure();
+    let active = true;
+    void document.fonts.ready.then(() => {
+      if (active) measure();
+    });
+    return () => {
+      active = false;
+    };
+  }, [name]);
+  const measured = textBounds.name === name && textBounds.width > 0;
+  const width = measured ? textBounds.width : (name?.length ?? 0) * 8;
+  const height = measured ? textBounds.height : 14;
+  const labelWidth =
+    (width + 6) / zoom + Number(props.style?.strokeWidth ?? 2.5);
+  const labelHeight = (height + 1) / zoom;
+  const offsetY = measured ? textBounds.offsetY / zoom : 0;
+  const label = useMemo(
+    () =>
+      inlineStreamLabelPosition(
+        path,
+        props.data?.route?.label ?? {
+          x: (props.sourceX + props.targetX) / 2,
+          y: (props.sourceY + props.targetY) / 2,
+        },
+        (width + 6) / STREAM_LABEL_DETAIL_ZOOM + 3.5,
+        (height + 1) / STREAM_LABEL_DETAIL_ZOOM,
+        1.75 + 1 / STREAM_LABEL_DETAIL_ZOOM,
+      ),
+    [
+      path,
+      props.data?.route?.label,
+      props.sourceX,
+      props.sourceY,
+      props.targetX,
+      props.targetY,
+      width,
+      height,
+    ],
+  );
   return (
     <g>
       <BaseEdge
@@ -126,6 +214,37 @@ const PipeEdge = memo(function PipeEdge(props: EdgeProps) {
           pointerEvents="none"
         />
       ) : null}
+      {name && (
+        <g
+          className={`stream-label ${zoom < STREAM_LABEL_DETAIL_ZOOM ? "stream-label-overview" : ""}`}
+          aria-hidden="true"
+          pointerEvents="none"
+        >
+          <rect
+            className="stream-label-box"
+            x={label.x - labelWidth / 2}
+            y={label.y - labelHeight / 2}
+            width={labelWidth}
+            height={labelHeight}
+            rx={1 / zoom}
+            fill="var(--canvas)"
+          />
+          <text
+            ref={textRef}
+            x={label.x}
+            y={label.y - offsetY}
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{
+              fontSize: STREAM_LABEL_FONT_SIZE / zoom,
+              fontWeight: 500,
+              fill: props.data?.color,
+            }}
+          >
+            {name}
+          </text>
+        </g>
+      )}
     </g>
   );
 });
@@ -261,10 +380,69 @@ function Inner(props: Props) {
     () => (compositionColors ? projectStreamColors(project, result) : {}),
     [project, result, compositionColors],
   );
+  const routes = useMemo(() => {
+    const endpoint = (
+      id: string,
+      output: boolean,
+      port: string,
+    ): RouteEndpoint | undefined => {
+      const unit = project.units.find((unit) => unit.id === id);
+      if (!unit) return undefined;
+      const position = positions[id] ?? unit.position;
+      const geometry = equipmentPort(
+        unit.kind,
+        output,
+        port.endsWith("2") ? 1 : 0,
+      );
+      // Edges attach to the outer edge of the eight-pixel connection handle.
+      return {
+        nodeId: id,
+        side: geometry.position,
+        x:
+          position.x +
+          geometry.x +
+          (geometry.position === Position.Right
+            ? 4
+            : geometry.position === Position.Left
+              ? -4
+              : 0),
+        y:
+          position.y +
+          geometry.y +
+          (geometry.position === Position.Bottom
+            ? 4
+            : geometry.position === Position.Top
+              ? -4
+              : 0),
+      };
+    };
+    return routeStreams(
+      project.edges.flatMap((edge) => {
+        const source = endpoint(edge.source, true, edge.sourcePort);
+        const target = endpoint(edge.target, false, edge.targetPort);
+        return source && target ? [{ id: edge.id, source, target }] : [];
+      }),
+      project.units.map((unit) => {
+        const position = positions[unit.id] ?? unit.position;
+        return {
+          id: unit.id,
+          x: position.x,
+          y: position.y - 28,
+          width: 128,
+          height: 186,
+        };
+      }),
+    );
+  }, [project.units, project.edges, positions]);
   const edges = useMemo(
     () =>
       project.edges.map((e) => {
-        const color = compositionColors ? colors[e.id] : streamColors[e.color];
+        const color =
+          e.colorIndex !== undefined
+            ? streamColor(e.colorIndex)
+            : compositionColors
+              ? colors[e.id]
+              : "var(--stream-stroke)";
         return {
           id: e.id,
           source: e.source,
@@ -272,7 +450,13 @@ function Inner(props: Props) {
           sourceHandle: e.sourcePort,
           targetHandle: e.targetPort,
           type: "pipe",
-          data: { compositionColors },
+          data: {
+            compositionColors,
+            name: e.name ?? e.id,
+            color,
+            route: routes.get(e.id),
+          },
+          ariaLabel: e.name ?? e.id,
           style: { stroke: color, strokeWidth: selected === e.id ? 3.5 : 2.5 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -283,7 +467,7 @@ function Inner(props: Props) {
           selected: e.id === selected,
         };
       }),
-    [project.edges, compositionColors, colors, selected],
+    [project.edges, compositionColors, colors, selected, routes],
   );
   function targetPort(connection: {
     target: string;
@@ -400,10 +584,13 @@ function Inner(props: Props) {
         onEdgeClick={(_, edge) => onInspect(edge.id)}
         onEdgeMouseEnter={(_, edge) => {
           const s = result?.streams[edge.id];
+          const name =
+            project.edges.find((stream) => stream.id === edge.id)?.name ??
+            edge.id;
           setHover(
             s
-              ? `${edge.id} · ${flow(s).toFixed(3)} mol/s · ${s.temperature.toFixed(1)} K · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
-              : `${edge.id} · Run to calculate`,
+              ? `${name} · ${flow(s).toFixed(3)} mol/s · ${s.temperature.toFixed(1)} K · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
+              : `${name} · Run to calculate`,
           );
         }}
         onEdgeMouseLeave={() => setHover("")}
@@ -431,6 +618,7 @@ function Inner(props: Props) {
         onConnect={(c) => {
           const edge: Connection = {
             id: crypto.randomUUID(),
+            name: availableStreamName(project.edges),
             source: c.source,
             target: c.target,
             sourcePort: c.sourceHandle as Connection["sourcePort"],

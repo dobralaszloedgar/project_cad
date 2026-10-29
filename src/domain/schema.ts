@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { thermoSchema } from "./thermo/registry";
+import { nameStreams } from "./stream-names";
 export const kinds = [
   "Feed",
   "Product",
@@ -56,6 +57,8 @@ export const unitSchema = z
 export const edgeSchema = z
   .object({
     id,
+    name: z.string().trim().min(1).max(60).optional(),
+    colorIndex: z.number().int().min(0).max(7).optional(),
     source: id,
     target: id,
     sourcePort: z.enum(["out", "out2"]),
@@ -68,7 +71,7 @@ export const projectSchema = z
     version: z.literal(1),
     name: z.string().min(1).max(80),
     units: z.array(unitSchema).max(40),
-    edges: z.array(edgeSchema).max(80),
+    edges: z.array(edgeSchema).max(80).transform(nameStreams),
     thermo: thermoSchema.optional(),
   })
   .strict();

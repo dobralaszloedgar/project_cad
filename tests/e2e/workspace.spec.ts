@@ -34,6 +34,9 @@ async function chooseView(page: Page, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
 }
 async function preferences(page: Page) {
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
 }
 test("reactor: calculate, edit, compare, restore, persist and round-trip", async ({
@@ -178,8 +181,10 @@ test("manual editing supports connect, move, double-click, duplicate and delete"
 }) => {
   await start(page);
   await template(page, "Blank flowsheet");
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Feed", { exact: true }).click();
   await page.getByTitle("Add Product", { exact: true }).click();
+  await page.keyboard.press("Escape");
   await page
     .locator(".react-flow__handle.source")
     .first()
@@ -278,6 +283,7 @@ test("reviewed Meta action UI applies a test-only proposal and rejects stale pro
     .getByLabel("Process prompt")
     .fill("Set the reactor temperature to 500 K.");
   await page.getByRole("button", { name: "Generate actions" }).click();
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Feed", { exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Apply reviewed actions" }),

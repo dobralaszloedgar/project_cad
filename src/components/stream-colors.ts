@@ -1,13 +1,19 @@
 import type { Project } from "../domain/schema";
 import { simulate, type Result, type Stream } from "../domain/solver";
 
-export const streamColors = {
-  teal: "#7f8e87",
-  blue: "#367c6c",
-  amber: "#b47b1e",
-};
+export const STREAM_COLOR_LABELS = [
+  "Red",
+  "Orange",
+  "Yellow",
+  "Green",
+  "Cyan",
+  "Blue",
+  "Violet",
+  "Pink",
+] as const;
+export const STREAM_COLOR_COUNT = STREAM_COLOR_LABELS.length;
 
-export function compositionColor(stream?: Pick<Stream, "a" | "b">): string {
+function signature(stream?: Pick<Stream, "a" | "b">) {
   if (
     !stream ||
     !Number.isFinite(stream.a + stream.b) ||
@@ -15,55 +21,95 @@ export function compositionColor(stream?: Pick<Stream, "a" | "b">): string {
     stream.b < 0 ||
     stream.a + stream.b <= 0
   )
-    return streamColors.teal;
-  // A single hue per binary mixture, from B-rich red to A-rich violet.
-  // Quantize numerical solver noise so equal compositions share a color.
-  const fraction =
-    Math.round((stream.a / (stream.a + stream.b)) * 10000) / 10000;
-  return `hsl(${Math.round(fraction * 2800) / 10} 65% 48%)`;
+    return null;
+  const total = stream.a + stream.b;
+  return Object.entries({ a: stream.a, b: stream.b })
+    .filter(([, value]) => value > 0)
+    .map(([id, value]) => `${id}:${(value / total).toFixed(6)}`)
+    .join("|");
 }
 
-export function projectStreamColors(project: Project, result: Result | null) {
+function hashColor(key: string) {
+  let hash = 2166136261;
+  for (const char of key) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return (hash >>> 0) % STREAM_COLOR_COUNT;
+}
+
+/** Share colors across equal compositions and composition-preserving units. */
+export function streamColorIndices(
+  project: Project,
+  result: Result | null = null,
+) {
   let streams = result?.streams;
   if (!streams) {
     try {
       const preview = simulate(project);
       if (preview.converged) streams = preview.streams;
     } catch {
-      // An unfinished flowsheet may still have known feed compositions.
+      // Unfinished flowsheets still have feed compositions and connected groups.
     }
   }
-  const compositions: Record<string, Pick<Stream, "a" | "b">> = {};
+  const parent = new Map(project.edges.map((edge) => [edge.id, edge.id]));
+  const root = (id: string): string => {
+    const next = parent.get(id)!;
+    if (next === id) return id;
+    const resolved = root(next);
+    parent.set(id, resolved);
+    return resolved;
+  };
+  for (const unit of project.units) {
+    if (!["Heater", "Cooler", "Splitter"].includes(unit.kind)) continue;
+    const incoming = project.edges.filter((edge) => edge.target === unit.id);
+    if (incoming.length !== 1) continue;
+    for (const edge of project.edges.filter((edge) => edge.source === unit.id))
+      parent.set(root(edge.id), root(incoming[0].id));
+  }
+  const groupSignature = new Map<string, string>();
   for (const edge of project.edges) {
     const source = project.units.find((unit) => unit.id === edge.source);
-    if (streams?.[edge.id]) compositions[edge.id] = streams[edge.id];
-    else if (source?.kind === "Feed")
-      compositions[edge.id] = {
-        a: source.params.fractionA,
-        b: 1 - source.params.fractionA,
-      };
+    const known =
+      signature(streams?.[edge.id]) ??
+      (source?.kind === "Feed"
+        ? signature({
+            a: source.params.fractionA,
+            b: 1 - source.params.fractionA,
+          })
+        : null);
+    if (known) groupSignature.set(root(edge.id), known);
   }
-  // Only propagate through operations that preserve composition. Unknown
-  // reaction/separation/mixing outputs stay neutral until they can be solved.
-  for (let pass = 0; pass < project.units.length; pass++) {
-    let changed = false;
-    for (const edge of project.edges) {
-      if (compositions[edge.id]) continue;
-      const source = project.units.find((unit) => unit.id === edge.source);
-      if (!source || !["Heater", "Cooler", "Splitter"].includes(source.kind))
-        continue;
-      const input = project.edges.find((inlet) => inlet.target === source.id);
-      if (input && compositions[input.id]) {
-        compositions[edge.id] = compositions[input.id];
-        changed = true;
+  const groups = new Map<string, number>();
+  const counts = Array<number>(STREAM_COLOR_COUNT).fill(0);
+  const colors = new Map<string, number>();
+  for (const edge of project.edges) {
+    const group = root(edge.id);
+    const key = groupSignature.has(group)
+      ? `composition:${groupSignature.get(group)}`
+      : `unknown:${group}`;
+    let color = groups.get(key);
+    if (color === undefined) {
+      const start = hashColor(key);
+      color = start;
+      for (let offset = 1; offset < STREAM_COLOR_COUNT; offset++) {
+        const candidate = (start + offset) % STREAM_COLOR_COUNT;
+        if (counts[candidate] < counts[color]) color = candidate;
       }
+      counts[color]++;
+      groups.set(key, color);
     }
-    if (!changed) break;
+    colors.set(edge.id, edge.colorIndex ?? color);
   }
+  return colors;
+}
+
+export function streamColor(index: number) {
+  return `var(--stream-rainbow-${index})`;
+}
+
+export function projectStreamColors(project: Project, result: Result | null) {
   return Object.fromEntries(
-    project.edges.map((edge) => [
-      edge.id,
-      compositionColor(compositions[edge.id]),
+    [...streamColorIndices(project, result)].map(([id, index]) => [
+      id,
+      streamColor(index),
     ]),
   );
 }

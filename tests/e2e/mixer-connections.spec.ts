@@ -70,7 +70,7 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
   }
 
   const streamPoint = await page
-    .getByRole("group", { name: "Edge from F-4 to M-center", exact: true })
+    .getByRole("group", { name: "Stream 5", exact: true })
     .locator(".react-flow__edge-interaction")
     .evaluate((element) => {
       const path = element as SVGPathElement;
@@ -122,7 +122,7 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
   await expect(
     page
       .locator(".stream-table tbody tr")
-      .filter({ hasText: "product" })
+      .filter({ hasText: "Stream 1" })
       .locator("td")
       .nth(1),
   ).toHaveText("40");

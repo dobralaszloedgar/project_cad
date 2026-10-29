@@ -4,42 +4,57 @@ import {
   heatingExample,
   reactorExample,
 } from "../src/domain/examples";
-import { newUnit } from "../src/domain/schema";
+import { newUnit, type Project } from "../src/domain/schema";
 import { simulate } from "../src/domain/solver";
 import {
-  compositionColor,
   projectStreamColors,
-  streamColors,
+  streamColorIndices,
+  STREAM_COLOR_COUNT,
 } from "../src/components/stream-colors";
 
-describe("stream composition colors", () => {
-  it("uses composition rather than flow rate, including numerical solver noise", () => {
-    expect(compositionColor({ a: 1, b: 3 })).toBe(
-      compositionColor({ a: 10, b: 30 }),
-    );
-    expect(compositionColor({ a: 1, b: 3 })).toBe(
-      compositionColor({ a: 1.00000001, b: 3 }),
-    );
-    expect(
-      new Set(
-        [0, 0.25, 0.5, 0.75, 1].map((a) => compositionColor({ a, b: 1 - a })),
-      ).size,
-    ).toBe(5);
-    expect(compositionColor({ a: 1, b: 0 })).not.toBe(
-      compositionColor({ a: 0, b: 1 }),
-    );
+function feeds(fractions: number[]): Project {
+  const units = fractions.flatMap((fraction, i) => {
+    const feed = newUnit("Feed", `F${i}`, 0, i * 200);
+    feed.params.fractionA = fraction;
+    feed.params.flow = i + 1;
+    feed.params.temperature = 300 + i * 10;
+    return [feed, newUnit("Product", `P${i}`, 300, i * 200)];
   });
+  return {
+    version: 1,
+    name: "Color groups",
+    units,
+    edges: fractions.map((_, i) => ({
+      id: `s${i}`,
+      source: `F${i}`,
+      target: `P${i}`,
+      sourcePort: "out",
+      targetPort: "in",
+      color: "teal",
+    })),
+  };
+}
 
-  it("keeps undefined and zero-flow compositions neutral", () => {
-    for (const value of [
-      undefined,
-      { a: 0, b: 0 },
-      { a: NaN, b: 1 },
-      { a: -1, b: 2 },
-    ])
-      expect(compositionColor(value)).toBe(streamColors.teal);
+describe("stream palette colors", () => {
+  it("groups equal mole compositions regardless of flow, conditions, or solver noise", () => {
+    const project = feeds([0.25, 0.25, 0.250000001, 0.75]);
+    const colors = streamColorIndices(project);
+    expect(colors.get("s0")).toBe(colors.get("s1"));
+    expect(colors.get("s0")).toBe(colors.get("s2"));
+    expect(colors.get("s0")).not.toBe(colors.get("s3"));
   });
-
+  it("uses all eight colors before reusing them for different compositions", () => {
+    const colors = [
+      ...streamColorIndices(
+        feeds(Array.from({ length: 17 }, (_, i) => i / 16)),
+      ).values(),
+    ];
+    expect(new Set(colors.slice(0, 8)).size).toBe(STREAM_COLOR_COUNT);
+    for (let index = 0; index < STREAM_COLOR_COUNT; index++)
+      expect(
+        colors.filter((color) => color === index).length,
+      ).toBeGreaterThanOrEqual(2);
+  });
   it("changes at reaction and mixing, but not heating or splitting", () => {
     const project = reactorExample();
     const colors = projectStreamColors(project, simulate(project));
@@ -50,23 +65,33 @@ describe("stream composition colors", () => {
     expect(colors.s5).toBe(colors.recycle);
     expect(projectStreamColors(project, null)).toEqual(colors);
   });
-
   it("distinguishes feed, distillate and bottoms", () => {
-    const colors = projectStreamColors(distillationExample(), null);
-    expect(new Set(Object.values(colors)).size).toBe(3);
+    expect(
+      new Set(Object.values(projectStreamColors(distillationExample(), null)))
+        .size,
+    ).toBe(3);
   });
-
-  it("updates colors after edits and retains only known compositions in unfinished flowsheets", () => {
-    const project = heatingExample();
-    const initial = projectStreamColors(project, null);
-    project.units[0].params.fractionA = 0.4;
-    expect(projectStreamColors(project, null).s1).not.toBe(initial.s1);
+  it("keeps connected composition-preserving groups together before a flowsheet can solve", () => {
+    const project = reactorExample();
     project.units.push(newUnit("Cooler", "unconnected", 0, 300));
-    const unfinished = projectStreamColors(project, null);
-    expect(unfinished.s1).toBe(compositionColor({ a: 0.4, b: 0.6 }));
-    expect(unfinished.s2).toBe(unfinished.s1);
-    const reactor = reactorExample();
-    reactor.units.push(newUnit("Cooler", "unconnected", 0, 300));
-    expect(projectStreamColors(reactor, null).s4).toBe(streamColors.teal);
+    const colors = streamColorIndices(project);
+    expect(colors.get("s2")).toBe(colors.get("s3"));
+    expect(colors.get("s4")).toBe(colors.get("s5"));
+    expect(colors.get("s4")).toBe(colors.get("recycle"));
+    expect(
+      new Set([colors.get("s1"), colors.get("s2"), colors.get("s4")]).size,
+    ).toBe(3);
+  });
+  it("overrides only the chosen stream and restores its automatic group", () => {
+    const project = heatingExample();
+    const initial = streamColorIndices(project);
+    const chosen = (initial.get("s1")! + 1) % STREAM_COLOR_COUNT;
+    const original = simulate(project);
+    project.edges[0].colorIndex = chosen;
+    expect(streamColorIndices(project).get("s1")).toBe(chosen);
+    expect(streamColorIndices(project).get("s2")).toBe(initial.get("s2"));
+    expect(simulate(project).streams).toEqual(original.streams);
+    delete project.edges[0].colorIndex;
+    expect(streamColorIndices(project)).toEqual(initial);
   });
 });

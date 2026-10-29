@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 import { Trash2, Copy, Info } from "lucide-react";
-import { type Unit, type Project, unitSchema } from "@/domain/schema";
+import {
+  type Unit,
+  type Project,
+  type Connection,
+  unitSchema,
+} from "@/domain/schema";
 import { type Result, flow } from "@/domain/solver";
 import {
   defaultThermo,
@@ -11,6 +16,7 @@ import {
 import { sampleMixtures } from "@/domain/thermo/catalog";
 import { EquipmentIcon, equipmentLabels } from "./EquipmentIcon";
 import "./equipment-setup.css";
+import { STREAM_COLOR_LABELS, streamColor } from "./stream-colors";
 interface Props {
   project: Project;
   selected: string | null;
@@ -432,50 +438,137 @@ function CatalystProfile({
     </figure>
   );
 }
-export default function Inspector({
+function StreamInspector({
   project,
-  selected,
+  edge,
   result,
   onChange,
-  onError,
-}: Props) {
-  const unit = project.units.find((n) => n.id === selected),
-    edge = project.edges.find((e) => e.id === selected);
-  const settings = project.thermo ?? defaultThermo;
-  if (edge) {
-    const s = result?.streams[edge.id];
-    const properties = result?.properties[edge.id];
-    return (
-      <aside className="panel inspector">
-        <h2>Material stream</h2>
-        <p className="muted">{edge.id}</p>
-        <p>
-          {edge.source} → {edge.target}
-        </p>
-        <label>
-          Stream color
-          <select
-            className="select"
-            value={edge.color}
-            onChange={(e) =>
-              onChange(
-                {
-                  ...project,
-                  edges: project.edges.map((n) =>
-                    n.id === edge.id
-                      ? { ...n, color: e.target.value as typeof n.color }
-                      : n,
-                  ),
-                },
-                "Change stream color",
-              )
-            }
+}: Pick<Props, "project" | "result" | "onChange"> & { edge: Connection }) {
+  const [name, setName] = useState(edge.name ?? "");
+  const [tab, setTab] = useState<"Setup" | "Results">("Setup");
+  const update = (
+    patch: Partial<Pick<Connection, "name" | "colorIndex">>,
+    label: string,
+  ) =>
+    onChange(
+      {
+        ...project,
+        edges: project.edges.map((stream) =>
+          stream.id === edge.id ? { ...stream, ...patch } : stream,
+        ),
+      },
+      label,
+    );
+  const s = result?.streams[edge.id];
+  const properties = result?.properties[edge.id];
+  return (
+    <aside className="panel inspector stream-inspector">
+      <div
+        className="inspector-tabs"
+        role="tablist"
+        aria-label="Stream properties"
+      >
+        {(["Setup", "Results"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            role="tab"
+            id={`stream-tab-${item}`}
+            aria-controls={`stream-panel-${item}`}
+            aria-selected={tab === item}
+            className={tab === item ? "active" : ""}
+            onClick={() => setTab(item)}
           >
-            <option value="teal">Teal</option>
-            <option value="blue">Blue</option>
-            <option value="amber">Amber</option>
-          </select>
-        </label>
+            {item}
+          </button>
+        ))}
+      </div>
+      <div
+        role="tabpanel"
+        id="stream-panel-Setup"
+        aria-labelledby="stream-tab-Setup"
+        hidden={tab !== "Setup"}
+      >
+        <h3>Connections</h3>
+        <p className="muted">
+          {edge.source} / {edge.sourcePort === "out2" ? "Outlet 2" : "Outlet"} →{" "}
+          {edge.target} / {edge.targetPort === "in2" ? "Inlet 2" : "Inlet"}
+        </p>
+        <form
+          className="stream-name-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim()) update({ name: name.trim() }, "Rename stream");
+          }}
+        >
+          <label>
+            Name
+            <input
+              className="input"
+              aria-label="Stream name"
+              value={name}
+              required
+              maxLength={60}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <button
+            className="btn wide"
+            type="submit"
+            disabled={!name.trim() || name.trim() === edge.name}
+          >
+            Save name
+          </button>
+        </form>
+        <section className="stream-color-section">
+          <h3>Color</h3>
+          <p className="muted">
+            Auto groups streams by composition. Choose a palette color for this
+            stream only.
+          </p>
+          <div
+            className="stream-color-picker"
+            role="group"
+            aria-label="Stream color"
+          >
+            <button
+              type="button"
+              className="stream-color-choice"
+              aria-label="Auto stream color"
+              aria-pressed={edge.colorIndex === undefined}
+              onClick={() =>
+                update({ colorIndex: undefined }, "Reset stream color")
+              }
+            >
+              Auto
+            </button>
+            {STREAM_COLOR_LABELS.map((label, index) => (
+              <button
+                key={label}
+                type="button"
+                className="stream-color-choice"
+                aria-label={`${label} stream color`}
+                aria-pressed={edge.colorIndex === index}
+                onClick={() =>
+                  update({ colorIndex: index }, "Change stream color")
+                }
+              >
+                <span
+                  className="stream-color-chip"
+                  aria-hidden="true"
+                  style={{ backgroundColor: streamColor(index) }}
+                />
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+      <div
+        role="tabpanel"
+        id="stream-panel-Results"
+        aria-labelledby="stream-tab-Results"
+        hidden={tab !== "Results"}
+      >
         {s ? (
           <dl className="facts">
             <dt>Molar flow</dt>
@@ -519,23 +612,45 @@ export default function Inspector({
           <p className="muted">Run to calculate stream properties.</p>
         )}
         <small>*Gas assumption only; not a liquid volume prediction.</small>
-        <button
-          className="btn danger wide"
-          onClick={() =>
-            onChange(
-              {
-                ...project,
-                edges: project.edges.filter((e) => e.id !== edge.id),
-              },
-              "Remove stream",
-            )
-          }
-        >
-          <Trash2 size={15} /> Remove stream
-        </button>
-      </aside>
+      </div>
+      <button
+        className="btn danger wide"
+        onClick={() =>
+          onChange(
+            {
+              ...project,
+              edges: project.edges.filter((e) => e.id !== edge.id),
+            },
+            "Remove stream",
+          )
+        }
+      >
+        <Trash2 size={15} /> Remove stream
+      </button>
+    </aside>
+  );
+}
+
+export default function Inspector({
+  project,
+  selected,
+  result,
+  onChange,
+  onError,
+}: Props) {
+  const unit = project.units.find((n) => n.id === selected),
+    edge = project.edges.find((e) => e.id === selected);
+  const settings = project.thermo ?? defaultThermo;
+  if (edge)
+    return (
+      <StreamInspector
+        key={edge.id}
+        project={project}
+        edge={edge}
+        result={result}
+        onChange={onChange}
+      />
     );
-  }
   if (!unit)
     return (
       <aside className="panel inspector">

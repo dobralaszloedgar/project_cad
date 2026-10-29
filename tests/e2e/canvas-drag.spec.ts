@@ -33,7 +33,9 @@ test("loaded and added equipment keeps initialized dimensions while dragging and
   await drag(page, reactor);
   await page.locator('[data-id="F-101"]').click();
   await drag(page, reactor);
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Cooler", { exact: true }).click();
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Fit View", exact: true }).click();
   const cooler = page
     .locator(".react-flow__node")

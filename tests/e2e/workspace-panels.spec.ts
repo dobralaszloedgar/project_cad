@@ -9,21 +9,45 @@ test.beforeEach(async ({ page }) => {
   ).toBeEnabled();
 });
 
-test("left pull tabs switch and collapse without blocking the canvas", async ({
+test("left edge tab opens the workspace menu without moving the canvas", async ({
   page,
 }) => {
   const tabs = page.getByRole("navigation", { name: "Workspace panels" });
-  await expect(tabs.getByRole("button")).toHaveCount(3);
-  await expect(
-    page.getByRole("complementary", { name: "Equipment" }),
-  ).toBeVisible();
+  const pullTab = page.getByRole("button", {
+    name: "Workspace menu",
+    exact: true,
+  });
+  const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
+  await expect(tabs.getByRole("button")).toHaveCount(2);
+  await expect(page.locator(".workspace-drawer")).toHaveCount(0);
+  const canvas = (await page.locator(".canvas-panel").boundingBox())!;
+  const viewport = await page
+    .locator(".react-flow__viewport")
+    .getAttribute("style");
+  const tabBox = (await pullTab.boundingBox())!;
+  expect(tabBox.x).toBe(canvas.x);
+  expect(tabBox.y + tabBox.height / 2).toBeCloseTo(
+    canvas.y + canvas.height / 2,
+    0,
+  );
+  await pullTab.click();
+  await expect(pullTab).toHaveAttribute("aria-expanded", "true");
+  await expect(menu.getByRole("button")).toHaveText([
+    "Equipment",
+    "Results",
+    "Themes",
+    "Toggle chat",
+    "Storage settings",
+    "Settings",
+  ]);
   await expect(page.getByText("Drag equipment onto the canvas.")).toHaveCount(
     0,
   );
   await expect(page.getByText("Connect the dots to add a stream.")).toHaveCount(
     0,
   );
-  await tabs.getByRole("button", { name: "Settings" }).click();
+  await menu.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(menu).toHaveCount(0);
   await expect(page.getByLabel("Property model")).toBeVisible();
   await expect(page.locator(".workspace-drawer")).toHaveCount(1);
   await expect(page.locator("dialog[open]")).toHaveCount(0);
@@ -41,11 +65,45 @@ test("left pull tabs switch and collapse without blocking the canvas", async ({
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await page.keyboard.press("Escape");
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
-  await expect(tabs.getByRole("button", { name: "Results" })).toBeFocused();
+  await expect(pullTab).toBeFocused();
   await tabs.getByRole("button", { name: "Equipment" }).click();
   await tabs.getByRole("button", { name: "Equipment" }).click();
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
   await page.screenshot({ path: "test-results/clean-canvas-dark.png" });
+  expect(
+    await page.locator(".react-flow__viewport").getAttribute("style"),
+  ).toBe(viewport);
+  await pullTab.click();
+  await page.screenshot({ path: "test-results/workspace-menu-dark.png" });
+  await menu.getByRole("button", { name: "Themes" }).click();
+  await expect(
+    page.getByRole("complementary", { name: "Themes" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await expect(page.locator("main.workspace")).toHaveAttribute(
+    "data-theme",
+    "light",
+  );
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Storage settings" }).click();
+  await expect(
+    page.getByRole("button", { name: "Export project", exact: true }),
+  ).toBeVisible();
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Toggle chat" }).click();
+  await expect(page.locator(".assistant-drawer")).toBeVisible();
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Toggle chat" }).click();
+  await expect(page.locator(".assistant-drawer")).toHaveCount(0);
+  await pullTab.click();
+  await page
+    .locator(".react-flow__pane")
+    .click({ position: { x: 700, y: 150 } });
+  await expect(menu).toHaveCount(0);
+  await pullTab.click();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(pullTab).toBeFocused();
 });
 
 test("solid stream and arrow colors follow composition before and after simulation", async ({
@@ -97,7 +155,7 @@ test("solid stream and arrow colors follow composition before and after simulati
   expect(new Set(Object.values(await colors())).size).toBe(3);
 });
 
-test("material handles match equipment roles and cursor stays visible across interactions", async ({
+test("material handles match equipment roles and cursors use normal system shapes", async ({
   page,
 }) => {
   for (const unit of reactorExample().units) {
@@ -120,34 +178,31 @@ test("material handles match equipment roles and cursor stays visible across int
       await page.getByRole("button", { name: "Toggle theme" }).click();
     const box = (await reactor.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(reactor).toHaveCSS("cursor", /grab\.svg/);
+    await expect(reactor).toHaveCSS("cursor", "grab");
     await page.mouse.down();
     await page.mouse.move(
       box.x + box.width / 2 + 30,
       box.y + box.height / 2 + 30,
       { steps: 8 },
     );
-    await expect(reactor).toHaveCSS("cursor", /grabbing\.svg/);
+    await expect(reactor).toHaveCSS("cursor", "grabbing");
     await page.mouse.up();
-    await expect(reactor).toHaveCSS("cursor", /grab\.svg/);
-    await expect(pane).toHaveCSS("cursor", /grab\.svg/);
+    await expect(reactor).toHaveCSS("cursor", "grab");
+    await expect(pane).toHaveCSS("cursor", "grab");
+    await page.getByRole("button", { name: "Equipment", exact: true }).click();
     await expect(page.getByLabel("Search equipment")).toHaveCSS(
       "cursor",
-      /text\.svg/,
+      "text",
     );
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("button", { name: "Workspace menu", exact: true }),
+    ).toHaveCSS("cursor", "pointer");
+    await expect(page.locator("main.workspace")).toHaveCSS("cursor", "default");
   }
-  for (const name of [
-    "default",
-    "pointer",
-    "grab",
-    "grabbing",
-    "connect",
-    "text",
-  ])
-    expect((await page.request.get(`/cursors/${name}.svg`)).ok()).toBe(true);
 });
 
-test("phone pull tabs remain reachable with scrolling panels and no page overflow", async ({
+test("phone pull tab and panels remain reachable without page overflow", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -155,10 +210,15 @@ test("phone pull tabs remain reachable with scrolling panels and no page overflo
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const tabs = page.getByRole("navigation", { name: "Workspace panels" });
+  const pullTab = page.getByRole("button", {
+    name: "Workspace menu",
+    exact: true,
+  });
+  const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
   for (const name of ["Equipment", "Settings", "Results"]) {
-    await tabs.getByRole("button", { name }).click();
+    await pullTab.click();
+    await menu.getByRole("button", { name, exact: true }).click();
     const panel = page.getByRole("complementary", { name });
     await expect(panel).toBeVisible();
     const rect = (await panel.boundingBox())!;
@@ -167,9 +227,11 @@ test("phone pull tabs remain reachable with scrolling panels and no page overflo
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(390);
-    await expect(tabs.getByRole("button", { name: "Equipment" })).toBeVisible();
+    await expect(pullTab).toBeVisible();
   }
-  await tabs.getByRole("button", { name: "Settings" }).click();
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Themes" }).click();
   await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await pullTab.click();
   await page.screenshot({ path: "test-results/pull-tabs-mobile.png" });
 });
