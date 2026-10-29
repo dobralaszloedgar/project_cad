@@ -42,10 +42,11 @@ export default function EquipmentSandbox() {
   const [mode, setMode] = useState<SceneMode>("process");
   const [systemId, setSystemId] = useState("integrated");
   const [trayCount, setTrayCount] = useState<number>(columnTrayLimits.default);
+  const [systemTrayOverride, setSystemTrayOverride] = useState<number>();
   const [trayDraft, setTrayDraft] = useState(String(columnTrayLimits.default));
   const system = useMemo(
-    () => getSystem(systemId, trayCount),
-    [systemId, trayCount],
+    () => getSystem(systemId, systemTrayOverride),
+    [systemId, systemTrayOverride],
   );
   const [section, setSection] = useState(false);
   const [transparent, setTransparent] = useState(true);
@@ -58,7 +59,15 @@ export default function EquipmentSandbox() {
   const [reset, setReset] = useState(0);
   const detail = equipmentCatalog[kind];
   const reference = equipmentReferences[kind];
-  const select = (next: Kind) => {
+  const select = (next: Kind, instanceId?: string) => {
+    const item = instanceId
+      ? system.equipment.find((item) => item.id === instanceId)
+      : undefined;
+    if (item?.kind === "Distillation") {
+      const count = item.trayCount ?? columnTrayLimits.default;
+      setTrayCount(count);
+      setTrayDraft(String(count));
+    } else setTrayDraft(String(trayCount));
     setKind(next);
     setMode("inspect");
     setView("perspective");
@@ -69,10 +78,31 @@ export default function EquipmentSandbox() {
     if (next === "process") {
       setTransparent(true);
       setSection(false);
-    }
+      const counts = [
+        ...new Set(
+          system.equipment
+            .filter((item) => item.kind === "Distillation")
+            .map((item) => item.trayCount ?? columnTrayLimits.default),
+        ),
+      ];
+      setTrayCount(counts[0] ?? columnTrayLimits.default);
+      setTrayDraft(
+        counts.length > 1 ? "" : String(counts[0] ?? columnTrayLimits.default),
+      );
+    } else setTrayDraft(String(trayCount));
     setView("perspective");
     setReset((n) => n + 1);
   };
+  const visibleTrayCounts =
+    mode === "process"
+      ? [
+          ...new Set(
+            system.equipment
+              .filter((item) => item.kind === "Distillation")
+              .map((item) => item.trayCount ?? columnTrayLimits.default),
+          ),
+        ]
+      : [trayCount];
   const title =
     mode === "collection"
       ? "The equipment collection"
@@ -176,6 +206,25 @@ export default function EquipmentSandbox() {
                 value={systemId}
                 onChange={(event) => {
                   setSystemId(event.target.value);
+                  setSystemTrayOverride(undefined);
+                  setTrayCount(columnTrayLimits.default);
+                  const counts = [
+                    ...new Set(
+                      systemExamples
+                        .find((item) => item.id === event.target.value)
+                        ?.equipment.filter(
+                          (item) => item.kind === "Distillation",
+                        )
+                        .map(
+                          (item) => item.trayCount ?? columnTrayLimits.default,
+                        ),
+                    ),
+                  ];
+                  setTrayDraft(
+                    counts.length > 1
+                      ? ""
+                      : String(counts[0] ?? columnTrayLimits.default),
+                  );
                   setTransparent(true);
                   setSection(false);
                   setView("perspective");
@@ -429,7 +478,7 @@ export default function EquipmentSandbox() {
                       const item = system.equipment.find(
                         (entry) => entry.id === event.target.value,
                       );
-                      if (item) select(item.kind);
+                      if (item) select(item.kind, item.id);
                     }}
                   >
                     <option value="" disabled>
@@ -460,6 +509,7 @@ export default function EquipmentSandbox() {
                   next <= columnTrayLimits.max
                 ) {
                   setTrayCount(next);
+                  if (mode === "process") setSystemTrayOverride(next);
                   setReset((n) => n + 1);
                 }
               }}
@@ -474,18 +524,26 @@ export default function EquipmentSandbox() {
                   step="1"
                   required
                   value={trayDraft}
+                  placeholder={
+                    visibleTrayCounts.length > 1 ? "Per column" : undefined
+                  }
                   onChange={(event) => setTrayDraft(event.target.value)}
                 />
                 <button type="submit">Apply</button>
               </div>
               <p>
-                {trayCount} trays
+                {visibleTrayCounts.join(" / ")} trays
                 {mode === "process" &&
                 system.equipment.filter((item) => item.kind === "Distillation")
                   .length > 1
-                  ? " per column"
+                  ? visibleTrayCounts.length > 1
+                    ? " across columns"
+                    : " per column"
                   : ""}{" "}
                 · shell, fittings and flow resize together.
+                {visibleTrayCounts.length > 1
+                  ? " Apply one count to resize all columns."
+                  : ""}
               </p>
             </form>
           ) : null}

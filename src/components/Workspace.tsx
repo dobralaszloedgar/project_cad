@@ -50,7 +50,14 @@ import {
   reactorExample,
   distillationExample,
   heatingExample,
+  solutionExample,
+  thermalCycleExample,
+  mixingExample,
+  catalystExample,
 } from "@/domain/examples";
+import ThermoSettingsPanel from "./ThermoSettings";
+import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
+import { sampleMixtures } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions, type Plan } from "@/domain/actions";
 import {
@@ -65,6 +72,7 @@ import {
   parseImport,
   clearWorkspace,
   activeProjectId,
+  openExampleWorkspace,
   listProjects,
   updateSavedProject,
   type SavedProject,
@@ -77,16 +85,25 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
-export default function Workspace() {
-  const [state, setState] = useState<WorkspaceState>({
+export default function Workspace({
+  exampleId,
+  initialView = "2D",
+  initialPlayback = false,
+}: {
+  exampleId?: string;
+  initialView?: "2D" | "3D" | "Split";
+  initialPlayback?: boolean;
+}) {
+  const [state, setState] = useState<WorkspaceState>(() => ({
     version: 1,
-    project: reactorExample(),
+    project: (exampleId && plantTemplate(exampleId)) || reactorExample(),
     revisions: [],
-  });
+  }));
   const [ready, setReady] = useState(false);
   const [storage, setStorage] = useState("Loading local project");
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState("2D");
+  const [view, setView] = useState<string>(initialView);
+  const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
   const [compareId, setCompareId] = useState("");
   const [result, setResult] = useState<Result | null>(null);
@@ -127,7 +144,16 @@ export default function Workspace() {
   const project = state.project;
   useEffect(() => {
     let active = true;
-    Promise.all([loadWorkspace(), activeProjectId()])
+    const example = exampleId ? plantTemplate(exampleId) : undefined;
+    const opening =
+      example && exampleId
+        ? openExampleWorkspace(exampleId, {
+            version: 1,
+            project: example,
+            revisions: [checkpoint(example, "Created from example")],
+          }).then(({ workspace, projectId }) => [workspace, projectId] as const)
+        : Promise.all([loadWorkspace(), activeProjectId()]);
+    opening
       .then(([saved, id]) => {
         if (!active) return;
         setProjectId(id);
@@ -150,7 +176,7 @@ export default function Workspace() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [exampleId]);
   useEffect(() => {
     if (!ready) return;
     const version = ++saveVersion.current;
@@ -231,19 +257,23 @@ export default function Workspace() {
     }
   }
   function loadExample(name: string) {
-    const next =
-      name === "heating"
-        ? heatingExample()
-        : name === "reactor"
-          ? reactorExample()
-          : name === "distillation"
-            ? distillationExample()
-            : (plantTemplate(name) ?? {
-                version: 1 as const,
-                name: "Untitled process",
-                units: [],
-                edges: [],
-              });
+    const factories: Record<string, () => Project> = {
+      solution: solutionExample,
+      heating: heatingExample,
+      reactor: reactorExample,
+      distillation: distillationExample,
+      "thermal-cycle": thermalCycleExample,
+      mixing: mixingExample,
+      catalyst: catalystExample,
+    };
+    const next = Object.hasOwn(factories, name)
+      ? factories[name]()
+      : (plantTemplate(name) ?? {
+          version: 1 as const,
+          name: "Untitled process",
+          units: [],
+          edges: [],
+        });
     if (showProjects) {
       void createProject(next);
       return;
@@ -405,6 +435,10 @@ export default function Workspace() {
     setTemplatesOpen(false);
     setAssistantOpen(false);
     setView("2D");
+    setPlaybackOnOpen(false);
+    const url = new URL(window.location.href);
+    for (const key of ["example", "view", "play"]) url.searchParams.delete(key);
+    window.history.replaceState(window.history.state, "", url);
   }
   async function createProject(next: Project) {
     if (projectBusy) return;
@@ -568,11 +602,15 @@ export default function Workspace() {
             onClick={() => setPreferencesOpen(true)}
           >
             <Thermometer size={16} />
-            <span>Ideal gas · A / B</span>
+            <span>
+              {modelInfo((project.thermo ?? defaultThermo).modelId).name}
+            </span>
           </button>
           <span
             className="species-count"
-            title="Two synthetic species: A and B"
+            title={
+              sampleMixtures[(project.thermo ?? defaultThermo).mixture].name
+            }
           >
             <FlaskConical size={16} />
             <span>2</span>
@@ -780,13 +818,16 @@ export default function Workspace() {
                 }
               />
             ) : null}
-            {view !== "2D" ? (
+            {view !== "2D" && ready ? (
               <Plant3D
+                initialPlaying={playbackOnOpen}
                 dark={theme === "dark"}
                 project={project}
                 selected={selected}
                 onSelect={inspect}
               />
+            ) : view !== "2D" ? (
+              <div className="empty-state">Opening 3D project…</div>
             ) : null}
           </div>
           {project.units.length === 0 ? (
@@ -953,12 +994,18 @@ export default function Workspace() {
             </div>
           </div>
           <div className="preference-section">
-            <h3>Physical model</h3>
-            <p>Ideal gas · synthetic A and B · steady state.</p>
-            <p>
-              First-order isothermal reactor and one ideal separation contact.
-              These templates are teaching models, not validated plant designs.
-            </p>
+            <ThermoSettingsPanel
+              project={project}
+              onApply={(settings) => {
+                change(
+                  applyActions(project, {
+                    summary: "Change thermodynamic model",
+                    actions: [{ type: "set_thermo_model", ...settings }],
+                  }),
+                  `Model: ${modelInfo(settings.modelId).name}`,
+                );
+              }}
+            />
           </div>
           <div className="preference-section">
             <h3>Local project</h3>

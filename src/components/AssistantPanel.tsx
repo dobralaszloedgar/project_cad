@@ -131,7 +131,9 @@ export default function AssistantPanel({
                         ? action.unit.id
                         : "edge" in action
                           ? `${action.edge.source} → ${action.edge.target}`
-                          : action.id}
+                          : "modelId" in action
+                            ? action.modelId
+                            : action.id}
                     </li>
                   ))}
                 </ol>

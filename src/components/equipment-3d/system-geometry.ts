@@ -16,7 +16,11 @@ export const equipmentPorts: Record<Kind, Record<string, Point>> = {
   },
   Heater: { in: [-1.7676, 1.14, 0], out: [1.7676, 1.14, 0] },
   Cooler: { in: [-1.38, 1.5, 0.85], out: [1.38, 1.5, 0.85] },
-  PBR: { in: [-0.99, 3.55, 0], out: [1.04, 0.48, 0.08] },
+  PBR: {
+    in: [-0.99, 3.55, 0],
+    in2: [-1.04, 2.9, 0],
+    out: [1.04, 0.48, 0.08],
+  },
   Distillation: {
     in: [-1.3, 2.97, 0],
     top: [2.1, 5.06, 0],

@@ -80,7 +80,7 @@ function portDirection(item: EquipmentInstance, port: string): Point {
         ? [0, 0, 1]
         : item.kind === "PBR" && port === "in"
           ? [0, -1, 0]
-          : [port === "in" ? -1 : 1, 0, 0];
+          : [port === "in" || port === "in2" ? -1 : 1, 0, 0];
   return rotatePoint(local, item.turn);
 }
 

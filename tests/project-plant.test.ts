@@ -26,6 +26,10 @@ import {
 import { plantTemplate, plantTemplates } from "../src/domain/plant-templates";
 import { simulate } from "../src/domain/solver";
 import { compactPlantLayout } from "../src/components/equipment-3d/plant-layout";
+import {
+  getComplexSystem,
+  complexSystems,
+} from "../src/components/equipment-3d/complex-systems";
 import type { Point } from "../src/components/equipment-3d/operation";
 
 function checkPlant(project: Project, plant: SystemExample) {
@@ -135,6 +139,56 @@ describe("project 3D integration", () => {
       expect(JSON.stringify(project)).toBe(before);
       expect(simulate(project).converged).toBe(true);
     },
+  );
+  it.each(
+    plantTemplates.filter((definition) => definition.id.endsWith("-complex")),
+  )(
+    "$id preserves authored column heights and provides enough rack lanes",
+    (definition) => {
+      const system = getComplexSystem(definition.id)!;
+      const metadata = complexSystems.find(
+        (item) => item.id === definition.id,
+      )!;
+      expect(system.site!.rack.levels.length * 9).toBeGreaterThanOrEqual(
+        system.streams.length,
+      );
+      expect(system.site!.equipmentArea).toBeLessThan(
+        system.site!.previousEquipmentArea,
+      );
+      expect(
+        metadata.equipment.map((item) => [
+          item.id,
+          item.position,
+          item.trayCount,
+        ]),
+      ).toEqual(
+        system.equipment.map((item) => [
+          item.id,
+          item.position,
+          item.trayCount,
+        ]),
+      );
+      for (const item of definition.equipment.filter(
+        (item) => item.kind === "Distillation",
+      ))
+        expect(
+          system.equipment.find((unit) => unit.id === item.id)!.trayCount,
+        ).toBe(item.params!.trayCount);
+      const resized = getComplexSystem(definition.id, 24)!;
+      for (const item of resized.equipment.filter(
+        (item) => item.kind === "Distillation",
+      ))
+        expect(item.trayCount).toBe(24);
+      for (const stream of resized.streams) {
+        expect(stream.points[0]).toEqual(
+          worldPort(resized.equipment, stream.from),
+        );
+        expect(stream.points.at(-1)).toEqual(
+          worldPort(resized.equipment, stream.to),
+        );
+      }
+    },
+    20000,
   );
   it("preserves current names, stream colors, and changed connectivity in a known plant", () => {
     const project = plantTemplate("integrated")!;

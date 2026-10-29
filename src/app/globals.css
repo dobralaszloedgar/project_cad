@@ -2666,3 +2666,24 @@ h3 {
     top: 12px;
   }
 }
+/* Thermodynamic settings share the workspace's form treatment. */
+.thermo-settings {
+  display: grid;
+  gap: 12px;
+}
+.thermo-settings label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.thermo-settings select {
+  width: 100%;
+}
+.thermo-settings .thermo-extrapolate {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+}
+.thermo-settings p {
+  margin: 0;
+}

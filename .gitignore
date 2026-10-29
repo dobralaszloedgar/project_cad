@@ -5,6 +5,7 @@ node_modules/
 *.tsbuildinfo
 playwright-report/
 test-results/
+rust/thermo/target/
 .DS_Store
 
 # Local documentation and agent tooling

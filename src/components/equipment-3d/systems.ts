@@ -328,7 +328,7 @@ export const systemExamples: SystemExample[] = [
   },
 ];
 
-export function getSystem(id: string, trayCount = 8): SystemExample {
+export function getSystem(id: string, trayCount?: number): SystemExample {
   const complex = getComplexSystem(id, trayCount);
   if (complex) return complex;
   const system =

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultThermo, thermoSchema } from "./thermo/registry";
 import {
   unitSchema,
   edgeSchema,
@@ -15,6 +16,13 @@ const updateParamsSchema = z
     flow: paramsSchema.shape.flow.removeDefault().optional(),
     fractionA: paramsSchema.shape.fractionA.removeDefault().optional(),
     residenceTime: paramsSchema.shape.residenceTime.removeDefault().optional(),
+    reactorMode: paramsSchema.shape.reactorMode.removeDefault().optional(),
+    catalystMass: paramsSchema.shape.catalystMass.removeDefault().optional(),
+    catalystRateConstant: paramsSchema.shape.catalystRateConstant
+      .removeDefault()
+      .optional(),
+    thermalMode: paramsSchema.shape.thermalMode.removeDefault().optional(),
+    heatDuty: paramsSchema.shape.heatDuty.removeDefault().optional(),
     recycleFraction: paramsSchema.shape.recycleFraction
       .removeDefault()
       .optional(),
@@ -43,6 +51,9 @@ export const actionSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z.object({ type: z.literal("remove"), id: z.string().max(64) }).strict(),
+  z
+    .object({ type: z.literal("set_thermo_model"), ...thermoSchema.shape })
+    .strict(),
 ]);
 export const planSchema = z
   .object({
@@ -56,6 +67,14 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
     plan = planSchema.parse(rawPlan);
   for (const a of plan.actions) {
     switch (a.type) {
+      case "set_thermo_model":
+        project.thermo = {
+          ...defaultThermo,
+          modelId: a.modelId,
+          mixture: a.mixture,
+          extrapolate: a.extrapolate,
+        };
+        break;
       case "add":
         if (project.units.some((n) => n.id === a.unit.id))
           throw new Error(`Duplicate equipment ${a.unit.id}.`);

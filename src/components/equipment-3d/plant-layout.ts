@@ -83,6 +83,58 @@ const layouts: Record<string, Record<string, Placement>> = {
   },
 };
 
+const advancedLayouts = new Set([
+  "recycle-complex",
+  "parallel-complex",
+  "fractionation-complex",
+]);
+
+/** Larger sites fill bays by equipment function, not by graph traversal. Keep
+ * low skids south of the rack, compact manifolds north, columns behind them,
+ * and use the remaining front skid slots for product receivers. */
+function advancedPlacements(original: EquipmentInstance[]) {
+  const placements: Record<string, Placement> = {};
+  const compact = original.filter((item) =>
+    ["Mixer", "Splitter"].includes(item.kind),
+  );
+  const tall = original.filter((item) =>
+    ["PBR", "Distillation"].includes(item.kind),
+  );
+  const thermal = original.filter((item) =>
+    ["Heater", "Cooler"].includes(item.kind),
+  );
+  compact.forEach((item, i) => {
+    const row = Math.floor(i / 6);
+    const count = Math.min(6, compact.length - row * 6);
+    placements[item.id] = [((i % 6) - (count - 1) / 2) * 4.3, -2.8 - row * 3.5];
+  });
+  const rear = -6.3 - Math.max(0, Math.ceil(compact.length / 6) - 1) * 3.5;
+  tall.forEach((item, i) => {
+    placements[item.id] = [(i - (tall.length - 1) / 2) * 4.2, rear];
+  });
+  const skidSlot = (index: number): Placement => [
+    ((index % 9) - 4) * 2.8 + (index >= 9 ? 1.4 : 0),
+    3.8 + Math.floor(index / 9) * 4.5,
+    1,
+  ];
+  thermal.forEach((item, i) => {
+    placements[item.id] = skidSlot(i);
+  });
+  const feeds = original.filter((item) => item.kind === "Feed");
+  feeds.forEach((item, i) => {
+    placements[item.id] = [-15.8, -5.2 + (i - (feeds.length - 1) / 2) * 3.2];
+  });
+  const products = original.filter((item) => item.kind === "Product");
+  const frontSlots = Math.max(0, 18 - thermal.length);
+  products.forEach((item, i) => {
+    placements[item.id] =
+      i < frontSlots
+        ? skidSlot(thermal.length + i)
+        : [15.6, -5.7 + (i - frontSlots) * 4.5, 1];
+  });
+  return placements;
+}
+
 export function equipmentFootprint(equipment: EquipmentInstance[]) {
   const boxes = equipment.map(equipmentEnvelope);
   const min = [0, 1, 2].map((axis) =>
@@ -101,7 +153,8 @@ export function compactPlantLayout(
   equipment: EquipmentInstance[];
   site: PlantSite;
 } {
-  const placements = layouts[id];
+  const advanced = advancedLayouts.has(id);
+  const placements = advanced ? advancedPlacements(original) : layouts[id];
   if (!placements) throw new Error(`Missing plant layout: ${id}`);
   const equipment = original.map((item) => {
     const placement = placements[item.id];
@@ -111,14 +164,29 @@ export function compactPlantLayout(
   });
   const before = equipmentFootprint(original);
   const after = equipmentFootprint(equipment);
-  const start = id === "parallel" ? -7.7 : -9.5;
-  const end = id === "integrated" ? 7.2 : 6;
+  const start = advanced ? -13.2 : id === "parallel" ? -7.7 : -9.5;
+  const end = advanced ? 13.2 : id === "integrated" ? 7.2 : 6;
   const count = Math.ceil((end - start) / 3.5);
+  const outputCount = original.reduce(
+    (total, item) =>
+      total +
+      (item.kind === "Product"
+        ? 0
+        : ["Splitter", "Distillation"].includes(item.kind)
+          ? 2
+          : 1),
+    0,
+  );
   const rack: PlantRack = {
     start,
     end,
     halfWidth: 1.45,
-    levels: [3.35, 4.05, 4.75],
+    levels: advanced
+      ? Array.from(
+          { length: Math.max(3, Math.ceil(outputCount / 9)) },
+          (_, i) => 3.35 + i * 0.7,
+        )
+      : [3.35, 4.05, 4.75],
     frames: Array.from(
       { length: count + 1 },
       (_, i) => start + ((end - start) * i) / count,

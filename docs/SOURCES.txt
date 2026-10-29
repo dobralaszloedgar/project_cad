@@ -1,10 +1,38 @@
-INDEPENDENCE, REFERENCES AND RELEASE STATUS
+REFERENCES AND RELEASE STATUS
 
 The application is implemented in this repository using public packages.
-Equipment SVGs supplied by the project owner are bundled locally, as requested.
-No external application logic, screenshots, coefficients, data tables or weights
-are included. Scientific constants other than the gas constant are explicitly
-synthetic teaching choices.
+Equipment symbols and schematic 3D forms are constructed from original geometry
+in this repository. Equipment equations and scope are documented in EQUIPMENT.txt.
+Thermodynamic calculations use the local Rust kernel. Sample gas heat capacities
+are explicitly approximate; the A/B reaction constants are synthetic choices.
+The sample Antoine coefficients and molecular weights use NIST Chemistry WebBook:
+https://webbook.nist.gov/cgi/cbook.cgi?ID=C71432&Mask=4&Type=ANTOINE
+https://webbook.nist.gov/cgi/cbook.cgi?ID=C108883&Mask=4&Type=ANTOINE
+https://webbook.nist.gov/cgi/cbook.cgi?ID=C64175&Mask=4&Type=ANTOINE
+https://webbook.nist.gov/cgi/cbook.cgi?ID=C7732185&Mask=4&Type=ANTOINE
+NIST specifies kelvin and bar for these Antoine records. Each record retains
+its temperature interval and source link. This is a small sample catalog.
+As of 2026-10-28, water saturation pressure uses IAPWS SR1-86(1992), Eq. 1:
+https://iapws.org/public/documents/6dGkr/Supp-sat.pdf
+https://www.iapws.org/relguide/Supp-sat.html
+The release permits unrestricted publication. The implemented six coefficients,
+critical constants and analytic pressure derivative follow that release.
+Only saturation pressure is used; sample caloric estimates remain approximate.
+Overlapping Antoine records use a documented smooth blend; the original
+published coefficients and their source ranges remain unchanged.
+
+Modified UNIFAC 2.0 sample parameters:
+Nicolas Hayer, Hans Hasse and Fabian Jirasek (2025), Modified UNIFAC 2.0—A
+Group-Contribution Method Completed with Machine Learning.
+https://doi.org/10.1021/acs.iecr.5c00077
+https://acs.figshare.com/articles/dataset/28986186
+https://acs.figshare.com/articles/dataset/28986192
+The six-subgroup sample retains published parameter values and source metadata
+in rust/thermo/sample-groups.json. Published parameters are CC BY-NC 4.0;
+the original notice and source hashes are retained alongside the sample.
+The generated kernel identity also hashes the actual subset bytes.
+Chemical group counts in the sample catalog are explicit molecular assignments.
+The full experimental training database is not included.
 
 Public technical references consulted 2026-10-27:
 Next.js App Router: https://nextjs.org/docs/app/getting-started/installation
@@ -14,8 +42,7 @@ Meta Responses: https://dev.meta.ai/docs/protocols/responses
 Relative-volatility teaching context:
 https://www.homepages.ed.ac.uk/jwp/newMSOcopy/section3/study/relative.html
 https://learncheme.com/quiz-yourself/interactive-self-study-modules/raoults-law-and-vle/raoults-law-and-vle-simulations/
-No text, figures, tables, code or empirical parameters from these teaching pages
-are redistributed. The equations were independently implemented.
+No text, figures or tables from these teaching pages are redistributed.
 
 Hackathon verification:
 https://dev.meta.ai/events/global-hackathon

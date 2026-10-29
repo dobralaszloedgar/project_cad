@@ -11,14 +11,20 @@ export default function Plant3D({
   selected,
   onSelect,
   dark = false,
+  initialPlaying = false,
 }: {
   project: Project;
   selected: string | null;
   onSelect: (id: string) => void;
   dark?: boolean;
+  initialPlaying?: boolean;
 }) {
   const [transparent, setTransparent] = useState(true);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(
+    () =>
+      initialPlaying &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const [speed, setSpeed] = useState(1);
   const [reset, setReset] = useState(0);
   const layout = useMemo(() => {
