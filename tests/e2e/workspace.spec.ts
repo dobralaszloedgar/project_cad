@@ -202,6 +202,7 @@ test("manual editing supports connect, move, double-click, duplicate and delete"
 test("invalid import and disabled or cross-origin AI are rejected", async ({
   page,
   request,
+  baseURL,
 }) => {
   await start(page);
   await page.getByLabel("Import project file").setInputFiles({
@@ -220,7 +221,7 @@ test("invalid import and disabled or cross-origin AI are rejected", async ({
     (
       await request.post("/api/ai", {
         data: { prompt: "x" },
-        headers: { Origin: "http://127.0.0.1:3000" },
+        headers: { Origin: baseURL! },
       })
     ).status(),
   ).toBe(503);

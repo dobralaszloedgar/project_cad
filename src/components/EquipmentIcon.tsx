@@ -1,6 +1,6 @@
 import { type CSSProperties } from "react";
 import type { Kind } from "@/domain/schema";
-import { equipmentSymbols } from "./equipment-symbols";
+import { equipmentConnectors, equipmentSymbols } from "./equipment-symbols";
 export const equipmentLabels: Record<Kind, string> = {
   Feed: "Feed",
   Product: "Product",
@@ -18,18 +18,10 @@ export function EquipmentIcon({
   kind: Kind;
   size?: number;
 }) {
-  const connectorPaths: Partial<Record<Kind, string>> = {
-    Feed: "M104 64h16",
-    Product: "M8 64h20",
-    Mixer: "M8 40h32M8 88h32M88 64h32",
-    Splitter: "M8 64h32M88 40h32M88 88h32",
-    Heater: "M8 64h24M96 64h24",
-    Cooler: "M8 64h24M96 64h24",
-  };
   const geometry =
     equipmentSymbols[kind] +
-    (size > 48 && connectorPaths[kind]
-      ? `<path d="${connectorPaths[kind]}" vector-effect="non-scaling-stroke"/>`
+    (size > 48
+      ? `<path d="${equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
       : "");
   return (
     <svg

@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "definitions": {
+    "1": {
+      "Q": 1.0608,
+      "R": 0.6325,
+      "main": 1
+    },
+    "2": {
+      "Q": 0.7081,
+      "R": 0.6325,
+      "main": 1
+    },
+    "9": {
+      "Q": 0.4321,
+      "R": 0.3763,
+      "main": 3
+    },
+    "11": {
+      "Q": 0.949,
+      "R": 0.91,
+      "main": 4
+    },
+    "14": {
+      "Q": 0.8927,
+      "R": 1.2302,
+      "main": 5
+    },
+    "16": {
+      "Q": 2.4561,
+      "R": 1.7334,
+      "main": 7
+    }
+  },
+  "interactions": {
+    "4": {
+      "3": [
+        126.9973,
+        0.045595,
+        0.0
+      ],
+      "5": [
+        1387.1511,
+        -1.545793,
+        0.0
+      ],
+      "1": [
+        -2.320233,
+        -0.125835,
+        0.0
+      ],
+      "7": [
+        201.08093,
+        0.070611,
+        0.0
+      ]
+    },
+    "3": {
+      "4": [
+        36.213367,
+        -0.289022,
+        0.0
+      ],
+      "5": [
+        1153.8345,
+        -0.886215,
+        0.0
+      ],
+      "1": [
+        -13.408843,
+        -0.259877,
+        0.0
+      ],
+      "7": [
+        296.9907,
+        0.132567,
+        0.0
+      ]
+    },
+    "5": {
+      "4": [
+        365.83185,
+        0.590461,
+        0.0
+      ],
+      "3": [
+        344.16882,
+        0.394765,
+        0.0
+      ],
+      "1": [
+        108.70487,
+        0.234033,
+        0.0
+      ],
+      "7": [
+        -404.878,
+        0.023005,
+        0.0
+      ]
+    },
+    "1": {
+      "4": [
+        28.874262,
+        0.101934,
+        0.0
+      ],
+      "3": [
+        150.53584,
+        0.020485,
+        0.0
+      ],
+      "5": [
+        1798.2177,
+        -1.776088,
+        0.0
+      ],
+      "7": [
+        314.15445,
+        0.197805,
+        0.0
+      ]
+    },
+    "7": {
+      "4": [
+        194.47006,
+        1.444303,
+        0.0
+      ],
+      "3": [
+        190.88991,
+        1.496544,
+        0.0
+      ],
+      "5": [
+        1048.2665,
+        -2.129351,
+        0.0
+      ],
+      "1": [
+        57.479225,
+        1.057163,
+        0.0
+      ]
+    }
+  },
+  "source": {
+    "assignmentModel": "unifac-dortmund",
+    "citation": "Nicolas Hayer, Hans Hasse and Fabian Jirasek (2025). Modified UNIFAC 2.0\u00e2\u20ac\u201dA Group-Contribution Method Completed with Machine Learning. Industrial & Engineering Chemistry Research 64, 10304\u00e2\u20ac\u201c10313.",
+    "doi": "10.1021/acs.iecr.5c00077",
+    "file": "UNIFAC 2.0 Dortmund interaction parameters.tsv",
+    "license": "CC-BY-NC-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc/4.0/",
+    "mainGroups": 63,
+    "mirrorRelease": "thermo-0.6.1",
+    "mirrorUrl": "https://github.com/CalebBell/thermo/blob/v0.6.1/thermo/Phase%20Change/UNIFAC%202.0%20Dortmund%20interaction%20parameters.tsv",
+    "notice": "Nicolas Hayer, Hans Hasse and Fabian Jirasek (2025). Modified UNIFAC 2.0\u00e2\u20ac\u201dA Group-Contribution Method Completed with Machine Learning. Industrial & Engineering Chemistry Research 64, 10304\u00e2\u20ac\u201c10313. CC-BY-NC-4.0: https://creativecommons.org/licenses/by-nc/4.0/ Published parameter matrices are supplied through pinned thermo TSV files; TSV coefficients are unchanged in the versioned JSON bundle. The modified TSV rounds publisher spreadsheet coefficients to six decimal places. This application preset is for non-commercial use only. Source attribution and license notices must be retained. No author endorsement is implied. Existing original/Dortmund chemical assignments are reused with their source provenance; this notice does not relicense third-party assignments or the underlying experimental database.",
+    "parameterSource": "https://acs.figshare.com/articles/dataset/28986186",
+    "sha256": "5ada1ec5463d54ed03048fba6400ac0f0e379a2cc32e4c8e228d775a86cca476",
+    "subgroupSource": "https://acs.figshare.com/articles/dataset/28986192",
+    "subgroupSourceSha256": "3d8b5d34aefb4dc1a5c11c2725efdc00cb73d5434c46c00f68dea61559b4004e",
+    "subgroups": 125,
+    "useRestriction": "non-commercial-only",
+    "version": 1
+  }
+}

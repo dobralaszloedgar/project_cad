@@ -49,7 +49,14 @@ import {
   reactorExample,
   distillationExample,
   heatingExample,
+  solutionExample,
+  thermalCycleExample,
+  mixingExample,
+  catalystExample,
 } from "@/domain/examples";
+import ThermoSettingsPanel from "./ThermoSettings";
+import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
+import { sampleMixtures } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions, type Plan } from "@/domain/actions";
 import {
@@ -230,19 +237,18 @@ export default function Workspace() {
     }
   }
   function loadExample(name: string) {
-    const next =
-      name === "heating"
-        ? heatingExample()
-        : name === "reactor"
-          ? reactorExample()
-          : name === "distillation"
-            ? distillationExample()
-            : {
-                version: 1 as const,
-                name: "Untitled process",
-                units: [],
-                edges: [],
-              };
+    const factories: Record<string, () => Project> = {
+      solution: solutionExample,
+      heating: heatingExample,
+      reactor: reactorExample,
+      distillation: distillationExample,
+      "thermal-cycle": thermalCycleExample,
+      mixing: mixingExample,
+      catalyst: catalystExample,
+    };
+    const next = Object.hasOwn(factories, name)
+      ? factories[name]()
+      : { version: 1 as const, name: "Untitled process", units: [], edges: [] };
     if (showProjects) {
       void createProject(next);
       return;
@@ -567,11 +573,15 @@ export default function Workspace() {
             onClick={() => setPreferencesOpen(true)}
           >
             <Thermometer size={16} />
-            <span>Ideal gas · A / B</span>
+            <span>
+              {modelInfo((project.thermo ?? defaultThermo).modelId).name}
+            </span>
           </button>
           <span
             className="species-count"
-            title="Two synthetic species: A and B"
+            title={
+              sampleMixtures[(project.thermo ?? defaultThermo).mixture].name
+            }
           >
             <FlaskConical size={16} />
             <span>2</span>
@@ -951,12 +961,18 @@ export default function Workspace() {
             </div>
           </div>
           <div className="preference-section">
-            <h3>Physical model</h3>
-            <p>Ideal gas · synthetic A and B · steady state.</p>
-            <p>
-              First-order isothermal reactor and one ideal separation contact.
-              These templates are teaching models, not validated plant designs.
-            </p>
+            <ThermoSettingsPanel
+              project={project}
+              onApply={(settings) => {
+                change(
+                  applyActions(project, {
+                    summary: "Change thermodynamic model",
+                    actions: [{ type: "set_thermo_model", ...settings }],
+                  }),
+                  `Model: ${modelInfo(settings.modelId).name}`,
+                );
+              }}
+            />
           </div>
           <div className="preference-section">
             <h3>Local project</h3>

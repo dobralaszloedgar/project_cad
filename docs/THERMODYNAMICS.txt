@@ -1,0 +1,118 @@
+THERMODYNAMIC MODELS
+
+The model registry contains exactly three entries:
+  ideal-gas             Ideal gas
+  ideal-solution        Ideal liquid solution / Raoult's law
+  modified-unifac-2.0    Modified UNIFAC 2.0
+
+Numerical execution
+The Rust crate in rust/thermo compiles to WebAssembly. The same kernel is used
+by the browser, headless TypeScript functions and POST /api/simulate. No remote
+engine or database is needed. The committed kernel is bundled as JSON bytes;
+normal npm builds do not require a Rust toolchain. The byte buffer is allocated
+and freed for each request. The result records the kernel and parameter hashes.
+
+Rebuild after editing Rust:
+  npm run thermo:build
+This uses the pinned Rust Docker image, checks Rust formatting, runs native
+tests, builds wasm32-unknown-unknown and regenerates the bundled kernel and
+identity file. Cargo.lock pins the compiler dependencies. Docker is needed
+only for this rebuild command. Native equivalent:
+  cd rust/thermo
+  rustup target add wasm32-unknown-unknown
+  cargo test --locked
+  cargo build --locked --release --target wasm32-unknown-unknown
+  cd ../..
+  node scripts/bundle-thermo.mjs
+
+Sample catalog and future database
+Six records are provided: synthetic A/B, benzene, toluene, ethanol and water.
+This is sample data, not a 2,000-chemical database. ChemicalProvider separates
+the model evaluator from lookup and version identity. A future database can
+resolve and cache records before evaluation; pass the resolved provider and
+chemical IDs to evaluateProperties. The numerical kernel accepts up to 64
+components in one mixture, independently of total catalog size. The current
+flowsheet editor remains binary and maps its A/B fields to the selected pair.
+Adding catalog records does not add models or establish property coverage.
+Each record needs molecular weight and sample Cp; liquid models also need
+vapor-pressure coverage and Modified UNIFAC needs covered subgroup assignments.
+Missing groups, definitions, interactions and vapor-pressure data are errors.
+
+Equations and limits
+Ideal gas: molar volume RT/P, partial pressures y_i P, constant-Cp component
+enthalpies referenced to 298.15 K. Gas is assumed, not established by a
+stability calculation. Cp values are sample approximations, not measured fits.
+
+Raoult: Antoine log10(Psat/bar) = A-B/(T/K+C); K_i = Psat_i/P. Overlapping
+Antoine records are ordered by lower temperature bound (wider fit first on a
+tie); contained fits do not extend coverage. A quintic smoothstep blends ln(Psat)
+over the full overlap. Its analytic derivative includes the derivative of the
+blend weight, keeping pressure, enthalpy and heat capacity continuous at the
+joins. Source coefficients are unchanged; values inside overlaps are blended
+estimates. Disjoint source intervals remain unsupported without extrapolation.
+Water uses IAPWS SR1-86(1992), Eq. 1, from 273.16 to 647.096 K instead of the
+gapped Antoine records. IAPWS extrapolation is never permitted. Only its
+saturation-pressure equation is used; this does not add an IAPWS caloric model.
+A bracketed Rachford-Rice solve yields phase amounts and normalized
+compositions, with single-phase endpoints. TP-only pure-component saturation
+returns an indeterminate phase fraction
+and enthalpy instead of choosing an arbitrary phase. Antoine extrapolation is
+rejected by default and allowed only by a saved explicit setting with warnings.
+
+Modified UNIFAC 2.0: modified combinatorial term using r^(3/4), residual group
+activities, temperature-dependent directed interactions, analytic temperature
+derivatives and excess enthalpy. The sample bundle contains six subgroup
+definitions and only their main-group interactions from the published 2.0
+matrix. Damped K iteration and the same Rachford-Rice solver evaluate VLE.
+There is no liquid-liquid stability search or general azeotrope qualification.
+The sample source notice is retained in rust/thermo/sample-groups.json.
+
+Both liquid methods are restricted to 1–200 kPa and per-component vapor-pressure
+temperature ranges, inside a 250–800 K numerical envelope. Caloric estimates
+use gas enthalpy minus R T^2 d(ln Psat)/dT for liquid, plus excess enthalpy for
+Modified UNIFAC. These are demonstration estimates, not a validated caloric
+database. Liquid and mixed-phase volume are unavailable. Ideal ethanol/water
+explicitly warns that nonideality and azeotropy are missed.
+
+Flowsheets
+The existing synthetic reactor example defaults to ideal gas. The PBR only
+supports that synthetic reaction. Real mixtures have no invented kinetics.
+The Raoult's law separation template uses benzene/toluene at 350 K and 55 kPa.
+For either liquid model, Distillation is a single TP flash: vapor exits out,
+liquid exits out2. Fixed cut and relative volatility apply only to the existing
+ideal-gas teaching contact. No multistage column or reflux claim is made.
+Mixers use a pressure–enthalpy (PH) flash over the intersection of active
+components' supported temperature intervals, allowing an outlet temperature
+outside the inlet-temperature bracket due to mixing or phase change. The PH
+solver bisects each supported interval and accepts only an enthalpy residual
+within 1e-7 + 1e-11*abs(target) J/mol. It does not bridge data gaps. A target
+outside those intervals is rejected; extrapolation still requires the saved
+explicit setting. The temperature solve assumes monotonic equilibrium enthalpy
+within each interval; it is not a general search for multiple energy roots.
+At saturation, PH resolves the vapor fraction from the phase enthalpies. Streams
+retain this fraction through splitters and phase separators; a changed heater
+or cooler outlet temperature is evaluated afresh. TP alone still reports an
+indeterminate saturated phase amount. Heaters/coolers include the phase enthalpy
+estimate; splitters preserve total composition and state. Zero flow has no
+composition or phase. Convergence does not establish experimental validity.
+
+Model changes
+Preferences exposes exactly three methods and three sample mixture presets.
+Applying settings records a set_thermo_model action and a new revision, clears
+stale results, and preserves settings through save/import/export/restore.
+Revision comparison shows thermodynamic setting changes. Existing version-1
+projects without thermo settings continue to use the synthetic ideal-gas demo.
+
+Testing
+tests/thermo.test.ts exercises analytic ideal-gas and binary flash benchmarks,
+phase endpoints, saturation degeneracy, zero flow, invalid data, extrapolation,
+group coverage, flowsheet conservation and persisted model actions.
+tests/fixtures/modified-unifac-reference.json contains 18 independent reference
+states generated using thermo 0.6.1 UNIFAC.from_subgroups with DOUF2IP, DOUFSG
+and version=1. Activity coefficients and excess enthalpy are compared to the
+Rust results. This is numerical agreement, not experimental validation.
+tests/thermo-energy.test.ts covers correlation joins and derivatives, water
+coverage/reference pressures, PH round trips, true data gaps, equal-temperature
+nonideal mixing and saturated-stream energy conservation through equipment.
+tests/e2e/thermo.spec.ts checks model selection, persistence, phase results and
+the deterministic simulation endpoint.

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { projectSchema, type Project } from "../domain/schema";
+import { defaultThermo } from "../domain/thermo/registry";
 export const revisionSchema = z
   .object({
     id: z.string().max(80),
@@ -53,5 +54,15 @@ export function diff(before: Project, after: Project) {
   const streamsRemoved = before.edges.filter(
     (e) => !after.edges.some((b) => JSON.stringify(b) === JSON.stringify(e)),
   ).length;
-  return { added, removed, changed, streamsAdded, streamsRemoved };
+  const modelChanged =
+    JSON.stringify(before.thermo ?? defaultThermo) !==
+    JSON.stringify(after.thermo ?? defaultThermo);
+  return {
+    added,
+    removed,
+    changed,
+    streamsAdded,
+    streamsRemoved,
+    modelChanged,
+  };
 }

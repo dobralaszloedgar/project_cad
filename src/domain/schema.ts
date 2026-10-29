@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { thermoSchema } from "./thermo/registry";
 export const kinds = [
   "Feed",
   "Product",
@@ -25,6 +26,13 @@ export const paramsSchema = z
     flow: z.number().min(0.001).max(1000).default(10),
     fractionA: z.number().min(0).max(1).default(1),
     residenceTime: z.number().min(0).max(1000).default(10),
+    reactorMode: z
+      .enum(["residence-time", "catalyst-weight"])
+      .default("residence-time"),
+    catalystMass: z.number().min(0).max(10000).default(10),
+    catalystRateConstant: z.number().positive().max(10).default(0.01),
+    thermalMode: z.enum(["temperature", "duty"]).default("temperature"),
+    heatDuty: z.number().min(-1e8).max(1e8).default(0),
     recycleFraction: z.number().min(0).max(0.95).default(0.5),
     relativeVolatility: z.number().min(1.01).max(20).default(3),
     distillateFraction: z.number().min(0.01).max(0.99).default(0.5),
@@ -60,13 +68,19 @@ export const projectSchema = z
     name: z.string().min(1).max(80),
     units: z.array(unitSchema).max(40),
     edges: z.array(edgeSchema).max(80),
+    thermo: thermoSchema.optional(),
   })
   .strict();
 export type Unit = z.infer<typeof unitSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Connection = z.infer<typeof edgeSchema>;
 export const ports = (kind: Kind) => ({
-  inputs: kind === "Feed" ? [] : kind === "Mixer" ? ["in", "in2"] : ["in"],
+  inputs:
+    kind === "Feed"
+      ? []
+      : kind === "Mixer" || kind === "PBR"
+        ? ["in", "in2"]
+        : ["in"],
   outputs:
     kind === "Product"
       ? []
@@ -82,6 +96,7 @@ export function newUnit(kind: Kind, id: string, x: number, y: number): Unit {
     position: { x, y },
     params: {
       temperature: kind === "Feed" ? 300 : kind === "Cooler" ? 300 : 450,
+      ...(kind === "PBR" ? { reactorMode: "catalyst-weight" } : {}),
     },
   });
 }
