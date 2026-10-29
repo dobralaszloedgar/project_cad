@@ -1,0 +1,133 @@
+"use client";
+
+import { useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame, useThree, type ThreeElements } from "@react-three/fiber";
+import { Group } from "three";
+import type { Kind } from "@/domain/schema";
+import {
+  createEquipmentModel,
+  createSystemConnections,
+  disposeEquipmentModel,
+} from "./models";
+import { OperationClock } from "./operation";
+import { createProcessContents, createSystemFlow } from "./process-contents";
+import type { SystemExample } from "./system-geometry";
+
+export type MotionProps = {
+  playing: boolean;
+  speed: number;
+  motionVisible: boolean;
+  transparent: boolean;
+};
+
+export function EquipmentModel({
+  kind,
+  section = false,
+  transparent,
+  playing,
+  speed,
+  motionVisible,
+  liquidColor,
+  trayCount = 8,
+  ...props
+}: ThreeElements["group"] &
+  MotionProps & {
+    kind: Kind;
+    section?: boolean;
+    liquidColor?: string;
+    trayCount?: number;
+  }) {
+  const mount = useRef<Group>(null);
+  const rotors = useRef<Group[]>([]);
+  const clock = useMemo(() => new OperationClock(), []);
+  const contents = useRef<ReturnType<typeof createProcessContents> | null>(
+    null,
+  );
+  const invalidate = useThree((state) => state.invalidate);
+  useLayoutEffect(() => {
+    const parent = mount.current;
+    if (!parent) return;
+    const model = createEquipmentModel(kind, section, transparent, {
+      trayCount,
+    });
+    rotors.current = [];
+    model.traverse((part) => {
+      if (
+        part instanceof Group &&
+        typeof part.userData.angularSpeed === "number"
+      ) {
+        const angle = clock.uniform.value * part.userData.angularSpeed;
+        part.rotation.set(
+          part.userData.angularAxis === "x" ? angle : 0,
+          part.userData.angularAxis === "x" ? 0 : angle,
+          0,
+        );
+        rotors.current.push(part);
+      }
+    });
+    parent.add(model);
+    const fluid = createProcessContents(
+      kind,
+      section || transparent,
+      clock,
+      liquidColor,
+      { trayCount },
+    );
+    contents.current = fluid;
+    parent.add(fluid.group);
+    invalidate();
+    return () => {
+      parent.remove(model);
+      parent.remove(fluid.group);
+      disposeEquipmentModel(fluid.group);
+      contents.current = null;
+      rotors.current = [];
+      disposeEquipmentModel(model);
+    };
+  }, [kind, section, transparent, invalidate, clock, liquidColor, trayCount]);
+  useFrame((_, delta) => {
+    clock.advance(delta, playing, speed);
+    for (const rotor of rotors.current) {
+      const angle = clock.uniform.value * rotor.userData.angularSpeed;
+      rotor.rotation.set(
+        rotor.userData.angularAxis === "x" ? angle : 0,
+        rotor.userData.angularAxis === "x" ? 0 : angle,
+        0,
+      );
+    }
+    contents.current?.update(motionVisible);
+  });
+  return (
+    <group {...props}>
+      <group ref={mount} />
+    </group>
+  );
+}
+
+export function SystemConnections({
+  system,
+  transparent,
+  section,
+  playing,
+  speed,
+}: MotionProps & { system: SystemExample; section: boolean }) {
+  const mount = useRef<Group>(null);
+  const clock = useMemo(() => new OperationClock(), []);
+  const invalidate = useThree((state) => state.invalidate);
+  useLayoutEffect(() => {
+    const parent = mount.current;
+    if (!parent) return;
+    const model = createSystemConnections(system, transparent, section);
+    const fluid = createSystemFlow(system, clock);
+    fluid.visible = transparent || section;
+    parent.add(model, fluid);
+    invalidate();
+    return () => {
+      parent.remove(model, fluid);
+      disposeEquipmentModel(model);
+      disposeEquipmentModel(fluid);
+    };
+  }, [system, transparent, section, clock, invalidate]);
+  useFrame((_, delta) => clock.advance(delta, playing, speed));
+  return <group ref={mount} />;
+}

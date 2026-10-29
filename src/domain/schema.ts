@@ -36,6 +36,7 @@ export const paramsSchema = z
     recycleFraction: z.number().min(0).max(0.95).default(0.5),
     relativeVolatility: z.number().min(1.01).max(20).default(3),
     distillateFraction: z.number().min(0.01).max(0.99).default(0.5),
+    trayCount: z.number().int().min(2).max(80).default(8),
   })
   .strict();
 export const unitSchema = z

@@ -11,6 +11,7 @@ import {
   catalystExample,
 } from "@/domain/examples";
 import { type Project } from "@/domain/schema";
+import { plantTemplate, plantTemplates } from "@/domain/plant-templates";
 import { EquipmentIcon } from "./EquipmentIcon";
 const examples = [
   {
@@ -56,6 +57,12 @@ const examples = [
     description: "Separate a binary feed in one ideal contact.",
     project: distillationExample(),
   },
+  ...plantTemplates.map((item) => ({
+    id: item.id,
+    name: item.title,
+    description: item.description.replace(/^\d+ assemblies: /, ""),
+    project: plantTemplate(item.id)!,
+  })),
 ];
 function TemplateDiagram({ project }: { project: Project }) {
   return (
@@ -88,7 +95,7 @@ export default function Templates({
       className="templates-dialog"
     >
       <p className="dialog-intro">
-        Choose a simple flowsheet, then make it your own.
+        Choose a flowsheet, from a single operation to a connected plant.
       </p>
       <div className="template-list">
         {examples.map((t) => (

@@ -1,0 +1,87 @@
+# Equipment models — reference check and application integration
+
+Reference geometry checked 27 October 2026. The sandbox and the application's 3D/Split views share recognizable examples of chemical-process equipment. These are authored visual models, not dimensioned reproductions or validated mechanical designs. Feed and Product are stream-boundary concepts in the flowsheet; supply and receiver vessels are the selected physical representations.
+
+| Flowsheet equipment | Selected physical assembly | Primary reference and geometry checks |
+| --- | --- | --- |
+| Feed | Cone-roof supply tank | [Tank Connection petroleum storage](https://www.tankconnection.com/products/liquid-storage-tanks/petroleum-storage-tank): cylindrical storage shell, cone roof, low discharge, access fittings. This is a small supply-vessel interpretation, not a scaled tank farm. |
+| Product | Horizontal receiver | [Paul Mueller chemical receivers](https://en.paulmueller.com/chemical-processing-equipment/storage-tanks/receiver-vessel) and [horizontal tanks](https://en.paulmueller.com/food-processing-equipment/tanks/horizontal-storage-tank): closed drum, dished ends, saddle supports, inlet, manway and low drain. |
+| Mixer | Horizontal centrifugal inline mixer | [SEPARATECH CM](https://www.separatech.com/products/edible-oil-refinery-plant/centrifugal-mixer/), the supplied CM photograph, and the manufacturer's [section drawing](https://www.separatech.com/wp-content/uploads/2026/06/Centrifugal-mixer-working-principle.jpg): horizontal motor/spindle, removable hood, rotating bowl, axial feed, stationary centripetal pickup and upper discharge. This replaces the previous top-entry stirred tank. The extra dosing branch is an illustrative connection upstream of the mixer. |
+| Splitter | Valved branching manifold | [Swagelok distribution headers](https://www.swagelok.com/downloads/webcatalogs/en/ms-02-358.pdf), with the flowsheet meaning checked against [DWSIM's splitter](https://dwsim.org/help/main/24-unit-operations.html): one inlet, multiple outlets, no separation internals. The physical arrangement is a supported branch manifold. |
+| Heater | Steam-heated shell-and-tube exchanger | [API Basco shell-and-tube equipment](https://www.apiheattransfer.com/wp-content/uploads/2024/11/Basco-Shell-And-Tube-Heat-Exchangers_R4.pdf): separate shell/tube circuits, tube sheets, segmental baffles and channel heads. This is an indirect heater, not a fired refinery furnace. |
+| Cooler | Induced-draft air cooler | [Alfa Laval finned-tube air exchangers](https://www.alfalaval.com/en-US/products/heat-transfer/finned-tube-air-heat-exchangers/Finned-tube-air-heat-exchangers/) and [Peiyang Chemical Equipment](https://www.peiyangchem.com/other-products/air-cooled-heat-ex-changer.html): finned tube bank, headers, fans, shrouds and support frame. The revised drives sit above the bank so their shafts do not pass through process tubes. |
+| Packed-bed reactor | Two-bed downflow vessel | [Johnson Screens reactor-internals brochure, page 3](https://johnsonscreens.com/wp-content/uploads/2022/08/Internals-for-Down-Flow-Reactor_Eng.pdf): stationary packing, support screens, inlet distribution and redistribution between beds. The wetting animation depicts a liquid-feed example; packed beds also have other operating regimes. |
+| Distillation column | Valve-tray column with condenser and reboiler | [Sulzer tray technology](https://www.sulzer.com/en/shared/products/shell-tray-technology) and [University of Waterloo column anatomy](https://chemengvirtual.uwaterloo.ca/distillation-lab/components/distillation-column.html): tray openings, weirs, alternating downcomers, intermediate feed, overhead condensation and bottom reboiling. Reflux now returns above the highest tray; the reboiler returns below the lowest tray. The elevated condenser permits an illustrative gravity reflux arrangement. |
+
+## Construction and motion corrections
+
+- Gauges have raised mounting stems and unobstructed full dial faces. Outlet hardware clears adjacent vessel heads.
+- Flanges and sanitary fittings have open bores; bolts sit on the annular metal rather than inside the bore.
+- The mixer rotates about the horizontal spindle. Its vane sweep clears the bowl and the stationary pickup. The axisymmetric bowl uses the fixed cut plane in the inspection view.
+- The default transparent inspection mode reveals the complete shell at 16% opacity while keeping supports, flanges, motors, gauges and internals solid. Section view still cuts the metal walls; switching both inspection modes off restores opaque exteriors. This transparency is a viewing aid, not a claim that the real equipment is made from glass. Fluid remains depth-tested against the surrounding hardware.
+- The reactor packing remains fixed. Fans and mixer internals rotate; valve handwheels remain still during steady operation.
+- Column liquid spills through downcomers, small bubbles form within tray liquid, and the thermal equipment shows films/boiling inside its casing. Earlier floating colored tracer dots were removed.
+- Playback pause freezes the same operation clock used by rotors and fluid shaders. Motion also stops when the browser tab or 3D viewport is hidden, then resumes without a time jump. Mixer rotation is deliberately slowed for inspection; the speed buttons are playback multipliers, not motor operating setpoints.
+
+The supplied laboratory video was inspected for glass, clamp, tubing and frame construction. Its precise apparatus identity and flow conditions were not inferred from appearance. Industrial construction remains the selected equipment family. The user subsequently requested greater transparency and more vigorous animation, so transparent inspection is now the default and the operation uses faster circulation, stronger liquid surfaces and denser bubbling.
+
+## Scope of accuracy
+
+Construction types and flow topology are reference-informed. Absolute dimensions, stress, clearances under load, hydraulics, thermal performance, interfacial transport and motor speed are not engineering-certified. The fluid animation is a visual operating illustration, not CFD. Manufacturer photos and the private user video are reference material; they are not redistributed as app assets.
+
+## Transparent flow and connected examples
+
+The latest revision uses a common route definition for each pipe wall and animated liquid core, including rounded bends. Clear walls remain at 16% opacity; flanges, supports and valve operators remain solid. Liquid uses stronger teal, amber and blue pigments with continuous advecting highlights. Colors identify illustrative streams and heat-transfer transitions, not calculated temperatures or concentrations. Playback now offers 0.5×, 1×, 2× and 4×. The five smaller connected examples are Simple heating, Mixing & cooling, Heated reactor train, Distillation train and Flow distribution; repeated feeds/receivers have unique instance IDs and tags.
+
+## App-facing tray-count parameter
+
+EquipmentModel accepts trayCount as a numeric prop. For example, within an existing React Three Fiber Canvas:
+
+<EquipmentModel kind="Distillation" trayCount={20} section={false}
+  transparent playing speed={1} motionVisible />
+
+The pure geometry API is createEquipmentModel("Distillation", false, true, { trayCount: 20 }). When using the pure API, pass the same options as the fifth argument of createProcessContents. columnLayout is the single source for tray elevations, shell height, access platforms, feed elevation and overhead assembly elevation. getSystem("distillation", 20) also re-routes the connected feed and distillate lines.
+
+The sandbox's Number of trays control accepts integers from 2 to 80, with a standalone default of 8; process examples retain their authored per-column counts until a global override is applied. The public layout helper normalizes out-of-range/fractional inputs and falls back to 8 for non-finite values. Tray spacing is preserved; hardware is not stretched. Adding trays rebuilds the physical tray stack, downcomers, liquid surfaces and bubbles, extends the shell/ladder, adds service platforms, raises the condenser and gauge, relocates the feed, and refits the camera. Bubble density is bounded for taller columns. The component preserves its operation clock when the count changes.
+
+The application now stores this visual parameter as unit.params.trayCount. The schema accepts integers from 2 to 80 and defaults missing values to 8, including older projects. Select a distillation column, edit Visible trays (3D) in its Setup inspector, and choose Apply conditions. Each column retains its own count through validated actions, local saving, JSON export and reload. The count sizes the physical model and fitting heights; the solver still calculates one ideal equilibrium contact and does not predict a multistage column.
+
+## Large examples and compact plant arrangements — 28 October 2026
+
+The sandbox now opens on Integrated process plant (25 assemblies, 25 streams). Parallel reaction & finishing (17 assemblies, 17 streams) and Three-column fractionation (21 assemblies, 20 streams) join the five smaller examples. Every process retains unique equipment tags and fully connected, separately addressable inlet/outlet ports. Transparent shells and connecting pipes are on initially and when a different example is chosen. An Inspect equipment selector makes every assembly reachable even when projected labels would overlap. Applying a global tray count overrides every column in the current example; getSystem("integrated", 20) and the other large-system IDs regenerate elevated column connections as well.
+
+These three examples use compact authored plot plans instead of a 5.5-unit traversal grid. Related equipment occupies shared process bays: tall reactors and separation columns along the rear, perpendicular rotating/thermal equipment facing a central pipe corridor, and receivers along the outer edge. Quarter-turn orientation is shared by the rendered models, routing envelopes and actual nozzle coordinates. Concrete plinths follow individual assembly footprints. An open central aisle runs below a three-tier steel pipe rack; every longer connection receives its own rack lane, with local connections routed directly. Hardware and supports remain opaque while pipe walls and process enclosures remain transparent.
+
+Plant-layout references consulted for this revision:
+- HSE, Plant Layout: https://www.hse.gov.uk/comah/sragtech/techmeasplantlay.htm — balance shorter material transfer with operability, maintenance and access.
+- AXA XL Risk Consulting, Oil and Chemical Plant Layout and Spacing, PRC.2.5.2: https://axaxl.com/-/media/axaxl/files/pdfs/prc-guidelines/prc-2/prc252oilandchemicalplantlayoutandspacingv1.pdf — a central pipe rack with vessels/reactors outward and access around equipment.
+
+These sources inform the arrangement concept, not the sandbox's distances. The model does not implement hazard-dependent separation, tube-bundle withdrawal space, fire protection or pressure/transfer design. The layouts are compact illustrative arrangements, not a claim of a global mathematical minimum or a construction-ready plant. The UI's footprint comparison measures the axis-aligned XZ bounding rectangle of the authored equipment routing envelopes, against the previous row arrangement using those same envelopes; it excludes piping, roads and site setbacks from both measurements.
+
+Routing uses an orthogonal search around equipment, rack steel, reserved nozzle leads, allocated trunk lanes and existing pipes. Independent lines crossing in projection remain at separate elevations; the renderer and continuous fluid shader consume the same rounded route. Regression checks cover footprint reduction, non-overlapping assembly envelopes, rack-steel clearance, unique ports, complete graph reachability, aligned rotated nozzles, inter-pipe clearance and column resizing from 2 to 80 trays.
+
+## Application integration — 28 October 2026
+
+In the main workspace at /, choose 3D to explore the current project or Split to keep its editable 2D flowsheet alongside the detailed equipment. Both use the same eight models and continuous fluid rendering as /sandbox/equipment. Transparent shell starts on whenever the 3D view mounts; the display controls provide Fit plant, the transparency toggle, Play flow/Pause flow, and 0.5×, 1×, 2× or 4× playback. Motion starts paused unless an explicit launch URL requests playback, subject to the reduced-motion preference. Selecting a model or its label opens that project's unit inspector; projects with more than ten units also offer Inspect equipment.
+
+Templates now includes Integrated process plant (25 units / 25 streams), Parallel reaction & finishing (17 / 17), and Three-column fractionation (21 / 20) as editable application projects. Their lightweight definitions are shared with the sandbox. Opening Templates does not load the WebGL renderer; the workspace loads it lazily for 3D or Split.
+
+The current project's unit IDs, names, edge topology, physical port mapping, stream colors and individual column tray counts supply the 3D scene. Projects whose IDs and equipment kinds match a large template reuse its curated placements while retaining their current connections and parameters. Other user graphs receive a generated compact arrangement; disconnected equipment remains visible while editing. This arrangement is derived for viewing and never rewrites saved 2D positions. Its cache ignores 2D position changes and operating conditions that do not affect visible geometry, so those edits do not reroute pipes or reset the camera.
+
+The renderer retains the editor's Figtree controls, green light theme and existing black dark mode. If the graphics context is lost, Reload preview recreates the local 3D scene without reloading the application or replacing the project. A project that cannot be arranged in 3D remains editable in 2D. Geometry, transparent flow and playback continue to be illustrations; the production solver and its documented ideal-model limits are unchanged.
+
+## More complex editable examples — 28 October 2026
+
+Three additional templates are available in the main application and sandbox. Counts describe their initial definitions; application projects remain editable within the existing 40-unit limit.
+
+| Template / example ID | Units / streams | Initial process and visible trays | Rack tiers |
+| --- | --- | --- | --- |
+| Recycle recovery plant / recycle-complex | 32 / 32 | Two reactors, one cooled 25% recycle loop, and three recovery columns with 12 / 10 / 8 trays | 4 |
+| Three-train processing plant / parallel-complex | 39 / 40 | Three parallel reactor trains, recombination, and three finishing columns with 12 / 10 / 8 trays | 5 |
+| Four-column recovery plant / fractionation-complex | 35 / 34 | Four successive columns with 14 / 12 / 10 / 8 trays, five cooled cuts and ten receivers | 4 |
+
+Their compact bays group equipment by function around the rack, with staggered thermal/receiver skids. Rack capacity scales with the number of equipment outlets. These remain illustrative arrangements under the accuracy limits above. Visible tray counts size the geometry; they do not add equilibrium stages to the solver. The recycle splitter divides both teaching species in the same proportions, and paired cut receivers do not represent additional separations.
+
+Open `/?example=recycle-complex&view=3D`, `/?example=parallel-complex&view=3D` or `/?example=fractionation-complex&view=3D` to launch a separate saved `example-<id>` project. Later visits reopen its saved edits; existing work is preserved. Append `&play=1` to request initial flow playback unless reduced motion is preferred. Manually switching or creating projects clears the example, view and play launch parameters.
+
+The sandbox initially shows each column's authored count. Inspecting one column shows its own count; applying Number of trays in the process view overrides every column, and choosing another example restores that example's defaults. Example metadata and compact placements are available without routing all examples; full pipe routes are generated on demand and cached.

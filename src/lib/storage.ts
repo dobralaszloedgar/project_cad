@@ -56,6 +56,51 @@ export async function activeProjectId(): Promise<string> {
     database.close();
   }
 }
+/** Open a named example as its own project, retaining edits on repeated visits.
+ * The transaction also preserves a legacy current workspace before switching. */
+export async function openExampleWorkspace(exampleId: string, seed: Workspace) {
+  const initial = workspaceSchema.parse(seed);
+  const projectId = `example-${exampleId}`;
+  const database = await db();
+  try {
+    const tx = database.transaction(["workspace", "projects"], "readwrite");
+    const currentStore = tx.objectStore("workspace");
+    const projects = tx.objectStore("projects");
+    const [current, activeId, existing] = await Promise.all([
+      currentStore.get("current"),
+      currentStore.get("activeProject"),
+      projects.get(projectId) as Promise<SavedProject | undefined>,
+    ]);
+    const workspace = existing
+      ? workspaceSchema.parse(existing.workspace)
+      : initial;
+    const now = new Date().toISOString();
+    const previousId = activeId ?? "main";
+    if (current && !(await projects.get(previousId))) {
+      await projects.put({
+        id: previousId,
+        workspace: workspaceSchema.parse(current),
+        createdAt: now,
+        updatedAt: now,
+        starred: false,
+      } satisfies SavedProject);
+    }
+    if (!existing)
+      await projects.put({
+        id: projectId,
+        workspace,
+        createdAt: now,
+        updatedAt: now,
+        starred: false,
+      } satisfies SavedProject);
+    await currentStore.put(workspace, "current");
+    await currentStore.put(projectId, "activeProject");
+    await tx.done;
+    return { projectId, workspace };
+  } finally {
+    database.close();
+  }
+}
 export async function listProjects(): Promise<SavedProject[]> {
   const database = await db();
   try {
