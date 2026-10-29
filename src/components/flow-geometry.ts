@@ -7,10 +7,7 @@ export function equipmentPort(kind: Kind, output: boolean, index: number) {
   let position = output ? Position.Right : Position.Left;
   if (kind === "Mixer" && !output) y = index ? 88 : 40;
   if (kind === "Splitter" && output) y = index ? 88 : 40;
-  if (
-    (kind === "PBR" && (output || index === 0)) ||
-    (kind === "Distillation" && output)
-  ) {
+  if (kind === "PBR" || (kind === "Distillation" && output)) {
     const bottom = kind === "PBR" ? output : index > 0;
     x = 64;
     y = bottom ? 120 : 8;
@@ -80,12 +77,10 @@ export function plantPort(
     local[2] = port === "in2" ? 0.34 : -0.34;
   if (unit.kind === "Splitter" && output)
     local[2] = port === "out2" ? 0.34 : -0.34;
-  if (unit.kind === "PBR" && port !== "in2") {
+  if (unit.kind === "PBR") {
     local[0] = 0;
     local[1] = output ? 0.25 : plantHeight(unit.kind);
     direction = [0, output ? -1 : 1, 0];
-  } else if (unit.kind === "PBR") {
-    local[1] = 1.1;
   }
   if (unit.kind === "Distillation") {
     local[1] = 1.3;

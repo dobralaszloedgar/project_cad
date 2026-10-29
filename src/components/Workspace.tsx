@@ -84,6 +84,14 @@ import ProcessCanvas from "./ProcessCanvas";
 import Inspector from "./Inspector";
 import Results from "./Results";
 import AssistantPanel from "./AssistantPanel";
+import KeyboardHelp from "./KeyboardHelp";
+import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
+import {
+  copySelection,
+  deleteSelection,
+  pasteSelection,
+  type SelectionCopy,
+} from "@/domain/editor";
 const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
@@ -106,7 +114,18 @@ export default function Workspace({
   }));
   const [ready, setReady] = useState(false);
   const [storage, setStorage] = useState("Loading local project");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selection, setSelection] = useState<string[]>([]);
+  const selected = selection.at(-1) ?? null;
+  function setSelected(id: string | null) {
+    setSelection(id ? [id] : []);
+  }
+  const [helpOpen, setHelpOpen] = useState(false);
+  const editHistory = useRef<{ past: Project[]; future: Project[] }>({
+    past: [],
+    future: [],
+  });
+  const clipboard = useRef<SelectionCopy | null>(null);
+  const pasteOffset = useRef(40);
   const [view, setView] = useState<string>(initialView);
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
@@ -163,8 +182,13 @@ export default function Workspace({
   useEffect(() => {
     if (!drawer && !workspaceMenuOpen) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || document.querySelector("dialog[open]"))
+      if (
+        !isCloseKey(event) ||
+        event.defaultPrevented ||
+        document.querySelector("dialog[open]")
+      )
         return;
+      event.preventDefault();
       setWorkspaceMenuOpen(false);
       setDrawer(null);
       pullTabRef.current?.focus();
@@ -237,7 +261,12 @@ export default function Workspace({
     saveTimer.current = timer;
     return () => clearTimeout(timer);
   }, [state, ready, projectId]);
-  function change(next: Project, label: string, run = false) {
+  function change(
+    next: Project,
+    label: string,
+    run = false,
+    recordHistory = true,
+  ) {
     try {
       next = projectSchema.parse(next);
       const errors = validateGraph(next);
@@ -246,6 +275,10 @@ export default function Workspace({
         throw new Error(
           "Revision limit reached. Export this project, then clear local history to continue.",
         );
+      if (recordHistory) {
+        editHistory.current.past.push(project);
+        editHistory.current.future = [];
+      }
       setState((s) => ({
         ...s,
         project: next,
@@ -267,8 +300,10 @@ export default function Workspace({
           setMessage(e instanceof Error ? e.message : "Simulation failed.");
         }
       }
+      return true;
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Invalid project.");
+      return false;
     }
   }
   function add(kind: Kind, position?: { x: number; y: number }) {
@@ -340,6 +375,10 @@ export default function Workspace({
           "Combined revision history is too large. Import a project-only JSON file.",
         );
       setStorage("Saving…");
+      editHistory.current = {
+        past: [...editHistory.current.past, project],
+        future: [],
+      };
       setState((s) => ({
         version: 1,
         project: imported.project,
@@ -379,6 +418,10 @@ export default function Workspace({
       return;
     }
     setStorage("Saving…");
+    editHistory.current = {
+      past: [...editHistory.current.past, project],
+      future: [],
+    };
     setState(restore(state, r));
     setResult(null);
     setMessage("Restored as a new revision. Later revisions are preserved.");
@@ -430,6 +473,7 @@ export default function Workspace({
       };
       await saveWorkspace(blank, projectId);
       setState(blank);
+      editHistory.current = { past: [], future: [] };
       setStorage("Saved on this device");
       setResult(null);
       setSelected(null);
@@ -469,6 +513,7 @@ export default function Workspace({
     }
   }
   function resetEditor() {
+    editHistory.current = { past: [], future: [] };
     setDrawer(null);
     setWorkspaceMenuOpen(false);
     setSelected(null);
@@ -568,6 +613,126 @@ export default function Workspace({
       setProjectBusy(false);
     }
   }
+  function toggleFullscreen() {
+    const action = document.fullscreenElement
+      ? document.exitFullscreen()
+      : canvasRef.current?.requestFullscreen();
+    void action?.catch(() =>
+      setMessage("Full screen is unavailable in this browser."),
+    );
+  }
+  function undoEdit(redo = false) {
+    const history = editHistory.current;
+    const source = redo ? history.future : history.past;
+    const target = redo ? history.past : history.future;
+    const next = source.at(-1);
+    if (!next || !change(next, redo ? "Redo edit" : "Undo edit", false, false))
+      return;
+    source.pop();
+    target.push(project);
+    setSelection((ids) =>
+      ids.filter((id) =>
+        [...next.units, ...next.edges].some((item) => item.id === id),
+      ),
+    );
+  }
+  function pasteCopy(
+    copy: SelectionCopy | null,
+    offset: number,
+    label: string,
+  ) {
+    if (!copy?.units.length) return;
+    try {
+      const next = pasteSelection(project, copy, offset);
+      if (change(next.project, label)) setSelection(next.selection);
+    } catch {
+      setMessage(
+        "Cannot paste here: the project allows up to 40 equipment and 80 streams, within the canvas bounds.",
+      );
+    }
+  }
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        !ready ||
+        projectBusy ||
+        showProjects ||
+        event.defaultPrevented ||
+        event.isComposing
+      )
+        return;
+      if (isCloseKey(event) && !document.querySelector("dialog[open]")) {
+        event.preventDefault();
+        if (menuOpen) setMenuOpen(false);
+        else if (assistantOpen) setAssistantOpen(false);
+        else setSelection([]);
+        canvasRef.current?.focus();
+        return;
+      }
+      if (shortcutsBlocked(event)) return;
+      const key = event.key.toLowerCase();
+      const command = event.ctrlKey || event.metaKey;
+      let handled = true;
+      if (key === "f11" || (key === "f" && event.ctrlKey && event.metaKey))
+        toggleFullscreen();
+      else if (event.altKey) return;
+      else if (command) {
+        if (key === "s")
+          void flushCurrentProject().catch(() =>
+            setMessage("Could not save locally. Export a copy of the project."),
+          );
+        else if (key === "enter") run();
+        else if (key === "z") undoEdit(event.shiftKey);
+        else if (key === "y") undoEdit(true);
+        else if (key === "a")
+          setSelection(project.units.map((unit) => unit.id));
+        else if (key === "d")
+          pasteCopy(
+            copySelection(project, selection),
+            40,
+            "Duplicate selection",
+          );
+        else if (key === "c" || key === "x") {
+          const copy = copySelection(project, selection);
+          if (copy.units.length) {
+            clipboard.current = copy;
+            pasteOffset.current = 40;
+            if (
+              key === "x" &&
+              change(deleteSelection(project, selection), "Cut selection")
+            )
+              setSelection([]);
+          }
+        } else if (key === "v") {
+          pasteCopy(clipboard.current, pasteOffset.current, "Paste selection");
+          pasteOffset.current += 40;
+        } else handled = false;
+      } else if (key === "delete" || key === "backspace") {
+        if (
+          selection.length &&
+          change(deleteSelection(project, selection), "Delete selection")
+        )
+          setSelection([]);
+      } else if (key === "e" || key === "f2") {
+        if (selected) setPropertiesOpen(true);
+      } else if (key === "a" && event.shiftKey) arrange();
+      else if (key === "a" || key === "/") {
+        openPanel("Equipment");
+        requestAnimationFrame(() =>
+          canvasRef.current
+            ?.querySelector<HTMLInputElement>('[aria-label="Search equipment"]')
+            ?.focus(),
+        );
+      } else if (key === "r") {
+        if (drawer === "Results") closeDrawer();
+        else openResults();
+      } else if (key === "h" || key === "?") setHelpOpen(true);
+      else handled = false;
+      if (handled) event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
   if (showProjects)
     return (
       <main className="workspace" data-theme={theme}>
@@ -727,6 +892,7 @@ export default function Workspace({
         <section
           className="canvas-panel"
           ref={canvasRef}
+          tabIndex={-1}
           aria-label="Process canvas"
         >
           <button
@@ -915,73 +1081,72 @@ export default function Workspace({
                 <span>Results</span>
               </button>
             </nav>
-            <div className="canvas-view-controls">
-              <button
-                className={`composition-toggle ${compositionColors ? "active" : ""}`}
-                aria-label="Color streams by composition"
-                aria-pressed={compositionColors}
-                title="Color streams by composition"
-                onClick={() => setCompositionColors(!compositionColors)}
-              >
-                <Rainbow size={17} />
-              </button>
-              <div className="view-switch" aria-label="Canvas view">
-                {[
-                  { name: "2D", label: "2D flowsheet", icon: PanelTop },
-                  { name: "3D", label: "3D schematic", icon: Box },
-                  { name: "Split", label: "Split", icon: Columns2 },
-                ].map((item) => (
-                  <button
-                    key={item.name}
-                    aria-label={item.label}
-                    aria-pressed={view === item.name}
-                    className={view === item.name ? "active" : ""}
-                    onClick={() => setView(item.name)}
-                  >
-                    <item.icon size={15} />
-                    <span>{item.name}</span>
-                  </button>
-                ))}
+            <div className="canvas-right-tools">
+              <div className="canvas-view-controls">
+                <button
+                  className={`composition-toggle ${compositionColors ? "active" : ""}`}
+                  aria-label="Color streams by composition"
+                  aria-pressed={compositionColors}
+                  title="Color streams by composition"
+                  onClick={() => setCompositionColors(!compositionColors)}
+                >
+                  <Rainbow size={17} />
+                </button>
+                <div className="view-switch" aria-label="Canvas view">
+                  {[
+                    { name: "2D", label: "2D flowsheet", icon: PanelTop },
+                    { name: "3D", label: "3D schematic", icon: Box },
+                    { name: "Split", label: "Split", icon: Columns2 },
+                  ].map((item) => (
+                    <button
+                      key={item.name}
+                      aria-label={item.label}
+                      aria-pressed={view === item.name}
+                      className={view === item.name ? "active" : ""}
+                      onClick={() => setView(item.name)}
+                    >
+                      <item.icon size={15} />
+                      <span>{item.name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="tool-group canvas-edit-tools">
-              <button
-                aria-label="Properties"
-                title="Edit selected equipment"
-                disabled={!selected}
-                onClick={() => setPropertiesOpen(true)}
-              >
-                <Pencil size={16} />
-                <span>Edit</span>
-              </button>
-              <button onClick={arrange} disabled={!project.units.length}>
-                <AlignHorizontalJustifyStart size={16} />
-                <span>Arrange</span>
-              </button>
-              <button
-                className="toolbar-icon"
-                aria-label="Maximize canvas"
-                title="Maximize canvas"
-                onClick={() => {
-                  if (document.fullscreenElement)
-                    void document.exitFullscreen();
-                  else void canvasRef.current?.requestFullscreen();
-                }}
-              >
-                <Maximize size={16} />
-              </button>
-              <button
-                className="toolbar-icon"
-                aria-label="Workspace help"
-                title="Workspace help"
-                onClick={() =>
-                  setMessage(
-                    "Double-click equipment to edit. Drag between ports to connect. Open projects from Home and choose New for templates; use the view switch for 2D, 3D, and Split views.",
-                  )
-                }
-              >
-                <CircleHelp size={15} />
-              </button>
+              <div className="tool-group canvas-edit-tools">
+                <button
+                  aria-label="Properties"
+                  title="Edit selected equipment"
+                  disabled={!selected}
+                  onClick={() => setPropertiesOpen(true)}
+                >
+                  <Pencil size={16} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  aria-label="Arrange"
+                  title="Arrange equipment"
+                  onClick={arrange}
+                  disabled={!project.units.length}
+                >
+                  <AlignHorizontalJustifyStart size={16} />
+                  <span>Arrange</span>
+                </button>
+                <button
+                  className="toolbar-icon"
+                  aria-label="Maximize canvas"
+                  title="Maximize canvas"
+                  onClick={toggleFullscreen}
+                >
+                  <Maximize size={16} />
+                </button>
+                <button
+                  className="toolbar-icon"
+                  aria-label="Workspace help"
+                  title="Workspace help"
+                  onClick={() => setHelpOpen(true)}
+                >
+                  <CircleHelp size={15} />
+                </button>
+              </div>
             </div>
           </div>
           <div
@@ -992,7 +1157,8 @@ export default function Workspace({
                 key={`${projectId}-${project.name}`}
                 project={project}
                 selected={selected}
-                onSelect={setSelected}
+                selection={selection}
+                onSelection={setSelection}
                 onInspect={inspect}
                 onChange={change}
                 onAdd={add}
@@ -1099,6 +1265,7 @@ export default function Workspace({
           </footer>
         </section>
       </div>
+      {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
       {templatesOpen ? (
         <Templates
           onClose={() => setTemplatesOpen(false)}

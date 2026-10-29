@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { isCloseKey } from "@/lib/keyboard";
 export default function Dialog({
   title,
   onClose,
@@ -18,6 +19,34 @@ export default function Dialog({
     dialog?.showModal();
     return () => dialog?.close();
   }, []);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const dialog = ref.current;
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        !dialog?.open ||
+        Array.from(document.querySelectorAll("dialog[open]")).at(-1) !== dialog
+      )
+        return;
+      // Applying a form can replace its focused input. Keep dialog commands
+      // available even while the browser moves focus back to the document.
+      if (isCloseKey(event)) {
+        event.preventDefault();
+        onClose();
+      } else if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        (event.key.toLowerCase() === "s" ||
+          (event.shiftKey && event.key === "Enter"))
+      ) {
+        event.preventDefault();
+        dialog.querySelector("form")?.requestSubmit();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
   return (
     <dialog
       ref={ref}

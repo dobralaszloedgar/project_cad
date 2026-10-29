@@ -24,6 +24,6 @@ export const equipmentConnectors: Record<Kind, string> = {
   Splitter: "M8 64H37M89 40H120M89 88H120",
   Heater: "M8 64H35M93 64H120",
   Cooler: "M8 64H35M93 64H120",
-  PBR: "M64 8V22M64 106V120M8 64H38",
+  PBR: "M64 8V22M64 106V120",
   Distillation: "M8 64H46M64 8V18M64 110V120",
 };

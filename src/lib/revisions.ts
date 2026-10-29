@@ -1,19 +1,20 @@
 import { z } from "zod";
 import { projectSchema, type Project } from "../domain/schema";
 import { defaultThermo } from "../domain/thermo/registry";
+import { migrateReactorInlets } from "../domain/project-migrations";
 export const revisionSchema = z
   .object({
     id: z.string().max(80),
     label: z.string().max(120),
     time: z.string().max(50),
-    project: projectSchema,
+    project: projectSchema.transform(migrateReactorInlets),
   })
   .strict();
 export type Revision = z.infer<typeof revisionSchema>;
 export const workspaceSchema = z
   .object({
     version: z.literal(1),
-    project: projectSchema,
+    project: projectSchema.transform(migrateReactorInlets),
     revisions: z.array(revisionSchema).max(250),
   })
   .strict();

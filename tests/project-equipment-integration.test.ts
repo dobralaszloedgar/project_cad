@@ -37,14 +37,16 @@ describe("equipment examples in the 3D workspace", () => {
     },
   );
 
-  it("connects the reactor feeds to distinct fittings with an outward side lead", () => {
+  it("combines feeds upstream of the reactor's only inlet", () => {
     const plant = buildProjectPlant(catalystExample());
     const primary = plant.streams.find((stream) => stream.id === "feed-a")!;
     const secondary = plant.streams.find((stream) => stream.id === "feed-b")!;
-    const fitting = secondary.points.at(-1)!;
-    const lead = secondary.points.at(-2)!;
-    expect(primary.points.at(-1)).not.toEqual(fitting);
-    expect(lead[0]).toBeLessThan(fitting[0]);
-    expect(lead.slice(1)).toEqual(fitting.slice(1));
+    expect(primary.to[0]).toBe("M-601");
+    expect(secondary.to[0]).toBe("M-601");
+    expect(primary.points.at(-1)).not.toEqual(secondary.points.at(-1));
+    const feeds = plant.streams.filter((stream) => stream.to[0] === "R-601");
+    expect(feeds).toHaveLength(1);
+    expect(feeds[0].to).toEqual(["R-601", "in"]);
+    expect(feeds[0].from[0]).toBe("M-601");
   });
 });

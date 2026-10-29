@@ -79,12 +79,7 @@ export type Unit = z.infer<typeof unitSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Connection = z.infer<typeof edgeSchema>;
 export const ports = (kind: Kind) => ({
-  inputs:
-    kind === "Feed"
-      ? []
-      : kind === "Mixer" || kind === "PBR"
-        ? ["in", "in2"]
-        : ["in"],
+  inputs: kind === "Feed" ? [] : kind === "Mixer" ? ["in", "in2"] : ["in"],
   outputs:
     kind === "Product"
       ? []

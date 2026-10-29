@@ -42,7 +42,7 @@ test("duty setup calculates temperature and persists the active specification", 
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(
-    page.locator(".stream-table tr").filter({ hasText: "heated" }),
+    page.locator(".stream-table tr").filter({ hasText: "Stream 2" }),
   ).toContainText("450");
   await page.keyboard.press("Escape");
   await expect(page.getByText("Saved on this device")).toBeVisible();
@@ -54,7 +54,7 @@ test("duty setup calculates temperature and persists the active specification", 
   );
 });
 
-test("two-feed catalyst reactor exposes ports, calculated profile and editable limited model", async ({
+test("catalyst reactor with upstream mixing exposes its single inlet, calculated profile and editable limited model", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -67,7 +67,7 @@ test("two-feed catalyst reactor exposes ports, calculated profile and editable l
   const reactor = page
     .locator(".react-flow__node")
     .filter({ hasText: "R-601" });
-  await expect(reactor.locator(".react-flow__handle.target")).toHaveCount(2);
+  await expect(reactor.locator(".react-flow__handle.target")).toHaveCount(1);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await page.keyboard.press("Escape");
@@ -93,7 +93,7 @@ test("two-feed catalyst reactor exposes ports, calculated profile and editable l
   await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
     timeout: 30000,
   });
-  await expect(page.locator(".plant-label")).toHaveCount(4);
+  await expect(page.locator(".plant-label")).toHaveCount(5);
   await page.screenshot({
     path: "test-results/equipment-3d.png",
     fullPage: true,

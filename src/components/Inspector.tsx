@@ -65,7 +65,7 @@ function UnitEditor({
         label: "Molar flow (mol/s)",
         min: 0.001,
         max: 1000,
-        step: "0.1",
+        step: "any",
       },
       {
         key: "fractionA",
@@ -79,7 +79,7 @@ function UnitEditor({
         label: "Pressure (Pa)",
         min: 10000,
         max: 2000000,
-        step: "100",
+        step: "any",
       },
     );
   if (thermal && params.thermalMode === "duty")

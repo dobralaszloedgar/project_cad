@@ -122,10 +122,10 @@ describe("equipment setup contracts", () => {
     expect(thermal.units[0].params.temperature).toBe(heater.params.temperature);
   });
 
-  it("accepts one or two physical reactor feeds, with an occupied-port guard", () => {
+  it("accepts one reactor feed and rejects side streams and occupied inlets", () => {
     expect(validateGraph(reactorFeeds(), true)).toEqual([]);
     const project = reactorFeeds(true);
-    expect(validateGraph(project, true)).toEqual([]);
+    expect(validateGraph(project, true).join(" ")).toMatch(/incompatible/);
     project.edges.find((edge) => edge.id === "feed2")!.targetPort = "in";
     expect(validateGraph(project, true).join(" ")).toMatch(/one stream/);
   });

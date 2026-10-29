@@ -26,8 +26,9 @@ targets, wrong-sign duties and unsupported calculated states are rejected.
 PBR: an isothermal first-order synthetic reaction with two available bases.
 New units integrate dFA/dW=-k(T)CA against catalyst mass, where
   CA = FA P/(Ftotal R T), k450 = 0.01 m3/(kg-cat s) by default.
-The profile is checked against X=1-exp[-k(T)PW/(Ftotal RT)]. One or two feeds
-mix by component and enthalpy balance before reaction. Existing projects and
+The profile is checked against X=1-exp[-k(T)PW/(Ftotal RT)]. Multiple feeds
+combine by component and enthalpy balance in an upstream mixer before entering
+the reactor through its single inlet. Existing projects and
 the original recycle template retain residence time in seconds:
   k(T) = 0.1 exp[-40000/R (1/T - 1/450)] s^-1
   X = 1 - exp(-k tau); extent = FA,in X

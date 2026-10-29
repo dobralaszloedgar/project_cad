@@ -7,8 +7,11 @@ import {
   useRef,
   useEffect,
   useLayoutEffect,
+  type Dispatch,
+  type SetStateAction,
 } from "react";
-import { Maximize, Minus, Plus } from "lucide-react";
+import { Hand, Maximize, Minus, Plus } from "lucide-react";
+import { shortcutsBlocked } from "@/lib/keyboard";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -27,6 +30,7 @@ import {
   type EdgeProps,
   type Edge,
   type NodeChange,
+  type EdgeChange,
 } from "@xyflow/react";
 import {
   type Project,
@@ -253,7 +257,8 @@ const edgeTypes = { pipe: PipeEdge };
 interface Props {
   project: Project;
   selected: string | null;
-  onSelect: (id: string) => void;
+  selection: string[];
+  onSelection: Dispatch<SetStateAction<string[]>>;
   onInspect: (id: string) => void;
   onChange: (project: Project, label: string) => void;
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
@@ -266,7 +271,8 @@ function Inner(props: Props) {
   const {
     project,
     selected,
-    onSelect,
+    selection,
+    onSelection,
     onInspect,
     onChange,
     onAdd,
@@ -277,6 +283,68 @@ function Inner(props: Props) {
   } = props;
   const rf = useReactFlow();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [panMode, setPanMode] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        shortcutsBlocked(event) ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      )
+        return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          ".plant-viewport, .plant-view, aside, .assistant-panel",
+        )
+      )
+        return;
+      const key = event.key.toLowerCase();
+      const viewport = rf.getViewport();
+      const step = event.shiftKey ? 256 : 64;
+      let handled = true;
+      if (key.startsWith("arrow")) {
+        const delta = {
+          arrowleft: [step, 0],
+          arrowright: [-step, 0],
+          arrowup: [0, step],
+          arrowdown: [0, -step],
+        }[key];
+        if (delta)
+          void rf.setViewport({
+            ...viewport,
+            x: viewport.x + delta[0],
+            y: viewport.y + delta[1],
+          });
+        else handled = false;
+      } else if (["+", "=", "-"].includes(key))
+        void rf.zoomTo(
+          Math.max(
+            0.1,
+            Math.min(3, viewport.zoom * (key === "-" ? 1 / 1.2 : 1.2)),
+          ),
+        );
+      else if (key === "f") {
+        const chosen = project.units.filter((unit) =>
+          selection.includes(unit.id),
+        );
+        void rf.fitView({
+          padding: 0.2,
+          ...(event.shiftKey && chosen.length ? { nodes: chosen } : {}),
+        });
+      } else if (key === "p") setPanMode(true);
+      else if (key === "v") setPanMode(false);
+      else if (key === "g") setShowGrid((value) => !value);
+      else if (key === "l") setShowLabels((value) => !value);
+      else handled = false;
+      if (handled) event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [rf, project.units, selection]);
   const initialized = useNodesInitialized();
   const initiallyFramed = useRef(false);
   useEffect(() => {
@@ -372,9 +440,9 @@ function Inner(props: Props) {
         ...node,
         position: positions[node.id] ?? node.position,
         measured: measurements[node.id],
-        selected: node.id === selected,
+        selected: selection.includes(node.id),
       })),
-    [baseNodes, positions, measurements, selected],
+    [baseNodes, positions, measurements, selection],
   );
   const colors = useMemo(
     () => (compositionColors ? projectStreamColors(project, result) : {}),
@@ -464,10 +532,10 @@ function Inner(props: Props) {
             width: 14,
             height: 14,
           },
-          selected: e.id === selected,
+          selected: selection.includes(e.id),
         };
       }),
-    [project.edges, compositionColors, colors, selected, routes],
+    [project.edges, compositionColors, colors, selected, selection, routes],
   );
   function targetPort(connection: {
     target: string;
@@ -491,34 +559,58 @@ function Inner(props: Props) {
     }
     return connection.targetHandle as Connection["targetPort"];
   }
-  const nodeChanges = useCallback((changes: NodeChange<EquipmentNode>[]) => {
-    const dimensions = changes.filter(
-      (change) => change.type === "dimensions" && change.dimensions,
-    );
-    if (dimensions.length) {
-      setMeasurements((previous) => {
-        const next = { ...previous };
-        for (const change of dimensions) {
-          if (change.type === "dimensions") next[change.id] = change.dimensions;
+  const updateSelection = useCallback(
+    (changes: (NodeChange<EquipmentNode> | EdgeChange)[]) => {
+      const selectedChanges = changes.filter(
+        (change) => change.type === "select",
+      );
+      if (!selectedChanges.length) return;
+      onSelection((previous) => {
+        const next = new Set(previous);
+        for (const change of selectedChanges) {
+          if (change.selected) next.add(change.id);
+          else next.delete(change.id);
         }
-        return next;
+        return [...next];
       });
-    }
-    const moved = changes.filter((c) => c.type === "position" && c.position);
-    if (moved.length)
-      setPositions((prev) => ({
-        ...prev,
-        ...Object.fromEntries(
-          moved.map((c) => (c.type === "position" ? [c.id, c.position] : [])),
-        ),
-      }));
-  }, []);
+    },
+    [onSelection],
+  );
+  const nodeChanges = useCallback(
+    (changes: NodeChange<EquipmentNode>[]) => {
+      updateSelection(changes);
+      const dimensions = changes.filter(
+        (change) => change.type === "dimensions" && change.dimensions,
+      );
+      if (dimensions.length) {
+        setMeasurements((previous) => {
+          const next = { ...previous };
+          for (const change of dimensions) {
+            if (change.type === "dimensions")
+              next[change.id] = change.dimensions;
+          }
+          return next;
+        });
+      }
+      const moved = changes.filter((c) => c.type === "position" && c.position);
+      if (moved.length)
+        setPositions((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            moved.map((c) => (c.type === "position" ? [c.id, c.position] : [])),
+          ),
+        }));
+    },
+    [updateSelection],
+  );
   const duration = () =>
     window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
   return (
     <div
       ref={containerRef}
-      className="flow-wrapper"
+      className={`flow-wrapper ${showLabels ? "" : "hide-flow-labels"}`}
+      tabIndex={0}
+      aria-label="2D process canvas"
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
@@ -552,24 +644,33 @@ function Inner(props: Props) {
         maxZoom={3}
         panOnScroll
         panOnScrollSpeed={1}
-        panOnDrag={[0, 1, 2]}
+        panOnDrag={panMode ? [0, 1, 2] : [1, 2]}
+        selectionOnDrag={!panMode}
+        nodesDraggable={!panMode}
+        multiSelectionKeyCode={["Shift", "Control", "Meta"]}
+        disableKeyboardA11y
         panActivationKeyCode="Space"
         zoomOnScroll={false}
         zoomOnPinch
         zoomActivationKeyCode={["Control", "Meta"]}
         zoomOnDoubleClick={false}
         onNodesChange={nodeChanges}
-        onNodeDragStop={(_, node) => {
+        onEdgesChange={updateSelection}
+        onNodeDragStop={(_, node, movedNodes) => {
+          const moved = new Map(
+            movedNodes.map((item) => [item.id, item.position]),
+          );
+          moved.set(node.id, node.position);
           onChange(
             {
               ...project,
               units: project.units.map((n) =>
-                n.id === node.id
+                moved.has(n.id)
                   ? {
                       ...n,
                       position: {
-                        x: Math.round(node.position.x / 10) * 10,
-                        y: Math.round(node.position.y / 10) * 10,
+                        x: Math.round(moved.get(n.id)!.x / 10) * 10,
+                        y: Math.round(moved.get(n.id)!.y / 10) * 10,
                       },
                     }
                   : n,
@@ -579,9 +680,17 @@ function Inner(props: Props) {
           );
           setPositions({});
         }}
-        onNodeClick={(_, node) => onSelect(node.id)}
+        onNodeClick={() => containerRef.current?.focus()}
+        onPaneClick={() => {
+          onSelection([]);
+          containerRef.current?.focus();
+        }}
         onNodeDoubleClick={(_, node) => onInspect(node.id)}
-        onEdgeClick={(_, edge) => onInspect(edge.id)}
+        onEdgeClick={(event, edge) => {
+          if (!event.shiftKey && !event.ctrlKey && !event.metaKey)
+            onInspect(edge.id);
+          else containerRef.current?.focus();
+        }}
         onEdgeMouseEnter={(_, edge) => {
           const s = result?.streams[edge.id];
           const name =
@@ -648,10 +757,18 @@ function Inner(props: Props) {
           );
           return false;
         }}
-        deleteKeyCode={["Backspace", "Delete"]}
+        deleteKeyCode={null}
       >
-        <Background color="#bfcac4" gap={24} size={1} />
+        {showGrid ? <Background color="#bfcac4" gap={24} size={1} /> : null}
         <Controls showInteractive={false} showZoom={false} showFitView={false}>
+          <ControlButton
+            title="Pan canvas"
+            aria-label="Pan canvas"
+            aria-pressed={panMode}
+            onClick={() => setPanMode(!panMode)}
+          >
+            <Hand />
+          </ControlButton>
           <ControlButton
             title="Zoom In"
             aria-label="Zoom In"
@@ -678,7 +795,7 @@ function Inner(props: Props) {
         </Controls>
       </ReactFlow>
       <div className="navigation-hint">
-        Drag / scroll to pan · Pinch or Ctrl/⌘ + scroll to zoom
+        Drag to select · Space + drag / scroll to pan · Pinch to zoom
       </div>
       {hover ? <div className="canvas-footnote">{hover}</div> : null}
     </div>

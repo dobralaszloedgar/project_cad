@@ -188,7 +188,10 @@ test("material handles match equipment roles and cursors use normal system shape
     await expect(reactor).toHaveCSS("cursor", "grabbing");
     await page.mouse.up();
     await expect(reactor).toHaveCSS("cursor", "grab");
+    await expect(pane).toHaveCSS("cursor", "crosshair");
+    await page.keyboard.press("p");
     await expect(pane).toHaveCSS("cursor", "grab");
+    await page.keyboard.press("v");
     await page.getByRole("button", { name: "Equipment", exact: true }).click();
     await expect(page.getByLabel("Search equipment")).toHaveCSS(
       "cursor",

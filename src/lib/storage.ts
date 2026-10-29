@@ -1,6 +1,7 @@
 import { openDB } from "idb";
 import { workspaceSchema, type Workspace } from "./revisions";
 import { projectSchema, validateGraph } from "../domain/schema";
+import { migrateReactorInlets } from "../domain/project-migrations";
 export interface SavedProject {
   id: string;
   workspace: Workspace;
@@ -144,7 +145,7 @@ export function parseImport(text: string): Workspace {
       ? workspaceSchema.parse(raw)
       : {
           version: 1 as const,
-          project: projectSchema.parse(raw),
+          project: migrateReactorInlets(projectSchema.parse(raw)),
           revisions: [],
         };
   for (const p of [

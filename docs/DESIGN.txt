@@ -184,8 +184,18 @@ Layout
 
 The workspace occupies 100dvh with a fixed 64px header and a flexible canvas. The
 optional equipment drawer starts at 260px. Floating Equipment/Results controls and
-rainbow, 2D/3D/Split, Edit and Arrange controls sit within the canvas. Saved status is
-subtle. The graph remains pannable; canvas dots use a 24px gap and size 1.
+rainbow, 2D/3D/Split, Edit and Arrange controls sit within the canvas. The view
+controls stay together at the right beside Edit and Arrange, including when the
+toolbar wraps on narrow screens. Saved status is subtle. The graph remains
+pannable; canvas dots use a 24px gap and size 1.
+
+Keyboard editing supports select all, copy/cut/paste, duplicate, delete, undo and
+redo. E/F2 opens selection properties; A or / opens equipment search; Shift+A
+arranges equipment. Arrow keys pan (Shift moves faster), +/- zoom, F fits the
+flowsheet and Shift+F fits selection. V/P switches selection/panning, G/L toggles
+grid/labels, R toggles results, Ctrl/Cmd+Enter calculates and Ctrl/Cmd+S saves or
+applies an open editor form. H/? opens the shortcut reference. Canvas shortcuts
+do not intercept typing or operate behind dialogs.
 
 Projects has a 56px header, 186px navigation column and rounded scrolling content.
 The desktop grid repeats 220px cards with a 14px gap; previews are 200 by 132px with
