@@ -34,11 +34,7 @@ async function chooseView(page: Page, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
 }
 async function preferences(page: Page) {
-  await page.getByRole("button", { name: "Project menu" }).click();
-  await page
-    .locator(".project-menu")
-    .getByRole("button", { name: "Preferences" })
-    .click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
 }
 test("reactor: calculate, edit, compare, restore, persist and round-trip", async ({
   page,
@@ -58,7 +54,14 @@ test("reactor: calculate, edit, compare, restore, persist and round-trip", async
     "Calculated results",
   );
   await closeDialog(page);
-  await page.getByRole("button", { name: "Open revision history" }).click();
+  await page
+    .getByRole("navigation", { name: "Workspace panels" })
+    .getByRole("button", { name: "Results" })
+    .click();
+  await page
+    .locator(".results-header")
+    .getByRole("button", { name: /Revisions/ })
+    .click();
   await page
     .locator(".comparison select")
     .selectOption({ label: "1. Initial example" });
@@ -139,6 +142,7 @@ test("simple templates, equipment validation, theme and mobile editing", async (
   await page.getByRole("button", { name: "Toggle theme" }).click();
   await expect(page.locator("main")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Toggle theme" }).click();
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Cooler", { exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(5);
   await page.getByRole("button", { name: "Run simulation" }).click();
@@ -166,7 +170,7 @@ test("simple templates, equipment validation, theme and mobile editing", async (
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Toggle equipment library" }).click();
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await expect(page.getByTitle("Add Feed", { exact: true })).toBeVisible();
 });
 test("manual editing supports connect, move, double-click, duplicate and delete", async ({

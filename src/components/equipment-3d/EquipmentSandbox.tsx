@@ -360,7 +360,10 @@ export default function EquipmentSandbox() {
             </div>
             <div className={styles.orbitHint}>
               <Mouse size={14} />
-              <span>Drag to orbit · scroll to zoom</span>
+              <span>
+                Drag to orbit · right-drag to pan · scroll to zoom · WASD to
+                move
+              </span>
             </div>
             <button
               className={styles.rotateButton}

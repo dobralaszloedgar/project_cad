@@ -16,7 +16,6 @@ import {
   X,
   Home,
   History,
-  PanelLeft,
   ChevronRight,
   GitBranch,
   Thermometer,
@@ -36,6 +35,7 @@ import {
 import { useFloatingDrag } from "./useFloatingDrag";
 import Dialog from "./Dialog";
 import EquipmentLibrary from "./EquipmentLibrary";
+import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
 import { plantTemplate } from "@/domain/plant-templates";
 import ProjectsPage from "./ProjectsPage";
@@ -110,14 +110,14 @@ export default function Workspace({
   const [message, setMessage] = useState("");
   const [theme, setTheme] = useState("light");
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [drawer, setDrawer] = useState<
+    "Equipment" | "Results" | "Settings" | null
+  >("Equipment");
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const [resultsOpen, setResultsOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [rainbow, setRainbow] = useState(true);
+  const [compositionColors, setCompositionColors] = useState(true);
   const [projectId, setProjectId] = useState("main");
   const [showProjects, setShowProjects] = useState(false);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
@@ -142,6 +142,26 @@ export default function Workspace({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveVersion = useRef(0);
   const project = state.project;
+  const drawerTabsRef = useRef<HTMLElement>(null);
+  function closeDrawer() {
+    setDrawer(null);
+    drawerTabsRef.current
+      ?.querySelector<HTMLButtonElement>(`[aria-label="${drawer}"]`)
+      ?.focus();
+  }
+  useEffect(() => {
+    if (!drawer) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || document.querySelector("dialog[open]"))
+        return;
+      setDrawer(null);
+      drawerTabsRef.current
+        ?.querySelector<HTMLButtonElement>(`[aria-label="${drawer}"]`)
+        ?.focus();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [drawer]);
   useEffect(() => {
     let active = true;
     const example = exampleId ? plantTemplate(exampleId) : undefined;
@@ -157,7 +177,9 @@ export default function Workspace({
       .then(([saved, id]) => {
         if (!active) return;
         setProjectId(id);
-        setLibraryOpen(!window.matchMedia("(max-width: 760px)").matches);
+        setDrawer(
+          window.matchMedia("(max-width: 760px)").matches ? null : "Equipment",
+        );
         if (saved) setState(saved);
         else
           setState((s) => ({
@@ -250,7 +272,7 @@ export default function Workspace({
           : "Recycle did not converge. Final iterate only.",
       );
       setTab("Results");
-      setResultsOpen(true);
+      setDrawer("Results");
     } catch (e) {
       setResult(null);
       setMessage(e instanceof Error ? e.message : "Simulation failed.");
@@ -286,7 +308,9 @@ export default function Workspace({
     setCompareId("");
     setTemplatesOpen(false);
     setPropertiesOpen(false);
-    setResultsOpen(false);
+    setDrawer(
+      window.matchMedia("(max-width: 760px)").matches ? null : "Equipment",
+    );
   }
   async function importFile(file: File) {
     try {
@@ -358,7 +382,7 @@ export default function Workspace({
   }
   function openResults(nextTab = "Results") {
     setTab(nextTab);
-    setResultsOpen(true);
+    setDrawer("Results");
   }
   function arrange() {
     change(
@@ -425,13 +449,14 @@ export default function Workspace({
     }
   }
   function resetEditor() {
-    if (window.matchMedia("(max-width: 760px)").matches) setLibraryOpen(false);
+    setDrawer(
+      window.matchMedia("(max-width: 760px)").matches ? null : "Equipment",
+    );
     setSelected(null);
     setResult(null);
     setCompareId("");
     setMessage("");
     setPropertiesOpen(false);
-    setResultsOpen(false);
     setTemplatesOpen(false);
     setAssistantOpen(false);
     setView("2D");
@@ -573,15 +598,6 @@ export default function Workspace({
           </button>
           <button
             className="icon-button"
-            aria-label="Toggle equipment library"
-            title="Equipment library"
-            aria-pressed={libraryOpen}
-            onClick={() => setLibraryOpen(!libraryOpen)}
-          >
-            <PanelLeft size={18} />
-          </button>
-          <button
-            className="icon-button"
             aria-label="Open revision history"
             title="Revision history"
             onClick={() => openResults("Revisions")}
@@ -599,7 +615,7 @@ export default function Workspace({
         <div className="header-actions">
           <button
             className="model-button"
-            onClick={() => setPreferencesOpen(true)}
+            onClick={() => setDrawer("Settings")}
           >
             <Thermometer size={16} />
             <span>
@@ -662,15 +678,6 @@ export default function Workspace({
                   <Download size={15} />
                   Export project
                 </button>
-                <button
-                  onClick={() => {
-                    setPreferencesOpen(true);
-                    setMenuOpen(false);
-                  }}
-                >
-                  <Settings2 size={15} />
-                  Preferences
-                </button>
               </div>
             ) : null}
           </div>
@@ -697,16 +704,133 @@ export default function Workspace({
           }}
         />
       </header>
-      <div
-        className={`editor-body ${libraryOpen ? "with-library" : ""}`}
-        inert={!ready}
-      >
-        {libraryOpen ? (
-          <EquipmentLibrary
-            onAdd={add}
-            onClose={() => setLibraryOpen(false)}
-            onPreferences={() => setPreferencesOpen(true)}
-          />
+      <div className="editor-body" inert={!ready}>
+        <nav
+          className="workspace-pull-tabs"
+          aria-label="Workspace panels"
+          ref={drawerTabsRef}
+        >
+          {[
+            { name: "Equipment", icon: EquipmentPanelIcon },
+            { name: "Results", icon: ChartNoAxesColumnIncreasing },
+            { name: "Settings", icon: Settings2 },
+          ].map(({ name, icon: Icon }) => (
+            <button
+              key={name}
+              className={drawer === name ? "active" : ""}
+              aria-label={name}
+              aria-expanded={drawer === name}
+              aria-controls={`workspace-${name.toLowerCase()}-panel`}
+              onClick={() => {
+                if (name === "Results") setTab("Results");
+                setDrawer(
+                  drawer === name
+                    ? null
+                    : (name as "Equipment" | "Results" | "Settings"),
+                );
+              }}
+            >
+              <Icon size={18} />
+              <span>{name}</span>
+            </button>
+          ))}
+        </nav>
+        {drawer ? (
+          <aside
+            id={`workspace-${drawer.toLowerCase()}-panel`}
+            className={`workspace-drawer drawer-${drawer.toLowerCase()}`}
+            aria-label={drawer}
+          >
+            <header className="library-heading">
+              <h2>{drawer}</h2>
+              <button
+                className="icon-button"
+                aria-label={`Close ${drawer}`}
+                onClick={closeDrawer}
+              >
+                <X size={16} />
+              </button>
+            </header>
+            {drawer === "Equipment" ? (
+              <EquipmentLibrary onAdd={add} />
+            ) : (
+              <div className="workspace-drawer-content">
+                {drawer === "Results" ? (
+                  <Results
+                    project={project}
+                    result={result}
+                    revisions={state.revisions}
+                    tab={tab}
+                    onTab={setTab}
+                    onRestore={restoreRevision}
+                    compareId={compareId}
+                    onCompare={setCompareId}
+                    onSelect={(id) => {
+                      setDrawer(null);
+                      inspect(id);
+                    }}
+                  />
+                ) : (
+                  <>
+                    <div className="preference-section">
+                      <h3>Appearance</h3>
+                      <div className="theme-options">
+                        <button
+                          className={`btn ${theme === "light" ? "chosen" : ""}`}
+                          onClick={() => setTheme("light")}
+                        >
+                          <Sun size={16} />
+                          Light
+                        </button>
+                        <button
+                          className={`btn ${theme === "dark" ? "chosen" : ""}`}
+                          onClick={() => setTheme("dark")}
+                        >
+                          <Moon size={16} />
+                          Dark
+                        </button>
+                      </div>
+                    </div>
+                    <div className="preference-section">
+                      <ThermoSettingsPanel
+                        project={project}
+                        onApply={(settings) => {
+                          change(
+                            applyActions(project, {
+                              summary: "Change thermodynamic model",
+                              actions: [
+                                { type: "set_thermo_model", ...settings },
+                              ],
+                            }),
+                            `Model: ${modelInfo(settings.modelId).name}`,
+                          );
+                        }}
+                      />
+                    </div>
+                    <div className="preference-section">
+                      <h3>Local project</h3>
+                      <div className="preference-actions">
+                        <button className="btn" onClick={exportFile}>
+                          <Download size={15} />
+                          Export project
+                        </button>
+                        <button
+                          className="btn danger"
+                          onClick={() => {
+                            setDrawer(null);
+                            setClearConfirm(true);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                          Clear local project & history
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </aside>
         ) : null}
         <section
           className="canvas-panel"
@@ -714,28 +838,13 @@ export default function Workspace({
           aria-label="Process canvas"
         >
           <div className="canvas-toolbar">
-            <div className="tool-group workspace-mode-tools">
-              <button
-                className={libraryOpen ? "active" : ""}
-                aria-label="Equipment"
-                onClick={() => setLibraryOpen(!libraryOpen)}
-              >
-                <Workflow size={17} />
-                <span>Equipment</span>
-              </button>
-              <span className="tool-divider" />
-              <button onClick={() => openResults()}>
-                <ChartNoAxesColumnIncreasing size={17} />
-                <span>Results</span>
-              </button>
-            </div>
             <div className="canvas-view-controls">
               <button
-                className={`rainbow-toggle ${rainbow ? "active" : ""}`}
-                aria-label="Rainbow flow"
-                aria-pressed={rainbow}
-                title="Rainbow flow"
-                onClick={() => setRainbow(!rainbow)}
+                className={`composition-toggle ${compositionColors ? "active" : ""}`}
+                aria-label="Color streams by composition"
+                aria-pressed={compositionColors}
+                title="Color streams by composition"
+                onClick={() => setCompositionColors(!compositionColors)}
               >
                 <Rainbow size={17} />
               </button>
@@ -803,7 +912,7 @@ export default function Workspace({
           >
             {view !== "3D" ? (
               <ProcessCanvas
-                key={`${project.name}-${view}`}
+                key={`${projectId}-${project.name}`}
                 project={project}
                 selected={selected}
                 onSelect={setSelected}
@@ -812,7 +921,7 @@ export default function Workspace({
                 onAdd={add}
                 onError={setMessage}
                 result={result}
-                rainbow={rainbow}
+                compositionColors={compositionColors}
                 compare={
                   state.revisions.find((r) => r.id === compareId)?.project
                 }
@@ -869,7 +978,7 @@ export default function Workspace({
               onClick={() => {
                 if (!bubbleDrag.suppressClick()) {
                   if (window.matchMedia("(max-width: 760px)").matches)
-                    setLibraryOpen(false);
+                    setDrawer(null);
                   setAssistantOpen(true);
                 }
               }}
@@ -943,93 +1052,6 @@ export default function Workspace({
             }}
             onError={setMessage}
           />
-        </Dialog>
-      ) : null}
-      {resultsOpen ? (
-        <Dialog
-          title={tab === "Results" ? "Process results" : "Revision history"}
-          className="results-dialog"
-          onClose={() => setResultsOpen(false)}
-        >
-          <Results
-            project={project}
-            result={result}
-            revisions={state.revisions}
-            tab={tab}
-            onTab={setTab}
-            onRestore={restoreRevision}
-            compareId={compareId}
-            onCompare={setCompareId}
-            onSelect={(id) => {
-              setResultsOpen(false);
-              inspect(id);
-            }}
-          />
-        </Dialog>
-      ) : null}
-      {preferencesOpen ? (
-        <Dialog
-          title="Preferences"
-          className="preferences-dialog"
-          onClose={() => setPreferencesOpen(false)}
-        >
-          <div className="preference-section">
-            <h3>Appearance</h3>
-            <p>Choose the workspace theme.</p>
-            <div className="theme-options">
-              <button
-                className={`btn ${theme === "light" ? "chosen" : ""}`}
-                onClick={() => setTheme("light")}
-              >
-                <Sun size={16} />
-                Light
-              </button>
-              <button
-                className={`btn ${theme === "dark" ? "chosen" : ""}`}
-                onClick={() => setTheme("dark")}
-              >
-                <Moon size={16} />
-                Dark
-              </button>
-            </div>
-          </div>
-          <div className="preference-section">
-            <ThermoSettingsPanel
-              project={project}
-              onApply={(settings) => {
-                change(
-                  applyActions(project, {
-                    summary: "Change thermodynamic model",
-                    actions: [{ type: "set_thermo_model", ...settings }],
-                  }),
-                  `Model: ${modelInfo(settings.modelId).name}`,
-                );
-              }}
-            />
-          </div>
-          <div className="preference-section">
-            <h3>Local project</h3>
-            <p>
-              The project and its revisions are saved on this device. Export a
-              JSON copy to keep or share your work.
-            </p>
-            <div className="preference-actions">
-              <button className="btn" onClick={exportFile}>
-                <Download size={15} />
-                Export project
-              </button>
-              <button
-                className="btn danger"
-                onClick={() => {
-                  setPreferencesOpen(false);
-                  setClearConfirm(true);
-                }}
-              >
-                <Trash2 size={15} />
-                Clear local project & history
-              </button>
-            </div>
-          </div>
         </Dialog>
       ) : null}
       {clearConfirm ? (

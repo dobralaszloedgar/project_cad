@@ -25,7 +25,7 @@ textarea {
   font: inherit;
 }
 button {
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 button:disabled {
   cursor: not-allowed;
@@ -335,17 +335,17 @@ h3 {
   background: var(--hover);
 }
 .editor-body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
 }
 .equipment-library {
-  width: 260px;
-  flex-shrink: 0;
+  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-right: 1px solid var(--border);
   min-height: 0;
   overflow: hidden;
 }
@@ -446,25 +446,6 @@ h3 {
 .equipment-item:active {
   background: var(--active);
 }
-.library-footer {
-  padding: 14px 18px 20px;
-  font-size: 11px;
-  color: var(--muted);
-  flex-shrink: 0;
-  line-height: 1.7;
-}
-.library-footer p {
-  margin-bottom: 12px;
-}
-.library-footer .quiet-button {
-  width: 100%;
-  margin-bottom: 22px;
-}
-.library-footer small {
-  font-size: 10px;
-  line-height: 1.7;
-  display: block;
-}
 .search-empty {
   font-size: 12px;
   padding: 20px 10px;
@@ -499,6 +480,38 @@ h3 {
 }
 .split-view > .flow-wrapper {
   border-right: 1px solid var(--border);
+}
+.flow-wrapper,
+.plant-view canvas {
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+.plant-view canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.navigation-hint {
+  position: absolute;
+  left: 14px;
+  bottom: 10px;
+  right: 76px;
+  z-index: 5;
+  width: fit-content;
+  max-width: calc(100% - 90px);
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.flow-wrapper .navigation-hint {
+  left: 58px;
+  max-width: calc(100% - 135px);
+}
+.flow-wrapper:has(.canvas-footnote) .navigation-hint {
+  display: none;
 }
 .plant-controls {
   position: absolute;
@@ -674,7 +687,7 @@ h3 {
   align-items: center;
   justify-content: center;
   color: var(--symbol-stroke);
-  border: 1px solid transparent;
+  outline: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   box-shadow: none;
@@ -685,17 +698,17 @@ h3 {
   overflow: visible;
 }
 .equipment-node.selected {
-  border: 1px dashed var(--accent);
+  outline: 1px dashed var(--accent);
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 .equipment-node.selected .unit-tag {
   color: var(--accent);
 }
 .equipment-node.added {
-  border: 1px dashed #3f876a;
+  outline: 1px dashed #3f876a;
 }
 .equipment-node.modified {
-  border: 1px dashed #a67d30;
+  outline: 1px dashed #a67d30;
 }
 .unit-tag {
   position: absolute;
@@ -727,6 +740,37 @@ h3 {
   border: 1px solid var(--accent) !important;
   background: var(--surface) !important;
   z-index: 3;
+}
+.react-flow__handle.material-handle {
+  /* Inlets remain hoverable before a connection starts, including their
+     tooltips and hit targets; React Flow still enforces port direction. */
+  pointer-events: all;
+}
+.equipment-node.bottom-outlet .unit-name {
+  left: calc(50% + 12px);
+  transform: none;
+}
+.react-flow__handle.mixer-drop-handle {
+  left: 30.46875%;
+  top: 22.65625%;
+  right: auto;
+  bottom: auto;
+  width: 40.625%;
+  height: 54.6875%;
+  transform: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  pointer-events: none;
+  z-index: 4;
+}
+.react-flow__handle.mixer-drop-handle.connectionindicator {
+  pointer-events: all;
+}
+.mixer-drop-handle.connectingto.valid ~ .equipment-symbol .pfd-body {
+  fill: var(--active);
+  stroke: var(--accent);
 }
 .react-flow__controls {
   box-shadow: none !important;
@@ -995,7 +1039,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   list-style: none;
 }
 .chat-model > div {
@@ -1048,7 +1092,7 @@ h3 {
   margin: 12px 0;
 }
 .ai-details summary {
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .notification {
   position: absolute;
@@ -1472,7 +1516,7 @@ h3 {
 }
 .limitations summary {
   color: var(--ink);
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   font-size: 12px;
 }
 .limitations ul {
@@ -1733,9 +1777,6 @@ h3 {
   .header-navigation {
     gap: 3px;
   }
-  .equipment-library {
-    width: 240px;
-  }
   .canvas-status {
     gap: 12px;
   }
@@ -1779,15 +1820,6 @@ h3 {
   .sheet-tabs button {
     padding: 0 12px;
   }
-  .library-footer {
-    padding-bottom: 12px;
-  }
-  .library-footer .quiet-button {
-    margin-bottom: 12px;
-  }
-  .equipment-library {
-    width: 220px;
-  }
 }
 @media (max-width: 760px) {
   .app-header {
@@ -1815,15 +1847,6 @@ h3 {
   .simulate-button {
     padding: 0 10px;
     font-size: 11px;
-  }
-  .equipment-library {
-    position: absolute;
-    left: 0;
-    top: 56px;
-    bottom: 0;
-    width: 245px;
-    z-index: 20;
-    box-shadow: 5px 0 15px #1b2d2410;
   }
   .canvas-toolbar {
     left: 9px;
@@ -2063,12 +2086,11 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
 }
 .canvas-edit-tools {
   margin-left: 0;
 }
-.rainbow-toggle {
+.composition-toggle {
   pointer-events: auto;
   width: 37px;
   height: 38px;
@@ -2081,7 +2103,7 @@ h3 {
   color: var(--muted);
   box-shadow: 0 2px 8px #1c2c230b;
 }
-.rainbow-toggle.active {
+.composition-toggle.active {
   color: var(--accent);
   background: var(--active);
 }
@@ -2096,11 +2118,11 @@ h3 {
 .assistant-toggle,
 .chat-header {
   touch-action: none;
-  cursor: grab;
+  cursor: var(--cursor-grab, grab);
 }
 .assistant-toggle:active,
 .chat-header:active {
-  cursor: grabbing;
+  cursor: var(--cursor-grabbing, grabbing);
 }
 .chat-header {
   user-select: none;
@@ -2686,4 +2708,151 @@ h3 {
 }
 .thermo-settings p {
   margin: 0;
+}
+
+/* Persistent pull tabs keep the canvas available while a panel is open. */
+.workspace-pull-tabs {
+  width: 44px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 10px 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  z-index: 22;
+}
+.workspace-pull-tabs button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 116px;
+  padding: 12px 0;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 7px 7px 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+}
+.workspace-pull-tabs button span {
+  writing-mode: vertical-rl;
+}
+.workspace-pull-tabs button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.workspace-pull-tabs button.active {
+  border-left-color: var(--accent);
+  background: var(--active);
+  color: var(--accent);
+}
+.workspace-drawer {
+  width: 248px;
+  flex-shrink: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  z-index: 21;
+}
+.drawer-settings {
+  width: min(360px, 42vw);
+}
+.drawer-results {
+  width: min(620px, 48vw);
+}
+.workspace-drawer-content {
+  overflow: auto;
+  min-height: 0;
+  padding: 18px;
+}
+.drawer-results .results-header {
+  justify-content: flex-start;
+}
+.drawer-results .result-detail {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+.drawer-results .kpi-row {
+  gap: 12px;
+}
+.drawer-results .kpi strong {
+  font-size: 20px;
+}
+.drawer-results .stream-table {
+  padding-bottom: 8px;
+}
+@media (max-width: 1080px) {
+  .drawer-results .kpi-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .workspace-drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 44px;
+    width: min(360px, calc(100% - 44px));
+    box-shadow: 6px 0 18px #0002;
+  }
+  .drawer-equipment {
+    width: min(248px, calc(100% - 44px));
+  }
+  .canvas-view-controls {
+    order: 0;
+    width: auto;
+    margin-left: 0;
+  }
+  .canvas-edit-tools {
+    flex: 0;
+    margin-left: auto;
+  }
+  .canvas-edit-tools button span {
+    display: none;
+  }
+}
+
+/* Browser-rendered, two-tone cursors remain visible on both canvas themes.
+   Keep native cursor behavior: no mouse-following overlay or pointer lock. */
+.workspace {
+  --cursor-default: url("/cursors/default.svg") 2 2, default;
+  --cursor-pointer: url("/cursors/pointer.svg") 10 2, pointer;
+  --cursor-grab: url("/cursors/grab.svg") 14 14, grab;
+  --cursor-grabbing: url("/cursors/grabbing.svg") 14 14, grabbing;
+  --cursor-connect: url("/cursors/connect.svg") 16 16, crosshair;
+  --cursor-text: url("/cursors/text.svg") 16 16, text;
+  cursor: var(--cursor-default);
+}
+.workspace :is(input:not([type="checkbox"]):not([type="range"]), textarea) {
+  cursor: var(--cursor-text);
+}
+.workspace :is(a, select, summary, input[type="checkbox"]) {
+  cursor: var(--cursor-pointer);
+}
+.workspace .react-flow__pane,
+.workspace .react-flow__node.draggable {
+  cursor: var(--cursor-grab);
+}
+.workspace .react-flow__pane.dragging,
+.workspace .react-flow__node.dragging {
+  cursor: var(--cursor-grabbing);
+}
+.workspace .react-flow__edge,
+.workspace .react-flow__edge-interaction {
+  cursor: var(--cursor-pointer);
+}
+.workspace .react-flow__handle {
+  cursor: var(--cursor-default);
+}
+.workspace .react-flow__handle.connectable {
+  cursor: var(--cursor-connect);
+}
+.workspace .react-flow__pane.selection {
+  cursor: var(--cursor-connect);
 }

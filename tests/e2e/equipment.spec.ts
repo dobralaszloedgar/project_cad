@@ -90,7 +90,9 @@ test("two-feed catalyst reactor exposes ports, calculated profile and editable l
   await expect(page.locator(".model-notes")).toContainText("dFₐ/dW");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "3D schematic", exact: true }).click();
-  await expect(page.locator(".plant-view canvas")).toBeVisible();
+  await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
+    timeout: 30000,
+  });
   await expect(page.locator(".plant-label")).toHaveCount(4);
   await page.screenshot({
     path: "test-results/equipment-3d.png",

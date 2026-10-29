@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Search, X, ChevronDown, Settings2 } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 import { type Kind } from "@/domain/schema";
 import { EquipmentIcon, equipmentLabels } from "./EquipmentIcon";
 const groups: { name: string; kinds: Kind[] }[] = [
@@ -12,12 +12,8 @@ const groups: { name: string; kinds: Kind[] }[] = [
 ];
 export default function EquipmentLibrary({
   onAdd,
-  onClose,
-  onPreferences,
 }: {
   onAdd: (kind: Kind) => void;
-  onClose: () => void;
-  onPreferences: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<string[]>([]);
@@ -30,17 +26,7 @@ export default function EquipmentLibrary({
     }))
     .filter((g) => g.kinds.length);
   return (
-    <aside className="equipment-library">
-      <div className="library-heading">
-        <h2>Equipment</h2>
-        <button
-          className="icon-button"
-          aria-label="Close equipment library"
-          onClick={onClose}
-        >
-          <X size={16} />
-        </button>
-      </div>
+    <div className="equipment-library">
       <div className="library-search">
         <Search size={15} />
         <input
@@ -98,21 +84,6 @@ export default function EquipmentLibrary({
           <p className="search-empty">No equipment matches “{query}”.</p>
         ) : null}
       </div>
-      <footer className="library-footer">
-        <p>
-          Drag equipment onto the canvas.
-          <br />
-          Connect the dots to add a stream.
-        </p>
-        <button className="quiet-button" onClick={onPreferences}>
-          <Settings2 size={15} /> Preferences
-        </button>
-        <small>
-          Double-click to edit · Delete to remove
-          <br />
-          Scroll to zoom · drag the canvas to pan
-        </small>
-      </footer>
-    </aside>
+    </div>
   );
 }

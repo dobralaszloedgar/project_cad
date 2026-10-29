@@ -218,6 +218,7 @@ export function useFloatingDrag(
       onPointerMove,
       onPointerUp: finish,
       onPointerCancel: finish,
+      onLostPointerCapture: finish,
       onKeyDown,
     },
     suppressClick: () => {

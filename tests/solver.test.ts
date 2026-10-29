@@ -8,7 +8,12 @@ import {
   enthalpy,
   volume,
 } from "../src/domain/solver";
-import { newUnit, projectSchema, validateGraph } from "../src/domain/schema";
+import {
+  newUnit,
+  projectSchema,
+  validateGraph,
+  type Project,
+} from "../src/domain/schema";
 describe("deterministic engineering slice", () => {
   it("matches the analytic recycle solution and conserves mass and energy", () => {
     const r = simulate(reactorExample());
@@ -53,6 +58,84 @@ describe("deterministic engineering slice", () => {
       temperature: 400,
       pressure: 1e5,
     });
+  });
+  it("conserves four feeds sharing mixer inlet branches and survives serialization", () => {
+    const feeds = [300, 400, 500, 600].map((temperature, index) => {
+      const feed = newUnit("Feed", `F-${index}`, 0, index * 180);
+      feed.params.temperature = temperature;
+      feed.params.flow = index + 1;
+      feed.params.fractionA = index % 2;
+      feed.params.pressure = 200000 - index * 10000;
+      return feed;
+    });
+    const project: Project = {
+      version: 1,
+      name: "Four-feed mixer",
+      units: [
+        ...feeds,
+        newUnit("Mixer", "M", 300, 200),
+        newUnit("Product", "P", 600, 200),
+      ],
+      edges: [
+        ...feeds.map((feed, index) => ({
+          id: `feed-${index}`,
+          source: feed.id,
+          target: "M",
+          sourcePort: "out" as const,
+          targetPort: index % 2 ? ("in2" as const) : ("in" as const),
+          color: "teal" as const,
+        })),
+        {
+          id: "product",
+          source: "M",
+          target: "P",
+          sourcePort: "out",
+          targetPort: "in",
+          color: "teal",
+        },
+      ],
+    };
+    const restored = projectSchema.parse(JSON.parse(JSON.stringify(project)));
+    expect(validateGraph(restored, true)).toEqual([]);
+    const result = simulate(restored);
+    expect(result.converged).toBe(true);
+    expect(result.streams.product).toEqual({
+      a: 6,
+      b: 4,
+      temperature: 500,
+      pressure: 170000,
+    });
+    expect(Math.abs(result.massResidual)).toBeLessThan(1e-10);
+    expect(Math.abs(result.energyResidual)).toBeLessThan(1e-8);
+
+    // Either inlet branch can be the only remaining branch after deletion.
+    restored.edges.slice(0, 4).forEach((edge) => (edge.targetPort = "in2"));
+    expect(validateGraph(restored, true)).toEqual([]);
+    expect(simulate(restored).streams.product).toEqual(result.streams.product);
+
+    restored.edges.push({ ...restored.edges[0], id: "duplicate-source" });
+    expect(validateGraph(restored)).toContain(
+      "Each port accepts one stream; use a mixer or splitter.",
+    );
+  });
+  it("allows additional mixer feeds alongside an existing recycle", () => {
+    const project = reactorExample();
+    const feed = newUnit("Feed", "extra-feed", 0, 300);
+    feed.params.flow = 3;
+    project.units.push(feed);
+    project.edges.push({
+      id: "extra-stream",
+      source: feed.id,
+      sourcePort: "out",
+      target: "M-101",
+      targetPort: "in",
+      color: "teal",
+    });
+    const result = simulate(project);
+    expect(result.converged).toBe(true);
+    expect(result.tearId).toBeDefined();
+    expect(Math.abs(result.massResidual)).toBeLessThan(1e-8);
+    expect(Math.abs(result.energyResidual)).toBeLessThan(1e-3);
   });
   it("accounts for isothermal reaction heat and ideal gas units", () => {
     const r = operate(newUnit("PBR", "r", 0, 0), [

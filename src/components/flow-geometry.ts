@@ -39,7 +39,16 @@ export function streamPath(geometry: {
     const y = Math.max(sourceY, targetY) + 115;
     return `M ${sourceX} ${sourceY} H ${sourceX + 24} V ${y} H ${targetX - 24} V ${targetY} H ${targetX}`;
   }
-  return getSmoothStepPath({ ...geometry, borderRadius: 2 })[0];
+  return getSmoothStepPath({
+    ...geometry,
+    // Leave room for the equipment name below bottom-facing nozzles.
+    offset:
+      geometry.sourcePosition === Position.Bottom ||
+      geometry.targetPosition === Position.Bottom
+        ? 56
+        : 20,
+    borderRadius: 2,
+  })[0];
 }
 
 export type Point3 = [number, number, number];

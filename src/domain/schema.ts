@@ -123,11 +123,11 @@ export function validateGraph(project: Project, complete = false): string[] {
       !ports(target.kind).inputs.includes(e.targetPort)
     )
       errors.push(`Stream ${e.id} has incompatible material ports.`);
-    for (const key of [
-      `${e.source}:source:${e.sourcePort}`,
-      `${e.target}:target:${e.targetPort}`,
-    ]) {
-      if (used.has(key))
+    for (const [key, acceptsMultiple] of [
+      [`${e.source}:source:${e.sourcePort}`, false],
+      [`${e.target}:target:${e.targetPort}`, target.kind === "Mixer"],
+    ] as const) {
+      if (used.has(key) && !acceptsMultiple)
         errors.push("Each port accepts one stream; use a mixer or splitter.");
       used.add(key);
     }
@@ -170,6 +170,11 @@ export function validateGraph(project: Project, complete = false): string[] {
       for (const p of ports(n.kind).outputs)
         if (!used.has(`${n.id}:source:${p}`))
           errors.push(`${n.name}: connect ${p}.`);
+      if (n.kind === "Mixer") {
+        if (!ports(n.kind).inputs.some((p) => used.has(`${n.id}:target:${p}`)))
+          errors.push(`${n.name}: connect an inlet.`);
+        continue;
+      }
       for (const p of ports(n.kind).inputs.filter((p) => p !== "in2"))
         if (!used.has(`${n.id}:target:${p}`))
           errors.push(`${n.name}: connect ${p}.`);

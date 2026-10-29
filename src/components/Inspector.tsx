@@ -250,9 +250,9 @@ function UnitEditor({
           )}
           {unit.kind === "Mixer" && (
             <p className="equipment-setup-hint">
-              Connect the primary inlet and optionally a second feed. The outlet
-              conserves component flows and enthalpy at the lowest flowing inlet
-              pressure.
+              Drag streams onto the mixer’s center to connect multiple feeds.
+              The outlet conserves component flows and enthalpy at the lowest
+              flowing inlet pressure.
             </p>
           )}
           {unit.kind === "Product" && (

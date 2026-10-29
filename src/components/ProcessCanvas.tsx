@@ -1,15 +1,18 @@
 "use client";
-import { useMemo, useState, useRef, useEffect, useId } from "react";
+import { memo, useCallback, useMemo, useState, useRef, useEffect } from "react";
+import { Maximize, Minus, Plus } from "lucide-react";
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   Controls,
+  ControlButton,
   Handle,
+  Position,
   MarkerType,
   BaseEdge,
-  applyNodeChanges,
   useReactFlow,
+  useNodesInitialized,
   type NodeProps,
   type Node,
   type EdgeProps,
@@ -28,12 +31,13 @@ import { equipmentPort, streamPath } from "./flow-geometry";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
-export const streamColors = {
-  teal: "#7f8e87",
-  blue: "#367c6c",
-  amber: "#b47b1e",
-};
-type EquipmentNode = Node<{ unit: Unit; change?: string }, "equipment">;
+import { projectStreamColors, streamColors } from "./stream-colors";
+export { streamColors } from "./stream-colors";
+const mixerDropHandle = "mixer-center";
+type EquipmentNode = Node<
+  { unit: Unit; connected: string[]; change?: string },
+  "equipment"
+>;
 function portGeometry(kind: Kind, output: boolean, index: number) {
   const { x, y, position } = equipmentPort(kind, output, index);
   return {
@@ -47,12 +51,15 @@ function portGeometry(kind: Kind, output: boolean, index: number) {
     },
   };
 }
-function UnitNode({ data, selected }: NodeProps<EquipmentNode>) {
+const UnitNode = memo(function UnitNode({
+  data,
+  selected,
+}: NodeProps<EquipmentNode>) {
   const n = data.unit,
     p = ports(n.kind);
   return (
     <div
-      className={`equipment-node ${selected ? "selected" : ""} ${data.change ?? ""}`}
+      className={`equipment-node ${n.kind === "PBR" || n.kind === "Distillation" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
     >
       <span className="unit-tag">{n.id}</span>
       {p.inputs.map((id, i) => (
@@ -60,10 +67,24 @@ function UnitNode({ data, selected }: NodeProps<EquipmentNode>) {
           key={id}
           id={id}
           type="target"
+          aria-label={`${n.id} inlet ${id}`}
+          title={`${n.id} · ${id === "in2" ? "Secondary inlet" : "Inlet"}`}
+          isConnectable={n.kind === "Mixer" || !data.connected.includes(id)}
+          isConnectableStart={false}
           {...portGeometry(n.kind, false, i)}
           className="material-handle"
         />
       ))}
+      {n.kind === "Mixer" && (
+        <Handle
+          id={mixerDropHandle}
+          type="target"
+          position={Position.Left}
+          isConnectableStart={false}
+          className="mixer-drop-handle"
+          aria-label={`${n.id} connect streams to mixer`}
+        />
+      )}
       <EquipmentIcon kind={n.kind} size={128} />
       <span className="unit-name">{n.name}</span>
       {p.outputs.map((id, i) => (
@@ -71,58 +92,30 @@ function UnitNode({ data, selected }: NodeProps<EquipmentNode>) {
           key={id}
           id={id}
           type="source"
+          aria-label={`${n.id} outlet ${id}`}
+          title={`${n.id} · ${id === "out2" ? "Secondary outlet" : "Outlet"}`}
+          isConnectable={!data.connected.includes(id)}
+          isConnectableEnd={false}
           {...portGeometry(n.kind, true, i)}
           className="material-handle"
         />
       ))}
     </div>
   );
-}
-function PipeEdge(props: EdgeProps) {
-  const gradient = `stream-${useId().replace(/:/g, "")}`;
-  const rainbow = props.data?.rainbow === true;
+});
+const PipeEdge = memo(function PipeEdge(props: EdgeProps) {
+  const colored = props.data?.compositionColors === true;
   const path = streamPath(props);
   return (
     <g>
-      {rainbow ? (
-        <defs>
-          <linearGradient
-            id={gradient}
-            gradientUnits="userSpaceOnUse"
-            x1={props.sourceX}
-            y1={props.sourceY}
-            x2={props.targetX}
-            y2={props.targetY}
-          >
-            {[
-              "#25866a",
-              "#3192b4",
-              "#6a6bc3",
-              "#b15a9a",
-              "#cb7355",
-              "#b49836",
-              "#25866a",
-            ].map((color, index) => (
-              <stop
-                key={index}
-                offset={`${(index / 6) * 100}%`}
-                stopColor={color}
-              />
-            ))}
-          </linearGradient>
-        </defs>
-      ) : null}
       <BaseEdge
         id={props.id}
         path={path}
         markerEnd={props.markerEnd}
-        style={{
-          ...props.style,
-          ...(rainbow ? { stroke: `url(#${gradient})`, strokeWidth: 2.5 } : {}),
-        }}
+        style={props.style}
         interactionWidth={24}
       />
-      {rainbow ? (
+      {colored ? (
         <path
           className="stream-flow-motion"
           d={path}
@@ -135,7 +128,7 @@ function PipeEdge(props: EdgeProps) {
       ) : null}
     </g>
   );
-}
+});
 const nodeTypes = { equipment: UnitNode };
 const edgeTypes = { pipe: PipeEdge };
 interface Props {
@@ -147,7 +140,7 @@ interface Props {
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
   onError: (message: string) => void;
   result: Result | null;
-  rainbow: boolean;
+  compositionColors: boolean;
   compare?: Project;
 }
 function Inner(props: Props) {
@@ -161,27 +154,53 @@ function Inner(props: Props) {
     onError,
     result,
     compare,
-    rainbow,
+    compositionColors,
   } = props;
   const rf = useReactFlow();
   const containerRef = useRef<HTMLDivElement>(null);
+  const initialized = useNodesInitialized();
+  const initiallyFramed = useRef(false);
+  useEffect(() => {
+    if (!initialized || initiallyFramed.current) return;
+    initiallyFramed.current = true;
+    const first = rf.getNodes()[0];
+    const container = containerRef.current;
+    if (first && container && window.matchMedia("(max-width: 760px)").matches) {
+      void rf.setViewport({
+        x: 28 - first.position.x,
+        y: Math.max(150, container.clientHeight * 0.42) - first.position.y,
+        zoom: 1,
+      });
+    }
+  }, [initialized, rf]);
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     let frame = 0;
+    let width = container.clientWidth;
+    let height = container.clientHeight;
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const first = rf.getNodes()[0];
-        if (first && window.matchMedia("(max-width: 760px)").matches) {
+        const nextWidth = container.clientWidth;
+        const nextHeight = container.clientHeight;
+        if (
+          width > 0 &&
+          height > 0 &&
+          nextWidth > 0 &&
+          nextHeight > 0 &&
+          (width !== nextWidth || height !== nextHeight)
+        ) {
+          const viewport = rf.getViewport();
+          // Preserve the world point at the center instead of refitting on resize.
           void rf.setViewport({
-            x: 28 - first.position.x,
-            y: Math.max(150, container.clientHeight * 0.42) - first.position.y,
-            zoom: 1,
+            ...viewport,
+            x: viewport.x + (nextWidth - width) / 2,
+            y: viewport.y + (nextHeight - height) / 2,
           });
-          return;
         }
-        void rf.fitView({ padding: 0.25 });
+        width = nextWidth;
+        height = nextHeight;
       });
     });
     observer.observe(container);
@@ -197,57 +216,109 @@ function Inner(props: Props) {
     Record<string, EquipmentNode["measured"]>
   >({});
   const [hover, setHover] = useState("");
-  const changes = compare ? diff(compare, project) : null;
+  const changes = useMemo(
+    () => (compare ? diff(compare, project) : null),
+    [compare, project],
+  );
+  const baseNodes: EquipmentNode[] = useMemo(() => {
+    const connected = new Map<string, string[]>();
+    for (const edge of project.edges) {
+      connected.set(edge.source, [
+        ...(connected.get(edge.source) ?? []),
+        edge.sourcePort,
+      ]);
+      connected.set(edge.target, [
+        ...(connected.get(edge.target) ?? []),
+        edge.targetPort,
+      ]);
+    }
+    return project.units.map((unit) => ({
+      id: unit.id,
+      type: "equipment",
+      position: unit.position,
+      data: {
+        unit,
+        connected: connected.get(unit.id) ?? [],
+        change: changes?.added.some((n) => n.id === unit.id)
+          ? "added"
+          : changes?.changed.some((n) => n.id === unit.id)
+            ? "modified"
+            : undefined,
+      },
+    }));
+  }, [project.units, project.edges, changes]);
   const nodes: EquipmentNode[] = useMemo(
     () =>
-      project.units.map((unit) => ({
-        id: unit.id,
-        type: "equipment",
-        position: positions[unit.id] ?? unit.position,
-        measured: measurements[unit.id],
-        data: {
-          unit,
-          change: changes?.added.some((n) => n.id === unit.id)
-            ? "added"
-            : changes?.changed.some((n) => n.id === unit.id)
-              ? "modified"
-              : undefined,
-        },
-        selected: unit.id === selected,
+      baseNodes.map((node) => ({
+        ...node,
+        position: positions[node.id] ?? node.position,
+        measured: measurements[node.id],
+        selected: node.id === selected,
       })),
-    [project.units, positions, measurements, selected, changes],
+    [baseNodes, positions, measurements, selected],
   );
-  const edges = project.edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourcePort,
-    targetHandle: e.targetPort,
-    type: "pipe",
-    data: { rainbow },
-    style: {
-      stroke: streamColors[e.color],
-      strokeWidth: selected === e.id ? 3 : 2,
-    },
-    markerEnd: { type: MarkerType.ArrowClosed, color: streamColors[e.color] },
-    selected: e.id === selected,
-  }));
-  function nodeChanges(changes: NodeChange<EquipmentNode>[]) {
-    const measuredIds = new Set(
-      changes
-        .filter((change) => change.type === "dimensions")
-        .map((change) => change.id),
+  const colors = useMemo(
+    () => (compositionColors ? projectStreamColors(project, result) : {}),
+    [project, result, compositionColors],
+  );
+  const edges = useMemo(
+    () =>
+      project.edges.map((e) => {
+        const color = compositionColors ? colors[e.id] : streamColors[e.color];
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourcePort,
+          targetHandle: e.targetPort,
+          type: "pipe",
+          data: { compositionColors },
+          style: { stroke: color, strokeWidth: selected === e.id ? 3.5 : 2.5 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color,
+            width: 14,
+            height: 14,
+          },
+          selected: e.id === selected,
+        };
+      }),
+    [project.edges, compositionColors, colors, selected],
+  );
+  function targetPort(connection: {
+    target: string;
+    targetHandle?: string | null;
+  }): Connection["targetPort"] {
+    if (
+      connection.targetHandle === mixerDropHandle &&
+      project.units.some(
+        (unit) => unit.id === connection.target && unit.kind === "Mixer",
+      )
+    ) {
+      // Keep persisted port IDs compatible with existing projects and distribute
+      // center drops across both inlet branches, including occupied branches.
+      const incoming = project.edges.filter(
+        (edge) => edge.target === connection.target,
+      );
+      return incoming.filter((edge) => edge.targetPort === "in").length <=
+        incoming.filter((edge) => edge.targetPort === "in2").length
+        ? "in"
+        : "in2";
+    }
+    return connection.targetHandle as Connection["targetPort"];
+  }
+  const nodeChanges = useCallback((changes: NodeChange<EquipmentNode>[]) => {
+    const dimensions = changes.filter(
+      (change) => change.type === "dimensions" && change.dimensions,
     );
-    if (measuredIds.size) {
-      const initialized = applyNodeChanges(changes, nodes);
-      setMeasurements((previous) => ({
-        ...previous,
-        ...Object.fromEntries(
-          initialized
-            .filter((node) => measuredIds.has(node.id))
-            .map((node) => [node.id, node.measured]),
-        ),
-      }));
+    if (dimensions.length) {
+      setMeasurements((previous) => {
+        const next = { ...previous };
+        for (const change of dimensions) {
+          if (change.type === "dimensions") next[change.id] = change.dimensions;
+        }
+        return next;
+      });
     }
     const moved = changes.filter((c) => c.type === "position" && c.position);
     if (moved.length)
@@ -257,7 +328,9 @@ function Inner(props: Props) {
           moved.map((c) => (c.type === "position" ? [c.id, c.position] : [])),
         ),
       }));
-  }
+  }, []);
+  const duration = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
   return (
     <div
       ref={containerRef}
@@ -291,18 +364,31 @@ function Inner(props: Props) {
         edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.2}
-        maxZoom={1.8}
+        minZoom={0.1}
+        maxZoom={3}
+        panOnScroll
+        panOnScrollSpeed={1}
+        panOnDrag={[0, 1, 2]}
+        panActivationKeyCode="Space"
+        zoomOnScroll={false}
+        zoomOnPinch
+        zoomActivationKeyCode={["Control", "Meta"]}
         zoomOnDoubleClick={false}
-        snapToGrid
-        snapGrid={[10, 10]}
         onNodesChange={nodeChanges}
         onNodeDragStop={(_, node) => {
           onChange(
             {
               ...project,
               units: project.units.map((n) =>
-                n.id === node.id ? { ...n, position: node.position } : n,
+                n.id === node.id
+                  ? {
+                      ...n,
+                      position: {
+                        x: Math.round(node.position.x / 10) * 10,
+                        y: Math.round(node.position.y / 10) * 10,
+                      },
+                    }
+                  : n,
               ),
             },
             "Move equipment",
@@ -321,13 +407,34 @@ function Inner(props: Props) {
           );
         }}
         onEdgeMouseLeave={() => setHover("")}
+        isValidConnection={(connection) => {
+          if (!connection.sourceHandle || !connection.targetHandle)
+            return false;
+          return (
+            validateGraph({
+              ...project,
+              edges: [
+                ...project.edges,
+                {
+                  id: "pending-connection",
+                  source: connection.source,
+                  target: connection.target,
+                  sourcePort:
+                    connection.sourceHandle as Connection["sourcePort"],
+                  targetPort: targetPort(connection),
+                  color: "teal",
+                },
+              ],
+            }).length === 0
+          );
+        }}
         onConnect={(c) => {
           const edge: Connection = {
             id: crypto.randomUUID(),
             source: c.source,
             target: c.target,
             sourcePort: c.sourceHandle as Connection["sourcePort"],
-            targetPort: c.targetHandle as Connection["targetPort"],
+            targetPort: targetPort(c),
             color: "teal",
           };
           const next = { ...project, edges: [...project.edges, edge] };
@@ -356,17 +463,36 @@ function Inner(props: Props) {
         deleteKeyCode={["Backspace", "Delete"]}
       >
         <Background color="#bfcac4" gap={24} size={1} />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false} showZoom={false} showFitView={false}>
+          <ControlButton
+            title="Zoom In"
+            aria-label="Zoom In"
+            onClick={() => void rf.zoomIn({ duration: duration() })}
+          >
+            <Plus />
+          </ControlButton>
+          <ControlButton
+            title="Zoom Out"
+            aria-label="Zoom Out"
+            onClick={() => void rf.zoomOut({ duration: duration() })}
+          >
+            <Minus />
+          </ControlButton>
+          <ControlButton
+            title="Fit View"
+            aria-label="Fit View"
+            onClick={() =>
+              void rf.fitView({ padding: 0.2, duration: duration() })
+            }
+          >
+            <Maximize />
+          </ControlButton>
+        </Controls>
       </ReactFlow>
-      <div className="canvas-footnote">
-        <span className="desktop-canvas-hint">
-          {hover ||
-            "Drag equipment · connect material ports · double-click to edit"}
-        </span>
-        <span className="mobile-canvas-hint">
-          Drag canvas to pan · use + / − to zoom
-        </span>
+      <div className="navigation-hint">
+        Drag / scroll to pan · Pinch or Ctrl/⌘ + scroll to zoom
       </div>
+      {hover ? <div className="canvas-footnote">{hover}</div> : null}
     </div>
   );
 }

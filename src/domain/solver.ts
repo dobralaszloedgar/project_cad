@@ -142,7 +142,13 @@ export function operate(
   const p = unit.params;
   const result: EquipmentResult = { duty: 0, extent: 0 };
   const maxInlets =
-    unit.kind === "Feed" ? 0 : ["Mixer", "PBR"].includes(unit.kind) ? 2 : 1;
+    unit.kind === "Feed"
+      ? 0
+      : unit.kind === "Mixer"
+        ? Infinity
+        : unit.kind === "PBR"
+          ? 2
+          : 1;
   if (inputs.length > maxInlets)
     throw new Error(`${unit.name}: too many material inlets.`);
   // The exported evaluator uses the same selected-model validity checks as

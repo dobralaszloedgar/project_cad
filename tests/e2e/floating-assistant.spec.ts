@@ -57,14 +57,16 @@ test("chat bubble snaps to canvas corners while the chat window remains draggabl
     })
     .toBeLessThan(1);
 });
-test("rainbow streams animate, can be disabled, and the 3D switch remains visible", async ({
+test("composition colors animate, can be disabled, and the 3D switch remains visible", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const rainbow = page.getByRole("button", { name: "Rainbow flow" });
+  const rainbow = page.getByRole("button", {
+    name: "Color streams by composition",
+  });
   await expect(rainbow).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".stream-flow-motion")).toHaveCount(6);
   await expect(page.locator(".stream-flow-motion").first()).toHaveCSS(
