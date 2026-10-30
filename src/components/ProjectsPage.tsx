@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import {
-  Workflow,
   Plus,
   Folder,
   Clock3,
@@ -21,7 +20,7 @@ import {
 } from "lucide-react";
 import type { SavedProject } from "@/lib/storage";
 import { ports, type Project } from "@/domain/schema";
-import { EquipmentIcon } from "./EquipmentIcon";
+import { EquipmentIcon, EquipmentPanelIcon } from "./EquipmentIcon";
 import { equipmentPort, streamPath } from "./flow-geometry";
 import Dialog from "./Dialog";
 function ProjectPreview({ project }: { project: Project }) {
@@ -147,7 +146,7 @@ export default function ProjectsPage({
     <section className="projects-page">
       <header className="projects-header">
         <button className="brand" onClick={onBack} aria-label="Project CAD">
-          <Workflow size={29} />
+          <EquipmentPanelIcon size={29} />
           <span>Project CAD</span>
         </button>
         <span className="header-divider" />

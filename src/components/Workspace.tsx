@@ -767,7 +767,7 @@ export default function Workspace({
           onClick={() => void openProjects()}
           aria-label="Project CAD home"
         >
-          <Workflow size={29} />
+          <EquipmentPanelIcon size={29} />
           <span>Project CAD</span>
         </button>
         <span className="header-divider" />

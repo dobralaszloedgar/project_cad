@@ -7,6 +7,9 @@
 }
 @import "@xyflow/react/dist/style.css";
 :root {
+  /* Outlined hands remain readable on both light and dark canvases. */
+  --cursor-grab: url("/cursors/grab.svg") 16 16, grab;
+  --cursor-grabbing: url("/cursors/grabbing.svg") 16 16, grabbing;
   font-family: "Figtree Variable", sans-serif;
   font-synthesis: none;
   background: #f5f7f6;
@@ -3003,12 +3006,10 @@ h3 {
   }
 }
 
-/* Use the system's normal pointer, hand, and text cursors. */
+/* Use native cursors except for the shared outlined drag hands. */
 .workspace {
   --cursor-default: default;
   --cursor-pointer: pointer;
-  --cursor-grab: grab;
-  --cursor-grabbing: grabbing;
   --cursor-connect: crosshair;
   --cursor-text: text;
   cursor: var(--cursor-default);
