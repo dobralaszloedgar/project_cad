@@ -1,0 +1,197 @@
+.panel {
+  min-width: 0;
+}
+.project {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 0 20px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.project span {
+  font-weight: 400;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.history {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.history select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px;
+  text-overflow: ellipsis;
+}
+.connect {
+  max-width: 360px;
+  margin: 24px auto;
+  padding: 4px 10px;
+  display: grid;
+  gap: 14px;
+  text-align: left;
+}
+.connect h2 {
+  font-size: 20px;
+  letter-spacing: -0.4px;
+}
+.connect p,
+.intro {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.connect code {
+  display: block;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  user-select: all;
+}
+.setupSteps {
+  list-style: decimal;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.setupSteps li + li {
+  margin-top: 6px;
+}
+.download {
+  display: grid;
+  gap: 6px;
+}
+.download a {
+  text-decoration: none;
+}
+.download select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 12px;
+}
+.download span {
+  font-size: 10px;
+  text-align: center;
+  color: var(--muted);
+}
+.development {
+  font-size: 11px;
+  color: var(--muted);
+}
+.development summary {
+  cursor: pointer;
+}
+.development p {
+  margin: 10px 0 5px;
+}
+.intro {
+  max-width: 310px;
+  text-align: center;
+}
+.turn {
+  margin-bottom: 24px;
+}
+.response {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.activities {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.activities summary {
+  cursor: pointer;
+}
+.activities ul {
+  list-style: none;
+  padding: 8px 0;
+  margin: 0;
+}
+.activities li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+}
+.error {
+  color: var(--danger, #a33b35);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 7px 0;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.params {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.details {
+  margin: 12px 0;
+  font-size: 11px;
+}
+.details summary {
+  cursor: pointer;
+}
+.details pre {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  background: var(--canvas);
+}
+.settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding-top: 8px;
+}
+.settings label {
+  display: flex;
+  flex: 1 1 100px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.settings select {
+  width: 100%;
+  min-width: 0;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 7px;
+  font: inherit;
+  font-size: 11px;
+}
+.settings select:disabled {
+  opacity: 0.75;
+}

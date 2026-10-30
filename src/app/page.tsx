@@ -17,6 +17,7 @@ export default async function Page({
       exampleId={exampleId}
       initialView={initialView}
       initialPlayback={query.play === "1"}
+      initialArrange={query.arrange === "1"}
     />
   );
 }

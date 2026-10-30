@@ -1,0 +1,207 @@
+.dialog {
+  --folder-error: #a7463e;
+  width: min(540px, calc(100vw - 32px));
+}
+
+:global(.workspace[data-theme="dark"]) .dialog {
+  --folder-error: #f4a6a0;
+}
+
+.form {
+  display: grid;
+  gap: 22px;
+}
+
+.intro {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.intro code {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.field > label,
+.field > span {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.field input {
+  width: 100%;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--folder-error);
+}
+
+.hint,
+.error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.hint {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--folder-error);
+}
+
+.folderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.folderRow > button {
+  flex-shrink: 0;
+}
+
+.folderName {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.folderName svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.folderName span {
+  overflow-wrap: anywhere;
+}
+
+.destination {
+  display: grid;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--hover);
+  min-width: 0;
+}
+
+.destination > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.destination code {
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.libraryActions {
+  display: grid;
+  gap: 4px;
+  margin: 0 8px 18px;
+}
+
+.libraryActions :global(.new-project-button) {
+  margin: 0 0 7px;
+  padding: 12px;
+  gap: 8px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.libraryActions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.folderAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 5px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.folderAction svg {
+  flex-shrink: 0;
+}
+
+.folderAction:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.projectLocation {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+  .projectNavigation:global(.projects-sidebar) {
+    flex-wrap: wrap;
+  }
+
+  .libraryActions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+    margin: 0 0 8px;
+    gap: 6px;
+  }
+
+  .libraryActions :global(.new-project-button),
+  .folderAction {
+    width: auto;
+    margin: 0;
+    padding: 9px;
+  }
+}

@@ -31,6 +31,8 @@ import {
   type Edge,
   type NodeChange,
   type EdgeChange,
+  type FitViewOptions,
+  type Viewport,
 } from "@xyflow/react";
 import {
   type Project,
@@ -58,6 +60,12 @@ type EquipmentNode = Node<
   { unit: Unit; connected: string[]; change?: string },
   "equipment"
 >;
+// Keep equipment labels and the outer stream lanes clear of the floating toolbar.
+const flowFitOptions = {
+  padding: { top: "110px", right: "60px", bottom: "70px", left: "60px" },
+  minZoom: 0.05,
+  maxZoom: 1.25,
+} satisfies FitViewOptions;
 function portGeometry(kind: Kind, output: boolean, index: number) {
   const { x, y, position } = equipmentPort(kind, output, index);
   return {
@@ -256,6 +264,7 @@ const nodeTypes = { equipment: UnitNode };
 const edgeTypes = { pipe: PipeEdge };
 interface Props {
   project: Project;
+  fitRequest?: number;
   selected: string | null;
   selection: string[];
   onSelection: Dispatch<SetStateAction<string[]>>;
@@ -266,6 +275,8 @@ interface Props {
   result: Result | null;
   compositionColors: boolean;
   compare?: Project;
+  /** A fixed, read-only view of the same canvas for embedded walkthroughs. */
+  presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
 }
 function Inner(props: Props) {
   const {
@@ -280,13 +291,17 @@ function Inner(props: Props) {
     result,
     compare,
     compositionColors,
+    fitRequest = 0,
+    presentation,
   } = props;
   const rf = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const containerRef = useRef<HTMLDivElement>(null);
   const [panMode, setPanMode] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   useEffect(() => {
+    if (presentation) return;
     function onKeyDown(event: KeyboardEvent) {
       if (
         shortcutsBlocked(event) ||
@@ -344,11 +359,10 @@ function Inner(props: Props) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [rf, project.units, selection]);
-  const initialized = useNodesInitialized();
+  }, [rf, project.units, selection, presentation]);
   const initiallyFramed = useRef(false);
   useEffect(() => {
-    if (!initialized || initiallyFramed.current) return;
+    if (presentation || !nodesInitialized || initiallyFramed.current) return;
     initiallyFramed.current = true;
     const first = rf.getNodes()[0];
     const container = containerRef.current;
@@ -359,8 +373,27 @@ function Inner(props: Props) {
         zoom: 1,
       });
     }
-  }, [initialized, rf]);
+  }, [nodesInitialized, rf, presentation]);
+  const fittedRequest = useRef(0);
   useEffect(() => {
+    if (
+      presentation ||
+      !fitRequest ||
+      !nodesInitialized ||
+      fittedRequest.current === fitRequest
+    )
+      return;
+    const frame = requestAnimationFrame(() => {
+      fittedRequest.current = fitRequest;
+      void rf.fitView({
+        ...flowFitOptions,
+        duration: 250,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [fitRequest, nodesInitialized, rf, presentation]);
+  useEffect(() => {
+    if (presentation) return;
     const container = containerRef.current;
     if (!container) return;
     let frame = 0;
@@ -395,7 +428,7 @@ function Inner(props: Props) {
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [rf]);
+  }, [rf, presentation]);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
   >({});
@@ -611,12 +644,14 @@ function Inner(props: Props) {
       className={`flow-wrapper ${showLabels ? "" : "hide-flow-labels"}`}
       tabIndex={0}
       aria-label="2D process canvas"
+      data-canvas-mode={presentation ? "presentation" : "editor"}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={(e) => {
         e.preventDefault();
+        if (presentation) return;
         const kind = e.dataTransfer.getData("application/project-cad") as Kind;
         if (
           [
@@ -638,21 +673,27 @@ function Inner(props: Props) {
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.1}
+        fitView={!presentation}
+        fitViewOptions={flowFitOptions}
+        minZoom={0.05}
         maxZoom={3}
-        panOnScroll
+        panOnScroll={!presentation}
         panOnScrollSpeed={1}
-        panOnDrag={panMode ? [0, 1, 2] : [1, 2]}
-        selectionOnDrag={!panMode}
-        nodesDraggable={!panMode}
+        panOnDrag={presentation ? false : panMode ? [0, 1, 2] : [1, 2]}
+        selectionOnDrag={!presentation && !panMode}
+        nodesDraggable={!presentation && !panMode}
         multiSelectionKeyCode={["Shift", "Control", "Meta"]}
         disableKeyboardA11y
-        panActivationKeyCode="Space"
+        panActivationKeyCode={presentation ? null : "Space"}
         zoomOnScroll={false}
-        zoomOnPinch
-        zoomActivationKeyCode={["Control", "Meta"]}
+        zoomOnPinch={!presentation}
+        zoomActivationKeyCode={presentation ? null : ["Control", "Meta"]}
+        viewport={presentation?.viewport}
+        nodesConnectable={!presentation}
+        nodesFocusable={!presentation}
+        edgesFocusable={!presentation}
+        elementsSelectable={!presentation}
+        preventScrolling={!presentation}
         zoomOnDoubleClick={false}
         onNodesChange={nodeChanges}
         onEdgesChange={updateSelection}
@@ -680,13 +721,15 @@ function Inner(props: Props) {
           );
           setPositions({});
         }}
-        onNodeClick={() => containerRef.current?.focus()}
+        onNodeClick={() => !presentation && containerRef.current?.focus()}
         onPaneClick={() => {
+          if (presentation) return;
           onSelection([]);
           containerRef.current?.focus();
         }}
-        onNodeDoubleClick={(_, node) => onInspect(node.id)}
+        onNodeDoubleClick={(_, node) => !presentation && onInspect(node.id)}
         onEdgeClick={(event, edge) => {
+          if (presentation) return;
           if (!event.shiftKey && !event.ctrlKey && !event.metaKey)
             onInspect(edge.id);
           else containerRef.current?.focus();
@@ -725,6 +768,7 @@ function Inner(props: Props) {
           );
         }}
         onConnect={(c) => {
+          if (presentation) return;
           const edge: Connection = {
             id: crypto.randomUUID(),
             name: availableStreamName(project.edges),
@@ -740,6 +784,7 @@ function Inner(props: Props) {
           else onChange(next, "Connect stream");
         }}
         onBeforeDelete={async ({ nodes, edges }) => {
+          if (presentation) return false;
           const ids = new Set(nodes.map((n) => n.id)),
             edgeIds = new Set(edges.map((e) => e.id));
           onChange(
@@ -759,45 +804,61 @@ function Inner(props: Props) {
         }}
         deleteKeyCode={null}
       >
-        {showGrid ? <Background color="#bfcac4" gap={24} size={1} /> : null}
-        <Controls showInteractive={false} showZoom={false} showFitView={false}>
-          <ControlButton
-            title="Pan canvas"
-            aria-label="Pan canvas"
-            aria-pressed={panMode}
-            onClick={() => setPanMode(!panMode)}
+        {showGrid ? (
+          <Background
+            color={presentation?.colorMode === "dark" ? "#31505a" : "#bfcac4"}
+            gap={24}
+            size={1}
+          />
+        ) : null}
+        {!presentation && (
+          <Controls
+            showInteractive={false}
+            showZoom={false}
+            showFitView={false}
           >
-            <Hand />
-          </ControlButton>
-          <ControlButton
-            title="Zoom In"
-            aria-label="Zoom In"
-            onClick={() => void rf.zoomIn({ duration: duration() })}
-          >
-            <Plus />
-          </ControlButton>
-          <ControlButton
-            title="Zoom Out"
-            aria-label="Zoom Out"
-            onClick={() => void rf.zoomOut({ duration: duration() })}
-          >
-            <Minus />
-          </ControlButton>
-          <ControlButton
-            title="Fit View"
-            aria-label="Fit View"
-            onClick={() =>
-              void rf.fitView({ padding: 0.2, duration: duration() })
-            }
-          >
-            <Maximize />
-          </ControlButton>
-        </Controls>
+            <ControlButton
+              title="Pan canvas"
+              aria-label="Pan canvas"
+              aria-pressed={panMode}
+              onClick={() => setPanMode(!panMode)}
+            >
+              <Hand />
+            </ControlButton>
+            <ControlButton
+              title="Zoom In"
+              aria-label="Zoom In"
+              onClick={() => void rf.zoomIn({ duration: duration() })}
+            >
+              <Plus />
+            </ControlButton>
+            <ControlButton
+              title="Zoom Out"
+              aria-label="Zoom Out"
+              onClick={() => void rf.zoomOut({ duration: duration() })}
+            >
+              <Minus />
+            </ControlButton>
+            <ControlButton
+              title="Fit View"
+              aria-label="Fit View"
+              onClick={() =>
+                void rf.fitView({ padding: 0.2, duration: duration() })
+              }
+            >
+              <Maximize />
+            </ControlButton>
+          </Controls>
+        )}
       </ReactFlow>
-      <div className="navigation-hint">
-        Drag to select · Space + drag / scroll to pan · Pinch to zoom
-      </div>
-      {hover ? <div className="canvas-footnote">{hover}</div> : null}
+      {!presentation && (
+        <div className="navigation-hint">
+          Drag to select · Space + drag / scroll to pan · Pinch to zoom
+        </div>
+      )}
+      {!presentation && hover ? (
+        <div className="canvas-footnote">{hover}</div>
+      ) : null}
     </div>
   );
 }

@@ -52,7 +52,10 @@ export default function Dialog({
       ref={ref}
       className={`workspace-dialog ${className}`}
       aria-label={title}
-      onCancel={onClose}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

@@ -3,10 +3,12 @@ import { useState } from "react";
 import {
   Plus,
   Folder,
+  FolderOpen,
   Clock3,
   Star,
   Search,
   LayoutGrid,
+  LayoutTemplate,
   List,
   ChevronDown,
   ArrowDownWideNarrow,
@@ -23,6 +25,7 @@ import { ports, type Project } from "@/domain/schema";
 import { EquipmentIcon, EquipmentPanelIcon } from "./EquipmentIcon";
 import { equipmentPort, streamPath } from "./flow-geometry";
 import Dialog from "./Dialog";
+import folderStyles from "./CreateProjectDialog.module.css";
 function ProjectPreview({ project }: { project: Project }) {
   if (!project.units.length)
     return (
@@ -100,6 +103,8 @@ export default function ProjectsPage({
   currentId,
   onOpen,
   onNew,
+  onOpenFolder,
+  onTemplates,
   onRename,
   onDuplicate,
   onStar,
@@ -113,6 +118,8 @@ export default function ProjectsPage({
   currentId: string;
   onOpen: (entry: SavedProject) => void;
   onNew: () => void;
+  onOpenFolder?: () => void;
+  onTemplates?: () => void;
   onRename: (entry: SavedProject, name: string) => void;
   onDuplicate: (entry: SavedProject) => void;
   onStar: (entry: SavedProject) => void;
@@ -169,15 +176,40 @@ export default function ProjectsPage({
         </div>
       </header>
       <div className="projects-layout">
-        <nav className="projects-sidebar" aria-label="Project navigation">
-          <button
-            className="new-project-button"
-            onClick={onNew}
-            disabled={busy}
-          >
-            <Plus size={22} />
-            New
-          </button>
+        <nav
+          className={`projects-sidebar ${folderStyles.projectNavigation}`}
+          aria-label="Project navigation"
+        >
+          <div className={folderStyles.libraryActions}>
+            <button
+              className="new-project-button"
+              onClick={onNew}
+              disabled={busy}
+            >
+              <Plus size={20} />
+              Create project
+            </button>
+            {onOpenFolder ? (
+              <button
+                className={folderStyles.folderAction}
+                onClick={onOpenFolder}
+                disabled={busy}
+              >
+                <FolderOpen size={17} />
+                Open project folder
+              </button>
+            ) : null}
+            {onTemplates ? (
+              <button
+                className={folderStyles.folderAction}
+                onClick={onTemplates}
+                disabled={busy}
+              >
+                <LayoutTemplate size={17} />
+                Templates
+              </button>
+            ) : null}
+          </div>
           {[
             { label: "My projects", icon: Folder },
             { label: "Recent", icon: Clock3 },
@@ -268,10 +300,18 @@ export default function ProjectsPage({
                       <FileBox size={21} />
                       <span>
                         <strong>{entry.workspace.project.name}</strong>
-                        <small>
-                          {entry.id === currentId
-                            ? "Currently open"
-                            : "My projects"}
+                        <small
+                          className={folderStyles.projectLocation}
+                          title={
+                            entry.folderName
+                              ? `${entry.folderName}/project.json`
+                              : "Stored in this browser"
+                          }
+                        >
+                          {entry.id === currentId ? "Open · " : ""}
+                          {entry.folderName
+                            ? `${entry.folderName}/project.json`
+                            : "Browser storage"}
                         </small>
                       </span>
                     </div>
@@ -348,11 +388,11 @@ export default function ProjectsPage({
                   ? "Try a different name."
                   : filter === "Starred"
                     ? "Use the star on a project to keep it here."
-                    : "Create a project from a simple template."}
+                    : "Create a project in a local folder or open an existing project folder."}
               </p>
               {!search && filter !== "Starred" ? (
                 <button className="btn btn-primary" onClick={onNew}>
-                  New project
+                  Create project
                 </button>
               ) : null}
             </div>

@@ -94,7 +94,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(page.locator(".assistant-drawer")).toBeVisible();
   await pullTab.click();
   await menu.getByRole("button", { name: "Toggle chat" }).click();
-  await expect(page.locator(".assistant-drawer")).toHaveCount(0);
+  await expect(page.locator(".assistant-drawer")).not.toBeVisible();
   await pullTab.click();
   await page
     .locator(".react-flow__pane")
@@ -155,7 +155,7 @@ test("solid stream and arrow colors follow composition before and after simulati
   expect(new Set(Object.values(await colors())).size).toBe(3);
 });
 
-test("material handles match equipment roles and cursors use normal system shapes", async ({
+test("material handles match equipment roles and cursors use the shared drag hands", async ({
   page,
 }) => {
   for (const unit of reactorExample().units) {
@@ -178,19 +178,31 @@ test("material handles match equipment roles and cursors use normal system shape
       await page.getByRole("button", { name: "Toggle theme" }).click();
     const box = (await reactor.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(reactor).toHaveCSS("cursor", "grab");
+    await expect(reactor).toHaveCSS(
+      "cursor",
+      /url\(.*\/cursors\/grab\.svg.*\) 16 16, grab$/,
+    );
     await page.mouse.down();
     await page.mouse.move(
       box.x + box.width / 2 + 30,
       box.y + box.height / 2 + 30,
       { steps: 8 },
     );
-    await expect(reactor).toHaveCSS("cursor", "grabbing");
+    await expect(reactor).toHaveCSS(
+      "cursor",
+      /url\(.*\/cursors\/grabbing\.svg.*\) 16 16, grabbing$/,
+    );
     await page.mouse.up();
-    await expect(reactor).toHaveCSS("cursor", "grab");
+    await expect(reactor).toHaveCSS(
+      "cursor",
+      /url\(.*\/cursors\/grab\.svg.*\) 16 16, grab$/,
+    );
     await expect(pane).toHaveCSS("cursor", "crosshair");
     await page.keyboard.press("p");
-    await expect(pane).toHaveCSS("cursor", "grab");
+    await expect(pane).toHaveCSS(
+      "cursor",
+      /url\(.*\/cursors\/grab\.svg.*\) 16 16, grab$/,
+    );
     await page.keyboard.press("v");
     await page.getByRole("button", { name: "Equipment", exact: true }).click();
     await expect(page.getByLabel("Search equipment")).toHaveCSS(

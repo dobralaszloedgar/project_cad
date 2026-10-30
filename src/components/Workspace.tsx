@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   Workflow,
@@ -34,6 +34,8 @@ import {
   Rainbow,
   Palette,
   HardDrive,
+  AlertCircle,
+  FolderPlus,
 } from "lucide-react";
 import { useFloatingDrag } from "./useFloatingDrag";
 import Dialog from "./Dialog";
@@ -41,7 +43,10 @@ import EquipmentLibrary from "./EquipmentLibrary";
 import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
 import { plantTemplate } from "@/domain/plant-templates";
+import { arrangeFlowsheet } from "@/domain/flowsheet-layout";
 import ProjectsPage from "./ProjectsPage";
+import CreateProjectDialog from "./CreateProjectDialog";
+import FolderSaveNotice from "./FolderSaveNotice";
 import {
   type Project,
   type Kind,
@@ -62,7 +67,9 @@ import ThermoSettingsPanel from "./ThermoSettings";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
 import { sampleMixtures } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
-import { applyActions, type Plan } from "@/domain/actions";
+import { applyActions } from "@/domain/actions";
+import type { Proposal } from "@/assistant/protocol";
+import { projectRevision } from "@/assistant/tools";
 import {
   checkpoint,
   restore,
@@ -71,14 +78,25 @@ import {
 } from "@/lib/revisions";
 import {
   saveWorkspace,
-  loadWorkspace,
+  saveWorkspaceRecovery,
+  loadActiveWorkspace,
   parseImport,
-  clearWorkspace,
-  activeProjectId,
+  chooseProjectDirectory,
+  createFolderProject,
+  openFolderProject,
+  activateSavedProject,
+  loadSavedProject,
+  getProjectFolderInfo,
+  requestProjectFolderAccess,
+  FolderStorageError,
+  MAX_PROJECT_FILE_BYTES,
   openExampleWorkspace,
   listProjects,
   updateSavedProject,
   type SavedProject,
+  type SaveLocation,
+  type ProjectDirectoryHandle,
+  type ProjectFolderInfo,
 } from "@/lib/storage";
 import ProcessCanvas from "./ProcessCanvas";
 import Inspector from "./Inspector";
@@ -98,14 +116,29 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
 });
 type WorkspacePanel =
   "Equipment" | "Results" | "Themes" | "Storage settings" | "Settings";
+function savedMessage(location: SaveLocation) {
+  return location.location === "folder"
+    ? `Saved to ${location.folderName}/project.json`
+    : "Saved on this device";
+}
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Could not save your project. Export a copy and try again.";
+}
+function blankProject(): Project {
+  return { version: 1, name: "Untitled process", units: [], edges: [] };
+}
 export default function Workspace({
   exampleId,
   initialView = "2D",
   initialPlayback = false,
+  initialArrange = false,
 }: {
   exampleId?: string;
   initialView?: "2D" | "3D" | "Split";
   initialPlayback?: boolean;
+  initialArrange?: boolean;
 }) {
   const [state, setState] = useState<WorkspaceState>(() => ({
     version: 1,
@@ -127,6 +160,7 @@ export default function Workspace({
   const clipboard = useRef<SelectionCopy | null>(null);
   const pasteOffset = useRef(40);
   const [view, setView] = useState<string>(initialView);
+  const [fitRequest, setFitRequest] = useState(0);
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
   const [compareId, setCompareId] = useState("");
@@ -139,6 +173,17 @@ export default function Workspace({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantStarted, setAssistantStarted] = useState(false);
+  const assistantApplyLock = useRef(false);
+  useEffect(() => {
+    if (!assistantOpen) return;
+    const mobile = window.matchMedia("(max-width: 760px)");
+    const onResize = (event: MediaQueryListEvent) => {
+      if (event.matches) setDrawer(null);
+    };
+    mobile.addEventListener("change", onResize);
+    return () => mobile.removeEventListener("change", onResize);
+  }, [assistantOpen]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [compositionColors, setCompositionColors] = useState(true);
   const [projectId, setProjectId] = useState("main");
@@ -146,6 +191,17 @@ export default function Workspace({
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [projectBusy, setProjectBusy] = useState(false);
   const [projectMessage, setProjectMessage] = useState("");
+  const [folderName, setFolderName] = useState<string | null>(null);
+  const [saveIssue, setSaveIssue] = useState<{
+    message: string;
+    needsPermission: boolean;
+  } | null>(null);
+  const [persistenceReady, setPersistenceReady] = useState(false);
+  const [createDraft, setCreateDraft] = useState<{
+    seed: Project;
+    revisions?: Revision[];
+  } | null>(null);
+  const [reloadConfirm, setReloadConfirm] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
   const bubbleRef = useRef<HTMLButtonElement>(null);
   const assistantRef = useRef<HTMLDivElement>(null);
@@ -208,6 +264,49 @@ export default function Workspace({
       window.removeEventListener("pointerdown", onPointerDown);
     };
   }, [drawer, workspaceMenuOpen]);
+  const lastSaved = useRef<{ id: string; workspace: WorkspaceState } | null>(
+    null,
+  );
+  const reportSaved = useCallback((location: SaveLocation) => {
+    setStorage(savedMessage(location));
+    setFolderName(location.folderName ?? null);
+    setSaveIssue(null);
+  }, []);
+  const reportSaveError = useCallback((error: unknown) => {
+    const description = errorMessage(error);
+    setStorage("Could not finish saving");
+    setSaveIssue({
+      message: description,
+      needsPermission:
+        error instanceof FolderStorageError && error.code === "permission",
+    });
+  }, []);
+  const reportFolder = useCallback(
+    (info: ProjectFolderInfo | null) => {
+      setFolderName(info?.name ?? null);
+      if (
+        info &&
+        (info.error || info.hasRecovery || info.permission !== "granted")
+      ) {
+        const description =
+          info.error ??
+          (info.permission !== "granted"
+            ? "Reconnect the folder to save project.json. Your current work is available in this browser."
+            : "Changes in this browser have not been saved to project.json. Retry saving or reload the file.");
+        setStorage("Could not finish saving");
+        setSaveIssue({
+          message: description,
+          needsPermission: info.permission !== "granted",
+        });
+      } else
+        reportSaved(
+          info
+            ? { location: "folder", folderName: info.name }
+            : { location: "browser" },
+        );
+    },
+    [reportSaved],
+  );
   useEffect(() => {
     let active = true;
     const example = exampleId ? plantTemplate(exampleId) : undefined;
@@ -217,56 +316,124 @@ export default function Workspace({
             version: 1,
             project: example,
             revisions: [checkpoint(example, "Created from example")],
-          }).then(({ workspace, projectId }) => [workspace, projectId] as const)
-        : Promise.all([loadWorkspace(), activeProjectId()]);
+          })
+        : loadActiveWorkspace();
     opening
-      .then(([saved, id]) => {
+      .then(async ({ workspace: saved, projectId: id }) => {
+        const info = await getProjectFolderInfo(id);
         if (!active) return;
+        const initialProject = example ?? reactorExample();
+        let workspace = saved ?? {
+          version: 1 as const,
+          project: initialProject,
+          revisions: [checkpoint(initialProject, "Initial example")],
+        };
+        if (
+          initialArrange &&
+          workspace.project.units.length &&
+          workspace.revisions.length < 245
+        ) {
+          const bounds = (
+            canvasRef.current?.querySelector(".flow-wrapper") ??
+            canvasRef.current
+          )?.getBoundingClientRect();
+          const arranged = arrangeFlowsheet(workspace.project, bounds);
+          workspace = {
+            ...workspace,
+            project: arranged,
+            revisions: [
+              ...workspace.revisions,
+              checkpoint(arranged, "Arrange equipment"),
+            ],
+          };
+          // This link requests a one-time arrangement; later reloads retain edits.
+          const url = new URL(window.location.href);
+          url.searchParams.delete("arrange");
+          window.history.replaceState(window.history.state, "", url);
+        }
         setProjectId(id);
         setDrawer(null);
-        if (saved) setState(saved);
-        else
-          setState((s) => ({
-            ...s,
-            revisions: [checkpoint(s.project, "Initial example")],
-          }));
-        setStorage("Saved on this device");
+        setState(workspace);
+        if (initialArrange || !window.matchMedia("(max-width: 760px)").matches)
+          setFitRequest((value) => value + 1);
+        if (
+          saved &&
+          saved === workspace &&
+          info &&
+          !info.hasRecovery &&
+          !info.error &&
+          info.permission === "granted"
+        )
+          lastSaved.current = { id, workspace };
+        reportFolder(info);
+        if (!saved) setStorage("Saving…");
+        setPersistenceReady(true);
         setReady(true);
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
-          setStorage("Local storage unavailable · export to save");
+          reportSaveError(error);
           setReady(true);
         }
       });
     return () => {
       active = false;
     };
-  }, [exampleId]);
+  }, [exampleId, initialArrange, reportFolder, reportSaveError]);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !persistenceReady || projectBusy) return;
+    if (
+      lastSaved.current?.id === projectId &&
+      lastSaved.current.workspace === state
+    )
+      return;
     const version = ++saveVersion.current;
     const timer = setTimeout(() => {
+      setStorage("Saving…");
       saveQueue.current = saveQueue.current
         .catch(() => {})
         .then(() => saveWorkspace(state, projectId))
-        .then(() => {
-          if (version === saveVersion.current)
-            setStorage("Saved on this device");
+        .then((location) => {
+          lastSaved.current = { id: projectId, workspace: state };
+          if (version === saveVersion.current) reportSaved(location);
         })
-        .catch(() =>
-          setStorage("Could not save locally · export your project"),
-        );
+        .catch((error) => {
+          if (version === saveVersion.current) reportSaveError(error);
+        });
     }, 350);
     saveTimer.current = timer;
     return () => clearTimeout(timer);
-  }, [state, ready, projectId]);
+  }, [
+    state,
+    ready,
+    persistenceReady,
+    projectId,
+    projectBusy,
+    reportSaved,
+    reportSaveError,
+  ]);
+  useEffect(() => {
+    function beforeUnload(event: BeforeUnloadEvent) {
+      if (
+        ready &&
+        (saveIssue ||
+          lastSaved.current?.id !== projectId ||
+          lastSaved.current?.workspace !== state)
+      ) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [ready, saveIssue, projectId, state]);
   function change(
     next: Project,
     label: string,
     run = false,
     recordHistory = true,
   ) {
+    if (!ready || projectBusy || assistantApplyLock.current) return;
     try {
       next = projectSchema.parse(next);
       const errors = validateGraph(next);
@@ -353,7 +520,8 @@ export default function Workspace({
           edges: [],
         });
     if (showProjects) {
-      void createProject(next);
+      setTemplatesOpen(false);
+      setCreateDraft({ seed: next });
       return;
     }
     change(next, `Load ${name} example`);
@@ -367,8 +535,11 @@ export default function Workspace({
     setDrawer(null);
   }
   async function importFile(file: File) {
+    if (!ready || projectBusy) return;
+    setProjectBusy(true);
     try {
-      if (file.size > 2_000_000) throw new Error("Project file exceeds 2 MB.");
+      if (file.size > MAX_PROJECT_FILE_BYTES)
+        throw new Error("Project file exceeds 32 MB.");
       const imported = parseImport(await file.text());
       if (state.revisions.length + imported.revisions.length > 240)
         throw new Error(
@@ -399,6 +570,8 @@ export default function Workspace({
           ? e.message
           : "Invalid project file. Expected a version 1 Project CAD document with valid equipment and streams.",
       );
+    } finally {
+      setProjectBusy(false);
     }
   }
   function exportFile() {
@@ -427,15 +600,71 @@ export default function Workspace({
     setMessage("Restored as a new revision. Later revisions are preserved.");
     setSelected(null);
   }
-  function applyPlan(plan: Plan, base: string) {
-    if (base !== JSON.stringify(project)) {
-      setMessage("Project changed. Generate a fresh proposal.");
-      return;
-    }
+  async function applyAssistantProposal(proposal: Proposal): Promise<string> {
+    if (proposal.projectId !== projectId)
+      throw new Error("This proposal belongs to another project.");
+    if (state.revisions.some((revision) => revision.id === proposal.id))
+      return saveIssue
+        ? "Already applied. The local recovery copy is saved; the folder still needs attention."
+        : "Already applied and saved.";
+    if (
+      !ready ||
+      !persistenceReady ||
+      projectBusy ||
+      assistantApplyLock.current
+    )
+      throw new Error("Wait for the current project operation to finish.");
+    if (state.revisions.length >= 245)
+      throw new Error(
+        "Revision limit reached. Export the project and clear local history before applying changes.",
+      );
+    assistantApplyLock.current = true;
+    setProjectBusy(true);
     try {
-      change(applyActions(project, plan), "Apply Meta actions", true);
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Invalid proposal.");
+      if (proposal.baseRevision !== (await projectRevision(project)))
+        throw new Error("The project changed. Ask for a fresh proposal.");
+      const nextProject = applyActions(project, proposal.plan);
+      const next: WorkspaceState = {
+        ...state,
+        project: nextProject,
+        revisions: [
+          ...state.revisions,
+          {
+            ...checkpoint(nextProject, "Apply assistant changes"),
+            id: proposal.id,
+          },
+        ],
+      };
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      ++saveVersion.current;
+      await saveQueue.current.catch(() => {});
+      let outcome: string;
+      try {
+        const location = await saveWorkspace(next, projectId);
+        lastSaved.current = { id: projectId, workspace: next };
+        reportSaved(location);
+        outcome =
+          location.location === "folder"
+            ? "Applied and saved to project.json."
+            : "Applied and saved on this device.";
+      } catch (error) {
+        await saveWorkspaceRecovery(next, projectId);
+        reportSaveError(error);
+        outcome =
+          "Applied and saved to local recovery. The folder save needs attention.";
+      }
+      editHistory.current = {
+        past: [...editHistory.current.past, project],
+        future: [],
+      };
+      setState(next);
+      setResult(null);
+      setSelected(null);
+      setMessage(outcome);
+      return outcome;
+    } finally {
+      assistantApplyLock.current = false;
+      setProjectBusy(false);
     }
   }
   function inspect(id: string) {
@@ -448,66 +677,99 @@ export default function Workspace({
     setDrawer("Results");
   }
   function arrange() {
-    change(
-      {
-        ...project,
-        units: project.units.map((unit, index) => ({
-          ...unit,
-          position: { x: index * 185, y: 150 },
-        })),
-      },
-      "Arrange equipment",
-    );
+    const bounds = (
+      canvasRef.current?.querySelector(".flow-wrapper") ?? canvasRef.current
+    )?.getBoundingClientRect();
+    change(arrangeFlowsheet(project, bounds), "Arrange equipment");
+    setFitRequest((value) => value + 1);
   }
   async function clearLocal() {
+    if (projectBusy) return;
+    setProjectBusy(true);
     try {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       ++saveVersion.current;
       setStorage("Clearing…");
-      await saveQueue.current;
-      await clearWorkspace(projectId);
+      await saveQueue.current.catch(() => {});
       const blank: WorkspaceState = {
         version: 1,
-        project: { version: 1, name: "Untitled process", units: [], edges: [] },
+        project: {
+          ...blankProject(),
+          name: folderName ? project.name : "Untitled process",
+        },
         revisions: [],
       };
-      await saveWorkspace(blank, projectId);
       setState(blank);
       editHistory.current = { past: [], future: [] };
-      setStorage("Saved on this device");
       setResult(null);
       setSelected(null);
       setCompareId("");
       setClearConfirm(false);
-      setMessage("Local project and history cleared.");
-    } catch {
-      setMessage("Could not clear local storage.");
+      const location = await saveWorkspace(blank, projectId);
+      lastSaved.current = { id: projectId, workspace: blank };
+      reportSaved(location);
+      setMessage("Project and history cleared.");
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setProjectBusy(false);
     }
   }
   async function flushCurrentProject() {
+    if (!persistenceReady)
+      throw new Error(
+        "Could not load local storage. Reload the app before saving a project.",
+      );
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    ++saveVersion.current;
+    const version = ++saveVersion.current;
     const snapshot = state,
       id = projectId;
+    if (
+      !saveIssue &&
+      lastSaved.current?.id === id &&
+      lastSaved.current.workspace === snapshot
+    ) {
+      await saveQueue.current.catch(() => {});
+      return;
+    }
+    setStorage("Saving…");
     saveQueue.current = saveQueue.current
       .catch(() => {})
-      .then(() => saveWorkspace(snapshot, id));
+      .then(() => saveWorkspace(snapshot, id))
+      .then((location) => {
+        lastSaved.current = { id, workspace: snapshot };
+        if (version === saveVersion.current) reportSaved(location);
+      })
+      .catch((error) => {
+        if (version === saveVersion.current) reportSaveError(error);
+        throw error;
+      });
     await saveQueue.current;
-    setStorage("Saved on this device");
+  }
+  async function preserveCurrentProject() {
+    try {
+      await flushCurrentProject();
+      return true;
+    } catch (error) {
+      // A project switch is safe only once the complete workspace is durable.
+      // A failed disk write must not trap the user in an inaccessible folder.
+      if (!persistenceReady) throw error;
+      await saveWorkspaceRecovery(state, projectId);
+      reportSaveError(error);
+      return false;
+    }
   }
   async function openProjects() {
     if (!ready || projectBusy) return;
     setProjectBusy(true);
     setProjectMessage("");
     try {
-      await flushCurrentProject();
+      await preserveCurrentProject();
       setSavedProjects(await listProjects());
       setShowProjects(true);
       setMenuOpen(false);
-    } catch {
-      setMessage(
-        "Could not open local projects. Export a copy of the current project.",
-      );
+    } catch (error) {
+      setMessage(errorMessage(error));
     } finally {
       setProjectBusy(false);
     }
@@ -525,30 +787,59 @@ export default function Workspace({
     setAssistantOpen(false);
     setView("2D");
     setPlaybackOnOpen(false);
+    setMenuOpen(false);
     const url = new URL(window.location.href);
     for (const key of ["example", "view", "play"]) url.searchParams.delete(key);
     window.history.replaceState(window.history.state, "", url);
   }
-  async function createProject(next: Project) {
-    if (projectBusy) return;
+  async function activateProject(entry: SavedProject) {
+    const info = await getProjectFolderInfo(entry.id);
+    ++saveVersion.current;
+    lastSaved.current =
+      !info ||
+      (!info.hasRecovery && !info.error && info.permission === "granted")
+        ? { id: entry.id, workspace: entry.workspace }
+        : null;
+    setProjectId(entry.id);
+    setState(entry.workspace);
+    reportFolder(info);
+    setShowProjects(false);
+    resetEditor();
+  }
+  async function createProject(name: string, parent: ProjectDirectoryHandle) {
+    if (projectBusy || !createDraft)
+      throw new Error(
+        "Another project action is in progress. Please try again.",
+      );
     setProjectBusy(true);
     try {
-      await flushCurrentProject();
-      const id = crypto.randomUUID(),
-        workspace: WorkspaceState = {
-          version: 1,
-          project: next,
-          revisions: [checkpoint(next, "Created project")],
-        };
-      await saveWorkspace(workspace, id);
-      setProjectId(id);
-      setState(workspace);
-      setShowProjects(false);
-      resetEditor();
-    } catch {
-      setProjectMessage(
-        "Could not create the project. Your current project is still available.",
-      );
+      const savedToFile = await preserveCurrentProject();
+      const next = { ...structuredClone(createDraft.seed), name };
+      const history = createDraft.revisions ?? [];
+      const workspace: WorkspaceState = {
+        version: 1,
+        project: next,
+        // A full imported history is retained without exceeding its file limit.
+        revisions:
+          history.length >= 250
+            ? history
+            : [
+                ...history,
+                checkpoint(
+                  next,
+                  createDraft.revisions
+                    ? "Duplicated project"
+                    : "Created project",
+                ),
+              ],
+      };
+      const entry = await createFolderProject(parent, name, workspace);
+      await activateProject(entry);
+      if (!savedToFile)
+        setMessage(
+          `Changes to ${project.name} are kept in this browser. Open it from Projects to finish saving its file.`,
+        );
+      setCreateDraft(null);
     } finally {
       setProjectBusy(false);
     }
@@ -556,15 +847,86 @@ export default function Workspace({
   async function openProject(entry: SavedProject) {
     if (projectBusy) return;
     setProjectBusy(true);
+    setProjectMessage("");
     try {
+      // Request permission directly from this click, before flushing other files.
+      if (entry.folderName) await requestProjectFolderAccess(entry.id);
+      const savedToFile = await preserveCurrentProject();
+      await activateProject(await activateSavedProject(entry.id));
+      if (!savedToFile && entry.id !== projectId)
+        setMessage(
+          `Changes to ${project.name} are kept in this browser. Open it from Projects to finish saving its file.`,
+        );
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function openProjectFolder() {
+    if (!ready || projectBusy) return;
+    setProjectBusy(true);
+    setProjectMessage("");
+    setMenuOpen(false);
+    try {
+      // Native pickers need the activation from this click.
+      const directory = await chooseProjectDirectory();
+      if (!directory) return;
+      const savedToFile = await preserveCurrentProject();
+      await activateProject(await openFolderProject(directory));
+      if (!savedToFile)
+        setMessage(
+          `Changes to ${project.name} are kept in this browser. Open it from Projects to finish saving its file.`,
+        );
+    } catch (error) {
+      const description = errorMessage(error);
+      setProjectMessage(description);
+      setMessage(description);
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function retrySave(reconnect = false) {
+    if (projectBusy) return;
+    if (!persistenceReady) {
+      window.location.reload();
+      return;
+    }
+    setProjectBusy(true);
+    try {
+      if (reconnect && !(await requestProjectFolderAccess(projectId)))
+        throw new FolderStorageError(
+          "permission",
+          "Folder access was not granted. Reconnect the folder to save project.json.",
+        );
+      // A retry checks the file again even if this workspace was saved earlier.
+      lastSaved.current = null;
       await flushCurrentProject();
-      await saveWorkspace(entry.workspace, entry.id);
-      setProjectId(entry.id);
-      setState(entry.workspace);
-      setShowProjects(false);
-      resetEditor();
-    } catch {
-      setProjectMessage("Could not open this project. Please try again.");
+    } catch (error) {
+      reportSaveError(error);
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function reloadFromFolder() {
+    if (projectBusy) return;
+    setProjectBusy(true);
+    try {
+      if (!(await requestProjectFolderAccess(projectId)))
+        throw new FolderStorageError(
+          "permission",
+          "Folder access was not granted. Reconnect the folder to read project.json.",
+        );
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      ++saveVersion.current;
+      await saveQueue.current.catch(() => {});
+      // This is the only action allowed to discard browser recovery, after confirmation.
+      const entry = await loadSavedProject(projectId);
+      await activateProject(entry);
+      setReloadConfirm(false);
+    } catch (error) {
+      reportSaveError(error);
+      setReloadConfirm(false);
     } finally {
       setProjectBusy(false);
     }
@@ -577,38 +939,95 @@ export default function Workspace({
     if (projectBusy) return;
     setProjectBusy(true);
     setProjectMessage("");
+    let renameAttempt: SavedProject | null = null;
     try {
-      await flushCurrentProject();
-      const next = structuredClone(entry);
+      if (
+        (name || duplicate) &&
+        entry.folderName &&
+        !(await requestProjectFolderAccess(entry.id))
+      )
+        throw new Error(
+          "Reconnect this project's folder before renaming or duplicating it.",
+        );
+      await preserveCurrentProject();
+      const fresh = (await listProjects()).find(
+        (candidate) => candidate.id === entry.id,
+      );
+      if (!fresh)
+        throw new Error(
+          "This project is no longer available. Open its folder again.",
+        );
+      const info = await getProjectFolderInfo(entry.id);
+      if ((name || duplicate) && info?.hasRecovery)
+        throw new Error(
+          "Open this project and save or recover its pending changes before renaming or duplicating it.",
+        );
+      const source =
+        (name || duplicate) && info
+          ? await loadSavedProject(entry.id, { discardRecovery: false })
+          : fresh;
+      const next = structuredClone(source);
       if (duplicate) {
-        next.id = crypto.randomUUID();
+        // The safe read may have adopted a newer file. Keep the editor's
+        // source aligned with that acknowledged version, even on Cancel.
+        if (source.id === projectId) {
+          setState(source.workspace);
+          lastSaved.current = { id: projectId, workspace: source.workspace };
+          reportSaved(
+            info
+              ? { location: "folder", folderName: info.name }
+              : { location: "browser" },
+          );
+        }
+        setSavedProjects(await listProjects());
         next.workspace.project.name = `${next.workspace.project.name.slice(0, 75)} copy`;
-        next.createdAt = new Date().toISOString();
-        next.starred = false;
+        setCreateDraft({
+          seed: next.workspace.project,
+          revisions: next.workspace.revisions,
+        });
+        return;
       } else if (name) {
         next.workspace.project.name = name;
-        next.workspace.revisions.push(
-          checkpoint(next.workspace.project, "Rename project"),
-        );
+        if (next.workspace.revisions.length < 250)
+          next.workspace.revisions.push(
+            checkpoint(next.workspace.project, "Rename project"),
+          );
       } else next.starred = !next.starred;
       next.updatedAt = new Date().toISOString();
+      if (name) {
+        renameAttempt = next;
+        if (next.id === projectId) {
+          setState(next.workspace);
+          lastSaved.current = null;
+          setStorage("Saving…");
+        }
+      }
       await updateSavedProject(next);
       if (next.id === projectId && name) {
-        await saveWorkspace(next.workspace, projectId);
         setState(next.workspace);
+        lastSaved.current = { id: projectId, workspace: next.workspace };
+        reportSaved(
+          info
+            ? { location: "folder", folderName: info.name }
+            : { location: "browser" },
+        );
       }
       setSavedProjects(await listProjects());
       setProjectMessage(
-        duplicate
-          ? "Project duplicated."
-          : name
-            ? "Project renamed."
-            : next.starred
-              ? "Project starred."
-              : "Star removed.",
+        name
+          ? "Project renamed."
+          : next.starred
+            ? "Project starred."
+            : "Star removed.",
       );
-    } catch {
-      setProjectMessage("Could not update this project. Please try again.");
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+      if (renameAttempt) {
+        if (renameAttempt.id === projectId) reportSaveError(error);
+        // The library must expose the new recovery revision after a failed write.
+        const projects = await listProjects().catch(() => null);
+        if (projects) setSavedProjects(projects);
+      }
     } finally {
       setProjectBusy(false);
     }
@@ -733,14 +1152,76 @@ export default function Workspace({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
+  const saveNotice = saveIssue ? (
+    <FolderSaveNotice
+      message={saveIssue.message}
+      folderName={folderName}
+      needsPermission={saveIssue.needsPermission}
+      busy={projectBusy}
+      onRetry={() => void retrySave()}
+      onReconnect={() => void retrySave(true)}
+      onReload={() => setReloadConfirm(true)}
+      onExport={exportFile}
+    />
+  ) : null;
+  const projectDialogs = (
+    <>
+      {createDraft ? (
+        <CreateProjectDialog
+          seed={createDraft.seed}
+          onCreate={createProject}
+          onClose={() => {
+            if (!projectBusy) setCreateDraft(null);
+          }}
+        />
+      ) : null}
+      {reloadConfirm ? (
+        <Dialog
+          title="Reload from folder?"
+          className="confirm-dialog"
+          onClose={() => {
+            if (!projectBusy) setReloadConfirm(false);
+          }}
+        >
+          <p>
+            This replaces the current project and revision history with{" "}
+            <strong>{folderName}/project.json</strong>. Export a copy first to
+            keep any changes that have not reached the file.
+          </p>
+          <div className="dialog-actions">
+            <button
+              className="btn"
+              disabled={projectBusy}
+              onClick={() => setReloadConfirm(false)}
+            >
+              Cancel
+            </button>
+            <button className="btn" disabled={projectBusy} onClick={exportFile}>
+              Export local copy
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={projectBusy}
+              onClick={() => void reloadFromFolder()}
+            >
+              {projectBusy ? "Reloading…" : "Reload file"}
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
+    </>
+  );
   if (showProjects)
     return (
       <main className="workspace" data-theme={theme}>
+        {saveNotice}
         <ProjectsPage
           projects={savedProjects}
           currentId={projectId}
           onOpen={(entry) => void openProject(entry)}
-          onNew={() => setTemplatesOpen(true)}
+          onNew={() => setCreateDraft({ seed: blankProject() })}
+          onOpenFolder={() => void openProjectFolder()}
+          onTemplates={() => setTemplatesOpen(true)}
           onRename={(entry, name) => void editSavedProject(entry, name)}
           onDuplicate={(entry) => void editSavedProject(entry, undefined, true)}
           onStar={(entry) => void editSavedProject(entry)}
@@ -750,6 +1231,7 @@ export default function Workspace({
           busy={projectBusy}
           message={projectMessage}
         />
+        {projectDialogs}
         {templatesOpen ? (
           <Templates
             onLoad={loadExample}
@@ -761,7 +1243,7 @@ export default function Workspace({
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
     <main className="workspace" data-theme={theme}>
-      <header className="app-header">
+      <header className="app-header" inert={!ready || projectBusy}>
         <button
           className="brand"
           onClick={() => void openProjects()}
@@ -835,6 +1317,23 @@ export default function Workspace({
             {menuOpen ? (
               <div className="project-menu">
                 <button
+                  disabled={!ready || projectBusy}
+                  onClick={() => {
+                    setCreateDraft({ seed: blankProject() });
+                    setMenuOpen(false);
+                  }}
+                >
+                  <FolderPlus size={15} />
+                  Create project
+                </button>
+                <button
+                  disabled={!ready || projectBusy}
+                  onClick={() => void openProjectFolder()}
+                >
+                  <FolderOpen size={15} />
+                  Open project folder
+                </button>
+                <button
                   onClick={() => {
                     setTemplatesOpen(true);
                     setMenuOpen(false);
@@ -888,7 +1387,8 @@ export default function Workspace({
           }}
         />
       </header>
-      <div className="editor-body" inert={!ready}>
+      {saveNotice}
+      <div className="editor-body" inert={!ready || projectBusy}>
         <section
           className="canvas-panel"
           ref={canvasRef}
@@ -936,6 +1436,7 @@ export default function Workspace({
                     if (name === "Toggle chat") {
                       setWorkspaceMenuOpen(false);
                       setAssistantOpen(!assistantOpen);
+                      setAssistantStarted(true);
                     } else openPanel(name as WorkspacePanel);
                   }}
                 >
@@ -1026,6 +1527,12 @@ export default function Workspace({
                       drawer === "Settings" ? (
                         <div className="preference-section">
                           <h3>Local project</h3>
+                          <p>
+                            {folderName
+                              ? `This project and its revisions save to ${folderName}/project.json on your laptop.`
+                              : "This project and its revisions are saved in this browser. Create a project in a folder to save directly to your laptop."}{" "}
+                            Export a JSON copy to keep or share your work.
+                          </p>
                           <div className="preference-actions">
                             <button className="btn" onClick={exportFile}>
                               <Download size={15} />
@@ -1156,6 +1663,7 @@ export default function Workspace({
               <ProcessCanvas
                 key={`${projectId}-${project.name}`}
                 project={project}
+                fitRequest={fitRequest}
                 selected={selected}
                 selection={selection}
                 onSelection={setSelection}
@@ -1214,30 +1722,38 @@ export default function Workspace({
               style={bubbleDrag.style}
               {...bubbleDrag.dragProps}
               className={`assistant-toggle ${assistantOpen ? "active" : ""}`}
-              aria-label={
-                assistantOpen ? "Close Meta assistant" : "Open Meta assistant"
-              }
-              title="Meta assistant · drag to dock in a corner"
+              aria-label={assistantOpen ? "Close assistant" : "Open assistant"}
+              title="Project CAD assistant · drag to dock in a corner"
               onClick={() => {
                 if (!bubbleDrag.suppressClick()) {
                   if (window.matchMedia("(max-width: 760px)").matches)
                     setDrawer(null);
                   setAssistantOpen(true);
+                  setAssistantStarted(true);
                 }
               }}
             >
               <MessageCircle size={21} />
             </button>
           ) : null}
-          {assistantOpen ? (
+          {assistantStarted ? (
             <div
               className="assistant-drawer"
               ref={assistantRef}
-              style={assistantDrag.style}
+              style={{
+                ...assistantDrag.style,
+                display: assistantOpen ? undefined : "none",
+              }}
             >
               <AssistantPanel
+                key={projectId}
+                projectId={projectId}
                 project={project}
-                onApply={applyPlan}
+                folderName={folderName}
+                appliedProposalIds={state.revisions.map(
+                  (revision) => revision.id,
+                )}
+                onApply={applyAssistantProposal}
                 onClose={() => setAssistantOpen(false)}
                 dragProps={assistantDrag.dragProps}
                 onError={setMessage}
@@ -1247,7 +1763,7 @@ export default function Workspace({
           <footer className="canvas-footer">
             <div className="canvas-status">
               <span className="save-status">
-                <Check size={12} />
+                {saveIssue ? <AlertCircle size={12} /> : <Check size={12} />}
                 {storage}
               </span>
               <span>
@@ -1266,6 +1782,7 @@ export default function Workspace({
         </section>
       </div>
       {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
+      {projectDialogs}
       {templatesOpen ? (
         <Templates
           onClose={() => setTemplatesOpen(false)}
@@ -1301,22 +1818,39 @@ export default function Workspace({
       ) : null}
       {clearConfirm ? (
         <Dialog
-          title="Clear this device’s project?"
+          title={
+            folderName
+              ? "Clear this project and its file?"
+              : "Clear this device’s project?"
+          }
           className="confirm-dialog"
-          onClose={() => setClearConfirm(false)}
+          onClose={() => {
+            if (!projectBusy) setClearConfirm(false);
+          }}
         >
           <p>
             This removes the current project and its saved revision history.
+            {folderName
+              ? ` It also replaces ${folderName}/project.json with an empty project.`
+              : ""}
             Export first if you want to keep a copy.
           </p>
           <div className="dialog-actions">
-            <button className="btn" onClick={() => setClearConfirm(false)}>
+            <button
+              className="btn"
+              disabled={projectBusy}
+              onClick={() => setClearConfirm(false)}
+            >
               Cancel
             </button>
-            <button className="btn" onClick={exportFile}>
+            <button className="btn" disabled={projectBusy} onClick={exportFile}>
               Export copy
             </button>
-            <button className="btn btn-error" onClick={clearLocal}>
+            <button
+              className="btn btn-error"
+              disabled={projectBusy}
+              onClick={clearLocal}
+            >
               Clear project
             </button>
           </div>
