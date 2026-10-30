@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   Workflow,
   Upload,
@@ -15,6 +16,7 @@ import {
   Trash2,
   X,
   Home,
+  Compass,
   History,
   ChevronRight,
   ChevronLeft,
@@ -140,6 +142,7 @@ export default function Workspace({
   initialPlayback?: boolean;
   initialArrange?: boolean;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<WorkspaceState>(() => ({
     version: 1,
     project: (exampleId && plantTemplate(exampleId)) || reactorExample(),
@@ -759,6 +762,19 @@ export default function Workspace({
       return false;
     }
   }
+  async function openLanding() {
+    if (!ready || projectBusy) return;
+    setProjectBusy(true);
+    try {
+      await preserveCurrentProject();
+      router.push("/landing");
+    } catch (error) {
+      setMessage(errorMessage(error));
+      setProjectMessage(errorMessage(error));
+    } finally {
+      setProjectBusy(false);
+    }
+  }
   async function openProjects() {
     if (!ready || projectBusy) return;
     setProjectBusy(true);
@@ -1226,6 +1242,7 @@ export default function Workspace({
           onDuplicate={(entry) => void editSavedProject(entry, undefined, true)}
           onStar={(entry) => void editSavedProject(entry)}
           onBack={() => setShowProjects(false)}
+          onLanding={() => void openLanding()}
           theme={theme}
           onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
           busy={projectBusy}
@@ -1279,6 +1296,15 @@ export default function Workspace({
           </span>
         </div>
         <div className="header-actions">
+          <button
+            className="btn landing-page-button"
+            aria-label="Landing page"
+            title="Landing page"
+            onClick={() => void openLanding()}
+          >
+            <Compass size={16} />
+            <span>Landing page</span>
+          </button>
           <button
             className="model-button"
             onClick={() => openPanel("Settings")}

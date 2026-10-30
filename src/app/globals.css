@@ -292,6 +292,14 @@ h3 {
   margin-left: auto;
   flex-shrink: 0;
 }
+.landing-page-button {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 9px;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+}
 .model-button {
   display: flex;
   align-items: center;
@@ -1847,6 +1855,12 @@ h3 {
   }
 }
 @media (max-width: 760px) {
+  .landing-page-button {
+    padding: 0 8px;
+  }
+  .landing-page-button span {
+    display: none;
+  }
   .app-header {
     height: 56px;
     padding: 0 10px;

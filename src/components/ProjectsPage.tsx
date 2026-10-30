@@ -19,6 +19,7 @@ import {
   Moon,
   Sun,
   ArrowLeft,
+  Compass,
 } from "lucide-react";
 import type { SavedProject } from "@/lib/storage";
 import { ports, type Project } from "@/domain/schema";
@@ -109,6 +110,7 @@ export default function ProjectsPage({
   onDuplicate,
   onStar,
   onBack,
+  onLanding,
   theme,
   onTheme,
   busy,
@@ -124,6 +126,7 @@ export default function ProjectsPage({
   onDuplicate: (entry: SavedProject) => void;
   onStar: (entry: SavedProject) => void;
   onBack: () => void;
+  onLanding: () => void;
   theme: string;
   onTheme: () => void;
   busy: boolean;
@@ -159,6 +162,16 @@ export default function ProjectsPage({
         <span className="header-divider" />
         <span>Projects</span>
         <div className="projects-header-actions">
+          <button
+            className="btn landing-page-button"
+            aria-label="Landing page"
+            title="Landing page"
+            onClick={onLanding}
+            disabled={busy}
+          >
+            <Compass size={16} />
+            <span>Landing page</span>
+          </button>
           <button
             className="icon-button"
             aria-label="Toggle theme"
