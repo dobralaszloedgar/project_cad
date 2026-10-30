@@ -10,10 +10,13 @@ import {
   BaseEdge,
   applyNodeChanges,
   useReactFlow,
+  useNodesInitialized,
   type NodeProps,
   type Node,
   type EdgeProps,
   type NodeChange,
+  type FitViewOptions,
+  type Viewport,
 } from "@xyflow/react";
 import {
   type Project,
@@ -25,6 +28,7 @@ import {
 } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
 import { equipmentPort, streamPath } from "./flow-geometry";
+import { routedStreamPath, type FlowObstacle } from "./flow-routing";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
@@ -33,6 +37,12 @@ export const streamColors = {
   blue: "#367c6c",
   amber: "#b47b1e",
 };
+// Keep equipment labels and the outer stream lanes clear of the floating toolbar.
+const flowFitOptions = {
+  padding: { top: "110px", right: "60px", bottom: "70px", left: "60px" },
+  minZoom: 0.05,
+  maxZoom: 1.25,
+} satisfies FitViewOptions;
 type EquipmentNode = Node<{ unit: Unit; change?: string }, "equipment">;
 function portGeometry(kind: Kind, output: boolean, index: number) {
   const { x, y, position } = equipmentPort(kind, output, index);
@@ -81,7 +91,52 @@ function UnitNode({ data, selected }: NodeProps<EquipmentNode>) {
 function PipeEdge(props: EdgeProps) {
   const gradient = `stream-${useId().replace(/:/g, "")}`;
   const rainbow = props.data?.rainbow === true;
-  const path = streamPath(props);
+  const obstacles = props.data?.obstacles as FlowObstacle[] | undefined;
+  const routeLane =
+    typeof props.data?.routeLane === "number" ? props.data.routeLane : 0;
+  const {
+    source,
+    target,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    sourceHandleId,
+    targetHandleId,
+  } = props;
+  const path = useMemo(() => {
+    const geometry = {
+      source,
+      target,
+      sourceX,
+      sourceY,
+      targetX,
+      targetY,
+      sourcePosition,
+      targetPosition,
+      sourceHandleId,
+      targetHandleId,
+    };
+    return (
+      (obstacles && routedStreamPath(geometry, obstacles, routeLane)) ||
+      streamPath(geometry)
+    );
+  }, [
+    obstacles,
+    routeLane,
+    source,
+    target,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    sourceHandleId,
+    targetHandleId,
+  ]);
   return (
     <g>
       {rainbow ? (
@@ -140,6 +195,7 @@ const nodeTypes = { equipment: UnitNode };
 const edgeTypes = { pipe: PipeEdge };
 interface Props {
   project: Project;
+  fitRequest?: number;
   selected: string | null;
   onSelect: (id: string) => void;
   onInspect: (id: string) => void;
@@ -149,6 +205,8 @@ interface Props {
   result: Result | null;
   rainbow: boolean;
   compare?: Project;
+  /** A fixed, read-only view of the same canvas for embedded walkthroughs. */
+  presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
 }
 function Inner(props: Props) {
   const {
@@ -162,10 +220,31 @@ function Inner(props: Props) {
     result,
     compare,
     rainbow,
+    fitRequest = 0,
+    presentation,
   } = props;
   const rf = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const containerRef = useRef<HTMLDivElement>(null);
+  const fittedRequest = useRef(0);
   useEffect(() => {
+    if (
+      !fitRequest ||
+      !nodesInitialized ||
+      fittedRequest.current === fitRequest
+    )
+      return;
+    const frame = requestAnimationFrame(() => {
+      fittedRequest.current = fitRequest;
+      void rf.fitView({
+        ...flowFitOptions,
+        duration: 250,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [fitRequest, nodesInitialized, rf]);
+  useEffect(() => {
+    if (presentation) return;
     const container = containerRef.current;
     if (!container) return;
     let frame = 0;
@@ -181,7 +260,7 @@ function Inner(props: Props) {
           });
           return;
         }
-        void rf.fitView({ padding: 0.25 });
+        void rf.fitView(flowFitOptions);
       });
     });
     observer.observe(container);
@@ -189,7 +268,7 @@ function Inner(props: Props) {
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [rf]);
+  }, [rf, presentation]);
   const [positions, setPositions] = useState<
     Record<string, { x: number; y: number }>
   >({});
@@ -217,19 +296,31 @@ function Inner(props: Props) {
       })),
     [project.units, positions, measurements, selected, changes],
   );
-  const edges = project.edges.map((e) => ({
+  const obstacles = useMemo(
+    () =>
+      project.units.map((unit) => ({
+        id: unit.id,
+        ...(positions[unit.id] ?? unit.position),
+      })),
+    [project.units, positions],
+  );
+  const colors =
+    presentation?.colorMode === "dark"
+      ? { teal: "#8caaa4", blue: "#71bdb0", amber: "#cbb27d" }
+      : streamColors;
+  const edges = project.edges.map((e, index) => ({
     id: e.id,
     source: e.source,
     target: e.target,
     sourceHandle: e.sourcePort,
     targetHandle: e.targetPort,
     type: "pipe",
-    data: { rainbow },
+    data: { rainbow, obstacles, routeLane: index },
     style: {
-      stroke: streamColors[e.color],
-      strokeWidth: selected === e.id ? 3 : 2,
+      stroke: colors[e.color],
+      strokeWidth: presentation ? 3 : selected === e.id ? 3 : 2,
     },
-    markerEnd: { type: MarkerType.ArrowClosed, color: streamColors[e.color] },
+    markerEnd: { type: MarkerType.ArrowClosed, color: colors[e.color] },
     selected: e.id === selected,
   }));
   function nodeChanges(changes: NodeChange<EquipmentNode>[]) {
@@ -262,12 +353,14 @@ function Inner(props: Props) {
     <div
       ref={containerRef}
       className="flow-wrapper"
+      data-canvas-mode={presentation ? "presentation" : "editor"}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }}
       onDrop={(e) => {
         e.preventDefault();
+        if (presentation) return;
         const kind = e.dataTransfer.getData("application/project-cad") as Kind;
         if (
           [
@@ -289,9 +382,19 @@ function Inner(props: Props) {
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.2}
+        fitView={!presentation}
+        fitViewOptions={flowFitOptions}
+        viewport={presentation?.viewport}
+        nodesDraggable={!presentation}
+        nodesConnectable={!presentation}
+        nodesFocusable={!presentation}
+        edgesFocusable={!presentation}
+        elementsSelectable={!presentation}
+        panOnDrag={!presentation}
+        zoomOnScroll={!presentation}
+        zoomOnPinch={!presentation}
+        preventScrolling={!presentation}
+        minZoom={0.05}
         maxZoom={1.8}
         zoomOnDoubleClick={false}
         snapToGrid
@@ -309,9 +412,9 @@ function Inner(props: Props) {
           );
           setPositions({});
         }}
-        onNodeClick={(_, node) => onSelect(node.id)}
-        onNodeDoubleClick={(_, node) => onInspect(node.id)}
-        onEdgeClick={(_, edge) => onInspect(edge.id)}
+        onNodeClick={(_, node) => !presentation && onSelect(node.id)}
+        onNodeDoubleClick={(_, node) => !presentation && onInspect(node.id)}
+        onEdgeClick={(_, edge) => !presentation && onInspect(edge.id)}
         onEdgeMouseEnter={(_, edge) => {
           const s = result?.streams[edge.id];
           setHover(
@@ -322,6 +425,7 @@ function Inner(props: Props) {
         }}
         onEdgeMouseLeave={() => setHover("")}
         onConnect={(c) => {
+          if (presentation) return;
           const edge: Connection = {
             id: crypto.randomUUID(),
             source: c.source,
@@ -336,6 +440,7 @@ function Inner(props: Props) {
           else onChange(next, "Connect stream");
         }}
         onBeforeDelete={async ({ nodes, edges }) => {
+          if (presentation) return false;
           const ids = new Set(nodes.map((n) => n.id)),
             edgeIds = new Set(edges.map((e) => e.id));
           onChange(
@@ -353,20 +458,28 @@ function Inner(props: Props) {
           );
           return false;
         }}
-        deleteKeyCode={["Backspace", "Delete"]}
+        deleteKeyCode={presentation ? null : ["Backspace", "Delete"]}
       >
-        <Background color="#bfcac4" gap={24} size={1} />
-        <Controls showInteractive={false} />
+        <Background
+          color={presentation?.colorMode === "dark" ? "#31505a" : "#bfcac4"}
+          gap={24}
+          size={1}
+        />
+        {!presentation && (
+          <Controls showInteractive={false} fitViewOptions={flowFitOptions} />
+        )}
       </ReactFlow>
-      <div className="canvas-footnote">
-        <span className="desktop-canvas-hint">
-          {hover ||
-            "Drag equipment · connect material ports · double-click to edit"}
-        </span>
-        <span className="mobile-canvas-hint">
-          Drag canvas to pan · use + / − to zoom
-        </span>
-      </div>
+      {!presentation && (
+        <div className="canvas-footnote">
+          <span className="desktop-canvas-hint">
+            {hover ||
+              "Drag equipment · connect material ports · double-click to edit"}
+          </span>
+          <span className="mobile-canvas-hint">
+            Drag canvas to pan · use + / − to zoom
+          </span>
+        </div>
+      )}
     </div>
   );
 }

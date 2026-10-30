@@ -212,9 +212,11 @@ test("invalid import and disabled or cross-origin AI are rejected", async ({
   });
   await expect(page.getByRole("status")).toContainText("Invalid project");
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await page.getByRole("button", { name: "Open Meta assistant" }).click();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
   await expect(
-    page.getByRole("button", { name: "Generate actions" }),
+    page.getByRole("button", { name: "Send message", exact: true }),
   ).toBeDisabled();
   expect((await (await request.get("/api/ai")).json()).enabled).toBe(false);
   expect(
@@ -233,54 +235,6 @@ test("invalid import and disabled or cross-origin AI are rejected", async ({
       })
     ).status(),
   ).toBe(403);
-});
-test("reviewed Meta action UI applies a test-only proposal and rejects stale proposals", async ({
-  page,
-}) => {
-  await page.route("**/api/ai", (route) =>
-    route.fulfill({
-      json:
-        route.request().method() === "GET"
-          ? { enabled: true, model: "muse-spark-1.3" }
-          : {
-              model: "muse-spark-1.3",
-              plan: {
-                summary: "Test-only proposal: raise reactor temperature.",
-                actions: [
-                  { type: "update", id: "R-101", params: { temperature: 500 } },
-                ],
-              },
-            },
-    }),
-  );
-  await start(page);
-  await page.getByRole("button", { name: "Open Meta assistant" }).click();
-  await page
-    .getByLabel("Process prompt")
-    .fill("Set the reactor temperature to 500 K.");
-  await page.getByRole("button", { name: "Generate actions" }).click();
-  await expect(
-    page.getByRole("dialog", { name: "Review Meta proposal" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Apply reviewed actions" }).click();
-  await page.getByRole("button", { name: "Close assistant panel" }).click();
-  await edit(page, "R-101");
-  await expect(page.getByLabel("Temperature (K)", { exact: true })).toHaveValue(
-    "500",
-  );
-  await closeDialog(page);
-  await page.getByRole("button", { name: "Open Meta assistant" }).click();
-  await page
-    .getByLabel("Process prompt")
-    .fill("Set the reactor temperature to 500 K.");
-  await page.getByRole("button", { name: "Generate actions" }).click();
-  await page.getByTitle("Add Feed", { exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Apply reviewed actions" }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole("dialog", { name: "Review Meta proposal" }),
-  ).toContainText("Project changed");
 });
 test("WebGL failure leaves a usable 2D project", async ({ page }) => {
   await page.addInitScript(() => {

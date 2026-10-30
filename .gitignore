@@ -29,3 +29,8 @@ agents/
 muse-debug.log*
 muse-error.log*
 muse.local.*
+
+# Generated native assistant packages and staged website downloads
+dist/assistant/
+public/downloads/assistant/*
+!public/downloads/assistant/downloads.json

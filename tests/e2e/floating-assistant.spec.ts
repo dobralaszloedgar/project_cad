@@ -17,7 +17,7 @@ test("chat bubble snaps to canvas corners while the chat window remains draggabl
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const bubble = page.getByRole("button", { name: "Open Meta assistant" }),
+  const bubble = page.getByRole("button", { name: "Open assistant" }),
     before = (await bubble.boundingBox())!;
   const initialCanvas = (await page.locator(".canvas-panel").boundingBox())!;
   await move(

@@ -1,9 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { reactorExample } from "../../src/domain/examples";
 import { checkpoint } from "../../src/lib/revisions";
+import { folderText, installFolderPicker } from "./folder-fixture";
 test("projects create, rename, search, star, duplicate and reopen independent histories", async ({
   page,
 }) => {
+  await installFolderPicker(page);
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
@@ -15,11 +17,28 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     page.getByRole("region", { name: "Project library" }),
   ).toBeVisible();
   await expect(page.locator(".project-card")).toHaveCount(1);
-  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("button", { name: "Templates", exact: true })
+    .click();
   await page
     .getByRole("dialog", { name: "Start from a template" })
     .getByRole("button", { name: /Simple heating/ })
     .click();
+  const create = page.getByRole("dialog", {
+    name: "Create project",
+    exact: true,
+  });
+  await expect(create.getByLabel("Project name", { exact: true })).toHaveValue(
+    "Simple heating",
+  );
+  await create
+    .getByRole("button", { name: "Choose folder", exact: true })
+    .click();
+  await create
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(create).not.toBeVisible();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
@@ -49,8 +68,37 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await page.getByLabel("Search projects").fill("Heating");
   await expect(page.locator(".project-card")).toHaveCount(1);
   await page.getByLabel("Search projects").fill("");
+  const originalFile = JSON.parse(await folderText(page, "Simple heating"));
+  expect(originalFile.workspace.project.name).toBe("Heating study");
   await page.getByRole("button", { name: "Actions for Heating study" }).click();
   await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await expect(create.getByLabel("Project name", { exact: true })).toHaveValue(
+    "Heating study copy",
+  );
+  await create
+    .getByRole("button", { name: "Choose folder", exact: true })
+    .click();
+  await create
+    .getByRole("button", { name: "Create project", exact: true })
+    .click();
+  await expect(create).not.toBeVisible();
+  await expect(page.locator(".project-heading h1")).toHaveText(
+    "Heating study copy",
+  );
+  const copyFile = JSON.parse(await folderText(page, "Heating study copy"));
+  expect(copyFile.projectId).not.toBe(originalFile.projectId);
+  expect(copyFile.workspace.project.units).toEqual(
+    originalFile.workspace.project.units,
+  );
+  expect(copyFile.workspace.project.edges).toEqual(
+    originalFile.workspace.project.edges,
+  );
+  expect(copyFile.workspace.revisions).toEqual(
+    expect.arrayContaining(originalFile.workspace.revisions),
+  );
+  await page
+    .getByRole("button", { name: "Open projects", exact: true })
+    .click();
   await expect(page.locator(".project-card")).toHaveCount(3);
   await page.getByLabel("Sort projects").selectOption("name");
   await page.getByRole("button", { name: "Recent", exact: true }).click();
@@ -82,9 +130,8 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .getByRole("button", { name: "Open Heating study", exact: true })
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
-  await expect(page.locator(".save-status")).toContainText(
-    "Saved on this device",
-  );
+  await expect(page.locator(".save-status")).toContainText(/^Saved/i);
+  await expect(page.locator(".save-status")).toContainText("project.json");
   await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText("Heating study");
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
@@ -99,7 +146,9 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     ),
   ).toBe(true);
   await expect(
-    page.getByRole("button", { name: "New", exact: true }),
+    page
+      .getByRole("navigation", { name: "Project navigation" })
+      .getByRole("button", { name: "Create project", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Grid view" }).click();
   const previewsFit = await page
@@ -123,7 +172,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .getByRole("button", { name: "Open Heating study", exact: true })
     .click();
   await expect(page.locator(".equipment-library")).toHaveCount(0);
-  await page.getByRole("button", { name: "Open Meta assistant" }).click();
+  await page.getByRole("button", { name: "Open assistant" }).click();
   await expect(
     page.getByRole("textbox", { name: "Process prompt" }),
   ).toBeVisible();

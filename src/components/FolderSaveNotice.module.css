@@ -1,0 +1,80 @@
+.notice {
+  --notice-color: #956323;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 10px 18px;
+  margin: 10px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--notice-color);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+}
+
+:global(.workspace[data-theme="dark"]) .notice {
+  --notice-color: #e4b36f;
+}
+
+.content {
+  display: flex;
+  align-items: flex-start;
+  flex: 1 1 260px;
+  gap: 9px;
+  min-width: 0;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--notice-color);
+}
+
+.details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.details p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.details code {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .notice {
+    margin: 8px;
+    padding: 10px 12px;
+  }
+
+  .content {
+    flex-basis: 100%;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions button {
+    min-height: 36px;
+  }
+}

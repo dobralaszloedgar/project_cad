@@ -1,0 +1,199 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { assistantDownloads } from "../src/assistant/downloads";
+import {
+  assertReleaseAssets,
+  sha256,
+  validateManifest,
+  verifyLocalArtifacts,
+} from "../scripts/assistant/release-manifest.mjs";
+import { stagePublishedDownloads } from "../scripts/assistant/stage-downloads.mjs";
+
+const data = Buffer.from("test installer");
+function manifest() {
+  return {
+    name: "Project CAD Assistant",
+    version: "0.1.0",
+    release: { repository: "jiwoong3/project-cad-downloads", tag: "v0.1.0" },
+    files: [
+      ...["pkg", "zip"].map((ext) => ({
+        platform: "macos",
+        architecture: "universal",
+        filename: `ProjectCAD-Assistant-macos-universal.${ext}`,
+      })),
+      ...["x64", "arm64"].flatMap((architecture) => [
+        ...["-Setup.exe", ".zip"].map((ext) => ({
+          platform: "windows",
+          architecture,
+          filename: `ProjectCAD-Assistant-windows-${architecture}${ext}`,
+        })),
+        ...[".run", ".tar.gz"].map((ext) => ({
+          platform: "linux",
+          architecture,
+          filename: `ProjectCAD-Assistant-linux-${architecture}${ext}`,
+        })),
+      ]),
+    ].map((file) => ({ ...file, bytes: data.length, sha256: sha256(data) })),
+  };
+}
+const directories: string[] = [];
+async function temporary() {
+  const path = await mkdtemp(join(tmpdir(), "project-cad-release-"));
+  directories.push(path);
+  return path;
+}
+afterEach(async () => {
+  for (const path of directories.splice(0))
+    await rm(path, { recursive: true, force: true });
+});
+
+describe("assistant download distribution", () => {
+  it("offers five installers with pinned direct GitHub URLs, plus the full release", () => {
+    const parsed = assistantDownloads(manifest());
+    expect(parsed?.installers).toHaveLength(5);
+    expect(parsed?.releaseUrl).toBe(
+      "https://github.com/jiwoong3/project-cad-downloads/releases/tag/v0.1.0",
+    );
+    for (const file of parsed!.installers)
+      expect(file.url).toBe(
+        `https://github.com/jiwoong3/project-cad-downloads/releases/download/v0.1.0/${file.filename}`,
+      );
+  });
+  it.each([
+    "../source",
+    "owner/repo?token=value",
+    "owner/repo/path",
+    "https://evil.example/repo",
+    "owner/repo#fragment",
+    "owner/repo%2fother",
+  ])("rejects an invalid release repository %s", (repository) => {
+    const value = manifest();
+    value.release.repository = repository;
+    expect(assistantDownloads(value)).toBeUndefined();
+    expect(() => validateManifest(value, { published: true })).toThrow();
+  });
+  it("does not fall back to a missing local installer when release metadata is malformed", () => {
+    expect(
+      assistantDownloads({ ...manifest(), release: null }),
+    ).toBeUndefined();
+    expect(
+      assistantDownloads({
+        ...manifest(),
+        release: { repository: "owner/repo", tag: "latest" },
+      }),
+    ).toBeUndefined();
+    const local = { ...manifest(), release: undefined };
+    expect(assistantDownloads(local)?.installers[0].url).toBe(
+      `/downloads/assistant/${local.files[0].filename}`,
+    );
+  });
+  it("ignores malformed and duplicate download entries", () => {
+    const value = manifest();
+    expect(
+      assistantDownloads({
+        ...value,
+        files: [
+          null,
+          value.files[0],
+          value.files[0],
+          { ...value.files[0], filename: "../../secret.pkg" },
+          { ...value.files[1], bytes: -1 },
+        ],
+      })?.installers,
+    ).toHaveLength(1);
+  });
+  it("requires every package and correct platform metadata before publishing", () => {
+    const value = manifest();
+    expect(() => validateManifest(value, { published: true })).not.toThrow();
+    expect(() =>
+      validateManifest({ ...value, files: value.files.slice(1) }),
+    ).toThrow();
+    expect(() =>
+      validateManifest({
+        ...value,
+        files: value.files.map(() => value.files[0]),
+      }),
+    ).toThrow();
+    value.files[0].architecture = "";
+    expect(() => validateManifest(value)).toThrow();
+  });
+  it("rejects corrupted local binaries and checksum sidecars", async () => {
+    const directory = await temporary(),
+      value = manifest();
+    for (const file of value.files) {
+      await writeFile(join(directory, file.filename), data);
+      await writeFile(
+        join(directory, `${file.filename}.sha256`),
+        `${file.sha256}  ${file.filename}\n`,
+      );
+    }
+    await expect(
+      verifyLocalArtifacts(directory, value),
+    ).resolves.toBeUndefined();
+    await writeFile(join(directory, value.files[0].filename), "corrupted");
+    await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
+      "Checksum mismatch",
+    );
+    await writeFile(join(directory, value.files[0].filename), data);
+    await writeFile(
+      join(directory, `${value.files[0].filename}.sha256`),
+      "wrong hash",
+    );
+    await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
+      "sidecar",
+    );
+  });
+  it("refuses missing, partial, replaced, or unexpected remote assets", () => {
+    const files = manifest().files;
+    const assets = files.map((file) => ({
+      name: file.filename,
+      size: file.bytes,
+      digest: `sha256:${file.sha256}`,
+      state: "uploaded",
+    }));
+    expect(() => assertReleaseAssets(assets, files)).not.toThrow();
+    expect(() => assertReleaseAssets(assets.slice(1), files)).toThrow();
+    expect(() => assertReleaseAssets([...assets, assets[0]], files)).toThrow();
+    expect(() =>
+      assertReleaseAssets(
+        [
+          { ...assets[0], digest: `sha256:${"0".repeat(64)}` },
+          ...assets.slice(1),
+        ],
+        files,
+      ),
+    ).toThrow();
+    expect(() =>
+      assertReleaseAssets(
+        [{ ...assets[0], state: "starter" }, ...assets.slice(1)],
+        files,
+      ),
+    ).toThrow();
+  });
+  it("stages only the published manifest and removes old generated binaries", async () => {
+    const directory = await temporary(),
+      value = manifest();
+    await writeFile(join(directory, value.files[0].filename), data);
+    await writeFile(
+      join(directory, `${value.files[0].filename}.sha256`),
+      "old",
+    );
+    await writeFile(join(directory, "keep.txt"), "keep");
+    await stagePublishedDownloads(value, directory);
+    expect((await readdir(directory)).sort()).toEqual([
+      "downloads.json",
+      "keep.txt",
+    ]);
+    expect(
+      JSON.parse(await readFile(join(directory, "downloads.json"), "utf8")),
+    ).toEqual(value);
+    await expect(
+      stagePublishedDownloads({ ...value, release: null }, directory),
+    ).rejects.toThrow();
+    expect(
+      JSON.parse(await readFile(join(directory, "downloads.json"), "utf8")),
+    ).toEqual(value);
+  });
+});

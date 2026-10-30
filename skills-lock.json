@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "awwwards-motion": {
+      "source": "adamperlis/awwwards-motion",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "06a499bb813320f67a08c6abc0c770c815dabc068fcdbd7c717e00a0514ec41c"
+    }
+  }
+}
