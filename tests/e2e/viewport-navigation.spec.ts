@@ -62,10 +62,10 @@ test("2D scroll pans, pinch zooms at the cursor, and resizing preserves the view
   await page.mouse.wheel(90, 70);
   await expect
     .poll(async () => (await viewport(page)).x)
-    .toBeLessThan(before.x - 60);
+    .toBeCloseTo(before.x - 45, 1);
   const panned = await viewport(page);
   expect(panned.zoom).toBeCloseTo(before.zoom, 5);
-  expect(panned.y).toBeLessThan(before.y - 40);
+  expect(panned.y).toBeCloseTo(before.y - 35, 1);
   const world = {
     x: (pointer.x - bounds.x - panned.x) / panned.zoom,
     y: (pointer.y - bounds.y - panned.y) / panned.zoom,

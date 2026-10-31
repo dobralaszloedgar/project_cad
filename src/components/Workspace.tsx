@@ -19,7 +19,6 @@ import {
   Compass,
   History,
   ChevronRight,
-  ChevronLeft,
   GitBranch,
   Thermometer,
   FlaskConical,
@@ -41,6 +40,7 @@ import {
 } from "lucide-react";
 import { useFloatingDrag } from "./useFloatingDrag";
 import Dialog from "./Dialog";
+import BrandMark from "./BrandMark";
 import EquipmentLibrary from "./EquipmentLibrary";
 import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
@@ -67,7 +67,7 @@ import {
 } from "@/domain/examples";
 import ThermoSettingsPanel from "./ThermoSettings";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { sampleMixtures } from "@/domain/thermo/catalog";
+import { mixtureName } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions } from "@/domain/actions";
 import type { Proposal } from "@/assistant/protocol";
@@ -105,6 +105,8 @@ import Inspector from "./Inspector";
 import Results from "./Results";
 import AssistantPanel from "./AssistantPanel";
 import KeyboardHelp from "./KeyboardHelp";
+import ThemePicker from "./ThemePicker";
+import { useTheme } from "./useTheme";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
 import {
   copySelection,
@@ -169,7 +171,8 @@ export default function Workspace({
   const [compareId, setCompareId] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [message, setMessage] = useState("");
-  const [theme, setTheme] = useState("light");
+  const { theme: palette, setTheme } = useTheme();
+  const theme = palette.mode;
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
@@ -228,9 +231,14 @@ export default function Workspace({
     [state.project],
   );
   const pullTabRef = useRef<HTMLButtonElement>(null);
-  const workspaceMenuRef = useRef<HTMLElement>(null);
-  function openPanel(panel: WorkspacePanel) {
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
+  const workspaceMenuPinned = useRef(false);
+  function closeWorkspaceMenu() {
+    workspaceMenuPinned.current = false;
     setWorkspaceMenuOpen(false);
+  }
+  function openPanel(panel: WorkspacePanel) {
+    closeWorkspaceMenu();
     if (panel === "Results") setTab("Results");
     setDrawer(panel);
   }
@@ -248,7 +256,7 @@ export default function Workspace({
       )
         return;
       event.preventDefault();
-      setWorkspaceMenuOpen(false);
+      closeWorkspaceMenu();
       setDrawer(null);
       pullTabRef.current?.focus();
     }
@@ -258,7 +266,7 @@ export default function Workspace({
         !workspaceMenuRef.current?.contains(event.target as Node) &&
         !pullTabRef.current?.contains(event.target as Node)
       )
-        setWorkspaceMenuOpen(false);
+        closeWorkspaceMenu();
     }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("pointerdown", onPointerDown);
@@ -1229,7 +1237,7 @@ export default function Workspace({
   );
   if (showProjects)
     return (
-      <main className="workspace" data-theme={theme}>
+      <main className="workspace" data-theme={theme} data-palette={palette.id}>
         {saveNotice}
         <ProjectsPage
           projects={savedProjects}
@@ -1259,14 +1267,14 @@ export default function Workspace({
     );
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
-    <main className="workspace" data-theme={theme}>
+    <main className="workspace" data-theme={theme} data-palette={palette.id}>
       <header className="app-header" inert={!ready || projectBusy}>
         <button
           className="brand"
           onClick={() => void openProjects()}
           aria-label="Project CAD home"
         >
-          <EquipmentPanelIcon size={29} />
+          <BrandMark size={29} />
           <span>Project CAD</span>
         </button>
         <span className="header-divider" />
@@ -1316,9 +1324,7 @@ export default function Workspace({
           </button>
           <span
             className="species-count"
-            title={
-              sampleMixtures[(project.thermo ?? defaultThermo).mixture].name
-            }
+            title={mixtureName(project.thermo ?? defaultThermo)}
           >
             <FlaskConical size={16} />
             <span>2</span>
@@ -1421,58 +1427,75 @@ export default function Workspace({
           tabIndex={-1}
           aria-label="Process canvas"
         >
-          <button
-            ref={pullTabRef}
-            className={`workspace-pull-tab ${workspaceMenuOpen || drawer ? "active" : ""}`}
-            aria-label="Workspace menu"
-            title="Workspace menu"
-            aria-expanded={workspaceMenuOpen}
-            aria-controls="workspace-menu"
-            onClick={() => {
-              setWorkspaceMenuOpen(!workspaceMenuOpen);
-              setDrawer(null);
+          <div
+            ref={workspaceMenuRef}
+            className="workspace-utilities"
+            data-open={workspaceMenuOpen}
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse") setWorkspaceMenuOpen(true);
+            }}
+            onPointerLeave={() => {
+              if (
+                !workspaceMenuPinned.current &&
+                !workspaceMenuRef.current?.contains(document.activeElement)
+              )
+                closeWorkspaceMenu();
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                closeWorkspaceMenu();
             }}
           >
-            <Settings2 size={19} />
-            {workspaceMenuOpen ? (
-              <ChevronLeft size={14} />
-            ) : (
-              <ChevronRight size={14} />
-            )}
-          </button>
-          {workspaceMenuOpen ? (
-            <nav
-              id="workspace-menu"
-              className="workspace-menu"
-              aria-label="Workspace"
-              ref={workspaceMenuRef}
+            <button
+              ref={pullTabRef}
+              className={`workspace-pull-tab ${workspaceMenuOpen ? "active" : ""}`}
+              aria-label="Workspace menu"
+              title="Workspace menu"
+              aria-expanded={workspaceMenuOpen}
+              aria-controls="workspace-menu"
+              onClick={() => {
+                workspaceMenuPinned.current = !workspaceMenuPinned.current;
+                setWorkspaceMenuOpen(workspaceMenuPinned.current);
+                setDrawer(null);
+              }}
             >
-              <h2>Workspace</h2>
-              {[
-                { name: "Equipment", icon: EquipmentPanelIcon },
-                { name: "Results", icon: ChartNoAxesColumnIncreasing },
-                { name: "Themes", icon: Palette },
-                { name: "Toggle chat", icon: MessageCircle },
-                { name: "Storage settings", icon: HardDrive },
-                { name: "Settings", icon: Settings2 },
-              ].map(({ name, icon: Icon }) => (
-                <button
-                  key={name}
-                  onClick={() => {
-                    if (name === "Toggle chat") {
-                      setWorkspaceMenuOpen(false);
-                      setAssistantOpen(!assistantOpen);
-                      setAssistantStarted(true);
-                    } else openPanel(name as WorkspacePanel);
-                  }}
-                >
-                  <Icon size={20} />
-                  <span>{name}</span>
-                  <ChevronRight size={16} />
-                </button>
-              ))}
-            </nav>
-          ) : null}
+              <Settings2 size={16} aria-hidden="true" />
+              <ChevronRight size={12} aria-hidden="true" />
+            </button>
+            {workspaceMenuOpen ? (
+              <nav
+                id="workspace-menu"
+                className="workspace-menu"
+                aria-label="Workspace"
+              >
+                <h2>Workspace</h2>
+                {[
+                  { name: "Equipment", icon: EquipmentPanelIcon },
+                  { name: "Results", icon: ChartNoAxesColumnIncreasing },
+                  { name: "Themes", icon: Palette },
+                  { name: "Toggle chat", icon: MessageCircle },
+                  { name: "Storage settings", icon: HardDrive },
+                  { name: "Settings", icon: Settings2 },
+                ].map(({ name, icon: Icon }) => (
+                  <button
+                    key={name}
+                    onClick={() => {
+                      pullTabRef.current?.focus();
+                      if (name === "Toggle chat") {
+                        closeWorkspaceMenu();
+                        setAssistantOpen(!assistantOpen);
+                        setAssistantStarted(true);
+                      } else openPanel(name as WorkspacePanel);
+                    }}
+                  >
+                    <Icon size={17} />
+                    <span>{name}</span>
+                    <ChevronRight size={13} aria-hidden="true" />
+                  </button>
+                ))}
+              </nav>
+            ) : null}
+          </div>
           {drawer ? (
             <aside
               id={`workspace-${drawer.toLowerCase().replaceAll(" ", "-")}-panel`}
@@ -1513,22 +1536,7 @@ export default function Workspace({
                       {drawer === "Themes" || drawer === "Settings" ? (
                         <div className="preference-section">
                           <h3>Appearance</h3>
-                          <div className="theme-options">
-                            <button
-                              className={`btn ${theme === "light" ? "chosen" : ""}`}
-                              onClick={() => setTheme("light")}
-                            >
-                              <Sun size={16} />
-                              Light
-                            </button>
-                            <button
-                              className={`btn ${theme === "dark" ? "chosen" : ""}`}
-                              onClick={() => setTheme("dark")}
-                            >
-                              <Moon size={16} />
-                              Dark
-                            </button>
-                          </div>
+                          <ThemePicker value={palette.id} onChange={setTheme} />
                         </div>
                       ) : null}
                       {drawer === "Settings" ? (
@@ -1708,6 +1716,7 @@ export default function Workspace({
               <Plant3D
                 initialPlaying={playbackOnOpen}
                 dark={theme === "dark"}
+                canvasColor={palette.swatch[0]}
                 project={project}
                 selected={selected}
                 onSelect={inspect}
@@ -1823,7 +1832,7 @@ export default function Workspace({
               : (project.edges.find((edge) => edge.id === selected)?.name ??
                 "Stream properties")
           }
-          className="properties-dialog"
+          className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
           onClose={() => setPropertiesOpen(false)}
         >
           <Inspector

@@ -112,6 +112,7 @@ test("nonideal mixer energy balance agrees in the browser and simulation API", a
       },
       {
         id: "mixed",
+        name: "mixed",
         source: "mixer",
         target: "product",
         sourcePort: "out",

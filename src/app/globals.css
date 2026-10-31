@@ -8,8 +8,8 @@
 @import "@xyflow/react/dist/style.css";
 :root {
   /* Outlined hands remain readable on both light and dark canvases. */
-  --cursor-grab: url("/cursors/grab.svg") 16 16, grab;
-  --cursor-grabbing: url("/cursors/grabbing.svg") 16 16, grabbing;
+  --cursor-grab: url("/cursors/grab.svg") 8 8, grab;
+  --cursor-grabbing: url("/cursors/grabbing.svg") 8 8, grabbing;
   font-family: "Figtree Variable", sans-serif;
   font-synthesis: none;
   background: #f5f7f6;
@@ -67,14 +67,6 @@ button {
   --symbol-fill: #fff;
   --symbol-stroke: #7f8b85;
   --stream-stroke: #7f8e87;
-  --stream-rainbow-0: #b43f44;
-  --stream-rainbow-1: #985500;
-  --stream-rainbow-2: #8f6f00;
-  --stream-rainbow-3: #167848;
-  --stream-rainbow-4: #087b89;
-  --stream-rainbow-5: #345fb4;
-  --stream-rainbow-6: #7646a7;
-  --stream-rainbow-7: #a13c7d;
   --color-primary: #286e5c;
   --color-primary-content: #fff;
   --color-base-100: #fff;
@@ -104,14 +96,6 @@ button {
   --symbol-fill: #000;
   --symbol-stroke: #93938f;
   --stream-stroke: #a5a5a5;
-  --stream-rainbow-0: #ff8582;
-  --stream-rainbow-1: #ffc07b;
-  --stream-rainbow-2: #e3d76e;
-  --stream-rainbow-3: #79dfa2;
-  --stream-rainbow-4: #6ddbe2;
-  --stream-rainbow-5: #8dbaff;
-  --stream-rainbow-6: #c3a1f4;
-  --stream-rainbow-7: #f69cda;
   --color-primary: #e3b557;
   --color-primary-content: #000;
   --color-base-100: #000;
@@ -148,7 +132,7 @@ h3 {
 }
 .btn:hover {
   background: var(--hover);
-  border-color: #bfc9c2;
+  border-color: var(--field-border, var(--border));
 }
 .btn-primary {
   background: var(--color-primary);
@@ -178,7 +162,7 @@ h3 {
   color: white;
 }
 .danger {
-  color: #a4473f;
+  color: var(--color-error-content, #a4473f);
 }
 .icon-button {
   width: 32px;
@@ -703,9 +687,6 @@ h3 {
 .react-flow {
   background: var(--canvas) !important;
 }
-.workspace[data-theme="dark"] .react-flow__background {
-  opacity: 0.18;
-}
 .react-flow__node-equipment {
   border: 0 !important;
   border-radius: 0 !important;
@@ -725,22 +706,50 @@ h3 {
   box-shadow: none;
 }
 .equipment-node .equipment-symbol {
+  position: relative;
   width: 100%;
   height: 128px;
   overflow: visible;
 }
-.equipment-node.selected {
-  outline: 1px dashed var(--accent);
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
+.equipment-selection-frame {
+  position: absolute;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  pointer-events: auto;
+}
+.equipment-node.selected .equipment-selection-frame {
+  border-color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 14%, var(--canvas));
 }
 .equipment-node.selected .unit-tag {
   color: var(--accent);
 }
-.equipment-node.added {
-  outline: 1px dashed #3f876a;
+.equipment-node.added .equipment-selection-frame {
+  border: 1px dashed #3f876a;
 }
-.equipment-node.modified {
-  outline: 1px dashed #a67d30;
+.equipment-node.modified .equipment-selection-frame {
+  border: 1px dashed #a67d30;
+}
+.equipment-node.selected .equipment-selection-frame {
+  border-style: solid;
+}
+.flow-wrapper
+  .equipment-symbol
+  > :is(g, path, rect, circle, ellipse, polygon, polyline, line) {
+  pointer-events: visible;
+}
+.flow-wrapper :is(.unit-tag, .unit-name) {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.flow-wrapper .react-flow__nodesselection-rect {
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+.flow-wrapper .react-flow__selection {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px dashed var(--accent);
 }
 .unit-tag {
   position: absolute;
@@ -824,6 +833,19 @@ h3 {
 .react-flow__controls-button:last-child {
   border: 0;
 }
+.flow-wrapper .react-flow__controls-button svg.lucide {
+  fill: none;
+}
+.flow-wrapper .react-flow__controls-button:hover {
+  background: var(--hover) !important;
+}
+.flow-wrapper .react-flow__controls-pan[aria-pressed="true"] {
+  background: var(--active) !important;
+  color: var(--accent) !important;
+}
+.flow-wrapper .react-flow__controls-button:focus-visible {
+  outline-offset: -3px;
+}
 .react-flow__attribution {
   background: transparent !important;
   color: var(--subtle) !important;
@@ -892,16 +914,12 @@ h3 {
   height: min(720px, calc(100% - 96px));
   overflow: hidden;
   background: var(--surface);
-  border: 1px solid #e5e7e6;
+  border: 1px solid var(--border);
   box-shadow:
     0 3px 8px #17241b24,
     0 12px 45px #17241b0c;
   border-radius: 20px;
   z-index: 9;
-}
-.workspace[data-theme="dark"] .assistant-drawer {
-  background: #212121;
-  border-color: #393939;
 }
 .assistant {
   height: 100%;
@@ -929,7 +947,7 @@ h3 {
   height: 26px;
   padding: 0 8px;
   border-radius: 7px;
-  background: #f2f3f3;
+  background: var(--hover);
   font-size: 11px;
 }
 .chat-provider i {
@@ -963,8 +981,8 @@ h3 {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #263730;
-  color: #fff;
+  background: var(--ink);
+  color: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -983,7 +1001,7 @@ h3 {
   margin-left: auto;
   width: fit-content;
   max-width: 80%;
-  background: #f2f3f3;
+  background: var(--hover);
   padding: 10px 13px;
   border-radius: 16px 16px 3px 16px;
   white-space: pre-wrap;
@@ -1005,7 +1023,7 @@ h3 {
   display: flex;
   gap: 4px;
   align-items: flex-end;
-  background: #f2f3f3;
+  background: var(--hover);
   border-radius: 28px;
   padding: 4px;
 }
@@ -1086,14 +1104,6 @@ h3 {
   background: var(--surface);
   box-shadow: 0 4px 16px #0002;
 }
-.workspace[data-theme="dark"]
-  :is(.chat-provider, .chat-user-message, .chat-composer) {
-  background: #303030;
-}
-.workspace[data-theme="dark"] .chat-welcome > span {
-  background: #e8e8e8;
-  color: #212121;
-}
 .wide {
   width: 100%;
 }
@@ -1104,14 +1114,11 @@ h3 {
   width: 100%;
   background: var(--surface);
   color: var(--ink);
-  border: 1px solid #d1d8d2;
+  border: 1px solid var(--field-border, var(--border));
   border-radius: 6px;
   padding: 0 12px;
   font-size: 13px;
   box-shadow: none;
-}
-.workspace[data-theme="dark"] :is(.input, .select) {
-  border-color: var(--border);
 }
 .select {
   padding-right: 28px;
@@ -1531,7 +1538,7 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 .diagnostics.warning h3 {
-  color: #9c6535;
+  color: var(--color-warning-content, #9c6535);
 }
 .residual-chart {
   width: 100%;
@@ -1709,16 +1716,10 @@ h3 {
   color: var(--muted);
   margin-bottom: 12px;
 }
-.theme-options,
 .preference-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-}
-.theme-options .chosen {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--active);
 }
 .confirm-dialog {
   width: min(520px, calc(100vw - 36px));
@@ -1770,13 +1771,13 @@ h3 {
   visibility: hidden;
 }
 .plant-label {
-  border: 1px solid #d7dfd9;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 7px;
   white-space: nowrap;
   font-size: 11px;
-  background: #ffffffed;
-  color: #263730;
+  background: var(--surface);
+  color: var(--ink);
 }
 .plant-label small {
   display: block;
@@ -1784,8 +1785,8 @@ h3 {
   margin-top: 2px;
 }
 .plant-label.active {
-  border-color: #286e5c;
-  color: #286e5c;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .plant-view .canvas-footnote {
   left: 130px;
@@ -2256,44 +2257,181 @@ h3 {
   display: none;
 }
 .keyboard-help-dialog {
-  width: min(760px, calc(100vw - 32px));
+  width: min(1020px, calc(100vw - 32px));
+}
+.keyboard-help-dialog .dialog-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.shortcut-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.shortcut-search,
+.shortcut-platform {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--muted);
+}
+.shortcut-search {
+  flex: 1;
+}
+.shortcut-search svg,
+.shortcut-platform svg {
+  flex-shrink: 0;
+}
+.shortcut-search:focus-within,
+.shortcut-platform:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.shortcut-search input,
+.shortcut-platform select {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  outline: none;
+}
+.shortcut-search input {
+  width: 100%;
+}
+.shortcut-platform select option {
+  background: var(--surface);
+  color: var(--ink);
 }
 .shortcut-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
+  gap: 24px 32px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 6px 2px 0;
+}
+.shortcut-groups section {
+  min-width: 0;
 }
 .shortcut-groups h3 {
-  margin: 0 0 12px;
-  font-size: 14px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 .shortcut-groups dl {
   margin: 0;
 }
 .shortcut-groups dl > div {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  min-height: 36px;
   gap: 12px;
-  padding: 8px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
 }
+.shortcut-groups dl > div:last-child {
+  border-bottom: 0;
+}
+.shortcut-groups dt {
+  flex: 1;
+  min-width: 0;
+}
 .shortcut-groups dd {
   margin: 0;
-  text-align: right;
-  color: var(--muted);
+}
+.shortcut-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 6px;
+  max-width: 62%;
+}
+.shortcut-alternative,
+.shortcut-combination,
+.shortcut-key-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.shortcut-combination {
+  white-space: nowrap;
 }
 .shortcut-groups kbd {
-  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 23px;
+  height: 24px;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--canvas);
+  box-shadow: 0 1px 0 var(--border);
+  color: var(--ink);
+  font:
+    11px ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  white-space: nowrap;
 }
-.shortcut-note {
-  margin: 24px 0 0;
+.shortcut-groups kbd.shortcut-symbol {
+  font:
+    16px "Segoe UI Symbol",
+    "Apple Symbols",
+    sans-serif;
+}
+.shortcut-or,
+.shortcut-plus {
+  color: var(--muted);
+  font-size: 10px;
+}
+.shortcut-gesture {
+  color: var(--muted);
+  font-size: 11px;
+}
+.shortcut-empty {
+  grid-column: 1 / -1;
+  padding: 24px 8px;
   color: var(--muted);
   font-size: 12px;
 }
-@media (max-width: 600px) {
+.shortcut-note {
+  flex-shrink: 0;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 760px) {
   .shortcut-groups {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 440px) {
+  .shortcut-toolbar {
+    flex-wrap: wrap;
+  }
+  .shortcut-search {
+    flex-basis: 100%;
+  }
+  .shortcut-groups dl > div {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+  }
+  .shortcut-keys {
+    max-width: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2305,7 +2443,7 @@ h3 {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f7f6;
+  background: var(--canvas);
 }
 .projects-header {
   height: 56px;
@@ -2396,7 +2534,7 @@ h3 {
 .project-search {
   height: 40px;
   width: min(560px, 55%);
-  background: #f5f7f6;
+  background: var(--field-surface, var(--hover));
   border-radius: 24px;
   display: flex;
   align-items: center;
@@ -2521,7 +2659,7 @@ h3 {
   overflow: hidden;
   position: relative;
   border-radius: 9px;
-  background-color: #f5f7f6;
+  background-color: var(--canvas);
   background-image: radial-gradient(var(--border) 1px, transparent 1px);
   background-size: 12px 12px;
   color: var(--symbol-stroke);
@@ -2681,12 +2819,6 @@ h3 {
   flex-direction: column;
   gap: 9px;
   font-size: 13px;
-}
-.workspace[data-theme="dark"] .projects-page {
-  background: #101010;
-}
-.workspace[data-theme="dark"] :is(.project-search, .project-preview) {
-  background-color: #212121;
 }
 @media (max-width: 900px) {
   .projects-sidebar {
@@ -2864,52 +2996,76 @@ h3 {
   margin: 0;
 }
 
-/* A single edge tab opens the workspace menu without resizing the canvas. */
-.workspace-pull-tab {
+/* Padding bridges the tab and menu so pointer travel keeps the menu open. */
+.workspace-utilities {
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 32px;
-  height: 72px;
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  z-index: 22;
+}
+.workspace-pull-tab {
+  width: 28px;
+  min-height: 62px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
   padding: 0;
   background: var(--surface);
   color: var(--muted);
   border: 1px solid var(--border);
   border-left: 0;
-  border-radius: 0 14px 14px 0;
-  z-index: 22;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 2px 2px 10px #17271b14;
+  transition:
+    width 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
 }
-.workspace-pull-tab:hover,
 .workspace-pull-tab.active {
+  width: 34px;
   color: var(--accent);
-  background: var(--surface);
+  background: var(--active);
+}
+.workspace-pull-tab > svg:last-child {
+  transition: transform 150ms ease;
+}
+.workspace-pull-tab.active > svg:last-child {
+  transform: rotate(180deg);
 }
 .workspace-menu {
   position: absolute;
-  left: 48px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 280px;
-  max-width: calc(100% - 64px);
-  max-height: calc(100% - 120px);
+  left: 100%;
+  width: min(224px, calc(100vw - 64px));
+  max-height: calc(100dvh - 160px);
   overflow-y: auto;
-  padding: 18px 10px;
+  padding: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: 0 8px 24px #0002;
   z-index: 23;
+  animation: workspace-menu-in 150ms ease-out;
+}
+@keyframes workspace-menu-in {
+  from {
+    opacity: 0;
+    translate: -6px 0;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 .workspace-menu h2 {
-  padding: 0 14px 14px;
+  margin: 4px 10px 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2918,15 +3074,15 @@ h3 {
   display: flex;
   align-items: center;
   width: 100%;
-  gap: 14px;
-  min-height: 52px;
-  padding: 0 14px;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 10px;
   border: 0;
   border-radius: 8px;
   color: var(--ink);
   background: transparent;
   text-align: left;
-  font-size: 14px;
+  font-size: 12px;
 }
 .workspace-menu button svg {
   flex-shrink: 0;
@@ -3035,17 +3191,18 @@ h3 {
 .workspace :is(a, select, summary, input[type="checkbox"]) {
   cursor: var(--cursor-pointer);
 }
-.workspace .react-flow__pane,
-.workspace .react-flow__node.draggable {
+.workspace .react-flow__pane {
+  cursor: var(--cursor-default);
+}
+.workspace .react-flow__node.draggable,
+.workspace .react-flow__edge.selectable,
+.workspace .react-flow__edge-interaction,
+.workspace .flow-wrapper.pan-mode .react-flow__pane {
   cursor: var(--cursor-grab);
 }
 .workspace .react-flow__pane.dragging,
 .workspace .react-flow__node.dragging {
   cursor: var(--cursor-grabbing);
-}
-.workspace .react-flow__edge,
-.workspace .react-flow__edge-interaction {
-  cursor: var(--cursor-pointer);
 }
 .workspace .react-flow__handle {
   cursor: var(--cursor-default);
@@ -3053,6 +3210,61 @@ h3 {
 .workspace .react-flow__handle.connectable {
   cursor: var(--cursor-connect);
 }
-.workspace .react-flow__pane.selection {
-  cursor: var(--cursor-connect);
+.workspace .flow-wrapper.pan-mode .react-flow__pane.dragging {
+  cursor: var(--cursor-grabbing);
+}
+.workspace
+  .flow-wrapper.pan-mode
+  :is(
+    .react-flow__node,
+    .react-flow__node *,
+    .react-flow__edge,
+    .react-flow__edge *
+  ) {
+  pointer-events: none !important;
+}
+
+.chemical-picker {
+  min-width: 0;
+  border: 1px solid var(--border, #dbe2de);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.chemical-picker legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.chemical-picker .input {
+  width: 100%;
+}
+.chemical-selected span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #64736b);
+}
+.chemical-search-results {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.chemical-search-results button {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  border-radius: 6px;
+  display: grid;
+  gap: 3px;
+}
+.chemical-search-results button:hover,
+.chemical-search-results button:focus-visible {
+  background: var(--surface-hover, #e5efea);
+}
+.chemical-search-results button span {
+  font-size: 12px;
+  color: var(--muted, #64736b);
 }

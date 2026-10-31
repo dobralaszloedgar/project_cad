@@ -1,3 +1,12 @@
+DATABASE INTEGRATION UPDATE (2026-10-30)
+The three models now support immutable chemical records from PostgreSQL or
+Supabase, selected in Preferences and saved locally for offline calculations.
+Gas Cp is temperature dependent for database selections; liquid calculations
+use published vapor-pressure/caloric records and the complete published
+Modified UNIFAC 2.0 parameter coverage. See CHEMICAL_CATALOG.txt for setup,
+source licenses, coverage counts, validation and scientific limits.
+The sample-catalog descriptions below remain applicable to bundled examples.
+
 THERMODYNAMIC MODELS
 
 The model registry contains exactly three entries:

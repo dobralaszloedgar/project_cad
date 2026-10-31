@@ -122,6 +122,7 @@ export default function MorphingProcess({
   playing: boolean;
 }) {
   const stage = useRef<Group>(null);
+  const ground = useRef<Group>(null);
   const machinery = useRef<Group>(null);
   const pipes = useRef<Group>(null);
   const equipment = useRef<(Group | null)[]>([]);
@@ -161,6 +162,7 @@ export default function MorphingProcess({
     const p = progress.get();
     const lift = reveal(p, 0.55, 0.87);
     if (stage.current) stage.current.visible = p > 0.17;
+    if (ground.current) ground.current.visible = lift > 0.003;
     if (machinery.current) {
       machinery.current.visible = lift > 0.003;
       machinery.current.scale.y = Math.max(0.003, lift);
@@ -180,31 +182,33 @@ export default function MorphingProcess({
         item.material.setValues({ opacity: item.opacity * opacity });
       }
     }
-    if (surface.current) surface.current.opacity = reveal(p, 0.18, 0.3) * 0.9;
+    if (surface.current) surface.current.opacity = reveal(p, 0.55, 0.7) * 0.9;
   });
   return (
     <group ref={stage}>
-      <mesh position={[0, -0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[25, 18]} />
-        <meshBasicMaterial
-          ref={surface}
-          color="#09212f"
-          transparent
-          opacity={0}
+      <group ref={ground}>
+        <mesh position={[0, -0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[30, 18]} />
+          <meshBasicMaterial
+            ref={surface}
+            color="#eef2ed"
+            transparent
+            opacity={0}
+          />
+        </mesh>
+        <Grid
+          args={[28, 16]}
+          position={[0.3, -0.12, -1.3]}
+          cellSize={0.5}
+          sectionSize={2.5}
+          cellThickness={0.45}
+          sectionThickness={0.7}
+          cellColor="#dce4dd"
+          sectionColor="#b9cbbd"
+          fadeDistance={90}
+          fadeStrength={1}
         />
-      </mesh>
-      <Grid
-        args={[20, 16]}
-        position={[0.3, -0.12, -1.3]}
-        cellSize={0.5}
-        sectionSize={2.5}
-        cellThickness={0.45}
-        sectionThickness={0.7}
-        cellColor="#1d505d"
-        sectionColor="#3d8290"
-        fadeDistance={90}
-        fadeStrength={1}
-      />
+      </group>
       <RisingRoutes system={system} progress={progress} bridge={bridge} />
       <group ref={machinery}>
         {system.equipment.map((item, index) => (
@@ -255,8 +259,8 @@ export default function MorphingProcess({
           );
         })}
         <mesh position={[0.3, -0.25, -1.3]}>
-          <boxGeometry args={[20, 0.2, 16]} />
-          <meshBasicMaterial color="#09212f" />
+          <boxGeometry args={[28, 0.2, 16]} />
+          <meshBasicMaterial color="#eef2ed" />
         </mesh>
       </group>
     </group>

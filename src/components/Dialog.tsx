@@ -41,7 +41,13 @@ export default function Dialog({
           (event.shiftKey && event.key === "Enter"))
       ) {
         event.preventDefault();
-        dialog.querySelector("form")?.requestSubmit();
+        const calculate =
+          event.shiftKey && event.key === "Enter"
+            ? dialog.querySelector<HTMLButtonElement>(
+                '[data-editor-action="calculate"]',
+              )
+            : null;
+        dialog.querySelector("form")?.requestSubmit(calculate ?? undefined);
       }
     }
     window.addEventListener("keydown", onKeyDown);

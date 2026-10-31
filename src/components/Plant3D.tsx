@@ -11,12 +11,14 @@ export default function Plant3D({
   selected,
   onSelect,
   dark = false,
+  canvasColor,
   initialPlaying = false,
 }: {
   project: Project;
   selected: string | null;
   onSelect: (id: string) => void;
   dark?: boolean;
+  canvasColor?: string;
   initialPlaying?: boolean;
 }) {
   const [transparent, setTransparent] = useState(true);
@@ -61,6 +63,7 @@ export default function Plant3D({
           focus={focus}
           selectedId={selected}
           dark={dark}
+          canvasColor={canvasColor}
           workspace
           onSelect={(_, id) => {
             if (id) onSelect(id);

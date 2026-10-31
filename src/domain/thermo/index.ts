@@ -1,10 +1,6 @@
-import kernelBytes from "./kernel.wasm.json";
-import identity from "./kernel-identity.json";
-import {
-  sampleCatalog,
-  sampleMixtures,
-  type ChemicalProvider,
-} from "./catalog";
+import kernelBytes from "./kernel.wasm.json" with { type: "json" };
+import identity from "./kernel-identity.json" with { type: "json" };
+import { thermoContext, type ChemicalProvider } from "./catalog";
 import {
   defaultThermo,
   modelInfo,
@@ -43,8 +39,8 @@ export function evaluateProperties(
   pressure: number,
   composition: number[],
   settings: ThermoSettings = defaultThermo,
-  catalog: ChemicalProvider = sampleCatalog,
-  chemicalIds: readonly string[] = sampleMixtures[settings.mixture].ids,
+  catalog?: ChemicalProvider,
+  chemicalIds?: readonly string[],
   vaporFraction?: number,
 ): Properties {
   if (vaporFraction !== undefined && !Number.isFinite(vaporFraction))
@@ -67,8 +63,8 @@ export function flashPressureEnthalpy(
   molarEnthalpy: number,
   composition: number[],
   settings: ThermoSettings = defaultThermo,
-  catalog: ChemicalProvider = sampleCatalog,
-  chemicalIds: readonly string[] = sampleMixtures[settings.mixture].ids,
+  catalog?: ChemicalProvider,
+  chemicalIds?: readonly string[],
 ): Properties {
   if (!Number.isFinite(molarEnthalpy))
     throw new Error("Invalid target enthalpy");
@@ -90,11 +86,14 @@ function execute(
   pressure: number,
   composition: number[],
   settings: ThermoSettings,
-  catalog: ChemicalProvider,
-  chemicalIds: readonly string[],
+  catalog: ChemicalProvider | undefined,
+  chemicalIds: readonly string[] | undefined,
   specification: { molarEnthalpy?: number; vaporFraction?: number },
 ): Properties {
   thermoSchema.parse(settings);
+  const context = thermoContext(settings);
+  catalog ??= context.catalog;
+  chemicalIds ??= context.ids;
   kernel ??= new WebAssembly.Instance(
     new WebAssembly.Module(new Uint8Array(kernelBytes)),
   ).exports as Kernel;
@@ -106,6 +105,7 @@ function execute(
       composition,
       chemicals: chemicalIds.map((id) => catalog.get(id)),
       extrapolate: settings.extrapolate,
+      activityParameters: catalog.activityParameters,
       ...specification,
     }),
   );
@@ -122,6 +122,15 @@ function execute(
         ),
       ) as { ok: true; result: Properties } | { ok: false; error: string };
       if (!response.ok) throw new Error(response.error);
+      for (const id of chemicalIds) {
+        const chemical = catalog.get(id);
+        if (
+          chemical.formationSource?.startsWith("Explicit reference convention:")
+        )
+          response.result.warnings.push(
+            `${chemical.name}: formation enthalpy is unavailable; a zero gas-enthalpy reference at 298.15 K is used for nonreacting balances.`,
+          );
+      }
       return response.result;
     } finally {
       kernel.thermo_free(outputPointer, size);
@@ -131,16 +140,17 @@ function execute(
   }
 }
 export function provenance(settings: ThermoSettings = defaultThermo) {
+  const context = thermoContext(settings);
   return {
     modelId: settings.modelId,
     modelVersion: modelInfo(settings.modelId).version,
-    dataVersion: sampleCatalog.version,
+    dataVersion: context.catalog.version,
     kernelHash: identity.kernelHash,
     parameterHash:
       settings.modelId === "modified-unifac-2.0"
-        ? identity.parameterHash
+        ? (context.catalog.parameterHash ?? identity.parameterHash)
         : null,
-    chemicalIds: sampleMixtures[settings.mixture].ids,
+    chemicalIds: context.ids,
     extrapolate: settings.extrapolate,
   };
 }
