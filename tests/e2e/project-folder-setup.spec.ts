@@ -91,7 +91,7 @@ test("first launch remembers one folder for creation, autosave, duplicates and l
   );
   await page.reload();
   await expect(page.locator(".save-status")).toContainText(
-    "Saved to First study copy/project.json",
+    "Saved to Laptop projects/First study copy.pcad",
   );
   await expect(setup(page)).toHaveCount(0);
   await library(page);
@@ -106,28 +106,19 @@ test("first launch remembers one folder for creation, autosave, duplicates and l
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const parent = await root.getDirectoryHandle("Laptop projects");
-      const entries: Record<string, string[]> = {};
+      const entries: string[] = [];
       for await (const project of parent.values()) {
-        if (project.kind !== "directory")
-          throw new Error("Expected project folder");
-        entries[project.name] = [];
-        for await (const file of (
-          project as FileSystemDirectoryHandle
-        ).values())
-          entries[project.name].push(file.name);
+        if (project.kind !== "file") throw new Error("Expected a project file");
+        entries.push(project.name);
       }
-      return entries;
+      return entries.sort();
     }),
-  ).toEqual({
-    "First study": ["project.json"],
-    "First study copy": ["project.json"],
-    "Second study": ["project.json"],
-  });
+  ).toEqual(["First study copy.pcad", "First study.pcad", "Second study.pcad"]);
   const other = await context.newPage();
   await installFolderPicker(other);
   await other.goto("/");
   await expect(other.locator(".save-status")).toContainText(
-    "Second study/project.json",
+    "Laptop projects/Second study.pcad",
   );
   await library(other);
   await expect(setup(other)).toHaveCount(0);
@@ -222,7 +213,7 @@ test("expired permission reconnects the remembered folder without another picker
     .click();
   await expect(reconnect).toHaveCount(0);
   await expect(page.locator(".save-status")).toContainText(
-    "Saved to Existing study/project.json",
+    "Saved to Laptop projects/Existing study.pcad",
   );
   await library(page);
   await create(page, "Reconnected study");
@@ -259,10 +250,9 @@ test("changing the default folder applies to new projects and keeps existing fil
       const parent = await (
         await navigator.storage.getDirectory()
       ).getDirectoryHandle("New projects");
-      const directory = await parent.getDirectoryHandle("New study");
       return JSON.parse(
         await (
-          await (await directory.getFileHandle("project.json")).getFile()
+          await (await parent.getFileHandle("New study.pcad")).getFile()
         ).text(),
       ).workspace.project.name;
     }),

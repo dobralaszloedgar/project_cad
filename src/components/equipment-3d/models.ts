@@ -1695,7 +1695,12 @@ function distillation(
         [-Math.PI / 2, 0, Math.PI / 2],
       );
       const x = i % 2 === 0 ? -0.39 : 0.39;
-      f.box([x, y - 0.16, 0], [0.04, 0.3, 0.5], "steel");
+      const apronHeight = layout.traySpacing - 0.16;
+      f.box(
+        [x, y - apronHeight / 2 - 0.01, 0],
+        [0.04, apronHeight, 0.5],
+        "steel",
+      );
       f.box([x, y + 0.045, 0], [0.025, 0.09, 0.5], "steel");
       for (const z of [-0.27, 0.27])
         f.box([0, y - 0.04, z], [0.88, 0.04, 0.018], "dark");
@@ -1713,7 +1718,7 @@ function distillation(
           6,
         );
       }
-      for (const hole of holes) {
+      for (const hole of options.column?.trayType === "sieve" ? [] : holes) {
         f.cylinder(
           [hole.x, y + 0.055, hole.y],
           0.037,
@@ -1758,7 +1763,10 @@ export function createEquipmentModel(
   if (kind === "PBR" && (section || transparent))
     model.add(createCatalystPacking());
   if (kind === "Distillation") {
-    model.userData.column = columnLayout(options);
+    const layout = columnLayout(options);
+    model.userData.column = layout;
+    // The assembly remains schematic; ports and routing share this same scale.
+    model.scale.set(layout.radialScale, 1, layout.radialScale);
     finishColumnSteel(model);
   }
   return model;

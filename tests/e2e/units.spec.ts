@@ -8,13 +8,7 @@ async function openUnits(page: Page) {
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await page
-    .getByRole("button", { name: "Workspace menu", exact: true })
-    .click();
-  await page
-    .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Units", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Units", exact: true }).click();
   return page.getByRole("region", { name: "Engineering units", exact: true });
 }
 

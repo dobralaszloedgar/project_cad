@@ -7,6 +7,39 @@
   gap: 14px;
   min-width: 0;
 }
+.kinetics-source {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.kinetics-source summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.kinetics-source > div {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.kinetics-source a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.kinetics-source p,
+.kinetics-source dl,
+.kinetics-source dd {
+  margin: 0;
+}
+.kinetics-source dl {
+  display: grid;
+  gap: 6px;
+}
+.kinetics-source dt {
+  color: var(--muted);
+}
 .reaction-set-heading,
 .reaction-definition-heading,
 .reaction-actions,

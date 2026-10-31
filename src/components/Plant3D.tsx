@@ -7,6 +7,8 @@ import type { Result } from "@/domain/solver";
 import EquipmentScene, { type CameraView } from "./equipment-3d/EquipmentScene";
 import { buildProjectPlant } from "./equipment-3d/project-plant";
 import { projectCompositionColors } from "./equipment-3d/composition-colors";
+import type { TrayHydraulicsResult } from "@/domain/equipment/tray-hydraulics";
+import "./tray-hydraulics.css";
 
 export default function Plant3D({
   project,
@@ -50,6 +52,26 @@ export default function Plant3D({
       return null;
     }
   }, [project]);
+  const columnHydraulics = useMemo(() => {
+    const ratings: Record<string, TrayHydraulicsResult> = {};
+    if (!result?.converged) return ratings;
+    for (const unit of project.units) {
+      const column = result.equipment[unit.id]?.distillation;
+      const config = unit.params.distillation;
+      if (
+        config?.method === "mesh" &&
+        config.hydraulics?.enabled &&
+        column?.method === "mesh" &&
+        column.hydraulics &&
+        column.stages.length - 2 === unit.params.trayCount &&
+        JSON.stringify(config.hydraulics) ===
+          JSON.stringify(column.hydraulics.config)
+      )
+        ratings[unit.id] = column.hydraulics;
+    }
+    return ratings;
+  }, [project, result]);
+  const selectedHydraulics = selected ? columnHydraulics[selected] : undefined;
   return (
     <div
       className="plant-view"
@@ -63,6 +85,7 @@ export default function Plant3D({
           mode="process"
           system={layout}
           compositionColors={compositionColors}
+          columnHydraulics={columnHydraulics}
           trayCount={8}
           section={false}
           transparent={transparent}
@@ -89,6 +112,52 @@ export default function Plant3D({
           The 3D layout could not be arranged. Your flowsheet is preserved;
           continue editing in 2D.
         </div>
+      )}
+      {selectedHydraulics && (
+        <aside
+          className="plant-hydraulics-legend"
+          aria-label="3D tray hydraulics"
+        >
+          <strong>{selected} · Sieve tray hydraulics</strong>
+          <p>
+            {selectedHydraulics.status === "unavailable"
+              ? "Rating unavailable — supply fluid properties."
+              : `Highest flooding load: ${((selectedHydraulics.maxFloodFraction ?? 0) * 100).toFixed(1)}% · Tray ${selectedHydraulics.limitingTray}`}
+          </p>
+          {selectedHydraulics.stages.length > 0 && (
+            <p>
+              {
+                selectedHydraulics.stages.filter(
+                  (s) => s.weepRatio !== null && s.weepRatio < 1,
+                ).length
+              }{" "}
+              trays with predicted weeping
+              {" · "}
+              {
+                selectedHydraulics.stages.filter(
+                  (s) =>
+                    Math.max(
+                      s.jetFloodFraction ?? 0,
+                      s.downcomerFloodFraction,
+                    ) >= 1,
+                ).length
+              }{" "}
+              at a flooding limit
+              {selectedHydraulics.status === "partial"
+                ? " · incomplete rating"
+                : ""}
+            </p>
+          )}
+          <small>
+            Tray rings: green within limits · blue weeping · amber near flooding
+            · red flooding · gray incomplete.
+          </small>
+          <p>Top tray = 1. Open Properties → Results for each tray.</p>
+          <small>
+            Fluid motion illustrates predicted conditions; it is not a transient
+            flow simulation.
+          </small>
+        </aside>
       )}
       {layout &&
       project.units.length > 0 &&
@@ -192,12 +261,6 @@ export default function Plant3D({
           ) : null}
         </div>
       ) : null}
-      <div
-        className="navigation-hint"
-        title="Drag to orbit around selected equipment. Scroll, right/middle drag, or Space + drag to pan. Pinch or Ctrl/Cmd + scroll to zoom at the pointer. Arrow keys pan (Shift moves faster); +/- zoom; F fits the plant; Shift+F focuses selection; P pans; V orbits/selects; G toggles grid; L toggles labels."
-      >
-        Drag to orbit · Space + drag / scroll to pan · Pinch to zoom · F to fit
-      </div>
     </div>
   );
 }

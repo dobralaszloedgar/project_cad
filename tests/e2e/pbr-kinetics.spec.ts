@@ -118,9 +118,7 @@ test("PBR live equations, custom definitions, nested editing and saved calculati
     page.getByRole("table", { name: "Reactor species balance" }),
   ).toContainText("Conversion (%)");
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByText("Saved on this device", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await openReactor(page);
   await expect(page.getByLabel("Custom rate expression")).toHaveValue(

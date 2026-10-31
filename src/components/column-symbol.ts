@@ -21,7 +21,6 @@ export function columnSymbol(trayCount?: number) {
     <g data-column-equipment="reflux-splitter"><circle cx="96" cy="${distillateY}" r="2" fill="currentColor" stroke="none"/>${path(`M86 ${distillateY - 3}l6 6v-6l-6 6Z`, fill)}</g>
     ${path(`M53 ${last + 20}V${reboilerY}H85M96 ${reboilerY - 11}V${last + 9}H72`)}
     ${coil(96, reboilerY, "reboiler")}
-    ${path(`M44 ${last + 20}v7m18-7v7M41 ${last + 27}h6m12 0h6`, 'stroke-width="1"')}
   </g>`;
   const connectors = `<g stroke-width="1.4">
     ${path(`M8 ${feedY}H34`, 'data-port-id="in"')}

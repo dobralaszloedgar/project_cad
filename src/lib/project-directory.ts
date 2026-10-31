@@ -1,5 +1,6 @@
 import {
   MAX_PROJECT_FILE_BYTES,
+  PROJECT_FILE_EXTENSION,
   PROJECT_FILE_NAME,
   parseProjectFile,
   type ProjectFile,
@@ -90,6 +91,13 @@ export function validateProjectFolderName(value: string): string {
   return name;
 }
 
+export function projectFileName(value: string): string {
+  const stem = value.toLowerCase().endsWith(PROJECT_FILE_EXTENSION)
+    ? value.slice(0, -PROJECT_FILE_EXTENSION.length)
+    : value;
+  return `${validateProjectFolderName(stem)}${PROJECT_FILE_EXTENSION}`;
+}
+
 export function folderError(
   error: unknown,
   fallback: string,
@@ -99,17 +107,17 @@ export function folderError(
   if (name === "NotAllowedError" || name === "SecurityError")
     return new FolderStorageError(
       "permission",
-      "Folder access is needed. Reconnect the folder to save project.json. Your latest changes remain in this browser.",
+      "Folder access is needed. Reconnect the folder to save the project file. Your latest changes remain in this browser.",
     );
   if (name === "NotFoundError")
     return new FolderStorageError(
       "missing",
-      "The project folder or project.json is missing. Open its folder again. Your latest changes remain in this browser.",
+      "The project file is missing or moved. Use Locate project to select its new containing folder. Your latest changes remain in this browser.",
     );
   if (name === "NoModificationAllowedError")
     return new FolderStorageError(
       "conflict",
-      "Another window is writing project.json. Wait for it to finish, then try saving again.",
+      "Another window is writing the project file. Wait for it to finish, then try saving again.",
     );
   return new FolderStorageError("write", fallback);
 }
@@ -130,7 +138,7 @@ export async function requireFolderPermission(
   if ((await folderPermission(directory)) !== "granted")
     throw new FolderStorageError(
       "permission",
-      "Folder access is needed. Reconnect the folder to save project.json. Your latest changes remain in this browser.",
+      "Folder access is needed. Reconnect the folder to save the project file. Your latest changes remain in this browser.",
     );
 }
 
@@ -153,6 +161,7 @@ async function fileText(file: FileSystemFileHandle) {
 
 export async function readDirectoryProject(
   directory: ProjectDirectoryHandle,
+  fileName = PROJECT_FILE_NAME,
 ): Promise<{
   document: ProjectFile;
   revision: string;
@@ -160,11 +169,11 @@ export async function readDirectoryProject(
   await requireFolderPermission(directory);
   let text: string;
   try {
-    text = await fileText(await directory.getFileHandle(PROJECT_FILE_NAME));
+    text = await fileText(await directory.getFileHandle(fileName));
   } catch (error) {
     throw folderError(
       error,
-      "Could not read project.json from the selected folder.",
+      `Could not read ${fileName} from the selected folder.`,
     );
   }
   try {
@@ -175,7 +184,7 @@ export async function readDirectoryProject(
   } catch (error) {
     throw new FolderStorageError(
       "invalid",
-      error instanceof Error ? error.message : "This project.json is invalid.",
+      error instanceof Error ? error.message : "This project file is invalid.",
     );
   }
 }
@@ -185,6 +194,7 @@ export async function writeDirectoryProject(
   directory: ProjectDirectoryHandle,
   text: string,
   expectedRevision: string | null,
+  fileName = PROJECT_FILE_NAME,
 ): Promise<string> {
   await requireFolderPermission(directory);
   let writable: FileSystemWritableFileStream | undefined;
@@ -192,17 +202,17 @@ export async function writeDirectoryProject(
   try {
     if (expectedRevision === null) {
       try {
-        await directory.getFileHandle(PROJECT_FILE_NAME);
+        await directory.getFileHandle(fileName);
         throw new FolderStorageError(
           "exists",
-          "This folder already contains project.json. Choose another project name.",
+          `A file named ${fileName} already exists in this folder. Choose another project name.`,
         );
       } catch (error) {
         if (!(error instanceof Error && error.name === "NotFoundError"))
           throw error;
       }
     }
-    const file = await directory.getFileHandle(PROJECT_FILE_NAME, {
+    const file = await directory.getFileHandle(fileName, {
       create: expectedRevision === null,
     });
     writable = await file.createWritable({
@@ -217,7 +227,7 @@ export async function writeDirectoryProject(
     )
       throw new FolderStorageError(
         "conflict",
-        "project.json changed in another window or application. Export your latest changes, then reopen the folder before saving.",
+        `${fileName} changed in another window or application. Export your latest changes, then reload the file before saving.`,
       );
     await writable.write(text);
     await writable.close();
@@ -227,7 +237,7 @@ export async function writeDirectoryProject(
     if (writable && !closed) await writable.abort().catch(() => {});
     throw folderError(
       error,
-      "Could not save project.json. Your latest changes remain in this browser. Check the folder and available disk space, then try again.",
+      `Could not save ${fileName}. Your latest changes remain in this browser. Check the folder and available disk space, then try again.`,
     );
   }
 }

@@ -1,6 +1,22 @@
 import { expect, type Page } from "@playwright/test";
 import type { Project } from "../../src/domain/schema";
 import { checkpoint } from "../../src/lib/revisions";
+import { templates } from "../../src/domain/templates";
+
+export async function loadTemplateProject(page: Page, name: string) {
+  if (name === "Blank flowsheet") {
+    await loadProject(page, {
+      version: 1,
+      name: "Untitled process",
+      units: [],
+      edges: [],
+    });
+    return;
+  }
+  const template = templates.find((item) => item.name === name);
+  if (!template) throw new Error(`Unknown template: ${name}`);
+  await loadProject(page, template.create());
+}
 
 /** Load test data through browser storage without a project import UI. */
 export async function loadProject(page: Page, project: Project) {
@@ -9,7 +25,7 @@ export async function loadProject(page: Page, project: Project) {
   await page.evaluate(
     (workspace) =>
       new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("project-cad", 3);
+        const request = indexedDB.open("project-cad");
         request.onupgradeneeded = () => {
           const database = request.result;
           if (!database.objectStoreNames.contains("workspace"))

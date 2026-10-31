@@ -88,9 +88,13 @@ Flowsheets
 The existing synthetic reactor example defaults to ideal gas. The PBR only
 supports that synthetic reaction. Real mixtures have no invented kinetics.
 The Raoult's law separation template uses benzene/toluene at 350 K and 55 kPa.
-For either liquid model, Distillation is a single TP flash: vapor exits out,
-liquid exits out2. Fixed cut and relative volatility apply only to the existing
-ideal-gas teaching contact. No multistage column or reflux claim is made.
+Without params.distillation, either liquid model retains a single TP flash:
+vapor exits out, liquid exits out2. Fixed cut and relative volatility apply only
+to the legacy ideal-gas teaching contact. Explicit FUG and MESH modes are
+documented in DISTILLATION.txt. MESH uses the same Raoult/Modified UNIFAC VLE,
+vapor-pressure and caloric correlations as stream flashes, including liquid
+excess enthalpy for Modified UNIFAC. It requires supported data on every stage,
+with total column pressure in 1–200 kPa. Ideal gas alone cannot run MESH.
 Mixers use a pressure–enthalpy (PH) flash over the intersection of active
 components' supported temperature intervals, allowing an outlet temperature
 outside the inlet-temperature bracket due to mixing or phase change. The PH

@@ -42,7 +42,7 @@ test("three model choices, real flash, model change and saved settings", async (
     fullPage: true,
   });
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",

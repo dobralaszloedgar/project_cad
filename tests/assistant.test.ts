@@ -19,6 +19,10 @@ import {
   MUSE_MODEL,
 } from "../src/server/assistant/providers/muse";
 import { vi } from "vitest";
+import {
+  codexSessionState,
+  toolContractHash,
+} from "../src/server/assistant/providers/tool-contract";
 
 const cleanup: (() => void)[] = [];
 afterEach(() => {
@@ -78,6 +82,47 @@ async function tick() {
 }
 
 describe("project tools", () => {
+  it("refreshes stale Codex tool definitions and carries recent intent without losing application history", async () => {
+    const { create } = setup();
+    const chat = await create();
+    const stored = {
+      ...chat,
+      origin: "http://127.0.0.1:3000",
+      providerSession: "old-thread",
+      runs: [
+        {
+          id: "run",
+          requestId: "request",
+          prompt: "Keep the existing reflux ratio",
+          text: "I will change only the tower diameter.",
+          status: "completed" as const,
+          activities: [],
+          proposals: [],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    };
+    const before = structuredClone(stored);
+    const fresh = codexSessionState(stored);
+    expect(fresh.resume).toBeUndefined();
+    expect(fresh.history).toContain("Keep the existing reflux ratio");
+    expect(fresh.context).toEqual([
+      { projectCadToolContract: toolContractHash },
+    ]);
+    expect(stored).toEqual(before);
+    const current = codexSessionState({
+      ...stored,
+      providerContext: fresh.context,
+    });
+    expect(current.resume).toBe("old-thread");
+    expect(current.history).toBe("");
+    expect(
+      codexSessionState({
+        ...stored,
+        providerContext: [{ projectCadToolContract: "old" }],
+      }).resume,
+    ).toBeUndefined();
+  });
   it("refreshes the project before every native-provider turn", async () => {
     const project = heatingExample();
     const input = {

@@ -1,0 +1,70 @@
+PUBLISHED PBR TEMPLATES
+
+Projects > Templates provides three complete ideal-gas, isothermal flowsheets:
+- PBR · Water–gas shift: CO + H2O <=> CO2 + H2; 493.15 K, 101325 Pa,
+  0.01 mol/s, inlet CO/H2O/CO2/H2 fractions 0.2/0.4/0/0.4; 0.1 kg catalyst.
+- PBR · Catalyst sizing: the same feed and kinetics, sized for 90% CO conversion.
+- PBR · Methanol synthesis: CO2 + 3 H2 <=> CH3OH + H2O coupled to
+  CO2 + H2 <=> CO + H2O; 493.2 K, 15 bar, 0.0348 kg catalyst, 0.01 mol/s.
+  Feed CO2/H2/CO/H2O/CH3OH/Ar fractions: 0.03/0.82/0.04/0/0/0.11.
+
+The operating recipes are examples, not reproductions of experimental runs.
+Open R-101 > Setup > Published kinetics to see the source, catalyst and limits.
+Expressions, pressure units and Arrhenius parameters remain editable. References
+describe the original template and remain attached when values are edited.
+
+WATER-GAS SHIFT
+
+Choi, Y. and Stenger, H.G. (2003), Journal of Power Sources 124, 432-439.
+https://doi.org/10.1016/S0378-7753(03)00614-1
+Equations 12 and 14; units in the nomenclature on p. 433.
+Cu/ZnO/Al2O3, Sud-Chemie EX-2248; studied at 393.15-523.15 K and 1 atm.
+
+rCO = 2.96e5 exp(-47400/(R T)) (pCO pH2O - pCO2 pH2/Keq)
+Keq = exp(4577.8/T - 4.33)
+
+Pressures are atm, R is J/(mol K), T is K. The original mol/(g-cat h)
+rate is multiplied by 1000/3600 to obtain mol/(kg-cat s). The stored kf
+is evaluated at 493.15 K; activation energy is 47400 J/mol.
+
+METHANOL SYNTHESIS
+
+Vanden Bussche, K.M. and Froment, G.F. (1996), Journal of Catalysis 161, 1-10.
+https://doi.org/10.1006/jcat.1996.0156
+Equation 3, Table 2, and equilibrium correlations on p. 5.
+ICI 51-2 Cu/ZnO/Al2O3; studied at 453.15-553.15 K and 15-51 bar.
+
+D = 1 + 3453.38 pH2O/pH2 + KH sqrt(pH2) + KW pH2O
+rMeOH = km (pCO2 pH2 - pMeOH pH2O/(Km pH2^2))/D^3
+rRWGS = ks (pCO2 - pCO pH2O/(Ks pH2))/D
+KH = 0.499 exp(17197/(R T)); KW = 6.62e-11 exp(124119/(R T))
+km = 1.07 exp(36696/(R T)); ks = 1.22e10 exp(-94765/(R T))
+Km = 10^(3066/T - 10.592); Ks = 10^(-2073/T + 2.029)
+
+Pressures are bar and rates are mol/(kg-cat s). The editor stores each
+temperature-dependent group at 493.2 K with Ea = -B for A exp(B/(R T)).
+Negative apparent activation energies are intentional. Hydrogen must be present.
+Both rates use CO2 as basis with coefficient -1. RWGS is allowed to reverse.
+
+PROPERTY DATA AND LIMITS
+
+template-chemicals.ts embeds six unchanged, hash-verified records from
+catalog release 274a918002b627c078e898199c08def7cd95bed6e1bbd5d8c31ae613c29c5b33.
+NIST Shomate/TRC heat capacities and referenced gas formation enthalpies are
+saved with each project. Existing ChemSep property notices in CHEMICAL_CATALOG.txt
+apply. No catalog or internet request is required to load or calculate a template.
+Pressure drop is zero in these recipes. Changing conditions outside the source
+temperature or pressure range produces a result warning. The PBR remains an
+isothermal ideal-gas model without catalyst transport, deactivation or phase
+equilibrium. Heat duty is calculated from the inlet/outlet enthalpy balance.
+
+NUMERICAL VERIFICATION
+
+scripts/reaction-template-reference.py independently evaluates the published
+rate laws using Python/SciPy. WGS uses quadrature plus a Brent root; methanol
+uses implicit Radau integration of six species flows. The application instead
+uses explicit Dormand-Prince integration of reaction extents. Pinned references
+in tests/fixtures/reaction-templates-reference.json check both rates and outlets.
+Default results: CO conversion 87.4408019%; 90% CO sizing requires
+0.115294488 kg; methanol case CO2 conversion is 20.8329388% with
+0.000101740754 mol/s methanol. Mass and energy balances are also checked.

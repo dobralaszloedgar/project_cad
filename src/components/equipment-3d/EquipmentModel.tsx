@@ -13,6 +13,8 @@ import { OperationClock } from "./operation";
 import { createProcessContents, createSystemFlow } from "./process-contents";
 import type { SystemExample } from "./system-geometry";
 import type { EquipmentCompositionColors } from "./composition-colors";
+import type { EquipmentModelOptions } from "./column-layout";
+import type { TrayHydraulicsResult } from "@/domain/equipment/tray-hydraulics";
 
 export type MotionProps = {
   playing: boolean;
@@ -31,6 +33,8 @@ export function EquipmentModel({
   liquidColor,
   compositionColors,
   trayCount = 8,
+  column,
+  hydraulics,
   ...props
 }: ThreeElements["group"] &
   MotionProps & {
@@ -39,6 +43,8 @@ export function EquipmentModel({
     liquidColor?: string;
     compositionColors?: EquipmentCompositionColors;
     trayCount?: number;
+    column?: EquipmentModelOptions["column"];
+    hydraulics?: TrayHydraulicsResult;
   }) {
   const mount = useRef<Group>(null);
   const rotors = useRef<Group[]>([]);
@@ -52,6 +58,7 @@ export function EquipmentModel({
     if (!parent) return;
     const model = createEquipmentModel(kind, section, transparent, {
       trayCount,
+      column,
     });
     rotors.current = [];
     model.traverse((part) => {
@@ -75,7 +82,7 @@ export function EquipmentModel({
       rotors.current = [];
       disposeEquipmentModel(model);
     };
-  }, [kind, section, transparent, invalidate, clock, trayCount]);
+  }, [kind, section, transparent, invalidate, clock, trayCount, column]);
   // Composition edits replace only the fluid, preserving equipment, camera,
   // and animation time while the new material colors become visible.
   useLayoutEffect(() => {
@@ -86,8 +93,9 @@ export function EquipmentModel({
       section || transparent,
       clock,
       liquidColor,
-      { trayCount },
+      { trayCount, column },
       compositionColors,
+      hydraulics,
     );
     contents.current = fluid;
     parent.add(fluid.group);
@@ -105,6 +113,8 @@ export function EquipmentModel({
     clock,
     liquidColor,
     trayCount,
+    column,
+    hydraulics,
     compositionColors,
   ]);
   useFrame((_, delta) => {

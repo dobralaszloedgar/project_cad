@@ -12,7 +12,6 @@ import {
   Grid2X2,
   Layers2,
   Maximize,
-  Mouse,
   Pause,
   Play,
   ScanLine,
@@ -361,12 +360,6 @@ export default function EquipmentSandbox() {
               >
                 Top
               </button>
-            </div>
-            <div className={styles.orbitHint}>
-              <Mouse size={14} />
-              <span title="Arrow keys pan; +/- zoom; F fits; P pans; V orbits; G toggles grid; L toggles labels. Pinch or Ctrl/Cmd + scroll zooms at the pointer.">
-                Drag to orbit · Space + drag / scroll to pan · Pinch to zoom
-              </span>
             </div>
             <button
               className={styles.rotateButton}

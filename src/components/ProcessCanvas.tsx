@@ -991,15 +991,6 @@ function Inner(props: Props) {
           </Controls>
         )}
       </ReactFlow>
-      {!presentation && (
-        <div className="navigation-hint">
-          {touch
-            ? "Drag to pan · Pinch to zoom"
-            : panning
-              ? "Drag to pan · V to select · Pinch to zoom"
-              : "Drag to select · Space + drag / scroll to pan · Pinch to zoom"}
-        </div>
-      )}
       {!presentation && hover ? (
         <div className="canvas-footnote">{hover}</div>
       ) : null}

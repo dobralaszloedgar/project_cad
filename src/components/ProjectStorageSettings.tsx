@@ -12,6 +12,7 @@ import {
   setDefaultProjectDirectory,
 } from "@/lib/project-preferences";
 import styles from "./CreateProjectDialog.module.css";
+import { connectProjectRoot } from "@/lib/storage";
 
 export default function ProjectStorageSettings() {
   const [directory, setDirectory] = useState<ProjectDirectoryHandle | null>(
@@ -52,7 +53,9 @@ export default function ProjectStorageSettings() {
       const next = await chooseProjectDirectory();
       if (!next) return;
       await setDefaultProjectDirectory(next);
+      await connectProjectRoot(next);
       setDirectory(next);
+      window.dispatchEvent(new Event("project-cad-folders-changed"));
     } catch (value) {
       setError(
         value instanceof Error

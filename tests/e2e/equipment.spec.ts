@@ -1,23 +1,12 @@
 import { test, expect, type Page } from "./test";
-import { loadProject } from "./project-fixture";
+import {
+  loadProject,
+  loadTemplateProject as loadTemplate,
+} from "./project-fixture";
 import {
   catalystExample,
   thermalCycleExample,
 } from "../../src/domain/examples";
-
-async function loadTemplate(page: Page, name: string) {
-  await page
-    .getByRole("button", { name: "Workspace menu", exact: true })
-    .click();
-  await page
-    .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Templates", exact: true })
-    .click();
-  await page
-    .getByRole("dialog", { name: "Start from a template" })
-    .getByRole("button", { name: new RegExp(name) })
-    .click();
-}
 
 async function inspect(page: Page, id: string) {
   await page.locator(".react-flow__node").filter({ hasText: id }).click();
@@ -49,7 +38,7 @@ test("duty setup calculates temperature and persists the active specification", 
     page.locator(".stream-table tr").filter({ hasText: "Stream 2" }),
   ).toContainText("175.24");
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await inspect(page, "H-401");
   await expect(page.getByLabel("Thermal specification")).toHaveValue("duty");

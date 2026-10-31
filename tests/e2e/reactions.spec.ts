@@ -87,9 +87,7 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
       .evaluate((element) => element.scrollWidth <= element.clientWidth),
   ).toBe(true);
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByText("Saved on this device", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await inspect(page, "R-101");
   await expect(page.getByLabel("Reaction name", { exact: true })).toHaveValue(
@@ -207,9 +205,7 @@ test("general rate expressions, reaction duplication and disabled states persist
     page.getByRole("table", { name: "Reactor species balance" }),
   ).toContainText("7.946196");
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByText("Saved on this device", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await inspect(page, "R-101");
   await expect(

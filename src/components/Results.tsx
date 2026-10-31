@@ -248,10 +248,11 @@ export default function Results({
           {result ? (
             <details className="limitations">
               <summary>
-                Model limits & calculation evidence ({result.warnings.length})
+                Model limits & calculation evidence (
+                {new Set(result.warnings).size})
               </summary>
               <ul>
-                {result.warnings.map((w) => (
+                {[...new Set(result.warnings)].map((w) => (
                   <li key={w}>{w}</li>
                 ))}
               </ul>

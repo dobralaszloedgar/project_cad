@@ -1,17 +1,33 @@
 import { normalizeTrayCount } from "../../domain/column-geometry";
 export { columnTrayLimits } from "../../domain/column-geometry";
-export type EquipmentModelOptions = { trayCount?: number };
+export type EquipmentModelOptions = {
+  trayCount?: number;
+  column?: {
+    diameter: number;
+    traySpacing: number;
+    feedTray?: number;
+    trayType: "sieve";
+  };
+};
 
 /** Shared by geometry, fluid, fittings and camera. Spacing is preserved: adding
  * trays extends the shell instead of stretching valves, ladders or internals. */
 export function columnLayout(options: EquipmentModelOptions = {}) {
   const trayCount = normalizeTrayCount(options.trayCount);
-  const traySpacing = 0.46;
+  const traySpacing = options.column?.traySpacing ?? 0.46;
   const trays = Array.from(
     { length: trayCount },
     (_, i) => 1.45 + i * traySpacing,
   );
-  const topOffset = (trayCount - 8) * traySpacing;
+  const topOffset = (trayCount - 1) * traySpacing - 7 * 0.46;
+  const radialScale = (options.column?.diameter ?? 1.2) / 1.2;
+  const feedIndex =
+    options.column?.feedTray === undefined
+      ? Math.floor((trayCount - 1) / 2)
+      : Math.max(
+          0,
+          Math.min(trayCount - 1, trayCount - options.column.feedTray),
+        );
   const shellTop = 5.23 + topOffset;
   const platforms: number[] = [];
   const upperPlatform = trays[trays.length - 1] - 0.05;
@@ -20,12 +36,13 @@ export function columnLayout(options: EquipmentModelOptions = {}) {
   return {
     trayCount,
     traySpacing,
+    radialScale,
     trays,
     topOffset,
     shellTop,
     platforms,
     shellBottom: 1.01,
-    feedY: trays[Math.floor((trayCount - 1) / 2)] + 0.14,
+    feedY: trays[feedIndex] + 0.14,
     distillateY: 5.06 + topOffset,
     totalHeight: 6.767 + topOffset,
   };

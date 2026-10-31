@@ -159,6 +159,20 @@ export function inspectReferenceContent(data, path, policy, normalize = true) {
 
 export function assertReferenceContent(data, path, policy) {
   const findings = inspectReferenceContent(data, path, policy);
+  if (path.toLowerCase().endsWith(".wasm.json")) {
+    let bytes;
+    try {
+      bytes = JSON.parse(data.toString("utf8"));
+    } catch {
+      throw new Error("Invalid WebAssembly byte-array file.");
+    }
+    if (
+      !Array.isArray(bytes) ||
+      bytes.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255)
+    )
+      throw new Error("Invalid WebAssembly byte-array file.");
+    findings.push(...inspectReferenceContent(Buffer.from(bytes), path, policy));
+  }
   const nameFindings = inspectReferenceContent(Buffer.from(path), path, policy);
   const rules = [
     ...new Set([...findings, ...nameFindings].map((item) => item.rule)),

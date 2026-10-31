@@ -7,6 +7,7 @@ import {
 import { plantTemplate } from "./plant-templates";
 import type { Project } from "./schema";
 import type { ModelId } from "./thermo/registry";
+import { defaultDistillation } from "./equipment/distillation-schema";
 
 /** Reuse connected layouts, with real property data and re-specified conditions.
  * Synthetic reaction benchmarks remain separate from the template catalog. */
@@ -16,7 +17,9 @@ function chemistry(
   modelId: ModelId,
 ): Project {
   if (project.units.some((unit) => unit.kind === "PBR"))
-    throw new Error("Real-chemical reaction templates are not implemented.");
+    throw new Error(
+      "Reaction templates must specify their chemistry and kinetics explicitly.",
+    );
   project.thermo = { modelId, mixture, extrapolate: false };
   return project;
 }
@@ -59,6 +62,30 @@ export function aromaticFlashTemplate(): Project {
   project.units[1].name = "Benzene–toluene flash separator";
   project.units[2].name = "Benzene-rich vapor";
   project.units[3].name = "Toluene-rich liquid";
+  return project;
+}
+
+export function aromaticColumnTemplate(method: "fug" | "mesh"): Project {
+  const project = solutionExample();
+  project.name =
+    method === "fug"
+      ? "Benzene–toluene FUG design"
+      : "Benzene–toluene MESH column";
+  project.units[0].name = "Benzene–toluene feed";
+  project.units[0].params.temperature = 340;
+  project.units[0].params.pressure = 65000;
+  const column = project.units[1];
+  column.name =
+    method === "fug" ? "FUG shortcut column" : "MESH distillation column";
+  column.params.pressure = 55000;
+  column.params.distillation = {
+    ...defaultDistillation(["benzene", "toluene"], 2.5),
+    method,
+    distillateTemperature: 335,
+    bottomsTemperature: 360,
+  };
+  project.units[2].name = "Benzene-rich distillate";
+  project.units[3].name = "Toluene-rich bottoms";
   return project;
 }
 

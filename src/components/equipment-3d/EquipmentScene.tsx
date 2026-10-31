@@ -53,6 +53,7 @@ import type { EquipmentInstance, SystemExample } from "./system-geometry";
 import { equipmentEnvelope } from "./plant-routing";
 import { rackMembers } from "./system-geometry";
 import type { PlantCompositionColors } from "./composition-colors";
+import type { TrayHydraulicsResult } from "@/domain/equipment/tray-hydraulics";
 
 export type SceneMode = "inspect" | "collection" | "process";
 export type CameraView = "perspective" | "front" | "top";
@@ -61,6 +62,7 @@ export type SceneProps = {
   mode: SceneMode;
   system?: SystemExample;
   compositionColors?: PlantCompositionColors;
+  columnHydraulics?: Record<string, TrayHydraulicsResult>;
   trayCount: number;
   section: boolean;
   transparent: boolean;
@@ -554,6 +556,7 @@ function Studio({
   mode,
   system,
   compositionColors,
+  columnHydraulics,
   trayCount,
   section,
   transparent,
@@ -675,6 +678,8 @@ function Studio({
                 rotation={[0, ((item.turn ?? 0) * Math.PI) / 2, 0]}
                 section={section}
                 trayCount={item.trayCount ?? trayCount}
+                column={item.column}
+                hydraulics={columnHydraulics?.[item.id]}
                 liquidColor={
                   compositionColors?.equipment[item.id]?.color ?? item.color
                 }

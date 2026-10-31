@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { planSchema, type Plan } from "../domain/actions";
 import { attachmentsSchema, type AttachmentInfo } from "./attachments";
+import { modelIds } from "../domain/thermo/registry";
+import { hashSchema } from "../domain/thermo/data";
+import {
+  chemicalSearchFields,
+  chemicalSearchSorts,
+} from "../lib/chemical-search";
 
 export const ASSISTANT_VERSION = 1;
 export const ASSISTANT_ENDPOINT = "http://127.0.0.1:43118";
@@ -105,6 +111,11 @@ export interface AssistantSnapshot {
   commands: ToolCommand[];
 }
 export const tools = {
+  get_guide: {
+    description:
+      "Read the current AI guide: workflows, units, partial edits, APIs, model limits and hydraulic result interpretation.",
+    schema: z.object({}).strict(),
+  },
   get_project: {
     description:
       "Read the connected Project CAD project, current revision, equipment, streams and model settings. Read this before proposing changes.",
@@ -115,9 +126,39 @@ export const tools = {
       "Read the available equipment, parameter units, action schema and calculation limits. Never assume unsupported chemistry or calculations.",
     schema: z.object({}).strict(),
   },
+  get_catalog_models: {
+    description:
+      "Read the configured chemical catalog's model coverage and current release. Does not change project components.",
+    schema: z.object({}).strict(),
+  },
+  search_chemicals: {
+    description:
+      "Search the configured chemical catalog for records supporting a model. Keep the returned release hash for get_chemical_selection. Does not modify the project.",
+    schema: z
+      .object({
+        query: z.string().max(100).default(""),
+        model: z.enum(modelIds),
+        release: hashSchema.optional(),
+        field: z.enum(chemicalSearchFields).default("all"),
+        sort: z.enum(chemicalSearchSorts).default("relevance"),
+        page: z.number().int().min(1).max(5000).default(1),
+      })
+      .strict(),
+  },
+  get_chemical_selection: {
+    description:
+      "Load verified data for 2-40 component IDs from one catalog release and model. Returns a catalog snapshot for a set_thermo_model action with mixture catalog; does not apply it.",
+    schema: z
+      .object({
+        release: hashSchema,
+        ids: z.array(z.string().min(1).max(80)).min(2).max(40),
+        model: z.enum(modelIds),
+      })
+      .strict(),
+  },
   preview_actions: {
     description:
-      "Validate a proposed batch against the current project without applying it. Requires the revision from get_project.",
+      "Validate a proposed batch against the current project without applying it. Returns the normalized candidate project and its revision. Requires the revision from get_project.",
     schema: z
       .object({ baseRevision: z.string().length(64), plan: planSchema })
       .strict(),

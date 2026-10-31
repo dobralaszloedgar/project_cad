@@ -247,9 +247,7 @@ test.describe("touch canvas", () => {
     await expect(
       page.getByRole("button", { name: "Pan canvas", exact: true }),
     ).toHaveCount(0);
-    await expect(page.locator(".navigation-hint")).toHaveText(
-      "Drag to pan · Pinch to zoom",
-    );
+    await expect(page.locator(".navigation-hint")).toHaveCount(0);
     await tab.tap();
     await expect(menu).toBeVisible();
     await menu

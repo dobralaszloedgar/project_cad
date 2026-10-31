@@ -51,6 +51,31 @@ describe("release reference policy", () => {
     }
     throw new Error("The filename check did not reject its fixture.");
   });
+  it("checks decoded WebAssembly byte arrays before allowing a release", () => {
+    const bytes = Buffer.from("\0asm\x01\0\0\0RetiredExample/build/source.rs");
+    expect(() =>
+      assertReferenceContent(
+        Buffer.from(JSON.stringify([...bytes])),
+        "src/domain/thermo/kernel.wasm.json",
+        policy,
+      ),
+    ).toThrow("P01");
+    expect(() =>
+      assertReferenceContent(
+        Buffer.from(JSON.stringify([...Buffer.from("\0asm\x01\0\0\0")])),
+        "kernel.wasm.json",
+        policy,
+      ),
+    ).not.toThrow();
+    for (const content of ["{", "{}", "[256]", "[-1]", '["82"]', "[1.5]"])
+      expect(() =>
+        assertReferenceContent(
+          Buffer.from(content),
+          "kernel.wasm.json",
+          policy,
+        ),
+      ).toThrow("Invalid WebAssembly byte-array file");
+  });
   it("allows an exact enclosing string only at its approved path", () => {
     const scoped = validateReferencePolicy({
       version: 1,

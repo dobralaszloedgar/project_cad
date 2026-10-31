@@ -16,6 +16,24 @@ export const compositionSchema = z
     "At most 40 components",
   );
 
+const sourceRange = z
+  .tuple([z.number().finite().positive(), z.number().finite().positive()])
+  .refine(([min, max]) => min <= max, "Source range must be ordered");
+
+/** Provenance for the original template; users can still edit its rate law. */
+export const kineticsSourceSchema = z
+  .object({
+    citation: z.string().min(1).max(500),
+    url: z.string().url().max(1000).startsWith("https://"),
+    locator: z.string().min(1).max(200),
+    catalyst: z.string().min(1).max(200),
+    temperatureRange: sourceRange,
+    pressureRange: sourceRange,
+    rateBasis: z.string().min(1).max(500),
+    notes: z.string().min(1).max(2000),
+  })
+  .strict();
+
 export const reactionSchema = z
   .object({
     id: z.string().min(1).max(80),
@@ -37,6 +55,7 @@ export const reactionSchema = z
     activationEnergy: z.number().finite().min(-1e6).max(1e6).default(0),
     referenceTemperature: z.number().min(250).max(800).default(450),
     rateLaw: rateLawSchema.optional(),
+    kineticsSource: kineticsSourceSchema.optional(),
   })
   .strict();
 

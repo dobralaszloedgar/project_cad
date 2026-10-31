@@ -17,6 +17,7 @@ import {
 import { RateLawEditor } from "./RateLawEditor";
 import { RatePreview } from "./RatePreview";
 import { ReactionEquation } from "./ReactionEquation";
+import { KineticsSource } from "./KineticsSource";
 import { MathFormula } from "./RateMath";
 import type { Dimension } from "@/domain/unit-definitions";
 import EngineeringInput from "../EngineeringInput";
@@ -528,6 +529,9 @@ export function PackedBedSetup({
             </p>
             <section className="reaction-kinetics">
               <h4>Reaction kinetics</h4>
+              {selected.kineticsSource && (
+                <KineticsSource source={selected.kineticsSource} />
+              )}
               <div className="equipment-field-grid">
                 <label>
                   Rate basis species

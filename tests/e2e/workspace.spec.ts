@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./test";
 import fs from "node:fs/promises";
+import { loadTemplateProject as template } from "./project-fixture";
 const output = "/tmp/project-cad-qa";
 test.beforeAll(async () => {
   await fs.mkdir(output, { recursive: true });
@@ -14,19 +15,6 @@ async function start(page: Page) {
 async function closeDialog(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.locator("dialog[open]")).toHaveCount(0);
-}
-async function template(page: Page, name: string) {
-  await page
-    .getByRole("button", { name: "Workspace menu", exact: true })
-    .click();
-  await page
-    .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Templates", exact: true })
-    .click();
-  await page
-    .getByRole("dialog", { name: "Start from a template" })
-    .getByRole("button", { name: new RegExp(name) })
-    .click();
 }
 async function edit(page: Page, id: string) {
   await page.locator(".react-flow__node").filter({ hasText: id }).click();
@@ -105,10 +93,10 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
   const download = await downloadPromise;
   const path = await download.path();
   const json = JSON.parse(await fs.readFile(path!, "utf8"));
-  expect(json.project.units).toHaveLength(6);
-  expect(json.revisions).toHaveLength(4);
+  expect(json.workspace.project.units).toHaveLength(6);
+  expect(json.workspace.revisions).toHaveLength(4);
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   expect(errors).toEqual([]);
@@ -122,7 +110,9 @@ test("3D and split views preserve topology and synchronized editing", async ({
   await expect(page.locator(".plant-label")).toHaveCount(6);
   await page.locator(".plant-label").filter({ hasText: "S-101" }).click();
   await expect(page.locator("dialog[open]")).toHaveCount(0);
-  await expect(page.locator(".plant-label").filter({ hasText: "S-101" })).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator(".plant-label").filter({ hasText: "S-101" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("e");
   await page.getByLabel("Secondary outlet fraction").fill("0.7");
   await page.getByRole("button", { name: "Apply conditions" }).click();
@@ -295,7 +285,7 @@ test("clear local history requires confirmation and persists an empty project", 
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
   await expect(page.getByRole("status")).toContainText("cleared");
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText(
     "Untitled process",

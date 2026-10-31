@@ -141,7 +141,7 @@ test("folder projects keep their file in Trash and delete it from disk only afte
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const parent = await root.getDirectoryHandle("Laptop projects");
-    const folder = await parent.getDirectoryHandle("Trash study");
+    const folder = parent;
     const writer = await (
       await folder.getFileHandle("notes.txt", { create: true })
     ).createWritable();
@@ -172,7 +172,7 @@ test("folder projects keep their file in Trash and delete it from disk only afte
   const dialog = page.getByRole("dialog", {
     name: "Delete project permanently?",
   });
-  await expect(dialog).toContainText("Trash study/project.json");
+  await expect(dialog).toContainText("Laptop projects/Trash study.pcad");
   await page.screenshot({ path: info.outputPath("trash-desktop-confirm.png") });
   await folderControls(page, { permission: "denied", grant: "denied" });
   await dialog
@@ -194,11 +194,11 @@ test("folder projects keep their file in Trash and delete it from disk only afte
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const parent = await root.getDirectoryHandle("Laptop projects");
-      const folder = await parent.getDirectoryHandle("Trash study");
+      const folder = parent;
       const notes = await (await folder.getFileHandle("notes.txt")).getFile();
       let missing = false;
       try {
-        await folder.getFileHandle("project.json");
+        await folder.getFileHandle("Trash study.pcad");
       } catch (error) {
         missing =
           error instanceof DOMException && error.name === "NotFoundError";

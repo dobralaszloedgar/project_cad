@@ -57,6 +57,11 @@ export function PackedBedResults({
   return (
     <section className="equipment-section reactor-results">
       <h3>Reaction results</h3>
+      {result.warnings?.map((warning) => (
+        <p className="equipment-help" role="alert" key={warning}>
+          {warning}
+        </p>
+      ))}
       <dl className="equipment-result-values">
         <div>
           <dt>

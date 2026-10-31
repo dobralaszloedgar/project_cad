@@ -21,6 +21,8 @@ import type { Dimension } from "@/domain/unit-definitions";
 import EngineeringInput from "./EngineeringInput";
 import NumberInput from "./NumberInput";
 import { useUnitSystem } from "./useUnitSystem";
+import { DistillationSetup } from "./DistillationSetup";
+import { DistillationResults } from "./DistillationResults";
 
 type NumericParam = {
   [K in keyof Unit["params"]]-?: Unit["params"][K] extends number ? K : never;
@@ -233,7 +235,11 @@ function EquipmentResults({
           <div className="equipment-performance">
             <dl className="equipment-result-values">
               <div>
-                <dt>Heat duty</dt>
+                <dt>
+                  {eq.distillation?.method === "fug"
+                    ? "Net duty at specified product temperatures"
+                    : "Heat duty"}
+                </dt>
                 <dd>{display.format(eq.duty, "power")}</dd>
               </div>
               {eq.conversion !== undefined && (
@@ -245,6 +251,14 @@ function EquipmentResults({
             </dl>
             {eq.profile && <CatalystProfile profile={eq.profile} />}
           </div>
+          {eq.distillation && (
+            <DistillationResults
+              result={eq.distillation}
+              names={Object.fromEntries(
+                context.ids.map((id) => [id, context.catalog.get(id).name]),
+              )}
+            />
+          )}
           {eq.packedBed && (
             <PackedBedResults
               result={eq.packedBed}
@@ -772,44 +786,66 @@ export default function EquipmentEditor({
             )}
             {unit.kind === "Distillation" && (
               <>
-                <Section title="Separation specification">
-                  <p className="equipment-model-badge">
-                    Simplified separation ·{" "}
-                    {settings.modelId === "ideal-gas"
-                      ? "single equilibrium contact"
-                      : "single TP flash"}
-                  </p>
-                  {settings.modelId === "ideal-gas" ? (
-                    <div className="equipment-field-grid">
-                      {field(
-                        "relativeVolatility",
-                        context.ids.length > 2
-                          ? "Relative volatility: first / remaining components"
-                          : "Relative volatility A/B",
-                        1.01,
-                        20,
-                        "0.01",
-                      )}
-                      {field(
-                        "distillateFraction",
-                        "Distillate fraction",
-                        0.01,
-                        0.99,
-                        "0.01",
-                      )}
-                    </div>
-                  ) : (
-                    <p className="equipment-help">
-                      The feed temperature and pressure determine the phase
-                      split. Vapor leaves outlet 1; liquid leaves outlet 2.
+                <DistillationSetup
+                  params={params}
+                  settings={settings}
+                  onChange={setParams}
+                />
+                {!params.distillation && (
+                  <Section title="Separation specification">
+                    <p className="equipment-model-badge">
+                      Simplified separation ·{" "}
+                      {settings.modelId === "ideal-gas"
+                        ? "single equilibrium contact"
+                        : "single TP flash"}
                     </p>
+                    {settings.modelId === "ideal-gas" ? (
+                      <div className="equipment-field-grid">
+                        {field(
+                          "relativeVolatility",
+                          context.ids.length > 2
+                            ? "Relative volatility: first / remaining components"
+                            : "Relative volatility A/B",
+                          1.01,
+                          20,
+                          "0.01",
+                        )}
+                        {field(
+                          "distillateFraction",
+                          "Distillate fraction",
+                          0.01,
+                          0.99,
+                          "0.01",
+                        )}
+                      </div>
+                    ) : (
+                      <p className="equipment-help">
+                        The feed temperature and pressure determine the phase
+                        split. Vapor leaves outlet 1; liquid leaves outlet 2.
+                      </p>
+                    )}
+                  </Section>
+                )}
+                <Section
+                  title={
+                    params.distillation?.method === "mesh"
+                      ? "Equilibrium trays"
+                      : "Column appearance"
+                  }
+                >
+                  {field(
+                    "trayCount",
+                    params.distillation?.method === "mesh"
+                      ? "Equilibrium trays (2D & 3D)"
+                      : "Visible trays (2D & 3D)",
+                    2,
+                    80,
+                    "1",
                   )}
-                </Section>
-                <Section title="Column appearance">
-                  {field("trayCount", "Visible trays (2D & 3D)", 2, 80, "1")}
                   <p className="equipment-help">
-                    Visible trays resize both column views. They do not change
-                    the equilibrium calculation.
+                    {params.distillation?.method === "mesh"
+                      ? "This count sets the solved equilibrium trays and resizes both views. Condenser and reboiler are additional stages."
+                      : "Visible trays resize both column views. They do not constrain the separation calculation."}
                   </p>
                 </Section>
               </>

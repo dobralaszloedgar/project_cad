@@ -9,6 +9,7 @@ import {
   LatheGeometry,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   MeshPhysicalMaterial,
   PlaneGeometry,
   Quaternion,
@@ -16,6 +17,7 @@ import {
   SphereGeometry,
   Sphere,
   TubeGeometry,
+  TorusGeometry,
   Vector2,
   Vector3,
 } from "three";
@@ -34,6 +36,10 @@ import {
   columnOverhead,
   type EquipmentModelOptions,
 } from "./column-layout";
+import type {
+  TrayHydraulicsResult,
+  HydraulicState,
+} from "@/domain/equipment/tray-hydraulics";
 import {
   bedRivulets,
   bedDrainage,
@@ -452,6 +458,7 @@ export function createProcessContents(
     : flowColors.feed,
   options: EquipmentModelOptions = {},
   composition?: EquipmentCompositionColors,
+  hydraulics?: TrayHydraulicsResult,
 ) {
   color = composition?.color ?? color;
   const c = new Contents(clock, color);
@@ -776,6 +783,8 @@ export function createProcessContents(
     }
     case "Distillation": {
       const layout = columnLayout(options);
+      c.group.scale.set(layout.radialScale, 1, layout.radialScale);
+      c.group.userData.hydraulics = hydraulics;
       const overhead = columnOverhead(options);
       const top = (y: number) => y + layout.topOffset;
       const distillate = composition
@@ -834,6 +843,29 @@ export function createProcessContents(
         composition ? distillate : "#c1d9d6",
       );
       for (const [i, y] of layout.trays.entries()) {
+        // Geometry is bottom-up; the solver numbers trays from the top.
+        const stage = layout.trayCount - i;
+        const rating = hydraulics?.stages.find((s) => s.stage === stage);
+        const weeping =
+          rating?.weepRatio !== null &&
+          rating?.weepRatio !== undefined &&
+          rating.weepRatio < 1;
+        const flooding =
+          !!rating &&
+          Math.max(
+            rating.jetFloodFraction ?? 0,
+            rating.downcomerFloodFraction,
+          ) >= 1;
+        const depth = rating
+          ? Math.min(
+              layout.traySpacing * 0.82,
+              Math.max(
+                0.025,
+                rating.frothHeight * (weeping ? 0.45 : 1) +
+                  (flooding ? layout.traySpacing * 0.28 : 0),
+              ),
+            )
+          : 0.07;
         // The solver provides endpoint compositions, not a tray profile. Blend
         // through the feed elevation without inventing additional separation.
         c.tint(
@@ -852,19 +884,83 @@ export function createProcessContents(
             : color,
         );
         const x = i % 2 === 0 ? -0.46 : 0.46;
-        c.bulk([0, y + 0.035, 0], 0.54, 0.05);
-        c.surface([0, y + 0.07, 0], 0.54, 0.007, 0.28);
+        c.bulk([0, y + depth / 2, 0], 0.54, depth);
+        c.surface(
+          [0, y + depth, 0],
+          0.54,
+          flooding ? 0.018 : 0.007,
+          flooding ? 0.65 : 0.28,
+        );
         c.aerate(
           [0, y + 0.055, 0],
           0.47,
-          Math.min(120, Math.max(24, Math.floor(1600 / layout.trayCount))),
-          0.09,
+          Math.min(
+            120,
+            Math.max(12, Math.floor((weeping ? 400 : 1600) / layout.trayCount)),
+          ),
+          Math.max(0.03, depth - 0.025),
         );
-        c.fall([x, y - 0.15, 0], 0.43, 0.43, Math.PI / 2, {
-          amplitude: 0.004,
-          froth: 0.14,
-        });
-        c.vapor([0, y + 0.26, 0], 0.89, 0.3, 0.035);
+        c.fall(
+          [x, y - (layout.traySpacing - depth) / 2, 0],
+          0.43,
+          layout.traySpacing - 0.03,
+          Math.PI / 2,
+          {
+            amplitude: 0.004,
+            froth: 0.14,
+          },
+        );
+        c.vapor(
+          [0, y + layout.traySpacing * 0.57, 0],
+          0.89,
+          layout.traySpacing * 0.65,
+          0.035,
+        );
+        if (hydraulics) {
+          const colors: Record<HydraulicState, string> = {
+            normal: "#17885f",
+            "near-flooding": "#eaa521",
+            weeping: "#3577ef",
+            flooding: "#f04949",
+            "flooding-and-weeping": "#f04949",
+            unrated: "#94a3ab",
+          };
+          const ring = new Mesh(
+            new TorusGeometry(0.558, 0.012, 8, 48),
+            new MeshBasicMaterial({
+              color: colors[rating?.state ?? "unrated"],
+            }),
+          );
+          ring.rotation.x = Math.PI / 2;
+          ring.position.y = y + 0.02;
+          ring.name = `tray-${stage}-hydraulic-state`;
+          ring.userData = { stage, state: rating?.state ?? "unrated" };
+          c.group.add(ring);
+        }
+        if (weeping) {
+          const paths: Point[][] = [];
+          for (let dx = -0.27; dx <= 0.3; dx += 0.18)
+            for (let dz = -0.27; dz <= 0.3; dz += 0.18)
+              paths.push([
+                [dx, y - 0.02, dz],
+                [dx, y - layout.traySpacing + 0.1, dz],
+              ]);
+          c.drops(paths, 0.012, 3, 0.65, `tray-${stage}-weeping`, true);
+        }
+        if (flooding) {
+          const paths: Point[][] = Array.from({ length: 8 }, (_, k) => {
+            const angle = (k * Math.PI) / 4;
+            return [
+              [Math.cos(angle) * 0.28, y + depth, Math.sin(angle) * 0.28],
+              [
+                Math.cos(angle + 0.15) * 0.4,
+                y + layout.traySpacing + 0.05,
+                Math.sin(angle + 0.15) * 0.4,
+              ],
+            ];
+          });
+          c.drops(paths, 0.014, 3, 0.8, `tray-${stage}-carryover`);
+        }
       }
       c.tint(bottoms);
       c.bulk([0, 1.1, 0], 0.54, 0.16);

@@ -24,8 +24,16 @@ import {
   Info,
   Trash2,
   RotateCcw,
+  RefreshCw,
+  FolderPlus,
 } from "lucide-react";
-import type { SavedProject } from "@/lib/storage";
+import type {
+  SavedProject,
+  ProjectRoot,
+  ProjectLibraryFolder,
+  ProjectDirectoryHandle,
+} from "@/lib/storage";
+import { projectDisplayName, projectLocation } from "@/lib/project-file";
 import { type Project } from "@/domain/schema";
 import { arrangeFlowsheet } from "@/domain/flowsheet-layout";
 import { EquipmentIcon } from "./EquipmentIcon";
@@ -163,9 +171,11 @@ function ProjectPreview({ project }: { project: Project }) {
 }
 export default function ProjectsPage({
   projects,
+  roots,
+  folders,
   currentId,
   onOpen,
-  onNew,
+  onNew: createProject,
   onTemplates,
   onRename,
   onDuplicate,
@@ -178,13 +188,19 @@ export default function ProjectsPage({
   palette,
   onPalette,
   onSaveFolder,
+  onRefresh,
+  onConnectFolder,
+  onLocate,
+  onNewFolder,
   busy,
   message,
 }: {
   projects: SavedProject[];
+  roots: ProjectRoot[];
+  folders: ProjectLibraryFolder[];
   currentId: string;
   onOpen: (entry: SavedProject) => void;
-  onNew: () => void;
+  onNew: (directory?: ProjectDirectoryHandle) => void;
   onTemplates?: () => void;
   onRename: (entry: SavedProject, name: string) => void;
   onDuplicate: (entry: SavedProject) => void;
@@ -197,6 +213,13 @@ export default function ProjectsPage({
   palette: string;
   onPalette: (id: string) => void;
   onSaveFolder: (entry: SavedProject) => void;
+  onRefresh: () => void;
+  onConnectFolder: () => void;
+  onLocate: (entry: SavedProject) => void;
+  onNewFolder: (
+    directory: ProjectDirectoryHandle,
+    name: string,
+  ) => Promise<void>;
   busy: boolean;
   message: string;
 }) {
@@ -234,20 +257,72 @@ export default function ProjectsPage({
     [deleteFailed, setDeleteFailed] = useState(false),
     [name, setName] = useState("");
   const inTrash = filter === "Trash";
+  const [selectedFolderView, setFolderView] = useState<{
+    rootId: string;
+    path: string;
+  } | null>(null);
+  // An externally moved folder can invalidate the current breadcrumb. Return
+  // to its connected root, where the refreshed folder is visible.
+  const folderView =
+    selectedFolderView &&
+    folders.some(
+      (folder) =>
+        folder.rootId === selectedFolderView.rootId &&
+        folder.path === selectedFolderView.path,
+    )
+      ? selectedFolderView
+      : selectedFolderView
+        ? { ...selectedFolderView, path: "" }
+        : null;
+  const [newFolderName, setNewFolderName] = useState<string | null>(null);
+  const [folderError, setFolderError] = useState("");
+  const currentFolder = folderView
+    ? folders.find(
+        (folder) =>
+          folder.rootId === folderView.rootId &&
+          folder.path === folderView.path,
+      )
+    : undefined;
+  const currentRoot = roots.find((root) => root.id === folderView?.rootId);
+  const subfolders = folderView
+    ? folders
+        .filter(
+          (folder) =>
+            folder.rootId === folderView.rootId &&
+            folder.path &&
+            folder.path.split("/").slice(0, -1).join("/") === folderView.path,
+        )
+        .sort((a, b) => a.path.localeCompare(b.path))
+    : [];
+  const onNew = () => createProject(currentFolder?.directory);
+  const openEntry = (entry: SavedProject) =>
+    entry.missing ? onLocate(entry) : onOpen(entry);
+  function browse(rootId: string, path: string) {
+    setFolderView({ rootId, path });
+    setFilter("Folder");
+    setSearch("");
+    setSelected(null);
+    setMenu(null);
+  }
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const visible = projects
     .filter(
       (entry) =>
         Boolean(entry.trashedAt) === inTrash &&
+        (!folderView ||
+          (!entry.missing &&
+            entry.rootId === folderView.rootId &&
+            entry.relativePath?.split("/").slice(0, -1).join("/") ===
+              folderView.path)) &&
         (filter !== "Starred" || entry.starred) &&
-        entry.workspace.project.name
+        projectDisplayName(entry)
           .toLowerCase()
           .includes(search.trim().toLowerCase()),
     )
     .sort((a, b) =>
       sort === "name"
-        ? a.workspace.project.name.localeCompare(
-            b.workspace.project.name,
+        ? projectDisplayName(a).localeCompare(
+            projectDisplayName(b),
             undefined,
             {
               numeric: true,
@@ -280,7 +355,7 @@ export default function ProjectsPage({
   }
   function rename(entry: SavedProject) {
     setRenaming(entry);
-    setName(entry.workspace.project.name);
+    setName(projectDisplayName(entry));
   }
   function confirmDelete(entry: SavedProject) {
     setDeleteFailed(false);
@@ -351,6 +426,7 @@ export default function ProjectsPage({
               aria-current={filter === item.label ? "page" : undefined}
               onClick={() => {
                 setFilter(item.label);
+                setFolderView(null);
                 setSelected(null);
                 setSearch("");
                 closeMenu();
@@ -360,6 +436,32 @@ export default function ProjectsPage({
               <span>{item.label}</span>
             </button>
           ))}
+          <div
+            className="project-connected-folders"
+            aria-label="Connected folders"
+          >
+            <span className="project-folders-caption">Folders</span>
+            {roots.map((root) => (
+              <button
+                key={root.id}
+                className={`projects-nav-item ${folderView?.rootId === root.id ? "active" : ""}`}
+                onClick={() => browse(root.id, "")}
+                title={root.name}
+                disabled={busy}
+              >
+                <Folder size={17} />
+                <span>{root.name}</span>
+              </button>
+            ))}
+            <button
+              className="projects-nav-item"
+              onClick={onConnectFolder}
+              disabled={busy}
+            >
+              <FolderOpen size={17} />
+              <span>Connect folder</span>
+            </button>
+          </div>
           <div className="projects-preferences">
             <button
               className="projects-nav-item"
@@ -402,6 +504,15 @@ export default function ProjectsPage({
           }}
         >
           <div className="project-search-row">
+            <button
+              className="icon-button"
+              aria-label="Refresh projects"
+              title="Refresh from disk"
+              onClick={onRefresh}
+              disabled={busy}
+            >
+              <RefreshCw size={18} />
+            </button>
             <label className="project-search">
               <Search size={19} />
               <input
@@ -456,15 +567,36 @@ export default function ProjectsPage({
             </div>
           </div>
           <div className="project-library-title">
-            <h1>{search.trim() ? "Search results" : filter}</h1>
+            <h1>
+              {search.trim()
+                ? "Search results"
+                : folderView
+                  ? folderView.path.split("/").at(-1) ||
+                    currentRoot?.name ||
+                    "Folder"
+                  : filter}
+            </h1>
+            {currentFolder ? (
+              <button
+                className="btn btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  setNewFolderName("");
+                  setFolderError("");
+                }}
+              >
+                <FolderPlus size={16} />
+                New folder
+              </button>
+            ) : null}
             {selectedEntry ? (
               <div
                 className="project-selection"
                 role="toolbar"
                 aria-label="Selected project"
               >
-                <span title={selectedEntry.workspace.project.name}>
-                  {selectedEntry.workspace.project.name}
+                <span title={projectDisplayName(selectedEntry)}>
+                  {projectDisplayName(selectedEntry)}
                 </span>
                 {inTrash ? (
                   <button
@@ -483,7 +615,7 @@ export default function ProjectsPage({
                       aria-label="Open selected project"
                       title="Open"
                       disabled={busy}
-                      onClick={() => onOpen(selectedEntry)}
+                      onClick={() => openEntry(selectedEntry)}
                     >
                       <FolderOpen size={16} />
                     </button>
@@ -498,8 +630,16 @@ export default function ProjectsPage({
                     </button>
                     <button
                       className="icon-button"
-                      aria-label="Save selected project to folder"
-                      title="Save to folder…"
+                      aria-label={
+                        selectedEntry.folderName
+                          ? "Move selected project to folder"
+                          : "Save selected project to folder"
+                      }
+                      title={
+                        selectedEntry.folderName
+                          ? "Move to folder…"
+                          : "Save to folder…"
+                      }
                       disabled={busy}
                       onClick={() => onSaveFolder(selectedEntry)}
                     >
@@ -540,6 +680,55 @@ export default function ProjectsPage({
             <span>{visible.length}</span>
             {message ? <p role="status">{message}</p> : null}
           </div>
+          {folderView && currentRoot ? (
+            <nav
+              className="project-folder-breadcrumbs"
+              aria-label="Folder path"
+            >
+              <button
+                onClick={() => browse(currentRoot.id, "")}
+                disabled={busy}
+              >
+                {currentRoot.name}
+              </button>
+              {folderView.path
+                .split("/")
+                .filter(Boolean)
+                .map((part, index, parts) => (
+                  <span key={index}>
+                    {" "}
+                    /{" "}
+                    <button
+                      onClick={() =>
+                        browse(
+                          currentRoot.id,
+                          parts.slice(0, index + 1).join("/"),
+                        )
+                      }
+                      disabled={busy}
+                    >
+                      {part}
+                    </button>
+                  </span>
+                ))}
+            </nav>
+          ) : null}
+          {subfolders.length ? (
+            <div className="project-folder-grid">
+              {subfolders.map((folder) => (
+                <button
+                  className="project-folder-card"
+                  key={folder.path}
+                  aria-label={`Open folder ${folder.path}`}
+                  disabled={busy}
+                  onClick={() => browse(folder.rootId, folder.path)}
+                >
+                  <Folder size={24} />
+                  <span>{folder.path.split("/").at(-1)}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {visible.length ? (
             <div className={list ? "project-list" : "project-grid"}>
               {visible.map((entry) => (
@@ -593,32 +782,31 @@ export default function ProjectsPage({
                         return;
                       }
                       setSelected(entry.id);
-                      if (event.detail === 0 && !inTrash) onOpen(entry);
+                      if (event.detail === 0 && !inTrash) openEntry(entry);
                     }}
                     onDoubleClick={() => {
-                      if (!inTrash) onOpen(entry);
+                      if (!inTrash) openEntry(entry);
                     }}
                     aria-pressed={selected === entry.id}
                     disabled={busy}
-                    aria-label={`${inTrash ? "Select" : "Open"} ${entry.workspace.project.name}`}
+                    aria-label={`${inTrash ? "Select" : "Open"} ${projectDisplayName(entry)}`}
                   >
                     <ProjectPreview project={entry.workspace.project} />
                     <div className="project-card-title">
                       <FileBox size={21} />
                       <span>
-                        <strong>{entry.workspace.project.name}</strong>
+                        <strong>{projectDisplayName(entry)}</strong>
                         <small
                           className={folderStyles.projectLocation}
-                          title={
-                            entry.folderName
-                              ? `${entry.folderName}/project.json`
-                              : "Stored in this browser"
-                          }
+                          title={projectLocation(entry)}
                         >
                           {entry.id === currentId ? "Open · " : ""}
-                          {entry.folderName
-                            ? `${entry.folderName}/project.json`
-                            : "Browser storage"}
+                          {entry.missing
+                            ? "File missing · Locate project · "
+                            : entry.copyOf
+                              ? "Copy · "
+                              : ""}
+                          {projectLocation(entry)}
                         </small>
                       </span>
                     </div>
@@ -638,7 +826,7 @@ export default function ProjectsPage({
                   {!inTrash ? (
                     <button
                       className="project-star"
-                      aria-label={`${entry.starred ? "Unstar" : "Star"} ${entry.workspace.project.name}`}
+                      aria-label={`${entry.starred ? "Unstar" : "Star"} ${projectDisplayName(entry)}`}
                       onClick={() => onStar(entry)}
                       disabled={busy}
                     >
@@ -650,7 +838,7 @@ export default function ProjectsPage({
                   ) : null}
                   <button
                     className="project-card-menu-toggle"
-                    aria-label={`Actions for ${entry.workspace.project.name}`}
+                    aria-label={`Actions for ${projectDisplayName(entry)}`}
                     aria-expanded={menu?.entry?.id === entry.id}
                     aria-haspopup="menu"
                     disabled={busy}
@@ -699,7 +887,7 @@ export default function ProjectsPage({
           {...menu}
           label={
             menu.entry
-              ? `Actions for ${menu.entry.workspace.project.name}`
+              ? `Actions for ${projectDisplayName(menu.entry)}`
               : "Library actions"
           }
           onClose={closeMenu}
@@ -720,9 +908,13 @@ export default function ProjectsPage({
                 ]
               : [
                   {
-                    label: "Open",
+                    label: menu.entry.missing
+                      ? "Locate project"
+                      : menu.entry.copyOf
+                        ? "Open as independent project"
+                        : "Open",
                     icon: <FolderOpen size={16} />,
-                    run: () => onOpen(menu.entry!),
+                    run: () => openEntry(menu.entry!),
                   },
                   {
                     label: menu.entry.starred ? "Unstar" : "Star",
@@ -741,7 +933,9 @@ export default function ProjectsPage({
                     run: () => onDuplicate(menu.entry!),
                   },
                   {
-                    label: "Save to folder…",
+                    label: menu.entry.folderName
+                      ? "Move to folder…"
+                      : "Save to folder…",
                     icon: <HardDrive size={16} />,
                     run: () => onSaveFolder(menu.entry!),
                   },
@@ -795,9 +989,8 @@ export default function ProjectsPage({
           </p>
           {deleting.folderName ? (
             <p>
-              This also deletes{" "}
-              <strong>{deleting.folderName}/project.json</strong> from disk. The
-              folder and any other files inside it are kept.
+              This also deletes <strong>{projectLocation(deleting)}</strong>{" "}
+              from disk. The folder and any other files inside it are kept.
             </p>
           ) : (
             <p>This removes the project saved in this browser.</p>
@@ -859,13 +1052,9 @@ export default function ProjectsPage({
         >
           <dl className="project-details">
             <dt>Name</dt>
-            <dd>{details.workspace.project.name}</dd>
+            <dd>{projectDisplayName(details)}</dd>
             <dt>Save location</dt>
-            <dd>
-              {details.folderName
-                ? `${details.folderName}/project.json`
-                : "Browser storage"}
-            </dd>
+            <dd>{projectLocation(details)}</dd>
             <dt>Last modified</dt>
             <dd>{new Date(details.updatedAt).toLocaleString()}</dd>
             <dt>Equipment</dt>
@@ -883,9 +1072,62 @@ export default function ProjectsPage({
               }}
             >
               <FolderOpen size={16} />
-              Save to folder…
+              {details.folderName ? "Move to folder…" : "Save to folder…"}
             </button>
           </div>
+        </Dialog>
+      ) : null}
+      {newFolderName !== null && currentFolder ? (
+        <Dialog
+          title="New folder"
+          className="rename-project-dialog"
+          onClose={() => {
+            if (!busy) setNewFolderName(null);
+          }}
+        >
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              try {
+                await onNewFolder(currentFolder.directory, newFolderName);
+                setNewFolderName(null);
+              } catch (error) {
+                setFolderError(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not create folder.",
+                );
+              }
+            }}
+          >
+            <label>
+              Folder name
+              <input
+                className="input"
+                value={newFolderName}
+                onChange={(event) => setNewFolderName(event.target.value)}
+                maxLength={80}
+                disabled={busy}
+              />
+            </label>
+            {folderError ? <p role="alert">{folderError}</p> : null}
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => setNewFolderName(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || !newFolderName.trim()}
+              >
+                Create folder
+              </button>
+            </div>
+          </form>
         </Dialog>
       ) : null}
       {renaming ? (

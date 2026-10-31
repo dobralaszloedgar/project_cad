@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "./test";
 import fs from "node:fs/promises";
+import { loadTemplateProject as template } from "./project-fixture";
 
 async function start(page: Page) {
   await page.goto("/");
@@ -15,19 +16,6 @@ async function ready(page: Page) {
   await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
     timeout: 30000,
   });
-}
-async function template(page: Page, name: string) {
-  await page
-    .getByRole("button", { name: "Workspace menu", exact: true })
-    .click();
-  await page
-    .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Templates", exact: true })
-    .click();
-  await page
-    .getByRole("dialog", { name: "Start from a template" })
-    .getByRole("button", { name: new RegExp(name) })
-    .click();
 }
 async function closeDialog(page: Page) {
   await page.keyboard.press("Escape");

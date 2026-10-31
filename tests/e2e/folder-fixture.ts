@@ -110,11 +110,11 @@ export async function installFolderPicker(page: Page, unsupported = false) {
 export async function folderText(page: Page, folderName: string) {
   return page.evaluate(async (name) => {
     const root = await navigator.storage.getDirectory();
-    const parent = await root.getDirectoryHandle("Laptop projects");
-    const folder = await parent.getDirectoryHandle(name);
-    return (
-      await (await folder.getFileHandle("project.json")).getFile()
-    ).text();
+    let parent = await root.getDirectoryHandle("Laptop projects");
+    const parts = name.split("/");
+    const fileName = `${parts.pop()!}.pcad`;
+    for (const part of parts) parent = await parent.getDirectoryHandle(part);
+    return (await (await parent.getFileHandle(fileName)).getFile()).text();
   }, folderName);
 }
 
@@ -126,10 +126,12 @@ export async function replaceFolderText(
   await page.evaluate(
     async ({ name, text }) => {
       const root = await navigator.storage.getDirectory();
-      const parent = await root.getDirectoryHandle("Laptop projects");
-      const folder = await parent.getDirectoryHandle(name);
+      let parent = await root.getDirectoryHandle("Laptop projects");
+      const parts = name.split("/");
+      const fileName = `${parts.pop()!}.pcad`;
+      for (const part of parts) parent = await parent.getDirectoryHandle(part);
       const writer = await (
-        await folder.getFileHandle("project.json")
+        await parent.getFileHandle(fileName)
       ).createWritable();
       await writer.write(text);
       await writer.close();

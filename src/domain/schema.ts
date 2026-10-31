@@ -2,6 +2,7 @@ import { z } from "zod";
 import { thermoSchema } from "./thermo/registry";
 import { nameStreams } from "./stream-names";
 import { compositionSchema, packedBedSchema } from "./reactions/schema";
+import { distillationSchema } from "./equipment/distillation-schema";
 export const MAX_PROJECT_REQUEST_BYTES = 4 * 1024 * 1024;
 export const kinds = [
   "Feed",
@@ -30,6 +31,7 @@ export const paramsSchema = z
     fractionA: z.number().min(0).max(1).default(1),
     composition: compositionSchema.optional(),
     packedBed: packedBedSchema.optional(),
+    distillation: distillationSchema.optional(),
     residenceTime: z.number().min(0).max(1000).default(10),
     reactorMode: z
       .enum(["residence-time", "catalyst-weight"])

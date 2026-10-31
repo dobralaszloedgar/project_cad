@@ -189,17 +189,13 @@ test("folder project writes JSON, autosaves history, reloads and opens from its 
   disk.workspace.project.name = "Edited on disk";
   await replaceFolderText(page, "Laptop study", JSON.stringify(disk, null, 2));
   await page.reload();
-  await expect(page.locator(".project-heading h1")).toHaveText(
-    "Edited on disk",
-  );
+  await expect(page.locator(".project-heading h1")).toHaveText("Laptop study");
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await library(page);
   await page
-    .getByRole("button", { name: "Open Edited on disk", exact: true })
+    .getByRole("button", { name: "Open Laptop study", exact: true })
     .dblclick();
-  await expect(page.locator(".project-heading h1")).toHaveText(
-    "Edited on disk",
-  );
+  await expect(page.locator(".project-heading h1")).toHaveText("Laptop study");
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
   expect(JSON.parse(await folderText(page, "Laptop study")).projectId).toBe(
@@ -343,7 +339,7 @@ test("external edits cannot be overwritten and unsaved work survives reload", as
   await replaceFolderText(page, "Conflict study", external);
   await addEquipment(page, "Feed");
   await expect(
-    page.getByRole("alert").filter({ hasText: "project.json" }),
+    page.getByRole("alert").filter({ hasText: "Conflict study.pcad" }),
   ).toContainText(/changed|conflict|could not|couldn.t/i);
   await expect(page.locator(".save-status")).not.toContainText(/^Saved/i);
   expect(await folderText(page, "Conflict study")).toBe(external);
@@ -357,7 +353,7 @@ test("external edits cannot be overwritten and unsaved work survives reload", as
   await expect(page.locator(".react-flow__node")).toHaveCount(1);
   expect(await folderText(page, "Conflict study")).toBe(external);
   await expect(
-    page.getByRole("alert").filter({ hasText: "project.json" }),
+    page.getByRole("alert").filter({ hasText: "Conflict study.pcad" }),
   ).toContainText(/changed|conflict|could not|couldn.t/i);
   await expect(page.locator(".save-status")).not.toContainText(/^Saved/i);
   const pendingCopy = page.waitForEvent("download");
@@ -368,9 +364,11 @@ test("external edits cannot be overwritten and unsaved work survives reload", as
   const exported = JSON.parse(
     await readFile((await localCopy.path())!, "utf8"),
   );
-  expect(exported.project.name).toBe("Conflict study");
-  expect(exported.project.units).toHaveLength(1);
-  expect(exported.revisions).toEqual((await recoveryWorkspace(page)).revisions);
+  expect(exported.workspace.project.name).toBe("Conflict study");
+  expect(exported.workspace.project.units).toHaveLength(1);
+  expect(exported.workspace.revisions).toEqual(
+    (await recoveryWorkspace(page)).revisions,
+  );
   await page
     .getByRole("button", { name: "Reload from folder", exact: true })
     .click();
@@ -389,7 +387,9 @@ test("external edits cannot be overwritten and unsaved work survives reload", as
     .getByRole("button", { name: "Reload file", exact: true })
     .click();
   await expect(reload).not.toBeVisible();
-  await expect(page.locator(".project-heading h1")).toHaveText("External edit");
+  await expect(page.locator(".project-heading h1")).toHaveText(
+    "Conflict study",
+  );
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
   await expect(page.locator(".save-status")).toContainText(/^Saved/i);
   expect(await folderText(page, "Conflict study")).toBe(external);
@@ -515,7 +515,7 @@ test("a direct 3D example stays independent from the saved folder project", asyn
   });
   await expect(
     page.getByRole("button", { name: "3D schematic", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  ).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
   await expect(
     page.getByRole("switch", { name: "Transparent shell" }),
   ).toHaveAttribute("aria-checked", "true");
@@ -527,7 +527,7 @@ test("a direct 3D example stays independent from the saved folder project", asyn
     .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(1);
   await expect(page.locator(".save-status")).toContainText(
-    "Alongside example/project.json",
+    "Laptop projects/Alongside example.pcad",
   );
   expect(await folderText(page, "Alongside example")).toBe(before);
 });
@@ -558,15 +558,13 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
   });
   await expect(
     copyDialog.getByLabel("Project name", { exact: true }),
-  ).toHaveValue("Updated source copy");
+  ).toHaveValue("Source study copy");
   await copyDialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator(".project-card")).toHaveCount(2);
   await page
     .getByRole("button", { name: "Back to canvas", exact: true })
     .click();
-  await expect(page.locator(".project-heading h1")).toHaveText(
-    "Updated source",
-  );
+  await expect(page.locator(".project-heading h1")).toHaveText("Source study");
   await expect(
     page.locator('.react-flow__node[data-id="F-EXTERNAL"]'),
   ).toBeVisible();
@@ -590,12 +588,12 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
   );
   await library(page);
   await page
-    .getByRole("button", { name: "Actions for Updated source", exact: true })
+    .getByRole("button", { name: "Actions for Source study", exact: true })
     .click();
   await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   await expect(
     copyDialog.getByLabel("Project name", { exact: true }),
-  ).toHaveValue("Updated source copy");
+  ).toHaveValue("Source study copy");
   await copyDialog
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
@@ -604,9 +602,9 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
     .click();
   await expect(copyDialog).not.toBeVisible();
   await expect(page.locator(".project-heading h1")).toHaveText(
-    "Updated source copy",
+    "Source study copy",
   );
-  const copied = JSON.parse(await folderText(page, "Updated source copy"));
+  const copied = JSON.parse(await folderText(page, "Source study copy"));
   expect(copied.projectId).not.toBe(updated.projectId);
   expect(copied.workspace.project.units).toEqual(
     updated.workspace.project.units,

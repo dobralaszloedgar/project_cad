@@ -18,28 +18,36 @@ export default function CreateProjectDialog({
   onCreate,
   onClose,
   saveLocation = false,
+  initialDirectory,
+  moving = false,
 }: {
   seed: Project;
   onCreate: (name: string, directory: ProjectDirectoryHandle) => Promise<void>;
   onClose: () => void;
   saveLocation?: boolean;
+  initialDirectory?: ProjectDirectoryHandle | null;
+  moving?: boolean;
 }) {
   const [name, setName] = useState(seed.name);
   const [directory, setDirectory] = useState<ProjectDirectoryHandle | null>(
-    null,
+    initialDirectory ?? null,
   );
   const [supported] = useState(supportsProjectFolders);
   const [touched, setTouched] = useState(false);
   const [picking, setPicking] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
-  const [loadingDirectory, setLoadingDirectory] = useState(true);
+  const [loadingDirectory, setLoadingDirectory] = useState(!initialDirectory);
   const locked = useRef(false);
   const container = useRef<HTMLDivElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const id = useId();
   const busy = picking || creating || loadingDirectory;
-  const title = saveLocation ? "Save project to folder" : "Create project";
+  const title = moving
+    ? "Move project"
+    : saveLocation
+      ? "Save project to folder"
+      : "Create project";
   let validName = "";
   let nameError = "";
   try {
@@ -50,11 +58,12 @@ export default function CreateProjectDialog({
   }
   const showNameError = !!nameError && (touched || name.length > 0);
   const folderPath = directory
-    ? `${directory.name}/${validName || "Project name"}`
+    ? `${directory.name}/${validName.replace(/\.pcad$/i, "") || "Project name"}.pcad`
     : "";
 
   useEffect(() => {
     let active = true;
+    if (initialDirectory) return;
     getDefaultProjectDirectory()
       .then((saved) => {
         if (active) setDirectory(saved);
@@ -68,7 +77,7 @@ export default function CreateProjectDialog({
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialDirectory]);
 
   useEffect(() => {
     const element = container.current;
@@ -152,9 +161,7 @@ export default function CreateProjectDialog({
           }}
         >
           <div className={styles.field}>
-            <label htmlFor={`${id}-name`}>
-              {saveLocation ? "Folder name" : "Project name"}
-            </label>
+            <label htmlFor={`${id}-name`}>Project name</label>
             <input
               ref={nameInput}
               id={`${id}-name`}
@@ -207,9 +214,9 @@ export default function CreateProjectDialog({
               )}
             </button>
             <p id={`${id}-folder-help`} className={styles.hint}>
-              {saveLocation
-                ? "History included. The original stays in place."
-                : "Your work saves automatically."}
+              {moving
+                ? "Moves the project file and its history. Future edits save at the new location."
+                : "One .pcad file contains your project and history. Your work saves automatically."}
             </p>
           </div>
           {!supported ? (
@@ -237,12 +244,16 @@ export default function CreateProjectDialog({
               disabled={busy || !supported || !validName || !directory}
             >
               {creating
-                ? saveLocation
-                  ? "Saving project…"
-                  : "Creating project…"
-                : saveLocation
-                  ? "Save to folder"
-                  : "Create project"}
+                ? moving
+                  ? "Moving project…"
+                  : saveLocation
+                    ? "Saving project…"
+                    : "Creating project…"
+                : moving
+                  ? "Move project"
+                  : saveLocation
+                    ? "Save to folder"
+                    : "Create project"}
             </button>
           </div>
         </form>

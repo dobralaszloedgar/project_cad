@@ -485,13 +485,6 @@
   background: var(--border);
   margin: 0 3px;
 }
-.orbitHint {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--muted);
-  font-size: 10px;
-}
 .rotateButton {
   display: inline-flex;
   align-items: center;
@@ -816,9 +809,6 @@
   .equipmentButton {
     gap: 7px;
     font-size: 11px;
-  }
-  .orbitHint {
-    display: none;
   }
   .studioToolbar {
     padding-left: 18px;

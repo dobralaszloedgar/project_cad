@@ -17,6 +17,7 @@ export interface PackedBedResult {
   pressure: number;
   extents: Record<string, number>;
   profile: ReactionProfilePoint[];
+  warnings?: string[];
 }
 
 /** Coupled isothermal species balances, integrated in stoichiometric extent space. */
@@ -46,6 +47,21 @@ export function solvePackedBed(
   )
     throw new Error("The reactor inlet contains invalid component flows.");
   const reactions = config.reactions.filter((r) => r.enabled);
+  const warnings: string[] = [];
+  for (const reaction of reactions) {
+    const source = reaction.kineticsSource;
+    if (!source) continue;
+    const [tMin, tMax] = source.temperatureRange;
+    const [pMin, pMax] = source.pressureRange;
+    if (temperature < tMin || temperature > tMax)
+      warnings.push(
+        `${reaction.name}: temperature is outside the published kinetics range (${tMin}–${tMax} K).`,
+      );
+    if (inletPressure > pMax || inletPressure - config.pressureDrop < pMin)
+      warnings.push(
+        `${reaction.name}: bed pressure is outside the published kinetics range (${pMin / 1e5}–${pMax / 1e5} bar absolute).`,
+      );
+  }
   const participating = new Set(
     reactions.flatMap((r) => r.stoichiometry.map((s) => s.componentId)),
   );
@@ -156,6 +172,7 @@ export function solvePackedBed(
       pressure: point.pressure,
       extents,
       profile,
+      warnings,
       reachedTarget: integrated.reachedTarget,
     };
   }
