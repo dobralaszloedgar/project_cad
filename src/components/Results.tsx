@@ -11,7 +11,7 @@ import { type Project } from "@/domain/schema";
 import { flow, type Result, simulate } from "@/domain/solver";
 import { type Revision, diff } from "@/lib/revisions";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { sampleMixtures } from "@/domain/thermo/catalog";
+import { mixtureName } from "@/domain/thermo/catalog";
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("en-US", { maximumFractionDigits: digits });
 export default function Results({
@@ -99,11 +99,7 @@ export default function Results({
               <h3>
                 Stream table{" "}
                 <small>
-                  SI units ·{" "}
-                  {
-                    sampleMixtures[(project.thermo ?? defaultThermo).mixture]
-                      .name
-                  }
+                  SI units · {mixtureName(project.thermo ?? defaultThermo)}
                 </small>
               </h3>
               <table className="table">
@@ -214,8 +210,11 @@ export default function Results({
                 ))}
               </ul>
               <p>
-                Data: {result.provenance.dataVersion}. Kernel:{" "}
-                {result.provenance.kernelHash.slice(0, 12)}.{" "}
+                Data:{" "}
+                <span title={result.provenance.dataVersion}>
+                  {result.provenance.dataVersion.slice(0, 20)}
+                </span>
+                . Kernel: {result.provenance.kernelHash.slice(0, 12)}.{" "}
                 {result.provenance.parameterHash
                   ? `Parameters: ${result.provenance.parameterHash.slice(0, 12)}.`
                   : ""}

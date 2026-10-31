@@ -73,6 +73,7 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
           modelId: a.modelId,
           mixture: a.mixture,
           extrapolate: a.extrapolate,
+          ...(a.catalog ? { catalog: a.catalog } : {}),
         };
         break;
       case "add":

@@ -1,22 +1,6 @@
-// Small replaceable sample provider. Database size is independent of the model registry.
-export interface AntoineRecord {
-  a: number;
-  b: number;
-  c: number;
-  min: number;
-  max: number;
-  source: string;
-}
-export interface Chemical {
-  id: string;
-  name: string;
-  molecularWeight: number; // kg/mol
-  cp: number; // sample constant ideal-gas Cp, J/(mol K)
-  formationEnthalpy?: number; // J/mol at 298.15 K
-  antoine: AntoineRecord[]; // log10(P/bar) = a - b/(T/K+c)
-  vaporPressure?: { model: "iapws-1992"; source: string };
-  groups?: Record<string, number>;
-}
+import { validateSnapshot, type ActivityDataset, type Chemical } from "./data";
+import type { ThermoSettings } from "./registry";
+export type { Chemical } from "./data";
 const nist = (cas: string) =>
   `https://webbook.nist.gov/cgi/cbook.cgi?ID=${cas}&Mask=4&Type=ANTOINE`;
 export const sampleChemicals: readonly Chemical[] = [
@@ -103,6 +87,8 @@ export const sampleChemicals: readonly Chemical[] = [
 ];
 export interface ChemicalProvider {
   version: string;
+  activityParameters?: ActivityDataset;
+  parameterHash?: string;
   get(id: string): Chemical;
   search(query: string, limit?: number): readonly Chemical[];
 }
@@ -128,3 +114,46 @@ export const sampleMixtures = {
   aromatics: { name: "Benzene / toluene", ids: ["benzene", "toluene"] },
   aqueous: { name: "Ethanol / water", ids: ["ethanol", "water"] },
 } as const;
+
+export function thermoContext(settings: ThermoSettings) {
+  if (settings.mixture !== "catalog")
+    return {
+      catalog: sampleCatalog,
+      ids: sampleMixtures[settings.mixture].ids,
+    };
+  const snapshot = settings.catalog;
+  if (!snapshot)
+    throw new Error("Select and load chemicals from the catalog first.");
+  validateSnapshot(snapshot);
+  if (settings.modelId === "modified-unifac-2.0" && !snapshot.parameters)
+    throw new Error(
+      "Reload the selected chemicals for Modified UNIFAC 2.0 parameters.",
+    );
+  const catalog: ChemicalProvider = {
+    version: snapshot.release,
+    activityParameters: snapshot.parameters?.dataset,
+    parameterHash: snapshot.parameters?.hash,
+    get(id) {
+      const c = snapshot.chemicals.find((c) => c.id === id);
+      if (!c)
+        throw new Error(
+          `Chemical ${id} is absent from the saved catalog selection.`,
+        );
+      return c;
+    },
+    search: (query, limit = 20) =>
+      snapshot.chemicals
+        .filter((c) =>
+          `${c.id} ${c.name}`.toLowerCase().includes(query.toLowerCase()),
+        )
+        .slice(0, limit),
+  };
+  const context = { catalog, ids: snapshot.chemicals.map((c) => c.id) };
+  return context;
+}
+export function mixtureName(settings: ThermoSettings) {
+  return settings.mixture === "catalog"
+    ? (settings.catalog?.chemicals.map((c) => c.name).join(" / ") ??
+        "Catalog selection required")
+    : sampleMixtures[settings.mixture].name;
+}

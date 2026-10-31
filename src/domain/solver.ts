@@ -13,7 +13,7 @@ import {
   type Properties,
 } from "./thermo";
 import { defaultThermo, type ThermoSettings } from "./thermo/registry";
-import { sampleCatalog, sampleMixtures } from "./thermo/catalog";
+import { thermoContext } from "./thermo/catalog";
 import { integratePackedBed, type BedPoint } from "./equipment/packed-bed";
 // Original synthetic teaching parameters; no claim to fit a real chemical system.
 export const MODEL = {
@@ -101,8 +101,8 @@ export function streamProperties(
     s.pressure,
     [s.a / flow(s), s.b / flow(s)],
     settings,
-    sampleCatalog,
-    sampleMixtures[settings.mixture].ids,
+    undefined,
+    undefined,
     s.vaporFraction,
   );
 }
@@ -177,27 +177,15 @@ export function operate(
   };
   if (inputs.length > 1 && total > 0) {
     const target = inputs.reduce((sum, s) => sum + enthalpy(s, settings), 0);
-    if (settings.modelId === "ideal-gas") {
-      const [a, b] = sampleMixtures[settings.mixture].ids.map((id) =>
-        sampleCatalog.get(id),
-      );
-      const capacity = mixed.a * a.cp + mixed.b * b.cp;
-      mixed.temperature =
-        MODEL.referenceTemperature +
-        (target -
-          mixed.a * (a.formationEnthalpy ?? 0) -
-          mixed.b * (b.formationEnthalpy ?? 0)) /
-          capacity;
-    } else {
-      const state = flashPressureEnthalpy(
-        mixed.pressure,
-        target / total,
-        [mixed.a / total, mixed.b / total],
-        settings,
-      );
-      mixed.temperature = state.temperature;
+    const state = flashPressureEnthalpy(
+      mixed.pressure,
+      target / total,
+      [mixed.a / total, mixed.b / total],
+      settings,
+    );
+    mixed.temperature = state.temperature;
+    if (settings.modelId !== "ideal-gas")
       mixed.vaporFraction = state.vaporFraction!;
-    }
   }
   let outputs: Stream[] = [mixed];
   switch (unit.kind) {
@@ -223,11 +211,16 @@ export function operate(
           );
         if (!total && p.heatDuty !== 0)
           throw new Error(`${unit.name}: nonzero duty requires material flow.`);
-        const chemicals = sampleMixtures[settings.mixture].ids.map((id) =>
-          sampleCatalog.get(id),
-        );
-        const capacity = mixed.a * chemicals[0].cp + mixed.b * chemicals[1].cp;
-        target = mixed.temperature + (capacity ? p.heatDuty / capacity : 0);
+        if (total) {
+          target = flashPressureEnthalpy(
+            mixed.pressure,
+            (enthalpy(mixed, settings) + p.heatDuty) / total,
+            [mixed.a / total, mixed.b / total],
+            settings,
+          ).temperature;
+        } else {
+          target = mixed.temperature;
+        }
       }
       if (unit.kind === "Heater" && target < mixed.temperature - 1e-7)
         throw new Error(
@@ -487,8 +480,9 @@ export function simulate(
       streamProperties(s, settings),
     ]),
   );
-  const [chemicalA, chemicalB] = sampleMixtures[settings.mixture].ids.map(
-    (id) => sampleCatalog.get(id),
+  const context = thermoContext(settings);
+  const [chemicalA, chemicalB] = context.ids.map((id) =>
+    context.catalog.get(id),
   );
   const mass = (s: Stream) =>
     s.a * chemicalA.molecularWeight + s.b * chemicalB.molecularWeight;

@@ -8,7 +8,7 @@ import {
   modelInfo,
   type ThermoSettings,
 } from "@/domain/thermo/registry";
-import { sampleMixtures } from "@/domain/thermo/catalog";
+import { mixtureName } from "@/domain/thermo/catalog";
 import { EquipmentIcon, equipmentLabels } from "./EquipmentIcon";
 import "./equipment-setup.css";
 interface Props {
@@ -297,7 +297,7 @@ function UnitEditor({
       ) : (
         <div className="model-notes">
           <h3>{modelInfo(settings.modelId).name}</h3>
-          <p>Components A / B: {sampleMixtures[settings.mixture].name}.</p>
+          <p>Components A / B: {mixtureName(settings)}.</p>
           <p>{modelInfo(settings.modelId).limitations}</p>
           {settings.mixture === "demo" ? (
             <>

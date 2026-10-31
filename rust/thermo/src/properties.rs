@@ -1,4 +1,5 @@
 use crate::activity;
+use crate::caloric::GasCp;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -21,12 +22,14 @@ pub enum Model {
 pub struct Chemical {
     id: String,
     molecular_weight: f64,
-    cp: f64,
+    cp: Option<f64>,
+    gas_cp: Option<GasCp>,
     #[serde(default)]
     formation_enthalpy: f64,
     #[serde(default)]
     antoine: Vec<Antoine>,
     vapor_pressure: Option<VaporPressure>,
+    latent_heat: Option<LatentHeat>,
     groups: Option<BTreeMap<usize, f64>>,
 }
 
@@ -44,6 +47,22 @@ pub struct Antoine {
 pub enum VaporPressure {
     #[serde(rename = "iapws-1992")]
     Iapws1992,
+    #[serde(rename = "dippr-101", rename_all = "camelCase")]
+    Dippr101 {
+        coefficients: [f64; 5],
+        min: f64,
+        max: f64,
+        critical_temperature: f64,
+    },
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LatentHeat {
+    coefficients: [f64; 5],
+    min: f64,
+    max: f64,
+    critical_temperature: f64,
 }
 
 #[derive(Deserialize, Clone)]
@@ -58,6 +77,7 @@ pub struct Request {
     extrapolate: bool,
     molar_enthalpy: Option<f64>,
     vapor_fraction: Option<f64>,
+    activity_parameters: Option<activity::Dataset>,
 }
 
 #[derive(Serialize)]
@@ -107,7 +127,33 @@ fn antoine(a: &Antoine, t: f64) -> Result<(f64, f64), String> {
 }
 
 fn saturation(c: &Chemical, t: f64, extrapolate: bool) -> Result<(f64, f64, bool), String> {
-    let (log_p, derivative, outside) = if c.vapor_pressure.is_some() {
+    let (log_p, derivative, outside) = if let Some(VaporPressure::Dippr101 {
+        coefficients: a,
+        min,
+        max,
+        critical_temperature,
+    }) = &c.vapor_pressure
+    {
+        ensure(
+            a.iter().all(|v| v.is_finite())
+                && min.is_finite()
+                && max.is_finite()
+                && min < max
+                && critical_temperature.is_finite()
+                && t < *critical_temperature,
+            "Invalid vapor-pressure data or temperature at/above the critical point",
+        )?;
+        let outside = t < *min || t > *max;
+        ensure(
+            !outside || extrapolate,
+            &format!("{}: no vapor-pressure data at {t} K", c.id),
+        )?;
+        (
+            a[0] + a[1] / t + a[2] * t.ln() + a[3] * t.powf(a[4]),
+            -a[1] / (t * t) + a[2] / t + a[3] * a[4] * t.powf(a[4] - 1.),
+            outside,
+        )
+    } else if matches!(c.vapor_pressure, Some(VaporPressure::Iapws1992)) {
         // IAPWS SR1-86(1992), Eq. 1. Only saturation pressure is used;
         // the caloric model below remains the low-pressure sample approximation.
         const TC: f64 = 647.096;
@@ -185,7 +231,24 @@ fn saturation(c: &Chemical, t: f64, extrapolate: bool) -> Result<(f64, f64, bool
         }
     };
     let pressure = log_p.exp();
-    let latent = R * t * t * derivative;
+    let latent = if let Some(h) = &c.latent_heat {
+        ensure(
+            h.coefficients.iter().all(|v| v.is_finite())
+                && h.min.is_finite()
+                && h.max.is_finite()
+                && h.min < h.max
+                && t >= h.min
+                && t <= h.max
+                && h.critical_temperature.is_finite()
+                && t < h.critical_temperature,
+            &format!("{}: no latent-heat data at {t} K", c.id),
+        )?;
+        let tr = t / h.critical_temperature;
+        let a = &h.coefficients;
+        a[0] * (1. - tr).powf(a[1] + tr * (a[2] + tr * (a[3] + tr * a[4])))
+    } else {
+        R * t * t * derivative
+    };
     ensure(
         pressure.is_finite() && pressure > 0. && latent.is_finite() && latent > 0.,
         "Nonfinite vapor pressure",
@@ -264,7 +327,7 @@ fn evaluate_tp(req: &Request) -> Result<Properties, String> {
     )?;
     ensure(
         t.is_finite() && (250. ..=800.).contains(&t) && p.is_finite() && p > 0. && p <= 1e8,
-        "Invalid temperature or pressure",
+        "Invalid temperature or pressure: require 250–800 K and positive pressure up to 100 MPa",
     )?;
     ensure(
         vapor_fraction.is_none_or(|v| v.is_finite() && (0. ..=1.).contains(&v)),
@@ -274,12 +337,11 @@ fn evaluate_tp(req: &Request) -> Result<Properties, String> {
     for c in &chemicals {
         ensure(ids.insert(&c.id), "Duplicate chemical")?;
         ensure(
-            c.cp.is_finite()
-                && c.cp > 0.
+            (c.gas_cp.is_some() || c.cp.is_some_and(|cp| cp.is_finite() && cp > 0.))
                 && c.molecular_weight.is_finite()
                 && c.molecular_weight > 0.
                 && c.formation_enthalpy.is_finite(),
-            "Invalid sample caloric data",
+            "Invalid caloric data",
         )?;
         if let Some(groups) = &c.groups {
             ensure(
@@ -290,17 +352,45 @@ fn evaluate_tp(req: &Request) -> Result<Properties, String> {
     }
     let h_gas: Vec<_> = chemicals
         .iter()
-        .map(|c| c.cp * (t - T_REF) + c.formation_enthalpy)
-        .collect();
+        .zip(&z)
+        .map(|(c, z)| {
+            if *z == 0. {
+                return Ok(0.);
+            }
+            let sensible = if let Some(cp) = &c.gas_cp {
+                cp.enthalpy(t).map_err(|e| format!("{}: {e}", c.id))?
+            } else {
+                c.cp.unwrap() * (t - T_REF)
+            };
+            Ok(sensible + c.formation_enthalpy)
+        })
+        .collect::<Result<Vec<f64>, String>>()?;
     let mut result = Properties {
         temperature: t,
-        phase: "vapor", vapor_fraction: Some(1.), liquid_composition: None,
-        vapor_composition: Some(z.clone()), k_values: None, activity_coefficients: vec![1.;n],
-        saturation_pressures: None, partial_pressures: Some(z.iter().map(|z| z*p).collect()),
-        molar_enthalpy: Some(dot(&z,&h_gas)), gas_molar_volume: Some(R*t/p),
-        molecular_weight: z.iter().zip(&chemicals).map(|(z,c)| z*c.molecular_weight).sum(),
-        iterations: 0, equilibrium_residual: 0., component_residual: 0., enthalpy_residual: None,
-        warnings: vec!["Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.".into()],
+        phase: "vapor",
+        vapor_fraction: Some(1.),
+        liquid_composition: None,
+        vapor_composition: Some(z.clone()),
+        k_values: None,
+        activity_coefficients: vec![1.; n],
+        saturation_pressures: None,
+        partial_pressures: Some(z.iter().map(|z| z * p).collect()),
+        molar_enthalpy: Some(dot(&z, &h_gas)),
+        gas_molar_volume: Some(R * t / p),
+        molecular_weight: z
+            .iter()
+            .zip(&chemicals)
+            .map(|(z, c)| z * c.molecular_weight)
+            .sum(),
+        iterations: 0,
+        equilibrium_residual: 0.,
+        component_residual: 0.,
+        enthalpy_residual: None,
+        warnings: if chemicals.iter().any(|c| c.gas_cp.is_none()) {
+            vec!["Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.".into()]
+        } else {
+            Vec::new()
+        },
     };
     if model == Model::Gas {
         ensure(
@@ -332,9 +422,15 @@ fn evaluate_tp(req: &Request) -> Result<Properties, String> {
             ));
         }
     }
-    let registry: activity::Registry = serde_json::from_value(json!({"datasets": {
-        "modified-unifac-2.0": serde_json::from_str::<serde_json::Value>(include_str!("../sample-groups.json")).map_err(|e| e.to_string())?
-    }})).map_err(|e| e.to_string())?;
+    let dataset = if let Some(dataset) = &req.activity_parameters {
+        dataset.clone()
+    } else {
+        serde_json::from_str(include_str!("../sample-groups.json")).map_err(|e| e.to_string())?
+    };
+    let mut registry = activity::Registry::default();
+    registry
+        .datasets
+        .insert("modified-unifac-2.0".into(), dataset);
     let mixture: activity::Mixture = serde_json::from_value(json!({
         "model": "modified-unifac-2.0",
         "cas": chemicals.iter().map(|c| &c.id).collect::<Vec<_>>(),
@@ -434,15 +530,26 @@ fn evaluate_tp(req: &Request) -> Result<Properties, String> {
         result.phase = "saturation";
         result.warnings.push("At saturation, temperature and pressure do not determine phase amounts or bulk enthalpy.".into());
     }
-    result.warnings.push("Low-pressure vapor–liquid model; no liquid–liquid stability search, pressure correction or liquid density. Latent heat is estimated from the vapor-pressure derivative.".into());
+    result.warnings.push("Low-pressure vapor–liquid model; no liquid–liquid stability search, pressure correction or liquid density.".into());
+    if chemicals
+        .iter()
+        .zip(&z)
+        .any(|(c, z)| *z > 0. && c.latent_heat.is_none())
+    {
+        result.warnings.push("Latent heat is estimated from the vapor-pressure derivative where no caloric correlation is supplied.".into());
+    }
     if model == Model::IdealSolution
-        && chemicals.iter().any(|c| c.id == "ethanol")
-        && chemicals.iter().any(|c| c.id == "water")
+        && chemicals
+            .iter()
+            .any(|c| c.id == "ethanol" || c.id == "64-17-5")
+        && chemicals
+            .iter()
+            .any(|c| c.id == "water" || c.id == "7732-18-5")
     {
         result.warnings.push("Ideal ethanol/water misses strong nonideality and its azeotrope; do not use for purity predictions.".into());
     }
     if model == Model::Modified {
-        result.warnings.push("Modified UNIFAC 2.0 uses a small sample parameter subset (CC BY-NC 4.0); predictive VLE only, without LLE or industrial accuracy qualification.".into());
+        result.warnings.push("Modified UNIFAC 2.0 published parameters are CC BY-NC 4.0; predictive VLE only, without LLE or industrial accuracy qualification.".into());
     }
     ensure(
         result.molar_enthalpy.is_none_or(f64::is_finite),
@@ -459,17 +566,43 @@ fn temperature_intervals(req: &Request) -> Result<Vec<(f64, f64)>, String> {
         if *z == 0. {
             continue;
         }
-        let mut ranges = if c.vapor_pressure.is_some() {
-            vec![(273.16, 647.096)]
+        let mut ranges = if req.model_id == Model::Gas {
+            vec![(250., 800.)]
+        } else if let Some(VaporPressure::Dippr101 {
+            min,
+            max,
+            critical_temperature,
+            ..
+        }) = &c.vapor_pressure
+        {
+            let (low, high) = if req.extrapolate {
+                (250., 800.)
+            } else {
+                (*min, *max)
+            };
+            vec![(low, high.min(*critical_temperature - 1e-6))]
+        } else if matches!(c.vapor_pressure, Some(VaporPressure::Iapws1992)) {
+            vec![(273.16, 647.096 - 1e-6)]
         } else if req.extrapolate && !c.antoine.is_empty() {
             vec![(250., 800.)]
         } else {
             c.antoine.iter().map(|a| (a.min, a.max)).collect::<Vec<_>>()
         };
+        if let Some(cp) = &c.gas_cp {
+            ranges = intersect(&ranges, &cp.intervals()?);
+        }
+        if req.model_id != Model::Gas {
+            if let Some(h) = &c.latent_heat {
+                ranges = intersect(
+                    &ranges,
+                    &[(h.min, h.max.min(h.critical_temperature - 1e-6))],
+                );
+            }
+        }
         ranges.sort_by(|a, b| a.0.total_cmp(&b.0));
         let mut merged: Vec<(f64, f64)> = Vec::new();
         for (low, high) in ranges {
-            if let Some(last) = merged.last_mut().filter(|last| low < last.1) {
+            if let Some(last) = merged.last_mut().filter(|last| low <= last.1) {
                 last.1 = last.1.max(high);
             } else {
                 merged.push((low, high));
@@ -487,9 +620,20 @@ fn temperature_intervals(req: &Request) -> Result<Vec<(f64, f64)>, String> {
     }
     ensure(
         !shared.is_empty(),
-        "No shared vapor-pressure temperature range for PH flash",
+        "No shared property temperature range for PH flash",
     )?;
     Ok(shared)
+}
+
+fn intersect(a: &[(f64, f64)], b: &[(f64, f64)]) -> Vec<(f64, f64)> {
+    a.iter()
+        .flat_map(|(lo, hi)| {
+            b.iter().filter_map(move |(x, y)| {
+                let (low, high) = (lo.max(*x), hi.min(*y));
+                (low <= high).then_some((low, high))
+            })
+        })
+        .collect()
 }
 
 fn ph_state(req: &Request, t: f64, target: f64) -> Result<(Properties, f64), String> {
@@ -531,12 +675,12 @@ pub fn evaluate(req: Request) -> Result<Properties, String> {
             && (req.composition.iter().sum::<f64>() - 1.).abs() <= 1e-10,
         "Expected 1–64 matching chemicals and normalized fractions",
     )?;
-    if req.model_id == Model::Gas {
+    if req.model_id == Model::Gas && req.chemicals.iter().all(|c| c.gas_cp.is_none()) {
         let cp: f64 = req
             .composition
             .iter()
             .zip(&req.chemicals)
-            .map(|(z, c)| z * c.cp)
+            .map(|(z, c)| z * c.cp.unwrap_or(f64::NAN))
             .sum();
         let formation: f64 = req
             .composition

@@ -7,6 +7,8 @@ playwright-report/
 test-results/
 rust/thermo/target/
 .DS_Store
+supabase/.temp/
+scripts/catalog/__pycache__/
 
 # Local documentation and agent tooling
 *.[mM][dD]
