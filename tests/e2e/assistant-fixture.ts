@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +9,7 @@ import type {
   AssistantProvider,
   ProviderInput,
 } from "../../src/server/assistant/providers/types";
-import type { ProviderId } from "../../src/assistant/protocol";
+import type { ProviderId, AgentSelection } from "../../src/assistant/protocol";
 import { newUnit, type Project } from "../../src/domain/schema";
 
 /** Real HTTP/runtime/store/project tools with a deterministic, inference-free provider. */
@@ -96,9 +96,16 @@ export async function installAssistant(page: Page) {
       },
     ]),
   ) as Record<ProviderId, AssistantProvider>;
-  const runtime = new AssistantRuntime(store, adapters, root);
+  let agents: AgentSelection | null = null;
+  const runtime = new AssistantRuntime(store, adapters, root, () => agents);
   const origin = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
-  const server = createAssistantServer(runtime, { port: 0, origins: [origin] });
+  const server = createAssistantServer(runtime, {
+    port: 0,
+    origins: [origin],
+    selectAgents: (selection) => {
+      agents = selection;
+    },
+  });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -130,8 +137,27 @@ export async function connectAssistant(page: Page) {
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
+  await page
+    .getByRole("heading", {
+      name: /Choose your agents|Your assistant is ready/,
+    })
+    .waitFor();
+  if (
+    await page
+      .getByRole("heading", { name: "Choose your agents", exact: true })
+      .isVisible()
+  ) {
+    for (const name of ["Codex", "Claude Code", "Muse"])
+      await page.getByRole("checkbox", { name, exact: true }).check();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  }
+  await expect(
+    page.getByRole("heading", { name: "Your assistant is ready" }),
+  ).toBeVisible();
   const popupPromise = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Connect local assistant" }).click();
+  await page
+    .getByRole("button", { name: "Connect assistant", exact: true })
+    .click();
   const popup = await popupPromise;
   await popup
     .getByRole("button", { name: "Connect assistant", exact: true })

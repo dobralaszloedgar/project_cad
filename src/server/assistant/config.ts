@@ -2,12 +2,19 @@ import { accessSync, constants, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join, isAbsolute, relative } from "node:path";
 import { z } from "zod";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  agentSelectionSchema,
+  PROJECT_CAD_ORIGIN,
+} from "../../assistant/protocol";
 
 export const settingsSchema = z
   .object({
-    websiteUrl: z.string().url().default("http://127.0.0.1:3000"),
+    websiteUrl: z.string().url().default(PROJECT_CAD_ORIGIN),
     startAtLogin: z.boolean().default(true),
     museApiKey: z.string().max(10000).default(""),
+    agents: agentSelectionSchema.nullable().default(null),
   })
   .strict();
 
@@ -41,6 +48,29 @@ export function loadAssistantSettings(root: string) {
   const settings = settingsSchema.parse(input);
   applicationOrigin(settings.websiteUrl);
   return settings;
+}
+
+export function saveAssistantSettings(root: string, input: unknown) {
+  const settings = settingsSchema.parse(input);
+  applicationOrigin(settings.websiteUrl);
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  const temporary = join(root, `settings-${randomUUID()}.tmp`);
+  writeFileSync(temporary, JSON.stringify(settings), { mode: 0o600 });
+  renameSync(temporary, join(root, "settings.json"));
+  return settings;
+}
+
+export function assistantOrigins(websiteUrl: string, override?: string) {
+  return [
+    ...new Set(
+      (
+        override ||
+        `${PROJECT_CAD_ORIGIN},${applicationOrigin(websiteUrl)},http://127.0.0.1:3000,http://localhost:3000`
+      )
+        .split(",")
+        .map((value) => applicationOrigin(value.trim())),
+    ),
+  ];
 }
 
 export function providerExecutable(

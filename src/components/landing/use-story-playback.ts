@@ -57,7 +57,7 @@ export function useStoryPlayback(
     design.set(0);
   };
   const sendDesign = () => {
-    state.current.design = Math.max(0.5, state.current.design);
+    state.current.design = Math.max(0.64, state.current.design);
     design.set(state.current.design);
   };
   return {

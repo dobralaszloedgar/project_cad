@@ -2,7 +2,7 @@ import { expect, test, type Page } from "./test";
 import { THEMES, THEME_STORAGE_KEY } from "../../src/lib/theme";
 
 async function projects(page: Page) {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

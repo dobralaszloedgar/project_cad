@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
 
 export const artifactPattern =
   /^ProjectCAD-Assistant-(?:macos-universal\.(?:pkg|zip)|windows-(?:x64|arm64)(?:-Setup\.exe|\.zip)|linux-(?:x64|arm64)\.(?:run|tar\.gz))$/;
@@ -41,15 +42,9 @@ export function validateManifest(manifest, { published = false } = {}) {
       throw new Error("Artifact platform or CPU does not match its filename.");
     names.add(file.filename);
   }
-  if (
-    published &&
-    (!manifest.release ||
-      typeof manifest.release.repository !== "string" ||
-      !repositoryPattern.test(manifest.release.repository) ||
-      manifest.release.tag !== `v${manifest.version}`)
-  ) {
-    throw new Error("The website requires a versioned GitHub release.");
-  }
+  const location = assistantDownloadLocation(manifest);
+  if (published && !location.baseUrl.startsWith("https://"))
+    throw new Error("The website requires a versioned public release.");
   return manifest;
 }
 

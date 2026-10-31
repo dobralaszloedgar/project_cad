@@ -32,7 +32,12 @@ import {
   X,
 } from "lucide-react";
 import type { Project } from "@/domain/schema";
-import type { AssistantMode, Proposal, ProviderId } from "@/assistant/protocol";
+import {
+  agentNames,
+  type AssistantMode,
+  type Proposal,
+  type ProviderId,
+} from "@/assistant/protocol";
 import type { AssistantClient } from "@/assistant/client";
 import {
   fileSize,
@@ -103,8 +108,15 @@ export default function AssistantPanel({
   open: boolean;
   requestedConversation?: { id: string };
 }) {
+  const preferredAgent = assistant.agents?.preferred;
   const [tabs, setTabs] = useState<ChatTab[]>(() => [
-    blankTab(initialSettings, "draft"),
+    blankTab(
+      {
+        ...initialSettings,
+        provider: preferredAgent ?? initialSettings.provider,
+      },
+      "draft",
+    ),
   ]);
   const [active, setActive] = useState("draft");
   const [setup, setSetup] = useState(false),
@@ -184,6 +196,26 @@ export default function AssistantPanel({
       items.map((item) => (item.id === id ? update(item) : item)),
     );
   }
+  const [adoptedAgent, setAdoptedAgent] = useState(preferredAgent);
+  // Adopt a newly approved default before rendering a draft with the old agent.
+  if (preferredAgent && preferredAgent !== adoptedAgent) {
+    setAdoptedAgent(preferredAgent);
+    setTabs((items) =>
+      items.map((item) =>
+        item.conversationId || item.queue.length
+          ? item
+          : {
+              ...item,
+              settings: {
+                ...item.settings,
+                provider: preferredAgent,
+                model: "",
+                reasoning: undefined,
+              },
+            },
+      ),
+    );
+  }
   useEffect(() => {
     if (!assistant.selectedId || pendingTab.current || adopted.current) return;
     adopted.current = true;
@@ -249,7 +281,16 @@ export default function AssistantPanel({
     setHistory(false);
     setError("");
   }
-  function newChat(next = settings) {
+  function newChat(
+    next = preferredAgent && preferredAgent !== settings.provider
+      ? {
+          ...settings,
+          provider: preferredAgent,
+          model: "",
+          reasoning: undefined,
+        }
+      : settings,
+  ) {
     const created = blankTab(next);
     setTabs((items) => [...items, created]);
     selectTab(created);
@@ -271,7 +312,15 @@ export default function AssistantPanel({
       return;
     }
     const remaining = tabs.filter((item) => item.id !== id);
-    if (!remaining.length) remaining.push(blankTab(settings));
+    if (!remaining.length)
+      remaining.push(
+        blankTab({
+          ...settings,
+          provider: preferredAgent ?? settings.provider,
+          model: "",
+          reasoning: undefined,
+        }),
+      );
     setTabs(remaining);
     if (active === id) selectTab(remaining.at(-1)!);
   }
@@ -490,12 +539,13 @@ export default function AssistantPanel({
                       close();
                     }}
                   >
-                    <Folder size={14} /> AI client setup
+                    <Folder size={14} /> Manage agents
                   </button>
                   <button
                     className={styles.option}
                     onClick={() => {
                       assistant.disconnect();
+                      setSetup(false);
                       adopted.current = false;
                       close();
                     }}
@@ -605,17 +655,10 @@ export default function AssistantPanel({
       {!assistant.connected || setup ? (
         <div className={styles.connectionScreen}>
           <AssistantSetup
-            connect={assistant.connect}
-            connecting={assistant.connecting}
-            cancel={assistant.cancelConnect}
-            setup={setup}
-            onSetup={setSetup}
+            assistant={assistant}
+            open={open}
+            onBack={() => setSetup(false)}
           />
-          {assistant.error ? (
-            <p className={styles.error} role="alert">
-              {assistant.error}
-            </p>
-          ) : null}
         </div>
       ) : history ? (
         <div className={styles.historyView}>
@@ -1048,7 +1091,9 @@ export default function AssistantPanel({
                 trigger={
                   <>
                     <MessageCircle size={13} />
-                    <span>{provider?.name || "Codex"}</span>
+                    <span>
+                      {provider?.name || agentNames[settings.provider]}
+                    </span>
                     <span className={styles.divider}>/</span>
                     <span className={styles.modelName}>
                       {model?.name || "Select model"}
@@ -1065,27 +1110,28 @@ export default function AssistantPanel({
                       role="group"
                       aria-label="Assistant provider"
                     >
-                      {(["codex", "claude", "muse"] as ProviderId[]).map(
-                        (id) => (
-                          <button
-                            key={id}
-                            aria-pressed={settings.provider === id}
-                            onClick={() =>
-                              changeSettings({
-                                provider: id,
-                                model: "",
-                                reasoning: undefined,
-                              })
-                            }
-                          >
-                            {id === "codex"
-                              ? "Codex"
-                              : id === "claude"
-                                ? "Claude Code"
-                                : "Muse"}
-                          </button>
-                        ),
-                      )}
+                      {(
+                        assistant.agents?.providers ??
+                        assistant.providers.map((item) => item.id)
+                      ).map((id) => (
+                        <button
+                          key={id}
+                          aria-pressed={settings.provider === id}
+                          onClick={() =>
+                            changeSettings({
+                              provider: id,
+                              model: "",
+                              reasoning: undefined,
+                            })
+                          }
+                        >
+                          {id === "codex"
+                            ? "Codex"
+                            : id === "claude"
+                              ? "Claude Code"
+                              : "Muse"}
+                        </button>
+                      ))}
                     </div>
                     <div role="group" aria-label="Assistant model">
                       {provider?.models.map((item) => (

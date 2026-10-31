@@ -21,6 +21,6 @@ export async function stagePublishedDownloads(
       await rm(join(target, name));
   }
   console.log(
-    "Website download manifest updated. Installer files remain on GitHub.",
+    "Website download manifest updated. Installer files remain in public release storage.",
   );
 }

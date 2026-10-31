@@ -145,7 +145,7 @@ export default function Workspace({
     revisions: [],
   }));
   const [ready, setReady] = useState(false);
-  const [folderSetupDone, setFolderSetupDone] = useState(false);
+  const [folderSetupDone, setFolderSetupDone] = useState(Boolean(exampleId));
   const finishFolderSetup = useCallback(() => setFolderSetupDone(true), []);
   const [storage, setStorage] = useState("Loading local project");
   const [selection, setSelection] = useState<string[]>([]);
@@ -758,7 +758,7 @@ export default function Workspace({
     setProjectBusy(true);
     try {
       await preserveCurrentProject();
-      router.push("/landing");
+      router.push("/");
     } catch (error) {
       setMessage(errorMessage(error));
       setProjectMessage(errorMessage(error));

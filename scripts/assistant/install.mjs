@@ -17,7 +17,7 @@ const previous = `${destination}.previous-${randomUUID()}`;
 const runtime = app => join(app, 'Contents', 'Resources', 'runtime', process.arch, 'node');
 const controller = app => join(app, 'Contents', 'Resources', 'app', 'control.mjs');
 const exists = async file => { try { await access(file); return true; } catch { return false; } };
-let backedUp = false, promoted = false;
+let backedUp = false, promoted = false, started = false;
 try {
   await access(controller(source)); await access(runtime(source));
   await mkdir(dirname(destination), { recursive: true });
@@ -28,8 +28,11 @@ try {
     await rename(destination, previous); backedUp = true;
   }
   await rename(staging, destination); promoted = true;
-  if (!args.includes('--no-start')) await execute(runtime(destination), [controller(destination), 'start'], { timeout: 30000 });
-  console.log(JSON.stringify({ installed: destination, started: !args.includes('--no-start'), historyPreserved: true }));
+  if (!args.includes('--no-start')) {
+    const result = await execute(runtime(destination), [controller(destination), 'start'], { timeout: 30000 });
+    started = JSON.parse(result.stdout).running;
+  }
+  console.log(JSON.stringify({ installed: destination, started, historyPreserved: true }));
 } catch (error) {
   if (promoted) await rm(destination, { recursive: true, force: true });
   if (backedUp) {

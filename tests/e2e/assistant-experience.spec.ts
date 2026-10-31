@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   page.on("pageerror", (error) => collected.push(error.message));
   errors.set(page, collected);
   dispose = await installAssistant(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await connectAssistant(page);
   await expect(
     page.getByRole("button", { name: "Choose provider and model" }),

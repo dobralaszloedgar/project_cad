@@ -17,6 +17,8 @@ Checks project files plus all reachable Git objects and refs in the current chec
 npm run assistant:check-packages
 Checks every installer and portable archive against the local checksum manifest, extracts each package, and checks its files. Run on macOS with pkgutil, tar, and 7zz available. Installers are inspected without executing them.
 
-The publisher checks project files, all ten packages, generated release metadata, the current source history, and the public source commit. Publishing requires committed source already present in the configured repository. New release tags target that exact source commit. A preexisting tag must resolve to the same commit. Dry runs inspect local files without committing, pushing, or publishing.
+The Vercel Blob publisher checks project files, all ten packages, checksum sidecars, and generated release metadata before uploading. It serves only the prepared binaries and metadata, with no Git history or source archive. It verifies every public file and publishes the download manifest last. Existing files must match exactly; they are never overwritten. Only after the complete release is verified does it update the local website manifest. Deploy that manifest to activate the new download links. Dry runs inspect local files without uploading or modifying the website manifest.
+
+The optional GitHub publisher additionally checks the current source history and public source commit. GitHub publishing requires committed source already present in the configured repository. New release tags target that exact source commit. A preexisting tag must resolve to the same commit. Run it with npm run assistant:publish:github.
 
 After publishing, run npm run assistant:verify-downloads to verify unauthenticated download access and checksums.

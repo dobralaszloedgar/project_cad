@@ -8,15 +8,16 @@ import { CodexProvider } from "../src/server/assistant/providers/codex";
 import { ClaudeProvider } from "../src/server/assistant/providers/claude";
 import { MuseProvider } from "../src/server/assistant/providers/muse";
 import {
-  applicationOrigin,
+  assistantOrigins,
   loadAssistantSettings,
+  saveAssistantSettings,
 } from "../src/server/assistant/config";
 
 const root =
   process.env.PROJECT_CAD_ASSISTANT_DATA ||
   join(homedir(), ".project-cad", "assistant");
 mkdirSync(root, { recursive: true, mode: 0o700 });
-const settings = loadAssistantSettings(root);
+let settings = loadAssistantSettings(root);
 if (settings.museApiKey && !process.env.MODEL_API_KEY) {
   process.env.MODEL_API_KEY = settings.museApiKey;
   process.env.META_AI_ENABLED = "true";
@@ -30,17 +31,25 @@ const runtime = new AssistantRuntime(
     muse: new MuseProvider(),
   },
   root,
+  () => settings.agents,
 );
 const port = Number(process.env.PROJECT_CAD_ASSISTANT_PORT || 43118);
 if (!Number.isInteger(port) || port < 1024 || port > 65535)
   throw new Error("Invalid assistant port.");
-const origins = (
-  process.env.PROJECT_CAD_APP_ORIGINS ||
-  `${applicationOrigin(settings.websiteUrl)},http://127.0.0.1:3000,http://localhost:3000`
-)
-  .split(",")
-  .map((value) => applicationOrigin(value.trim()));
-const server = createAssistantServer(runtime, { port, origins });
+const origins = assistantOrigins(
+  settings.websiteUrl,
+  process.env.PROJECT_CAD_APP_ORIGINS,
+);
+const server = createAssistantServer(runtime, {
+  port,
+  origins,
+  selectAgents: (agents) => {
+    settings = saveAssistantSettings(root, {
+      ...loadAssistantSettings(root),
+      agents,
+    });
+  },
+});
 server.listen(port, "127.0.0.1", () =>
   console.log(`Project CAD assistant ready at http://127.0.0.1:${port}`),
 );

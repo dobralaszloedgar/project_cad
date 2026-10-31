@@ -5,6 +5,8 @@ import { executeProjectTool } from "./tools";
 import type { ChatAttachment } from "./attachments";
 import {
   ASSISTANT_ENDPOINT,
+  agentSelectionSchema,
+  type AgentSelection,
   type AssistantSnapshot,
   type Conversation,
   type ConversationSummary,
@@ -13,6 +15,7 @@ import {
   type AssistantMode,
   type Proposal,
 } from "./protocol";
+import { rememberAgentSelection, savedAgentSelection } from "./selection";
 
 const tokenKey = "project-cad.assistant-token";
 let browserIdentity: Promise<string> | undefined;
@@ -91,6 +94,7 @@ export function useAssistant(projectId: string, project: Project) {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
+  const [agents, setAgents] = useState<AgentSelection | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversation, setConversation] = useState<Conversation>();
   const [activeConversation, setActiveConversation] = useState<Conversation>();
@@ -190,6 +194,14 @@ export function useAssistant(projectId: string, project: Project) {
         setConnected(true);
         setConversations(value.conversations);
         setCapabilities(value.capabilities ?? []);
+        if (value.agents) {
+          setAgents((previous) =>
+            JSON.stringify(previous) === JSON.stringify(value.agents)
+              ? previous
+              : value.agents!,
+          );
+          rememberAgentSelection(value.agents);
+        }
         setActiveConversation(value.activeConversation);
         setActivity(value.activity);
         if (value.activeConversation)
@@ -262,13 +274,20 @@ export function useAssistant(projectId: string, project: Project) {
       detach();
     };
   }, [token, clientId, projectId, path, report]);
-  function connect() {
+  function connect(selection?: AgentSelection) {
+    const chosen = agentSelectionSchema.safeParse(
+      selection ?? agents ?? savedAgentSelection(),
+    );
+    if (!chosen.success) {
+      setError("Choose your agents before connecting.");
+      return;
+    }
     pairCleanup.current?.();
     setConnecting(true);
     setError("");
     const nonce = crypto.randomUUID();
     const popup = window.open(
-      `${ASSISTANT_ENDPOINT}/connect?origin=${encodeURIComponent(window.location.origin)}&nonce=${nonce}`,
+      `${ASSISTANT_ENDPOINT}/connect?${new URLSearchParams({ origin: window.location.origin, nonce, providers: chosen.data.providers.join(","), preferred: chosen.data.preferred })}`,
       "project-cad-connect",
       "popup,width=560,height=500",
     );
@@ -280,6 +299,7 @@ export function useAssistant(projectId: string, project: Project) {
     const cleanup = () => {
       window.removeEventListener("message", receive);
       clearTimeout(timeout);
+      clearInterval(closed);
       setConnecting(false);
       pairCleanup.current = null;
     };
@@ -287,11 +307,33 @@ export function useAssistant(projectId: string, project: Project) {
       if (
         event.origin !== ASSISTANT_ENDPOINT ||
         event.source !== popup ||
-        event.data?.type !== "project-cad-assistant-connected" ||
-        event.data.nonce !== nonce ||
+        event.data?.nonce !== nonce
+      )
+        return;
+      if (
+        event.data.type === "project-cad-assistant-error" &&
+        typeof event.data.error === "string"
+      ) {
+        setError(event.data.error);
+        cleanup();
+        return;
+      }
+      if (
+        event.data.type !== "project-cad-assistant-connected" ||
         typeof event.data.token !== "string"
       )
         return;
+      const accepted = agentSelectionSchema.safeParse(event.data.agents);
+      if (!accepted.success) {
+        setError(
+          "Update Project CAD Assistant to save your agent selection, then connect again.",
+        );
+        cleanup();
+        return;
+      }
+      const selection = accepted.data;
+      setAgents(selection);
+      rememberAgentSelection(selection);
       sessionStorage.setItem(tokenKey, event.data.token);
       setToken(event.data.token);
       setError("");
@@ -303,8 +345,19 @@ export function useAssistant(projectId: string, project: Project) {
         "Connection timed out. Open Project CAD Assistant on this laptop, then try again.",
       );
     }, 120000);
+    const closed = setInterval(() => {
+      if (popup.closed) {
+        cleanup();
+        setError(
+          "Connection window closed. Your agent selection is saved; connect again when ready.",
+        );
+      }
+    }, 500);
     window.addEventListener("message", receive);
-    pairCleanup.current = cleanup;
+    pairCleanup.current = () => {
+      cleanup();
+      popup.close();
+    };
   }
   function select(id?: string) {
     selected.current = id;
@@ -452,6 +505,7 @@ export function useAssistant(projectId: string, project: Project) {
     connected,
     connecting,
     providers,
+    agents,
     conversations,
     conversation,
     selectedId,
