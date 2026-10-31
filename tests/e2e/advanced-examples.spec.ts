@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
+import { loadTemplate } from "../../src/domain/templates";
 import type { Workspace } from "../../src/lib/revisions";
 import { validateWorkspace } from "../../src/lib/project-file";
 
@@ -23,7 +24,7 @@ const examples = [
   },
   {
     id: "fractionation-complex",
-    name: "Four-column recovery plant",
+    name: "Four-stage benzene–toluene recovery",
     units: 35,
     streams: 34,
     column: "D-1101",
@@ -88,7 +89,7 @@ for (const example of examples) {
     page.on("console", (message) => {
       if (message.type() === "error") errors.push(message.text());
     });
-    const expected = plantTemplate(id)!;
+    const expected = (loadTemplate(id) ?? plantTemplate(id))!;
     expect(expected.units.length).toBe(example.units);
     await page.goto(exampleUrl(id));
     await loaded(page);

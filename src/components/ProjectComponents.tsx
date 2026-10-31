@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import type { Project } from "@/domain/schema";
+import { sampleCatalog } from "@/domain/thermo/catalog";
 import {
   defaultThermo,
   modelInfo,
@@ -49,7 +50,9 @@ export default function ProjectComponents({
 }) {
   const current = project.thermo ?? defaultThermo;
   const [choices, setChoices] = useState<ComponentChoices>(() =>
-    catalogChoices(current),
+    current.mixture === "demo"
+      ? [sampleCatalog.get("A"), sampleCatalog.get("B")]
+      : catalogChoices(current),
   );
   const [release, setRelease] = useState(current.catalog?.release);
   const [query, setQuery] = useState("");
@@ -117,6 +120,9 @@ export default function ProjectComponents({
   const data = !loading ? lookup?.data : undefined;
   const lookupError = !loading ? lookup?.error : undefined;
   const selectedCount = choices.filter(Boolean).length;
+  const hasSynthetic = choices.some(
+    (choice) => choice && ["A", "B"].includes(choice.id),
+  );
   const pages = data
     ? Math.max(1, Math.ceil(data.total / CHEMICAL_PAGE_SIZE))
     : page;
@@ -125,7 +131,7 @@ export default function ProjectComponents({
       className="project-components"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (saving || selectedCount !== 2) return;
+        if (saving || selectedCount !== 2 || hasSynthetic) return;
         setSaving(true);
         setError("");
         const controller = new AbortController();
@@ -385,7 +391,9 @@ export default function ProjectComponents({
                     <div className="selected-chemical">
                       <strong>{choices[i]!.name}</strong>
                       <small>
-                        {choices[i]!.formula} · {choices[i]!.id}
+                        {["A", "B"].includes(choices[i]!.id)
+                          ? "Built-in teaching species · properties included"
+                          : `${choices[i]!.formula ?? ""} · ${choices[i]!.id}`}
                       </small>
                     </div>
                     <button
@@ -411,6 +419,12 @@ export default function ProjectComponents({
               </div>
             ))}
           </div>
+          {hasSynthetic && (
+            <p className="components-notice">
+              Synthetic A/B properties are already specified. To use catalog
+              chemicals instead, replace both components.
+            </p>
+          )}
           {project.units.some((unit) => unit.kind === "PBR") && (
             <p className="components-notice">
               The sample reactor requires synthetic A/B.
@@ -429,7 +443,7 @@ export default function ProjectComponents({
         </button>
         <button
           className="btn btn-primary"
-          disabled={saving || selectedCount !== 2}
+          disabled={saving || selectedCount !== 2 || hasSynthetic}
         >
           {saving ? "Saving…" : "Apply components"}
         </button>

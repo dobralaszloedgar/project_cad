@@ -514,7 +514,7 @@ export function simulate(
     );
   if (project.units.some((n) => n.kind === "Splitter"))
     result.warnings.push(
-      "A splitter recycles both A and B in equal proportions; it does not selectively recover unreacted A.",
+      "A splitter divides both components in the same proportions; it does not selectively separate chemicals.",
     );
   if (project.units.some((n) => n.kind === "Distillation"))
     result.warnings.push(

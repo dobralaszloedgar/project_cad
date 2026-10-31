@@ -49,13 +49,13 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   await expect(modelDialog.getByRole("radio")).toHaveCount(3);
   await expect(idealGas).toBeChecked();
   await expect(idealGas).toHaveAccessibleDescription(
-    /Equation of state.*low pressure.*condensation/,
+    /Low-pressure gases.*condensation.*Vapor only/,
   );
   await expect(raoult).toHaveAccessibleDescription(
-    /Ideal liquid-mixture model.*similar molecules.*1–200 kPa/,
+    /Ideal mixtures.*similar molecules.*1–200 kPa/,
   );
   await expect(unifac).toHaveAccessibleDescription(
-    /Group-contribution activity-coefficient model.*nonideal liquids.*1–200 kPa.*supported molecular groups/,
+    /Nonideal liquids.*supported molecular groups.*1–200 kPa/,
   );
   await expect(modelDialog.getByRole("searchbox")).toHaveCount(0);
   await expect(idealGas).toBeFocused();

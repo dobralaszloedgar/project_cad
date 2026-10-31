@@ -227,13 +227,11 @@ h3 {
   background: var(--border);
   margin-left: 1px;
 }
-.header-navigation > button:nth-child(2) {
-  display: none;
-}
 .header-navigation {
   display: flex;
   align-items: center;
   gap: 9px;
+  flex-shrink: 0;
 }
 .project-heading {
   min-width: 0;
@@ -252,35 +250,12 @@ h3 {
   max-width: 360px;
   letter-spacing: 0;
 }
-.project-heading > svg {
-  color: var(--muted);
-  flex-shrink: 0;
-}
-.revision-badge {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: var(--hover);
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-}
 .header-actions {
   display: flex;
   align-items: center;
   gap: 15px;
   margin-left: auto;
   flex-shrink: 0;
-}
-.landing-page-button {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 9px;
-  gap: 6px;
-  white-space: nowrap;
-  font-size: 12px;
 }
 .model-button {
   display: flex;
@@ -1858,12 +1833,6 @@ h3 {
   }
 }
 @media (max-width: 760px) {
-  .landing-page-button {
-    padding: 0 8px;
-  }
-  .landing-page-button span {
-    display: none;
-  }
   .app-header {
     height: 56px;
     padding: 0 10px;
@@ -1877,8 +1846,7 @@ h3 {
     width: 24px;
   }
   .header-divider,
-  .header-navigation > button:first-child,
-  .header-navigation > button:last-child,
+  .app-header .brand span,
   .project-heading,
   .theme-button {
     display: none;
@@ -1973,9 +1941,6 @@ h3 {
   }
   .chat-bottom {
     padding: 10px 12px 14px;
-  }
-  .header-navigation > button:nth-child(2) {
-    display: flex;
   }
   .notification {
     top: 99px;

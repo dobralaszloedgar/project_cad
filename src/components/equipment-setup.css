@@ -357,11 +357,39 @@
 .equipment-editor .model-notes {
   padding: 14px;
   font-size: 12px;
-  line-height: 1.65;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .equipment-editor .model-notes h3 {
   font-size: 13px;
+}
+.model-notes ul {
+  margin: 8px 0;
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--muted);
+}
+.model-notes li + li {
+  margin-top: 4px;
+}
+.model-notes .model-equation {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px 0;
+  color: var(--ink);
+}
+.model-notes .katex-display {
+  margin: 4px 0;
+  text-align: left;
+}
+.model-notes .katex {
+  font-size: 1.1em;
+}
+.model-notes .model-math-inline {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
 }
 .equipment-editor-footer {
   display: flex;

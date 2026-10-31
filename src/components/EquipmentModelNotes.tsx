@@ -1,6 +1,34 @@
+import { useMemo } from "react";
+import { renderToString } from "katex";
 import type { Unit } from "@/domain/schema";
 import { modelInfo, type ThermoSettings } from "@/domain/thermo/registry";
 import { mixtureName } from "@/domain/thermo/catalog";
+import "katex/dist/katex.min.css";
+
+function Equation({
+  children,
+  inline = false,
+}: {
+  children: string;
+  inline?: boolean;
+}) {
+  const html = useMemo(
+    () =>
+      renderToString(children, {
+        displayMode: !inline,
+        output: "htmlAndMathml",
+        strict: "error",
+        trust: false,
+      }),
+    [children, inline],
+  );
+  return (
+    <span
+      className={inline ? "model-math-inline" : "model-equation"}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
 
 export function EquipmentModelNotes({
   unit,
@@ -10,85 +38,189 @@ export function EquipmentModelNotes({
   settings: ThermoSettings;
 }) {
   const thermal = unit.kind === "Heater" || unit.kind === "Cooler";
+  const idealGas = settings.modelId === "ideal-gas";
+  const catalystWeight = unit.params.reactorMode === "catalyst-weight";
   return (
     <div className="model-notes">
       <h3>{modelInfo(settings.modelId).name}</h3>
-      <p>Components A / B: {mixtureName(settings)}.</p>
-      <p>{modelInfo(settings.modelId).limitations}</p>
-      {settings.mixture === "demo" ? (
+      <ul>
+        <li>Components: {mixtureName(settings)}.</li>
+        <li>{modelInfo(settings.modelId).limitations}</li>
+        {settings.mixture === "demo" ? (
+          <li>
+            Synthetic species; equal{" "}
+            <Equation inline>{String.raw`M = 28\,\mathrm{g/mol}`}</Equation>;
+            constant{" "}
+            <Equation
+              inline
+            >{String.raw`C_p = 30\,\mathrm{J/(mol\cdot K)}`}</Equation>
+            .
+          </li>
+        ) : (
+          <li>
+            Constant heat capacities; vapor-pressure correlations have
+            temperature limits.
+          </li>
+        )}
+        <li>
+          Vapor-only volume flow:{" "}
+          <Equation inline>{String.raw`\dot V = FRT/P`}</Equation>; total molar
+          flow <Equation inline>{String.raw`F = \sum_i F_i`}</Equation> in
+          mol/s.
+        </li>
+      </ul>
+      {unit.kind === "Feed" && (
         <>
-          <p>
-            A and B are synthetic species with equal molecular weight (28
-            g/mol).
-          </p>
-          <p>Constant heat capacity: 30 J/(mol·K). Ideal gas volume: nRT/P.</p>
+          <Equation>{String.raw`F_A = Fz_A,\qquad F_B = F(1-z_A)`}</Equation>
+          <ul>
+            <li>Specified flow, composition, temperature and pressure.</li>
+          </ul>
         </>
-      ) : (
-        <p>
-          Sample constant heat capacities. Vapor pressures use
-          temperature-bounded correlations. Volume is reported only for a wholly
-          vapor stream.
-        </p>
+      )}
+      {unit.kind === "Product" && (
+        <>
+          <Equation>{String.raw`F_{i,\mathrm{product}} = F_{i,\mathrm{in}},\qquad Q = 0`}</Equation>
+          <ul>
+            <li>Receives the inlet state unchanged.</li>
+          </ul>
+        </>
       )}
       {unit.kind === "PBR" && (
         <>
-          <p>
-            Isothermal A → B with equal molecular weights. Eₐ = 40 kJ/mol; ΔHᵣ =
-            −20 kJ/mol. Heat duty includes reaction and sensible heat. These
-            kinetic constants describe a synthetic teaching reaction.
-          </p>
-          {unit.params.reactorMode === "catalyst-weight" ? (
-            <p>
-              dFₐ/dW = −k(T)Cₐ; Cₐ = FₐP/(FRT). W is catalyst mass in kg, F is
-              total molar flow in mol/s and k is in m³/(kg·s). k(T) = k₄₅₀
-              exp[−40000/R (1/T − 1/450)]. The profile integrates species flow
-              along the catalyst mass at fixed T and P.
-            </p>
+          {catalystWeight ? (
+            <Equation>{String.raw`\frac{dF_A}{dW} = -k(T)C_A,\qquad C_A = \frac{F_AP}{FRT}`}</Equation>
           ) : (
-            <p>
-              X = 1 − exp(−kτ), with k(450 K) = 0.1 s⁻¹ and k(T) = 0.1
-              exp[−40000/R (1/T − 1/450)]. User-set residence time is
-              independent of flow.
-            </p>
+            <Equation>{String.raw`X = 1 - e^{-k(T)\tau}`}</Equation>
           )}
-          <p>No catalyst transport, deactivation or pressure-drop model.</p>
+          <Equation>{String.raw`k(T) = k_{450}\exp\!\left[-\frac{E_a}{R}\left(\frac{1}{T}-\frac{1}{450\,\mathrm K}\right)\right]`}</Equation>
+          <ul>
+            <li>
+              Isothermal <Equation inline>{String.raw`A \to B`}</Equation> at
+              fixed pressure; synthetic A/B and ideal gas only.
+            </li>
+            <li>
+              Teaching kinetics:{" "}
+              <Equation
+                inline
+              >{String.raw`E_a = 40\,\mathrm{kJ/mol}`}</Equation>
+              ;{" "}
+              <Equation
+                inline
+              >{String.raw`\Delta H_r = -20\,\mathrm{kJ/mol}`}</Equation>
+              .
+            </li>
+            {catalystWeight ? (
+              <li>
+                Integrates over catalyst mass <Equation inline>W</Equation>{" "}
+                (kg); specified{" "}
+                <Equation inline>{String.raw`k_{450}`}</Equation> in{" "}
+                <Equation
+                  inline
+                >{String.raw`\mathrm{m^3/(kg\cdot s)}`}</Equation>
+                .
+              </li>
+            ) : (
+              <li>
+                <Equation
+                  inline
+                >{String.raw`k_{450} = 0.1\,\mathrm{s^{-1}}`}</Equation>
+                ; specified residence time{" "}
+                <Equation inline>{String.raw`\tau`}</Equation> is independent of
+                flow.
+              </li>
+            )}
+            <li>
+              Duty includes reaction and sensible heat; no catalyst transport or
+              deactivation.
+            </li>
+          </ul>
         </>
       )}
       {thermal && (
-        <p>
-          Q = Hout − Hin, in W. Positive Q adds heat. Outlet-temperature mode
-          uses the selected enthalpy method. Specified-duty mode supports ideal
-          gas: Tout = Tin + Q / Σ(FᵢCpᵢ), with constant component heat
-          capacities and no phase change.
-        </p>
+        <>
+          <Equation>{String.raw`Q = \dot H_{\mathrm{out}} - \dot H_{\mathrm{in}}`}</Equation>
+          {idealGas && (
+            <Equation>{String.raw`T_{\mathrm{out}} = T_{\mathrm{in}} + \frac{Q}{\sum_i F_i C_{p,i}}`}</Equation>
+          )}
+          <ul>
+            <li>Duty in W; positive adds heat, negative removes heat.</li>
+            <li>Outlet-temperature mode uses the selected enthalpy model.</li>
+            <li>
+              Specified duty: ideal gas only, constant heat capacities, no phase
+              change.
+            </li>
+          </ul>
+        </>
       )}
       {unit.kind === "Mixer" && (
-        <p>
-          Fᵢ,out = Σ Fᵢ,in and Hout = Σ Hin. Outlet pressure equals the lowest
-          flowing inlet pressure; no shaft work or heat transfer.
-        </p>
+        <>
+          <Equation>{String.raw`\begin{aligned}F_{i,\mathrm{out}} &= \sum_j F_{i,j} \\ \dot H_{\mathrm{out}} &= \sum_j \dot H_j \\ P_{\mathrm{out}} &= \min_j P_j\end{aligned}`}</Equation>
+          <ul>
+            <li>
+              Conserves component flows and enthalpy; no heat transfer or shaft
+              work.
+            </li>
+            <li>
+              Pressure uses flowing inlets only; zero-flow inlets are ignored.
+            </li>
+          </ul>
+        </>
       )}
-      {unit.kind === "Distillation" && settings.modelId === "ideal-gas" ? (
-        <p>
-          One ideal equilibrium contact: y = αx / (1 + (α − 1)x). Fixed cut; no
-          latent heat or stage design.
-        </p>
-      ) : null}
-      {unit.kind === "Distillation" && settings.modelId !== "ideal-gas" && (
-        <p>
-          One TP equilibrium flash at feed temperature and pressure. Vapor
-          leaves the first outlet; liquid leaves the second. No column stages or
-          reflux calculation.
-        </p>
+      {unit.kind === "Distillation" &&
+        (idealGas ? (
+          <>
+            <Equation>{String.raw`y = \frac{\alpha x}{1+(\alpha-1)x},\qquad z = dy+(1-d)x`}</Equation>
+            <ul>
+              <li>
+                One equilibrium contact; fixed distillate cut and relative
+                volatility.
+              </li>
+              <li>
+                <Equation inline>d</Equation>: distillate fraction;{" "}
+                <Equation inline>{String.raw`x,\ y,\ z`}</Equation>: A fractions
+                in bottoms, distillate and feed.
+              </li>
+              <li>No latent heat, stages or reflux calculation.</li>
+            </ul>
+          </>
+        ) : (
+          <>
+            <Equation>
+              {settings.modelId === "ideal-solution"
+                ? String.raw`y_iP = x_iP_i^{\mathrm{sat}}(T)`
+                : String.raw`y_iP = x_i\gamma_iP_i^{\mathrm{sat}}(T)`}
+            </Equation>
+            <Equation>{String.raw`\begin{aligned}F_{i,1} &= \beta F y_i \\ F_{i,2} &= (1-\beta)F x_i\end{aligned}`}</Equation>
+            <ul>
+              <li>
+                One TP flash at feed temperature and pressure; no stages or
+                reflux.
+              </li>
+              <li>
+                Outlet 1: vapor; outlet 2: liquid.{" "}
+                <Equation inline>{String.raw`\beta`}</Equation>: vapor fraction.
+              </li>
+              {settings.modelId === "modified-unifac-2.0" && (
+                <li>Activity coefficients from Modified UNIFAC 2.0.</li>
+              )}
+            </ul>
+          </>
+        ))}
+      {unit.kind === "Splitter" && (
+        <>
+          <Equation>{String.raw`\begin{aligned}F_{i,1} &= (1-f)F_{i,\mathrm{in}} \\ F_{i,2} &= fF_{i,\mathrm{in}}\end{aligned}`}</Equation>
+          <ul>
+            <li>
+              <Equation inline>f</Equation>: outlet 2 fraction, applied equally
+              to each component.
+            </li>
+            <li>Temperature, pressure and phase preserved; zero duty.</li>
+          </ul>
+        </>
       )}
-      {unit.kind === "Splitter" ? (
-        <p>
-          Fᵢ,out2 = f Fᵢ,in and Fᵢ,out = (1 − f) Fᵢ,in. Temperature, pressure
-          and phase state are preserved. This is a proportional flow split with
-          zero heat duty.
-        </p>
-      ) : null}
-      <p>No pressure drop or mechanical certification.</p>
+      <ul>
+        <li>No pressure-drop model or mechanical certification.</li>
+      </ul>
     </div>
   );
 }

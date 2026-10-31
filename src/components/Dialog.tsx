@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import { X } from "lucide-react";
 import { isCloseKey } from "@/lib/keyboard";
 export default function Dialog({
@@ -7,18 +7,21 @@ export default function Dialog({
   onClose,
   children,
   className = "",
+  initialFocusRef,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
+    initialFocusRef?.current?.focus();
     return () => dialog?.close();
-  }, []);
+  }, [initialFocusRef]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const dialog = ref.current;

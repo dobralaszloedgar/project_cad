@@ -54,7 +54,7 @@ test("home selection, double-click, context menus and keyboard actions match the
   ).toBeFocused();
   await page.keyboard.press("End");
   await expect(
-    menu.getByRole("menuitem", { name: "Project details" }),
+    menu.getByRole("menuitem", { name: "Move to Trash" }),
   ).toBeFocused();
   await page.keyboard.press("Home");
   await page.keyboard.press("ArrowDown");
@@ -149,9 +149,7 @@ test("home themes and default save folder persist and apply when creating a proj
   await create
     .getByLabel("Project name", { exact: true })
     .fill("Default folder study");
-  await expect(create).toContainText(
-    "Laptop projects/Default folder study/project.json",
-  );
+  await expect(create).toContainText("Laptop projects/Default folder study");
   await folderControls(page, { permission: "denied", grant: "denied" });
   await create
     .getByRole("button", { name: "Create project", exact: true })

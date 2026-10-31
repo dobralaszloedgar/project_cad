@@ -63,6 +63,10 @@ Licensing:
 dependency-licenses.json records installed package versions, declared licenses,
 and source repositories from package metadata. See each package's own license
 for its applicable notices. The package lock pins the full dependency graph.
-The project itself has not been assigned an open-source license; that is a
-release decision for the repository owner. Public hosting alone is not a license.
-No commit, push, deployment or submission was performed.
+Original Project CAD material is copyright (c) 2026 László Edgár Dobra,
+all rights reserved. The root LICENSE grants no reuse permission and applies
+only to copyrightable material owned by that rights holder. Public hosting
+alone is not an open-source license.
+THIRD_PARTY_NOTICES.txt indexes the separate software and data notices.
+Third-party licenses, applicable law, and existing GitHub platform rights
+remain effective. No copyright registration or hackathon compliance is claimed.

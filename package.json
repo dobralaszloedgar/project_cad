@@ -2,6 +2,7 @@
   "name": "project-cad",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "assistant": "node --env-file-if-exists=.env.local --import tsx scripts/assistant.ts",
     "assistant:build": "node scripts/assistant/build.mjs",
@@ -34,6 +35,7 @@
     "@react-three/fiber": "9.8.2",
     "@xyflow/react": "12.12.0",
     "idb": "8.0.4",
+    "katex": "0.19.1",
     "lucide-react": "1.62.0",
     "motion": "14.8.0",
     "next": "16.4.3",

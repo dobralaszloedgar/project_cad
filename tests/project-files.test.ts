@@ -71,6 +71,7 @@ interface DiskControl {
   grant: PermissionState;
   failWrite: boolean;
   failClose: boolean;
+  failDelete: boolean;
   aborts: number;
   commits: number;
   maximumOpenWriters: number;
@@ -168,6 +169,13 @@ class DiskDirectory {
       throw new DOMException("Not a file", "TypeMismatchError");
     return new DiskFile(path, this.control);
   }
+  async removeEntry(name: string) {
+    if (this.control.failDelete)
+      throw new DOMException("File is in use", "NoModificationAllowedError");
+    const path = join(this.path, name);
+    if (!(await exists(path))) throw missing();
+    await rm(path);
+  }
   async *values() {
     for (const name of await readdir(this.path)) {
       const path = join(this.path, name);
@@ -205,6 +213,7 @@ beforeEach(async () => {
     grant: "granted",
     failWrite: false,
     failClose: false,
+    failDelete: false,
     aborts: 0,
     commits: 0,
     maximumOpenWriters: 0,
@@ -219,6 +228,182 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.unstubAllGlobals();
   await rm(temporary, { recursive: true, force: true });
+});
+
+describe("project Trash", () => {
+  it("preserves files, history and favorites, switches the active project, and restores without a disk write", async () => {
+    const seed = workspace();
+    await storage.saveWorkspace(seed, "main");
+    const created = await storage.createFolderProject(parent, "Study", seed);
+    await storage.updateSavedProject({ ...created, starred: true });
+    const text = await contents();
+    const commits = control.commits;
+    const next = await storage.trashSavedProject(created.id);
+    expect(next?.id).toBe("main");
+    expect(await storage.activeProjectId()).toBe("main");
+    expect(await contents()).toBe(text);
+    const trashed = (await storage.listProjects()).find(
+      (entry) => entry.id === created.id,
+    )!;
+    expect(trashed).toMatchObject({
+      starred: true,
+      workspace: created.workspace,
+      trashedAt: expect.any(String),
+    });
+    await expect(storage.saveWorkspace(seed, created.id)).rejects.toThrow(
+      "Trash",
+    );
+    await expect(
+      storage.saveWorkspaceRecovery(seed, created.id),
+    ).rejects.toThrow("Trash");
+    await expect(storage.updateSavedProject(created)).rejects.toThrow("Trash");
+    await expect(storage.activateSavedProject(created.id)).rejects.toThrow(
+      "Trash",
+    );
+    await expect(storage.openFolderProject(directory())).rejects.toThrow(
+      "Trash",
+    );
+    await storage.restoreSavedProject(created.id);
+    const restored = (await storage.listProjects()).find(
+      (entry) => entry.id === created.id,
+    )!;
+    expect(restored.trashedAt).toBeUndefined();
+    expect(restored.workspace).toEqual(created.workspace);
+    expect(restored.starred).toBe(true);
+    expect(control.commits).toBe(commits);
+    expect((await storage.activateSavedProject(created.id)).workspace).toEqual(
+      created.workspace,
+    );
+  });
+
+  it("leaves an explicitly empty library after the last project is trashed or deleted", async () => {
+    await storage.saveWorkspace(workspace(), "main");
+    await expect(storage.deleteSavedProject("main")).rejects.toThrow(
+      "Move this project to Trash",
+    );
+    expect(await storage.trashSavedProject("main")).toBeNull();
+    expect(await storage.loadActiveWorkspace()).toEqual({
+      projectId: "",
+      workspace: null,
+    });
+    await storage.deleteSavedProject("main");
+    expect(await storage.listProjects()).toEqual([]);
+    expect(await storage.loadActiveWorkspace()).toEqual({
+      projectId: "",
+      workspace: null,
+    });
+    await expect(storage.saveWorkspace(workspace(), "main")).rejects.toThrow(
+      "permanently deleted",
+    );
+    await expect(
+      storage.saveWorkspaceRecovery(workspace(), "main"),
+    ).rejects.toThrow("permanently deleted");
+  });
+
+  it("does not reopen trashed examples through old links and still permits library access", async () => {
+    const example = await storage.openExampleWorkspace("heating", workspace());
+    await storage.trashSavedProject(example.projectId);
+    expect(await storage.openExampleWorkspace("heating", workspace())).toEqual({
+      projectId: "",
+      workspace: null,
+    });
+    expect((await storage.listProjects())[0].trashedAt).toBeTruthy();
+    await storage.restoreSavedProject(example.projectId);
+    expect(
+      (await storage.openExampleWorkspace("heating", workspace())).workspace,
+    ).toEqual(example.workspace);
+  });
+
+  it("permanently deletes project.json and its cache while preserving unrelated files", async () => {
+    const created = await storage.createFolderProject(
+      parent,
+      "Study",
+      workspace(),
+    );
+    await writeFile(join(temporary, "Study", "notes.txt"), "Keep these notes");
+    await storage.trashSavedProject(created.id);
+    await storage.deleteSavedProject(created.id);
+    expect(await exists(join(temporary, "Study", "project.json"))).toBeNull();
+    expect(await readFile(join(temporary, "Study", "notes.txt"), "utf8")).toBe(
+      "Keep these notes",
+    );
+    expect(await storage.listProjects()).toEqual([]);
+    expect(await storage.getProjectFolderInfo(created.id)).toBeNull();
+    await expect(
+      storage.saveWorkspace(created.workspace, created.id),
+    ).rejects.toThrow("permanently deleted");
+    await expect(storage.updateSavedProject(created)).rejects.toThrow(
+      "permanently deleted",
+    );
+  });
+
+  it("retains Trash and recovery when folder permission or deletion fails, then allows retry", async () => {
+    const created = await storage.createFolderProject(
+      parent,
+      "Study",
+      workspace(),
+    );
+    await storage.trashSavedProject(created.id);
+    const text = await contents();
+    control.permission = control.grant = "denied";
+    await expect(storage.deleteSavedProject(created.id)).rejects.toThrow(
+      "Folder access is needed to delete",
+    );
+    expect(await contents()).toBe(text);
+    expect((await storage.listProjects())[0].trashedAt).toBeTruthy();
+    control.grant = "granted";
+    control.failDelete = true;
+    await expect(storage.deleteSavedProject(created.id)).rejects.toThrow();
+    expect(await contents()).toBe(text);
+    expect((await storage.listProjects())[0].trashedAt).toBeTruthy();
+    control.failDelete = false;
+    await storage.deleteSavedProject(created.id);
+    expect(await storage.listProjects()).toEqual([]);
+    expect(await exists(join(temporary, "Study", "project.json"))).toBeNull();
+  });
+
+  it("refuses to delete a file changed after trashing, but accepts an already missing file", async () => {
+    const created = await storage.createFolderProject(
+      parent,
+      "Study",
+      workspace(),
+    );
+    await storage.trashSavedProject(created.id);
+    const changed = parseProjectFile(await contents());
+    changed.workspace.project.name = "Changed outside the app";
+    const text = serializeProjectFile(changed);
+    await writeFile(join(temporary, "Study", "project.json"), text);
+    await expect(storage.deleteSavedProject(created.id)).rejects.toThrow(
+      "changed on disk",
+    );
+    expect(await contents()).toBe(text);
+    expect((await storage.listProjects())[0].trashedAt).toBeTruthy();
+    await rm(join(temporary, "Study", "project.json"));
+    await storage.deleteSavedProject(created.id);
+    expect(await storage.listProjects()).toEqual([]);
+  });
+
+  it("serializes a pending save before trashing and rejects subsequent stale saves", async () => {
+    const created = await storage.createFolderProject(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const changed = structuredClone(created.workspace);
+    changed.project.name = "Latest edits";
+    await Promise.all([
+      storage.saveWorkspace(changed, created.id),
+      storage.trashSavedProject(created.id),
+    ]);
+    expect((await storage.listProjects())[0]).toMatchObject({
+      workspace: changed,
+      trashedAt: expect.any(String),
+    });
+    expect(parseProjectFile(await contents()).workspace).toEqual(changed);
+    await expect(
+      storage.saveWorkspace(created.workspace, created.id),
+    ).rejects.toThrow("Trash");
+  });
 });
 
 describe("local folder project persistence", () => {

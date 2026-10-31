@@ -1,69 +1,13 @@
 "use client";
 import { ArrowRight, Plus } from "lucide-react";
 import Dialog from "./Dialog";
-import {
-  reactorExample,
-  distillationExample,
-  heatingExample,
-  solutionExample,
-  thermalCycleExample,
-  mixingExample,
-  catalystExample,
-} from "@/domain/examples";
 import { type Project } from "@/domain/schema";
-import { plantTemplate, plantTemplates } from "@/domain/plant-templates";
+import { templates, templateSpecification } from "@/domain/templates";
 import { EquipmentIcon } from "./EquipmentIcon";
-const examples = [
-  {
-    id: "catalyst",
-    name: "Catalyst-weight reactor",
-    description: "Mix two feeds and calculate conversion along a catalyst bed.",
-    project: catalystExample(),
-  },
-  {
-    id: "thermal-cycle",
-    name: "Heating and cooling",
-    description: "Add a specified heat duty, then cool back to 300 K.",
-    project: thermalCycleExample(),
-  },
-  {
-    id: "mixing",
-    name: "Mixing and splitting",
-    description:
-      "Combine two feeds and divide the mixture between two products.",
-    project: mixingExample(),
-  },
-  {
-    id: "solution",
-    name: "Raoult’s law separation",
-    description: "Flash a benzene / toluene sample at 350 K and 55 kPa.",
-    project: solutionExample(),
-  },
-  {
-    id: "heating",
-    name: "Simple heating",
-    description: "Heat one feed to a specified temperature.",
-    project: heatingExample(),
-  },
-  {
-    id: "reactor",
-    name: "Reactor with recycle",
-    description: "Convert A to B and return part of the outlet.",
-    project: reactorExample(),
-  },
-  {
-    id: "distillation",
-    name: "Ideal separation",
-    description: "Separate a binary feed in one ideal contact.",
-    project: distillationExample(),
-  },
-  ...plantTemplates.map((item) => ({
-    id: item.id,
-    name: item.title,
-    description: item.description.replace(/^\d+ assemblies: /, ""),
-    project: plantTemplate(item.id)!,
-  })),
-];
+const examples = templates.map((template) => ({
+  ...template,
+  project: template.create(),
+}));
 function TemplateDiagram({ project }: { project: Project }) {
   return (
     <div className="template-diagram" aria-hidden="true">
@@ -95,7 +39,8 @@ export default function Templates({
       className="templates-dialog"
     >
       <p className="dialog-intro">
-        Choose a flowsheet, from a single operation to a connected plant.
+        Ready to run with real chemicals: components, property models,
+        separations and operating conditions are already specified.
       </p>
       <div className="template-list">
         {examples.map((t) => (
@@ -108,6 +53,7 @@ export default function Templates({
             <span className="template-copy">
               <strong>{t.name}</strong>
               <span>{t.description}</span>
+              <small>{templateSpecification(t.project)}</small>
               <small>
                 {t.project.units.length} equipment · {t.project.edges.length}{" "}
                 streams
@@ -118,7 +64,10 @@ export default function Templates({
         ))}
       </div>
       <div className="template-bottom">
-        <span>All templates use the same documented ideal models.</span>
+        <span>
+          Every template includes its chemical property data. Reactor templates
+          will be available when real-chemical reactions are supported.
+        </span>
         <button className="btn" onClick={() => onLoad("empty")}>
           <Plus size={15} /> Blank flowsheet
         </button>

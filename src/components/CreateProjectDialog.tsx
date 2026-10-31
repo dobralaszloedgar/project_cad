@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { ChevronRight, FolderOpen } from "lucide-react";
 import type { Project } from "@/domain/schema";
 import {
   chooseProjectDirectory,
@@ -36,6 +36,7 @@ export default function CreateProjectDialog({
   const [loadingDirectory, setLoadingDirectory] = useState(true);
   const locked = useRef(false);
   const container = useRef<HTMLDivElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
   const id = useId();
   const busy = picking || creating || loadingDirectory;
   const title = saveLocation ? "Save project to folder" : "Create project";
@@ -48,6 +49,9 @@ export default function CreateProjectDialog({
       value instanceof Error ? value.message : "Enter a valid project name.";
   }
   const showNameError = !!nameError && (touched || name.length > 0);
+  const folderPath = directory
+    ? `${directory.name}/${validName || "Project name"}`
+    : "";
 
   useEffect(() => {
     let active = true;
@@ -132,7 +136,12 @@ export default function CreateProjectDialog({
 
   return (
     <div ref={container}>
-      <Dialog title={title} className={styles.dialog} onClose={close}>
+      <Dialog
+        title={title}
+        className={styles.dialog}
+        initialFocusRef={nameInput}
+        onClose={close}
+      >
         <form
           className={styles.form}
           aria-busy={busy}
@@ -142,85 +151,70 @@ export default function CreateProjectDialog({
             void create();
           }}
         >
-          <p className={styles.intro}>
-            {saveLocation ? (
-              "Choose a new folder for this project. Its complete revision history is kept, and future changes save here automatically. Any previous file stays in place."
-            ) : (
-              <>
-                Keep this project in a folder on your laptop. Your work and
-                revision history will save automatically to{" "}
-                <code>project.json</code>.
-              </>
-            )}
-          </p>
           <div className={styles.field}>
             <label htmlFor={`${id}-name`}>
               {saveLocation ? "Folder name" : "Project name"}
             </label>
             <input
+              ref={nameInput}
               id={`${id}-name`}
               className="input"
-              autoFocus
               autoComplete="off"
               maxLength={80}
               value={name}
               disabled={picking || creating}
               aria-invalid={showNameError || undefined}
-              aria-describedby={`${id}-name-help`}
+              aria-describedby={showNameError ? `${id}-name-error` : undefined}
               onBlur={() => setTouched(true)}
               onChange={(event) => {
                 setName(event.target.value);
                 setError("");
               }}
             />
-            <p
-              id={`${id}-name-help`}
-              className={showNameError ? styles.error : styles.hint}
-            >
-              {showNameError
-                ? nameError
-                : "A new project folder will use this name."}
-            </p>
+            {showNameError ? (
+              <p id={`${id}-name-error`} className={styles.error}>
+                {nameError}
+              </p>
+            ) : null}
           </div>
           <div className={styles.field}>
-            <span id={`${id}-folder-label`}>Parent folder</span>
-            <div className={styles.folderRow}>
-              <div className={styles.folderName}>
-                <FolderOpen size={20} aria-hidden="true" />
-                <span>{directory ? directory.name : "No folder selected"}</span>
-              </div>
-              <button
-                className="btn"
-                type="button"
-                disabled={!supported || busy}
-                aria-describedby={`${id}-folder-label`}
-                onClick={() => void chooseFolder()}
+            <span id={`${id}-folder-label`}>Save location</span>
+            <button
+              className={styles.folderPicker}
+              type="button"
+              disabled={!supported || busy}
+              aria-label={directory ? "Change folder" : "Choose folder"}
+              aria-describedby={`${id}-folder-label ${id}-folder-value ${id}-folder-help`}
+              title={folderPath || undefined}
+              onClick={() => void chooseFolder()}
+            >
+              <FolderOpen size={18} aria-hidden="true" />
+              <span
+                id={`${id}-folder-value`}
+                className={styles.folderPath}
+                aria-live="polite"
               >
                 {picking
                   ? "Choosing…"
-                  : directory
-                    ? "Change folder"
-                    : "Choose folder"}
-              </button>
-            </div>
-            {directory ? (
-              <div className={styles.destination} aria-live="polite">
-                <span>Project location</span>
-                <code>
-                  {directory.name}/{validName || "Project name"}/project.json
-                </code>
-              </div>
-            ) : (
-              <p className={styles.hint}>
-                Choose where to create this project on your laptop.
-              </p>
-            )}
+                  : loadingDirectory
+                    ? "Loading folder…"
+                    : folderPath || "Choose folder"}
+              </span>
+              {directory ? (
+                <span className={styles.changeFolder}>Change</span>
+              ) : (
+                <ChevronRight size={16} aria-hidden="true" />
+              )}
+            </button>
+            <p id={`${id}-folder-help`} className={styles.hint}>
+              {saveLocation
+                ? "History included. The original stays in place."
+                : "Your work saves automatically."}
+            </p>
           </div>
           {!supported ? (
             <p className={styles.notice} role="status">
-              Folder access is unavailable in this browser. Open Project CAD in
-              desktop Chrome or Edge to save directly to a folder on your
-              laptop.
+              Use desktop Chrome or Edge to save to a folder.
             </p>
           ) : null}
           {error ? (
@@ -231,7 +225,7 @@ export default function CreateProjectDialog({
           <div className={styles.actions}>
             <button
               type="button"
-              className="btn"
+              className={`btn ${styles.cancel}`}
               disabled={busy}
               onClick={close}
             >

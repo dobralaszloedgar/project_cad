@@ -5,7 +5,11 @@ import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { mixtureName, thermoContext } from "@/domain/thermo/catalog";
+import {
+  componentNames,
+  mixtureName,
+  thermoContext,
+} from "@/domain/thermo/catalog";
 import { EquipmentModelNotes, CatalystProfile } from "./EquipmentModelNotes";
 import "./equipment-setup.css";
 
@@ -15,6 +19,7 @@ type NumericParam = {
 
 const streamRows: {
   label: string;
+  component?: 0 | 1;
   value: (stream: Stream, properties?: Result["properties"][string]) => string;
 }[] = [
   {
@@ -31,6 +36,7 @@ const streamRows: {
   },
   {
     label: "Mole fraction A",
+    component: 0,
     value: (stream) =>
       flow(stream)
         ? (stream.a / flow(stream)).toFixed(5)
@@ -38,6 +44,7 @@ const streamRows: {
   },
   {
     label: "Mole fraction B",
+    component: 1,
     value: (stream) =>
       flow(stream)
         ? (stream.b / flow(stream)).toFixed(5)
@@ -162,6 +169,7 @@ function EquipmentResults({
   dirty: boolean;
 }) {
   const eq = result?.equipment[unit.id];
+  const names = componentNames(project.thermo ?? defaultThermo);
   const edges = project.edges.filter((edge) =>
     unit.kind === "Product" ? edge.target === unit.id : edge.source === unit.id,
   );
@@ -225,9 +233,13 @@ function EquipmentResults({
                   </tr>
                 </thead>
                 <tbody>
-                  {streamRows.map(({ label, value }) => (
+                  {streamRows.map(({ label, component, value }) => (
                     <tr key={label}>
-                      <th scope="row">{label}</th>
+                      <th scope="row">
+                        {component === undefined
+                          ? label
+                          : `Mole fraction ${names[component]}`}
+                      </th>
                       {edges.map((edge) => {
                         const stream = result?.streams[edge.id];
                         return (
@@ -283,6 +295,7 @@ export default function EquipmentEditor({
   const formId = `equipment-form-${unit.id}`;
   const context = thermoContext(settings);
   const components = context.ids.map((id) => context.catalog.get(id).name);
+  const labels = componentNames(settings);
   function field(
     key: NumericParam,
     label: string,
@@ -457,23 +470,26 @@ export default function EquipmentEditor({
                     <span>Mole fraction</span>
                   </div>
                   <div className="equipment-composition-row">
-                    <span>
-                      {components[0]} <small>A</small>
-                    </span>
-                    {field("fractionA", "Mole fraction A", 0, 1, "0.01")}
+                    <span>{components[0]}</span>
+                    {field(
+                      "fractionA",
+                      `Mole fraction ${labels[0]}`,
+                      0,
+                      1,
+                      "0.01",
+                    )}
                   </div>
                   <div className="equipment-composition-row">
-                    <span>
-                      {components[1]} <small>B</small>
-                    </span>
-                    <output aria-label="Mole fraction B">
+                    <span>{components[1]}</span>
+                    <output aria-label={`Mole fraction ${labels[1]}`}>
                       {Number.isFinite(params.fractionA)
                         ? Number((1 - params.fractionA).toFixed(8))
                         : "—"}
                     </output>
                   </div>
                   <p className="equipment-help">
-                    Component B is the balance to a total mole fraction of 1.
+                    {components[1]} is the balance to a total mole fraction of
+                    1.
                   </p>
                 </Section>
               </>

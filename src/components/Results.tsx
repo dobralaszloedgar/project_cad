@@ -11,7 +11,7 @@ import { type Project } from "@/domain/schema";
 import { flow, type Result, simulate } from "@/domain/solver";
 import { type Revision, diff } from "@/lib/revisions";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { mixtureName } from "@/domain/thermo/catalog";
+import { componentNames, mixtureName } from "@/domain/thermo/catalog";
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("en-US", { maximumFractionDigits: digits });
 export default function Results({
@@ -35,6 +35,7 @@ export default function Results({
   onCompare: (s: string) => void;
   onSelect: (s: string) => void;
 }) {
+  const [firstComponent] = componentNames(project.thermo ?? defaultThermo);
   const baseline = revisions.find((r) => r.id === compareId);
   const changes = baseline ? diff(baseline.project, project) : null;
   let previous: Result | null = null;
@@ -66,7 +67,7 @@ export default function Results({
           <div className="kpi-row">
             {[
               {
-                label: "Conversion of A",
+                label: `Conversion of ${firstComponent}`,
                 value: result ? `${fmt(result.conversion * 100, 2)}%` : "—",
                 icon: FlaskConical,
                 detail: "Overall fresh-feed basis",
@@ -108,7 +109,7 @@ export default function Results({
                     <th>Stream</th>
                     <th>Flow (mol/s)</th>
                     <th>Temp. (K)</th>
-                    <th>A fraction</th>
+                    <th>{firstComponent} fraction</th>
                     <th>Phase</th>
                     <th>Vapor fraction</th>
                   </tr>

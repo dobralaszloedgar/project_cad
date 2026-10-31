@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LoaderCircle, Thermometer } from "lucide-react";
+import { LoaderCircle, Thermometer } from "lucide-react";
 import {
   modelInfo,
   models,
@@ -42,7 +42,6 @@ export default function ThermodynamicSelector({
       >
         <Thermometer size={16} />
         <span>{modelInfo(settings.modelId).label}</span>
-        <ChevronDown className="model-chevron" size={13} />
       </button>
       {open && (
         <Dialog
@@ -134,9 +133,6 @@ function ThermodynamicModelForm({
         }
       }}
     >
-      <p className="dialog-intro">
-        Choose the model used for this project’s calculations.
-      </p>
       <fieldset
         ref={options}
         className="thermo-model-options"

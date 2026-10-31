@@ -391,8 +391,7 @@
   .app-header .species-count {
     display: flex;
   }
-  .model-button > span,
-  .model-chevron {
+  .model-button > span {
     display: none;
   }
 }

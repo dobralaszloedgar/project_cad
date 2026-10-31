@@ -3,6 +3,7 @@ import { z } from "zod";
 import { type Workspace } from "./revisions";
 import {
   parseWorkspaceImport,
+  PROJECT_FILE_NAME,
   serializeProjectFile,
   validateWorkspace,
   type ProjectFile,
@@ -33,6 +34,7 @@ export interface SavedProject {
   createdAt: string;
   updatedAt: string;
   starred: boolean;
+  trashedAt?: string;
   folderName?: string;
   /** File version from which this view was loaded, for stale-edit checks. */
   fileRevision?: string;
@@ -78,14 +80,25 @@ const loadErrors = new Map<string, string>();
 async function storedProject(id: string) {
   const database = await db();
   try {
-    const [project, folder] = await Promise.all([
+    const [project, folder, deleted] = await Promise.all([
       database.get("projects", id) as Promise<SavedProject | undefined>,
       database.get("projectFolders", id) as Promise<FolderBinding | undefined>,
+      database.get("workspace", `deletedProject:${id}`),
     ]);
-    return { project, folder };
+    return { project, folder, deleted: Boolean(deleted) };
   } finally {
     database.close();
   }
+}
+async function writableProject(id: string) {
+  const stored = await storedProject(id);
+  if (stored.deleted)
+    throw new Error(
+      "This project was permanently deleted. Open another project or export your local copy.",
+    );
+  if (stored.project?.trashedAt)
+    throw new Error("This project is in Trash. Restore it before editing it.");
+  return stored;
 }
 async function cacheProject(
   project: SavedProject,
@@ -102,6 +115,7 @@ async function cacheProject(
     const current = tx.objectStore("workspace");
     const activeId = await current.get("activeProject");
     await tx.objectStore("projects").put(project);
+    await current.delete(`deletedProject:${project.id}`);
     if (folder) await tx.objectStore("projectFolders").put(folder);
     if (replaceId && replaceId !== project.id) {
       await tx.objectStore("projects").delete(replaceId);
@@ -203,7 +217,7 @@ export async function saveWorkspace(
 ): Promise<SaveLocation> {
   const workspace = validateWorkspace(value);
   return withProjectLock(projectId, async () => {
-    const { project: existing, folder } = await storedProject(projectId);
+    const { project: existing, folder } = await writableProject(projectId);
     const entry = workspaceEntry(workspace, projectId, existing, folder);
     return persistProject(entry, folder, true);
   });
@@ -215,7 +229,7 @@ export async function saveWorkspaceRecovery(
 ): Promise<void> {
   const workspace = validateWorkspace(value);
   return withProjectLock(projectId, async () => {
-    const { project: existing, folder } = await storedProject(projectId);
+    const { project: existing, folder } = await writableProject(projectId);
     const entry = workspaceEntry(workspace, projectId, existing, folder);
     try {
       await cacheProject(
@@ -326,6 +340,10 @@ async function rememberDirectoryProject(
   discardRecovery = false,
 ): Promise<SavedProject> {
   const { project: existing, folder } = await storedProject(document.projectId);
+  if (existing?.trashedAt)
+    throw new Error(
+      "This project is in Trash. Restore it before opening its folder.",
+    );
   if (folder && !(await folder.directory.isSameEntry(directory)))
     throw new FolderStorageError(
       "conflict",
@@ -399,6 +417,8 @@ async function readSavedProject(
       "missing",
       "This project is no longer in the local library. Open its project folder again.",
     );
+  if (project.trashedAt)
+    throw new Error("This project is in Trash. Restore it before opening it.");
   if (
     folder?.dirty &&
     !options.preserveRecovery &&
@@ -481,7 +501,7 @@ export async function saveProjectToFolder(
 ): Promise<SavedProject> {
   const folderName = validateProjectFolderName(name);
   return withProjectLock(id, async () => {
-    const { project: cached, folder } = await storedProject(id);
+    const { project: cached, folder } = await writableProject(id);
     if (!cached) throw new Error("This project is no longer available.");
     // Dirty recovery is the user's latest work. Otherwise read the source file
     // again so changing locations never silently copies a stale browser cache.
@@ -603,6 +623,14 @@ export async function openExampleWorkspace(exampleId: string, seed: Workspace) {
       currentStore.get("activeProject"),
       projects.get(projectId) as Promise<SavedProject | undefined>,
     ]);
+    if (existing?.trashedAt) {
+      await tx.done;
+      // Old example links must still leave the library accessible for Restore.
+      return {
+        projectId: activeId ?? "",
+        workspace: current ? validateWorkspace(current) : null,
+      };
+    }
     const workspace = existing
       ? validateWorkspace(existing.workspace)
       : initial;
@@ -626,6 +654,7 @@ export async function openExampleWorkspace(exampleId: string, seed: Workspace) {
       } satisfies SavedProject);
     await currentStore.put(workspace, "current");
     await currentStore.put(projectId, "activeProject");
+    await currentStore.delete(`deletedProject:${projectId}`);
     await tx.done;
     return { projectId, workspace };
   } finally {
@@ -648,7 +677,7 @@ export async function listProjects(): Promise<SavedProject[]> {
 export async function updateSavedProject(value: SavedProject) {
   const entry = { ...value, workspace: validateWorkspace(value.workspace) };
   return withProjectLock(entry.id, async () => {
-    const { project: existing, folder } = await storedProject(entry.id);
+    const { project: existing, folder } = await writableProject(entry.id);
     if (
       folder &&
       existing &&
@@ -669,6 +698,114 @@ export async function updateSavedProject(value: SavedProject) {
     await persistProject(entry, folder, false, entry.fileRevision);
   });
 }
+/** Trash keeps the complete workspace and folder binding without touching disk. */
+export async function trashSavedProject(
+  id: string,
+): Promise<SavedProject | null> {
+  return withProjectLock(id, async () => {
+    const database = await db();
+    try {
+      const tx = database.transaction(["workspace", "projects"], "readwrite");
+      const projects = tx.objectStore("projects");
+      const current = tx.objectStore("workspace");
+      const entry: SavedProject | undefined = await projects.get(id);
+      if (!entry) throw new Error("This project is no longer available.");
+      await projects.put({
+        ...entry,
+        trashedAt: entry.trashedAt ?? new Date().toISOString(),
+      });
+      const activeId = (await current.get("activeProject")) ?? "main";
+      let active: SavedProject | null = null;
+      if (activeId === id) {
+        const remaining = (await projects.getAll()) as SavedProject[];
+        active =
+          remaining
+            .filter((candidate) => !candidate.trashedAt)
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
+        // An explicit empty identity prevents startup from recreating the demo.
+        await current.put(active?.id ?? "", "activeProject");
+        if (active) await current.put(active.workspace, "current");
+        else await current.delete("current");
+      } else {
+        active = (await projects.get(activeId)) ?? null;
+      }
+      await tx.done;
+      return active;
+    } finally {
+      database.close();
+    }
+  });
+}
+
+export async function restoreSavedProject(id: string): Promise<void> {
+  return withProjectLock(id, async () => {
+    const { project, folder } = await storedProject(id);
+    if (!project?.trashedAt)
+      throw new Error("This project is no longer in Trash.");
+    const restored = { ...project };
+    delete restored.trashedAt;
+    await cacheProject(restored, folder, false);
+  });
+}
+
+/** Only a trashed project can be permanently deleted. Keep it in Trash on failure. */
+export async function deleteSavedProject(id: string): Promise<void> {
+  return withProjectLock(id, async () => {
+    const { project, folder } = await storedProject(id);
+    if (!project?.trashedAt)
+      throw new Error(
+        "Move this project to Trash before deleting it permanently.",
+      );
+    if (folder) {
+      if (!(await requestProjectFolderAccess(id)))
+        throw new Error(
+          "Folder access is needed to delete project.json. The project remains in Trash.",
+        );
+      try {
+        const { document, revision } = await readDirectoryProject(
+          folder.directory,
+        );
+        if (document.projectId !== id || revision !== folder.fileRevision)
+          throw new FolderStorageError(
+            "conflict",
+            "project.json changed on disk. Restore the project and reload its folder before deleting it.",
+          );
+        await folder.directory.removeEntry(PROJECT_FILE_NAME);
+      } catch (error) {
+        // A missing file is already deleted; other failures must retain recovery.
+        if (
+          !(error instanceof FolderStorageError && error.code === "missing") &&
+          !(error instanceof Error && error.name === "NotFoundError")
+        ) {
+          if (error instanceof FolderStorageError) throw error;
+          throw new FolderStorageError(
+            error instanceof Error &&
+              ["NotAllowedError", "SecurityError"].includes(error.name)
+              ? "permission"
+              : "write",
+            "Could not delete project.json from disk. The project remains in Trash. Close any app using the file and try again.",
+          );
+        }
+      }
+    }
+    const database = await db();
+    try {
+      const tx = database.transaction(
+        ["workspace", "projects", "projectFolders"],
+        "readwrite",
+      );
+      await tx.objectStore("projects").delete(id);
+      await tx.objectStore("projectFolders").delete(id);
+      // A stale editor in another tab must never recreate a deleted project.
+      await tx.objectStore("workspace").put(true, `deletedProject:${id}`);
+      await tx.done;
+      acknowledged.delete(id);
+      loadErrors.delete(id);
+    } finally {
+      database.close();
+    }
+  });
+}
 export async function clearWorkspace(projectId = "main") {
   const database = await db();
   try {
@@ -677,7 +814,8 @@ export async function clearWorkspace(projectId = "main") {
       "readwrite",
     );
     const folder = await tx.objectStore("projectFolders").get(projectId);
-    await tx.objectStore("workspace").clear();
+    await tx.objectStore("workspace").delete("current");
+    await tx.objectStore("workspace").delete("activeProject");
     // The following accepted empty-workspace save must retain its native folder.
     if (!folder) await tx.objectStore("projects").delete(projectId);
     await tx.done;

@@ -1,11 +1,9 @@
+import { type Kind, type Project, type Connection, type Unit } from "./schema";
 import {
-  newUnit,
-  paramsSchema,
-  type Kind,
-  type Project,
-  type Connection,
-  type Unit,
-} from "./schema";
+  templateParams,
+  templateUnit,
+  syntheticThermo,
+} from "./template-presets";
 
 export type PlantTemplateEquipment = {
   id: string;
@@ -14,7 +12,7 @@ export type PlantTemplateEquipment = {
   tag: string;
   title: string;
   color: string;
-  params?: Partial<Unit["params"]>;
+  params: Unit["params"];
 };
 
 const feed = "#008f88",
@@ -40,7 +38,10 @@ const place = (
   tag,
   title,
   color,
-  params,
+  params: templateParams(kind, {
+    ...(kind === "Feed" ? { fractionA: 0.65 } : {}),
+    ...params,
+  }),
 });
 const pipe = (from: string, to: string, color = feed) => ({
   id: `${from}-${to}`,
@@ -133,7 +134,7 @@ function integrated() {
     description:
       "25 assemblies: feed blending, parallel reaction, two separation columns and five product receivers.",
     operation:
-      "Blended feed divides into two reactor trains, cools, and recombines. The first column supplies an overhead cut to two receivers. Its bottoms feed a second heated column, which delivers another overhead product and a bottoms stream split through two final coolers. The layout illustrates process connectivity; operating pressures and transfer machinery are outside this preview.",
+      "Synthetic A/B feed divides into two A → B reactor trains, cools, and recombines. Two single-contact separators use relative volatility 3 and a 50% overhead cut. Feeds enter at 300 K and 101.325 kPa; heaters and reactors operate at 450 K, and coolers return products to 300 K. Each receiver and 50/50 distribution split is connected and specified.",
     equipment: [
       ...core.equipment,
       place(
@@ -366,7 +367,7 @@ function recycleComplex() {
     "PBR",
     "R-901",
     "First reactor",
-    { temperature: 430, residenceTime: 5 },
+    { temperature: 430, reactorMode: "residence-time", residenceTime: 5 },
     warm,
   );
   add(
@@ -385,7 +386,7 @@ function recycleComplex() {
     "PBR",
     "R-902",
     "Second reactor",
-    { temperature: 465, residenceTime: 4 },
+    { temperature: 465, reactorMode: "residence-time", residenceTime: 4 },
     warm,
   );
   add(
@@ -568,7 +569,7 @@ function parallelComplex() {
       "PBR",
       `R-100${suffix - 1}`,
       `Train ${letter} reactor`,
-      { temperature, residenceTime: 5 },
+      { temperature, reactorMode: "residence-time", residenceTime: 5 },
       warm,
     );
     add(
@@ -858,15 +859,14 @@ export function plantTemplate(id: string): Project | undefined {
   if (!definition) return undefined;
   const tags = new Map(definition.equipment.map((item) => [item.id, item.tag]));
   const units = definition.equipment.map((item) => {
-    const unit = newUnit(
+    const unit = templateUnit(
       item.kind,
       item.tag,
       (item.position[0] / 5.5 + 2) * 220,
       (item.position[2] / 5.5 + 2) * 200,
+      item.params,
     );
     unit.name = item.title;
-    if (unit.kind === "Feed") unit.params.fractionA = 0.65;
-    unit.params = paramsSchema.parse({ ...unit.params, ...item.params });
     return unit;
   });
   const edges: Connection[] = definition.connections.map((stream, i) => ({
@@ -879,5 +879,11 @@ export function plantTemplate(id: string): Project | undefined {
     color:
       stream.color === warm ? "amber" : stream.color === cool ? "blue" : "teal",
   }));
-  return { version: 1, name: definition.title, units, edges };
+  return {
+    version: 1,
+    name: definition.title,
+    thermo: syntheticThermo(),
+    units,
+    edges,
+  };
 }

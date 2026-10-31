@@ -1,0 +1,38 @@
+Project CAD - Third-party notice index
+
+The root LICENSE reserves rights in original Project CAD material only.
+Third-party components and datasets retain their own copyright notices and
+license terms. No third-party material is relicensed by the root notice.
+
+This file is an index to the existing provenance records, not a replacement
+for the full license texts distributed by the respective rights holders.
+
+Software dependencies
+- JavaScript dependencies and their versions are recorded in package.json and
+  package-lock.json. docs/dependency-licenses.json is a dated metadata
+  inventory; consult the actual package license files for current terms.
+- Rust dependencies and versions are recorded in rust/thermo/Cargo.toml and
+  rust/thermo/Cargo.lock. Their upstream licenses apply independently.
+- Fonts, icons, and vendor SDKs retain their respective upstream terms.
+- Assistant packages carry separate Node.js, Zod, and Claude Agent SDK
+  notices. Provider packages retain their vendor notices and terms.
+  ProjectCAD-LICENSE.txt in future assistant builds contains the project's
+  own reservation of rights.
+
+Chemical data and scientific sources
+- Modified UNIFAC 2.0 parameters: Nicolas Hayer, Hans Hasse, and Fabian Jirasek
+  (2025), DOI 10.1021/acs.iecr.5c00077, CC BY-NC 4.0.
+  https://creativecommons.org/licenses/by-nc/4.0/
+  Attribution, source hashes, and the noncommercial restriction are retained
+  in rust/thermo/sample-groups.json, docs/SOURCES.txt, and the catalog manifest.
+- ChemSep v8.3 data: Copyright (c) 2021 Harry Kooijman and Ross Taylor,
+  Artistic License 2.0. Source provenance and transformations are documented
+  in docs/CHEMICAL_CATALOG.txt and scripts/catalog/build.py.
+- Additional chemical data and reference sources retain the provenance and
+  applicable terms recorded in docs/CHEMICAL_CATALOG.txt, docs/SOURCES.txt,
+  and the generated catalog manifest.
+
+Permissions in a third-party license apply to the material covered by that
+license; they do not grant permission to reuse original Project CAD code.
+The project's reservation of rights does not remove permissions granted by
+those third-party licenses.

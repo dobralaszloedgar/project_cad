@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus,
   Folder,
@@ -22,6 +22,8 @@ import {
   HardDrive,
   X,
   Info,
+  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import type { SavedProject } from "@/lib/storage";
 import { ports, type Project } from "@/domain/schema";
@@ -114,6 +116,9 @@ export default function ProjectsPage({
   onRename,
   onDuplicate,
   onStar,
+  onTrash,
+  onRestore,
+  onDelete,
   onBack,
   onLanding,
   palette,
@@ -130,6 +135,9 @@ export default function ProjectsPage({
   onRename: (entry: SavedProject, name: string) => void;
   onDuplicate: (entry: SavedProject) => void;
   onStar: (entry: SavedProject) => void;
+  onTrash: (entry: SavedProject) => void;
+  onRestore: (entry: SavedProject) => void;
+  onDelete: (entry: SavedProject) => Promise<boolean>;
   onBack: () => void;
   onLanding: () => void;
   palette: string;
@@ -168,10 +176,15 @@ export default function ProjectsPage({
     ),
     [details, setDetails] = useState<SavedProject | null>(null),
     [renaming, setRenaming] = useState<SavedProject | null>(null),
+    [deleting, setDeleting] = useState<SavedProject | null>(null),
+    [deleteFailed, setDeleteFailed] = useState(false),
     [name, setName] = useState("");
+  const inTrash = filter === "Trash";
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const visible = projects
     .filter(
       (entry) =>
+        Boolean(entry.trashedAt) === inTrash &&
         (filter !== "Starred" || entry.starred) &&
         entry.workspace.project.name
           .toLowerCase()
@@ -180,7 +193,9 @@ export default function ProjectsPage({
     .sort((a, b) =>
       sort === "name"
         ? a.workspace.project.name.localeCompare(b.workspace.project.name)
-        : b.updatedAt.localeCompare(a.updatedAt),
+        : (inTrash ? b.trashedAt! : b.updatedAt).localeCompare(
+            inTrash ? a.trashedAt! : a.updatedAt,
+          ),
     );
   const selectedEntry = visible.find((entry) => entry.id === selected);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -206,6 +221,10 @@ export default function ProjectsPage({
     setRenaming(entry);
     setName(entry.workspace.project.name);
   }
+  function confirmDelete(entry: SavedProject) {
+    setDeleteFailed(false);
+    setDeleting(entry);
+  }
   return (
     <section className="projects-page">
       <header className="projects-header">
@@ -217,20 +236,19 @@ export default function ProjectsPage({
         <span>Projects</span>
         <div className="projects-header-actions">
           <button
-            className="btn landing-page-button"
+            className="icon-button"
             aria-label="Landing page"
             title="Landing page"
             onClick={onLanding}
             disabled={busy}
           >
-            <Compass size={16} />
-            <span>Landing page</span>
+            <Compass size={18} />
           </button>
           <button
             className="icon-button"
             aria-label="Back to canvas"
             onClick={onBack}
-            disabled={busy}
+            disabled={busy || !currentId}
           >
             <ArrowLeft size={18} />
           </button>
@@ -264,6 +282,7 @@ export default function ProjectsPage({
           {[
             { label: "Home", icon: Home },
             { label: "Starred", icon: Star },
+            { label: "Trash", icon: Trash2 },
           ].map((item) => (
             <button
               key={item.label}
@@ -386,32 +405,63 @@ export default function ProjectsPage({
                 <span title={selectedEntry.workspace.project.name}>
                   {selectedEntry.workspace.project.name}
                 </span>
+                {inTrash ? (
+                  <button
+                    className="icon-button"
+                    aria-label="Restore selected project"
+                    title="Restore"
+                    disabled={busy}
+                    onClick={() => onRestore(selectedEntry)}
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="icon-button"
+                      aria-label="Open selected project"
+                      title="Open"
+                      disabled={busy}
+                      onClick={() => onOpen(selectedEntry)}
+                    >
+                      <FolderOpen size={16} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="Rename selected project"
+                      title="Rename"
+                      disabled={busy}
+                      onClick={() => rename(selectedEntry)}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="Save selected project to folder"
+                      title="Save to folder…"
+                      disabled={busy}
+                      onClick={() => onSaveFolder(selectedEntry)}
+                    >
+                      <HardDrive size={16} />
+                    </button>
+                  </>
+                )}
                 <button
                   className="icon-button"
-                  aria-label="Open selected project"
-                  title="Open"
+                  aria-label={
+                    inTrash
+                      ? "Permanently delete selected project"
+                      : "Move selected project to Trash"
+                  }
+                  title={inTrash ? "Delete permanently" : "Move to Trash"}
                   disabled={busy}
-                  onClick={() => onOpen(selectedEntry)}
+                  onClick={() =>
+                    inTrash
+                      ? confirmDelete(selectedEntry)
+                      : onTrash(selectedEntry)
+                  }
                 >
-                  <FolderOpen size={16} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Rename selected project"
-                  title="Rename"
-                  disabled={busy}
-                  onClick={() => rename(selectedEntry)}
-                >
-                  <Pencil size={16} />
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label="Save selected project to folder"
-                  title="Save to folder…"
-                  disabled={busy}
-                  onClick={() => onSaveFolder(selectedEntry)}
-                >
-                  <HardDrive size={16} />
+                  <Trash2 size={16} />
                 </button>
                 <button
                   className="icon-button"
@@ -424,12 +474,15 @@ export default function ProjectsPage({
               </div>
             ) : (
               <span className="project-open-hint">
-                Select a project · Double-click to open
+                {inTrash
+                  ? "Restore a project or delete it permanently"
+                  : "Select a project · Double-click to open"}
               </span>
             )}
           </div>
           <div className="project-count">
-            Projects <span>{visible.length}</span>
+            {inTrash ? "Trashed projects" : "Projects"}{" "}
+            <span>{visible.length}</span>
             {message ? <p role="status">{message}</p> : null}
           </div>
           {visible.length ? (
@@ -459,9 +512,13 @@ export default function ProjectsPage({
                       event.preventDefault();
                       const rect = trigger.getBoundingClientRect();
                       showMenu(entry, rect.left + 20, rect.top + 20, trigger);
-                    } else if (event.key === "F2" && !busy) {
+                    } else if (event.key === "F2" && !busy && !inTrash) {
                       event.preventDefault();
                       rename(entry);
+                    } else if (event.key === "Delete" && !busy) {
+                      event.preventDefault();
+                      if (inTrash) confirmDelete(entry);
+                      else onTrash(entry);
                     } else if (event.key === "Escape") setSelected(null);
                   }}
                 >
@@ -481,12 +538,14 @@ export default function ProjectsPage({
                         return;
                       }
                       setSelected(entry.id);
-                      if (event.detail === 0) onOpen(entry);
+                      if (event.detail === 0 && !inTrash) onOpen(entry);
                     }}
-                    onDoubleClick={() => onOpen(entry)}
+                    onDoubleClick={() => {
+                      if (!inTrash) onOpen(entry);
+                    }}
                     aria-pressed={selected === entry.id}
                     disabled={busy}
-                    aria-label={`Open ${entry.workspace.project.name}`}
+                    aria-label={`${inTrash ? "Select" : "Open"} ${entry.workspace.project.name}`}
                   >
                     <ProjectPreview project={entry.workspace.project} />
                     <div className="project-card-title">
@@ -521,17 +580,19 @@ export default function ProjectsPage({
                       </span>
                     </div>
                   </button>
-                  <button
-                    className="project-star"
-                    aria-label={`${entry.starred ? "Unstar" : "Star"} ${entry.workspace.project.name}`}
-                    onClick={() => onStar(entry)}
-                    disabled={busy}
-                  >
-                    <Star
-                      size={15}
-                      fill={entry.starred ? "currentColor" : "none"}
-                    />
-                  </button>
+                  {!inTrash ? (
+                    <button
+                      className="project-star"
+                      aria-label={`${entry.starred ? "Unstar" : "Star"} ${entry.workspace.project.name}`}
+                      onClick={() => onStar(entry)}
+                      disabled={busy}
+                    >
+                      <Star
+                        size={15}
+                        fill={entry.starred ? "currentColor" : "none"}
+                      />
+                    </button>
+                  ) : null}
                   <button
                     className="project-card-menu-toggle"
                     aria-label={`Actions for ${entry.workspace.project.name}`}
@@ -559,18 +620,22 @@ export default function ProjectsPage({
               <h2>
                 {search
                   ? "No matching projects"
-                  : filter === "Starred"
-                    ? "No starred projects yet"
-                    : "Your projects start here"}
+                  : inTrash
+                    ? "Trash is empty"
+                    : filter === "Starred"
+                      ? "No starred projects yet"
+                      : "Your projects start here"}
               </h2>
               <p>
                 {search
                   ? "Try a different name."
-                  : filter === "Starred"
-                    ? "Use the star on a project to keep it here."
-                    : "Create a project in a local folder or open an existing project folder."}
+                  : inTrash
+                    ? "Projects moved to Trash stay here until you restore or permanently delete them."
+                    : filter === "Starred"
+                      ? "Use the star on a project to keep it here."
+                      : "Create a project in a local folder or open an existing project folder."}
               </p>
-              {!search && filter !== "Starred" ? (
+              {!search && filter === "Home" ? (
                 <button
                   className="btn btn-primary"
                   onClick={onNew}
@@ -593,40 +658,60 @@ export default function ProjectsPage({
           }
           onClose={closeMenu}
           actions={(menu.entry
-            ? [
-                {
-                  label: "Open",
-                  icon: <FolderOpen size={16} />,
-                  run: () => onOpen(menu.entry!),
-                },
-                {
-                  label: menu.entry.starred ? "Unstar" : "Star",
-                  icon: <Star size={16} />,
-                  run: () => onStar(menu.entry!),
-                },
-                {
-                  label: "Rename",
-                  icon: <Pencil size={16} />,
-                  run: () => rename(menu.entry!),
-                  divider: true,
-                },
-                {
-                  label: "Duplicate",
-                  icon: <Copy size={16} />,
-                  run: () => onDuplicate(menu.entry!),
-                },
-                {
-                  label: "Save to folder…",
-                  icon: <HardDrive size={16} />,
-                  run: () => onSaveFolder(menu.entry!),
-                },
-                {
-                  label: "Project details",
-                  icon: <Info size={16} />,
-                  run: () => setDetails(menu.entry),
-                  divider: true,
-                },
-              ]
+            ? inTrash
+              ? [
+                  {
+                    label: "Restore",
+                    icon: <RotateCcw size={16} />,
+                    run: () => onRestore(menu.entry!),
+                  },
+                  {
+                    label: "Delete permanently",
+                    icon: <Trash2 size={16} />,
+                    run: () => confirmDelete(menu.entry!),
+                    divider: true,
+                  },
+                ]
+              : [
+                  {
+                    label: "Open",
+                    icon: <FolderOpen size={16} />,
+                    run: () => onOpen(menu.entry!),
+                  },
+                  {
+                    label: menu.entry.starred ? "Unstar" : "Star",
+                    icon: <Star size={16} />,
+                    run: () => onStar(menu.entry!),
+                  },
+                  {
+                    label: "Rename",
+                    icon: <Pencil size={16} />,
+                    run: () => rename(menu.entry!),
+                    divider: true,
+                  },
+                  {
+                    label: "Duplicate",
+                    icon: <Copy size={16} />,
+                    run: () => onDuplicate(menu.entry!),
+                  },
+                  {
+                    label: "Save to folder…",
+                    icon: <HardDrive size={16} />,
+                    run: () => onSaveFolder(menu.entry!),
+                  },
+                  {
+                    label: "Project details",
+                    icon: <Info size={16} />,
+                    run: () => setDetails(menu.entry),
+                    divider: true,
+                  },
+                  {
+                    label: "Move to Trash",
+                    icon: <Trash2 size={16} />,
+                    run: () => onTrash(menu.entry!),
+                    divider: true,
+                  },
+                ]
             : [
                 {
                   label: "Create project",
@@ -647,6 +732,60 @@ export default function ProjectsPage({
               ]
           ).map((action) => ({ ...action, disabled: busy }))}
         />
+      ) : null}
+      {deleting ? (
+        <Dialog
+          title="Delete project permanently?"
+          className="confirm-dialog"
+          initialFocusRef={cancelDeleteRef}
+          onClose={() => {
+            if (!busy) setDeleting(null);
+          }}
+        >
+          <p>
+            Permanently delete{" "}
+            <strong>{deleting.workspace.project.name}</strong> and its revision
+            history? This cannot be undone.
+          </p>
+          {deleting.folderName ? (
+            <p>
+              This also deletes{" "}
+              <strong>{deleting.folderName}/project.json</strong> from disk. The
+              folder and any other files inside it are kept.
+            </p>
+          ) : (
+            <p>This removes the project saved in this browser.</p>
+          )}
+          {deleteFailed ? (
+            <p role="alert">
+              {message || "Could not delete this project. Please try again."}
+            </p>
+          ) : null}
+          <div className="dialog-actions">
+            <button
+              className="btn"
+              ref={cancelDeleteRef}
+              disabled={busy}
+              onClick={() => setDeleting(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-error"
+              disabled={busy}
+              onClick={async () => {
+                setDeleteFailed(false);
+                if (await onDelete(deleting)) {
+                  setDeleting(null);
+                  setSelected(null);
+                } else setDeleteFailed(true);
+              }}
+            >
+              <Trash2 size={16} />
+              {busy ? "Deleting…" : "Delete permanently"}
+            </button>
+          </div>
+        </Dialog>
       ) : null}
       {settings === "Themes" ? (
         <Dialog

@@ -138,7 +138,7 @@ test("simple templates, equipment validation, appearance and mobile editing", as
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(page.locator(".stream-table")).toContainText("400");
   await closeDialog(page);
-  await template(page, "Ideal separation");
+  await template(page, "Raoult’s law separation");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await page.locator(".limitations summary").click();
@@ -171,7 +171,9 @@ test("simple templates, equipment validation, appearance and mobile editing", as
   ).toBeEnabled();
   await expect(page.locator(".equipment-library")).toHaveCount(0);
   await edit(page, "D-201");
-  await expect(page.getByLabel("Relative volatility A/B")).toBeVisible();
+  await expect(
+    page.getByText(/The feed temperature and pressure determine/),
+  ).toBeVisible();
   await closeDialog(page);
   await page.screenshot({ path: `${output}/mobile.png`, fullPage: true });
   expect(

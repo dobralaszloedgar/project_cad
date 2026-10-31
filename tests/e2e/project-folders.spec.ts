@@ -81,9 +81,9 @@ async function createProject(page: Page, name: string, capture = false) {
   await dialog
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
-  await expect(dialog.locator("code").last()).toContainText(
-    `${name}/project.json`,
-  );
+  await expect(
+    dialog.getByRole("button", { name: "Change folder", exact: true }),
+  ).toContainText(`Laptop projects/${name}`);
   await expect(
     dialog.getByRole("button", { name: "Create project", exact: true }),
   ).toBeEnabled();

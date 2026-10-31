@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Trash2, Info } from "lucide-react";
 import { type Project, type Connection, unitSchema } from "@/domain/schema";
 import { type Result, flow } from "@/domain/solver";
+import { componentNames } from "@/domain/thermo/catalog";
+import { defaultThermo } from "@/domain/thermo/registry";
 import EquipmentEditor from "./EquipmentEditor";
 import { STREAM_COLOR_LABELS, streamColor } from "./stream-colors";
 interface Props {
@@ -18,6 +20,9 @@ function StreamInspector({
   result,
   onChange,
 }: Pick<Props, "project" | "result" | "onChange"> & { edge: Connection }) {
+  const [firstComponent, secondComponent] = componentNames(
+    project.thermo ?? defaultThermo,
+  );
   const [name, setName] = useState(edge.name ?? "");
   const [tab, setTab] = useState<"Setup" | "Results">("Setup");
   const update = (
@@ -151,7 +156,9 @@ function StreamInspector({
             <dd>{s.temperature.toFixed(2)} K</dd>
             <dt>Pressure</dt>
             <dd>{(s.pressure / 1000).toFixed(3)} kPa</dd>
-            <dt>A / B flow</dt>
+            <dt>
+              {firstComponent} / {secondComponent} flow
+            </dt>
             <dd>
               {s.a.toFixed(3)} / {s.b.toFixed(3)} mol/s
             </dd>
@@ -171,13 +178,13 @@ function StreamInspector({
             </dd>
             {properties?.liquidComposition && (
               <>
-                <dt>Liquid A fraction</dt>
+                <dt>Liquid {firstComponent} fraction</dt>
                 <dd>{properties.liquidComposition[0].toFixed(5)}</dd>
               </>
             )}
             {properties?.vaporComposition && (
               <>
-                <dt>Vapor A fraction</dt>
+                <dt>Vapor {firstComponent} fraction</dt>
                 <dd>{properties.vaporComposition[0].toFixed(5)}</dd>
               </>
             )}

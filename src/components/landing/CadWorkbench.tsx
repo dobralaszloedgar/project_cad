@@ -8,7 +8,7 @@ import {
   useRef,
   type RefObject,
 } from "react";
-import { ChevronRight, GitBranch, Settings2, Workflow } from "lucide-react";
+import { Settings2, Workflow } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import type { MotionValue } from "motion/react";
 import { Vector3 } from "three";
@@ -305,8 +305,7 @@ export default function CadWorkbench({
                 <BrandMark size={26} /> Project CAD
               </span>
               <span className={styles.cadProjectName}>
-                {project.name} <ChevronRight size={18} />
-                <GitBranch size={17} /> v1
+                {project.name}
               </span>
               <span className={styles.cadMode} data-cad-status>
                 Building

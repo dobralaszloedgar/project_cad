@@ -14,9 +14,7 @@ import {
   X,
   Home,
   Compass,
-  History,
   ChevronRight,
-  GitBranch,
   Thermometer,
   FlaskConical,
   Pencil,
@@ -52,15 +50,8 @@ import {
   projectSchema,
   validateGraph,
 } from "@/domain/schema";
-import {
-  reactorExample,
-  distillationExample,
-  heatingExample,
-  solutionExample,
-  thermalCycleExample,
-  mixingExample,
-  catalystExample,
-} from "@/domain/examples";
+import { reactorExample } from "@/domain/examples";
+import { loadTemplate } from "@/domain/templates";
 import ThermodynamicSelector from "./ThermoSettings";
 import ProjectComponents from "./ProjectComponents";
 import {
@@ -93,6 +84,9 @@ import {
   openExampleWorkspace,
   listProjects,
   updateSavedProject,
+  trashSavedProject,
+  restoreSavedProject,
+  deleteSavedProject,
   type SavedProject,
   type SaveLocation,
   type ProjectDirectoryHandle,
@@ -144,7 +138,9 @@ export default function Workspace({
   const router = useRouter();
   const [state, setState] = useState<WorkspaceState>(() => ({
     version: 1,
-    project: (exampleId && plantTemplate(exampleId)) || reactorExample(),
+    project:
+      (exampleId && (loadTemplate(exampleId) ?? plantTemplate(exampleId))) ||
+      reactorExample(),
     revisions: [],
   }));
   const [ready, setReady] = useState(false);
@@ -233,6 +229,9 @@ export default function Workspace({
     () => projectSchema.parse(state.project),
     [state.project],
   );
+  useEffect(() => {
+    document.title = `Project CAD – ${!ready || showProjects ? "Home" : project.name}`;
+  }, [ready, showProjects, project.name]);
   const pullTabRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuPinned = useRef(false);
@@ -338,7 +337,9 @@ export default function Workspace({
   );
   useEffect(() => {
     let active = true;
-    const example = exampleId ? plantTemplate(exampleId) : undefined;
+    const example = exampleId
+      ? (loadTemplate(exampleId) ?? plantTemplate(exampleId))
+      : undefined;
     const opening =
       example && exampleId
         ? openExampleWorkspace(exampleId, {
@@ -351,11 +352,13 @@ export default function Workspace({
       .then(async ({ workspace: saved, projectId: id }) => {
         const info = await getProjectFolderInfo(id);
         if (!active) return;
-        const initialProject = example ?? reactorExample();
+        const initialProject = id
+          ? (example ?? reactorExample())
+          : blankProject();
         let workspace = saved ?? {
           version: 1 as const,
           project: initialProject,
-          revisions: [checkpoint(initialProject, "Initial example")],
+          revisions: id ? [checkpoint(initialProject, "Initial example")] : [],
         };
         if (
           initialArrange &&
@@ -381,6 +384,11 @@ export default function Workspace({
           window.history.replaceState(window.history.state, "", url);
         }
         setProjectId(id);
+        if (!id) {
+          setSavedProjects(await listProjects());
+          if (!active) return;
+          setShowProjects(true);
+        }
         setDrawer(null);
         setState(workspace);
         if (initialArrange || !window.matchMedia("(max-width: 760px)").matches)
@@ -395,7 +403,7 @@ export default function Workspace({
         )
           lastSaved.current = { id, workspace };
         reportFolder(info);
-        if (!saved) setStorage("Saving…");
+        if (!saved && id) setStorage("Saving…");
         setPersistenceReady(true);
         setReady(true);
       })
@@ -410,7 +418,7 @@ export default function Workspace({
     };
   }, [exampleId, initialArrange, reportFolder, reportSaveError]);
   useEffect(() => {
-    if (!ready || !persistenceReady || projectBusy) return;
+    if (!ready || !persistenceReady || projectBusy || !projectId) return;
     if (
       lastSaved.current?.id === projectId &&
       lastSaved.current.workspace === state
@@ -445,6 +453,7 @@ export default function Workspace({
     function beforeUnload(event: BeforeUnloadEvent) {
       if (
         ready &&
+        projectId &&
         (saveIssue ||
           lastSaved.current?.id !== projectId ||
           lastSaved.current?.workspace !== state)
@@ -531,23 +540,11 @@ export default function Workspace({
     }
   }
   function loadExample(name: string) {
-    const factories: Record<string, () => Project> = {
-      solution: solutionExample,
-      heating: heatingExample,
-      reactor: reactorExample,
-      distillation: distillationExample,
-      "thermal-cycle": thermalCycleExample,
-      mixing: mixingExample,
-      catalyst: catalystExample,
-    };
-    const next = Object.hasOwn(factories, name)
-      ? factories[name]()
-      : (plantTemplate(name) ?? {
-          version: 1 as const,
-          name: "Untitled process",
-          units: [],
-          edges: [],
-        });
+    const next = name === "empty" ? blankProject() : loadTemplate(name);
+    if (!next) {
+      setMessage("This template is unavailable.");
+      return;
+    }
     if (showProjects) {
       setTemplatesOpen(false);
       setCreateDraft({ seed: next });
@@ -705,6 +702,7 @@ export default function Workspace({
     }
   }
   async function flushCurrentProject() {
+    if (!projectId) return;
     if (!persistenceReady)
       throw new Error(
         "Could not load local storage. Reload the app before saving a project.",
@@ -1039,6 +1037,56 @@ export default function Workspace({
       setProjectBusy(false);
     }
   }
+  async function manageProjectTrash(
+    entry: SavedProject,
+    action: "trash" | "restore" | "delete",
+  ): Promise<boolean> {
+    if (projectBusy) return false;
+    setProjectBusy(true);
+    setProjectMessage("");
+    try {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      ++saveVersion.current;
+      await saveQueue.current.catch(() => {});
+      if (action === "trash") {
+        if (entry.id === projectId) await preserveCurrentProject();
+        const active = await trashSavedProject(entry.id);
+        if (entry.id === projectId) {
+          const workspace: WorkspaceState = active?.workspace ?? {
+            version: 1,
+            project: blankProject(),
+            revisions: [],
+          };
+          const id = active?.id ?? "";
+          lastSaved.current = { id, workspace };
+          setProjectId(id);
+          setState(workspace);
+          resetEditor();
+          reportFolder(
+            id ? await getProjectFolderInfo(id).catch(() => null) : null,
+          );
+        }
+      } else if (action === "restore") {
+        await restoreSavedProject(entry.id);
+      } else {
+        await deleteSavedProject(entry.id);
+      }
+      setSavedProjects(await listProjects());
+      setProjectMessage(
+        action === "trash"
+          ? `“${entry.workspace.project.name}” moved to Trash.`
+          : action === "restore"
+            ? `“${entry.workspace.project.name}” restored to Home.`
+            : `“${entry.workspace.project.name}” permanently deleted${entry.folderName ? " from disk" : ""}.`,
+      );
+      return true;
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+      return false;
+    } finally {
+      setProjectBusy(false);
+    }
+  }
   function undoEdit(redo = false) {
     const history = editHistory.current;
     const source = redo ? history.future : history.past;
@@ -1233,6 +1281,9 @@ export default function Workspace({
           onRename={(entry, name) => void editSavedProject(entry, name)}
           onDuplicate={(entry) => void editSavedProject(entry, undefined, true)}
           onStar={(entry) => void editSavedProject(entry)}
+          onTrash={(entry) => void manageProjectTrash(entry, "trash")}
+          onRestore={(entry) => void manageProjectTrash(entry, "restore")}
+          onDelete={(entry) => manageProjectTrash(entry, "delete")}
           onBack={() => setShowProjects(false)}
           onLanding={() => void openLanding()}
           palette={palette.id}
@@ -1277,30 +1328,17 @@ export default function Workspace({
           </button>
           <button
             className="icon-button"
-            aria-label="Open revision history"
-            title="Revision history"
-            onClick={() => openResults("Revisions")}
-          >
-            <History size={18} />
-          </button>
-        </div>
-        <div className="project-heading">
-          <h1>{project.name}</h1>
-          <ChevronRight size={15} />
-          <span className="revision-badge">
-            <GitBranch size={13} />v{Math.max(1, state.revisions.length)}
-          </span>
-        </div>
-        <div className="header-actions">
-          <button
-            className="btn landing-page-button"
             aria-label="Landing page"
             title="Landing page"
             onClick={() => void openLanding()}
           >
-            <Compass size={16} />
-            <span>Landing page</span>
+            <Compass size={18} />
           </button>
+        </div>
+        <div className="project-heading">
+          <h1>{project.name}</h1>
+        </div>
+        <div className="header-actions">
           <ThermodynamicSelector
             key={`${projectId}:${state.revisions.length}`}
             settings={project.thermo ?? defaultThermo}

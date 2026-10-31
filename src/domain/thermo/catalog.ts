@@ -157,3 +157,15 @@ export function mixtureName(settings: ThermoSettings) {
         "Catalog selection required")
     : sampleMixtures[settings.mixture].name;
 }
+
+/** Display real identities while retaining legacy labels for teaching projects. */
+export function componentNames(settings: ThermoSettings): [string, string] {
+  if (settings.mixture === "demo") return ["A", "B"];
+  if (settings.mixture === "catalog")
+    return [
+      settings.catalog?.chemicals[0].name ?? "Component 1",
+      settings.catalog?.chemicals[1].name ?? "Component 2",
+    ];
+  const { catalog, ids } = thermoContext(settings);
+  return [catalog.get(ids[0]).name, catalog.get(ids[1]).name];
+}

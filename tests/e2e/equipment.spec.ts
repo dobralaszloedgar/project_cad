@@ -46,7 +46,7 @@ test("duty setup calculates temperature and persists the active specification", 
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(
     page.locator(".stream-table tr").filter({ hasText: "Stream 2" }),
-  ).toContainText("450");
+  ).toContainText("448.39");
   await page.keyboard.press("Escape");
   await expect(page.getByText("Saved on this device")).toBeVisible();
   await page.reload();
@@ -96,7 +96,16 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
   await page
     .getByText("Model equations and assumptions", { exact: true })
     .click();
-  await expect(page.locator(".model-notes")).toContainText("dFₐ/dW");
+  await expect(
+    page
+      .locator('.model-notes annotation[encoding="application/x-tex"]')
+      .filter({
+        hasText: String.raw`\frac{dF_A}{dW}`,
+      }),
+  ).toHaveCount(1);
+  await expect(
+    page.locator(".model-notes .katex-display").first(),
+  ).toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "3D schematic", exact: true }).click();
   await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
