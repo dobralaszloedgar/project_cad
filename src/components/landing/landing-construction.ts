@@ -14,9 +14,9 @@ export function unitUnfold(progress: number, index: number) {
 // The DOM canvas uses 64 CSS pixels per world unit. Its node centers, material
 // handles and the Three.js equipment consequently share the same coordinates.
 export const CAD_SCALE = 64;
-export const CAD_WIDTH = 1408;
-export const CAD_HEIGHT = 1152;
-export const CAD_HEADER = 56;
+export const CAD_WIDTH = 1792;
+export const CAD_HEIGHT = 960;
+export const CAD_HEADER = 76;
 // Center the actual graph (including labels and overhead routes) in the sheet.
 export const CAD_CENTER_Z = -1.75;
 
@@ -39,13 +39,18 @@ export function makeLandingProject(): Project {
       ),
       name: unit.name,
     })),
-    edges: storyStreams.map((stream) => ({
+    edges: storyStreams.map((stream, index) => ({
       id: stream.id,
+      name:
+        stream.id === "recycle"
+          ? "Recycle"
+          : `S${String(index + 1).padStart(2, "0")}`,
       source: tags[stream.from[0]],
       target: tags[stream.to[0]],
       sourcePort: ["b", "bottom"].includes(stream.from[1]) ? "out2" : "out",
       targetPort: stream.to[1] === "dose" ? "in2" : "in",
-      color: stream.color === "#d8c598" ? "amber" : "blue",
+      color: "teal",
+      colorIndex: index % 8,
     })),
   };
 }

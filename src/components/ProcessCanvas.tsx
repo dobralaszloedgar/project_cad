@@ -930,19 +930,7 @@ function Inner(props: Props) {
         }}
         deleteKeyCode={null}
       >
-        {showGrid ? (
-          <Background
-            color={
-              presentation
-                ? presentation.colorMode === "dark"
-                  ? "#31505a"
-                  : "#bfcac4"
-                : "var(--grid)"
-            }
-            gap={24}
-            size={1}
-          />
-        ) : null}
+        {showGrid ? <Background color="var(--grid)" gap={24} size={1} /> : null}
         {!presentation && (
           <Controls
             showInteractive={false}

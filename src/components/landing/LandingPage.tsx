@@ -176,6 +176,8 @@ export default function LandingPage() {
         ref={root}
         className={styles.story}
         data-landing-page
+        data-theme="light"
+        data-palette="light"
         data-chapter={chapter}
         data-motion={playing ? "playing" : "paused"}
         data-launch-state={
@@ -296,6 +298,7 @@ export default function LandingPage() {
                 reduced={reduced}
                 onReplay={replayDesign}
                 onSend={sendDesign}
+                onBuild={() => goTo(1)}
               />
             </div>
           </motion.section>
