@@ -111,15 +111,19 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     tag: "R-101",
     assembly: "Fixed-bed catalytic reactor",
     description:
-      "A vertical pressure vessel containing two packed catalyst beds and distribution plates.",
+      "A downflow pressure vessel with fine ceramic catalyst packing, liquid distributors and screened bed supports.",
     color: "#a67a43",
     height: 4.25,
     features: [
-      ["Catalyst beds", "Packed pellets in two supported sections"],
-      ["Pressure vessel", "Dished heads, flanges and support skirt"],
-      ["Instrumentation", "Temperature probes and pressure gauge"],
+      ["Catalyst beds", "Small ceramic pellets with inert support layers"],
+      [
+        "Liquid distribution",
+        "Perforated trays, fine screens and a bottom collector",
+      ],
+      ["Pressure vessel", "Dished heads, bolted cover and welded shell"],
     ],
-    section: "Reveal the catalyst pellets, bed supports and feed distributor.",
+    section:
+      "Inspect both catalyst beds, liquid distributors and outlet collector.",
   },
   Distillation: {
     title: "Distillation column",

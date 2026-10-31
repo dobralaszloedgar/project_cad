@@ -68,9 +68,9 @@ test("automatic rendering, fluid motion, compatibility override and device recov
     .click();
   await page.screenshot({ path: info.outputPath("plant-graphics.png") });
   await page.getByLabel("Graphics settings").click();
-  await expect(page.getByText("Active GPU", { exact: true })).toBeVisible();
+  await expect(page.getByText("Graphics card", { exact: true })).toBeVisible();
   await page
-    .getByRole("combobox", { name: "3D renderer" })
+    .getByRole("combobox", { name: "Graphics mode" })
     .selectOption("webgl");
   await ready(page);
   await expect(canvas).toHaveAttribute("data-graphics-backend", "webgl");

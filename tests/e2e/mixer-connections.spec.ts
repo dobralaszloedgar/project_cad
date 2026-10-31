@@ -122,7 +122,7 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
       .filter({ hasText: "Stream 1" })
       .locator("td")
       .nth(1),
-  ).toHaveText("40");
+  ).toHaveText("144");
   await page.screenshot({
     path: "test-results/mixer-center.png",
     fullPage: true,

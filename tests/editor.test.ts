@@ -6,11 +6,49 @@ import {
   pasteSelection,
 } from "../src/domain/editor";
 import { migrateReactorInlets } from "../src/domain/project-migrations";
+import { availableEquipmentTag } from "../src/domain/equipment-tags";
 import { ports, validateGraph } from "../src/domain/schema";
 import { parseImport } from "../src/lib/storage";
 import { simulate } from "../src/domain/solver";
 
 describe("canvas editing", () => {
+  it("allocates readable equipment tags without colliding with existing identifiers", () => {
+    const equipment = [
+      { id: "R-101" },
+      { id: "r-102" },
+      { id: "PBR-bec83e" },
+      { id: "R-104" },
+    ];
+    expect(availableEquipmentTag("PBR", equipment)).toBe("R-103");
+    expect(availableEquipmentTag("Cooler", equipment)).toBe("C-101");
+    expect(equipment.map((unit) => unit.id)).toEqual([
+      "R-101",
+      "r-102",
+      "PBR-bec83e",
+      "R-104",
+    ]);
+  });
+  it("reserves numbered tags across repeated pastes and reconnects the copied feeds", () => {
+    const project = catalystExample();
+    const copy = copySelection(project, ["F-601", "F-602", "M-601"]);
+    const first = pasteSelection(project, copy);
+    const second = pasteSelection(first.project, copy);
+    expect(first.selection).toEqual(["F-101", "F-102", "M-101"]);
+    expect(second.selection).toEqual(["F-103", "F-104", "M-102"]);
+    expect(validateGraph(second.project)).toEqual([]);
+    expect(
+      second.project.edges.slice(-2).map(({ source, target }) => ({
+        source,
+        target,
+      })),
+    ).toEqual([
+      { source: "F-103", target: "M-102" },
+      { source: "F-104", target: "M-102" },
+    ]);
+    expect(second.project.units.slice(0, project.units.length)).toEqual(
+      project.units,
+    );
+  });
   it("duplicates only internal connections with fresh IDs and independent parameters", () => {
     const project = catalystExample();
     const copy = copySelection(project, ["M-601", "R-601"]);

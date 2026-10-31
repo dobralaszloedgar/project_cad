@@ -31,6 +31,7 @@ import {
   Rainbow,
   HardDrive,
   AlertCircle,
+  Ruler,
 } from "lucide-react";
 import { useCanvasFullscreen } from "./useCanvasFullscreen";
 import Dialog from "./Dialog";
@@ -40,6 +41,7 @@ import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
 import { plantTemplate } from "@/domain/plant-templates";
 import { arrangeFlowsheet } from "@/domain/flowsheet-layout";
+import { availableEquipmentTag } from "@/domain/equipment-tags";
 import ProjectsPage from "./ProjectsPage";
 import CreateProjectDialog from "./CreateProjectDialog";
 import FolderSaveNotice from "./FolderSaveNotice";
@@ -98,6 +100,8 @@ import Results from "./Results";
 import FloatingAssistant from "./assistant/FloatingAssistant";
 import KeyboardHelp from "./KeyboardHelp";
 import ProjectStorageSettings from "./ProjectStorageSettings";
+import UnitSettings from "./UnitSettings";
+import { useUnitSystem } from "./useUnitSystem";
 import ProjectFolderSetup from "./ProjectFolderSetup";
 import { useTheme } from "./useTheme";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
@@ -111,7 +115,8 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
-type WorkspacePanel = "Equipment" | "Results" | "Storage settings" | "Settings";
+type WorkspacePanel =
+  "Equipment" | "Results" | "Units" | "Storage settings" | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
     ? `Saved to ${location.folderName}/project.json`
@@ -161,6 +166,8 @@ export default function Workspace({
   const clipboard = useRef<SelectionCopy | null>(null);
   const pasteOffset = useRef(40);
   const [view, setView] = useState<string>(initialView);
+  const [graphicsSettingsContainer, setGraphicsSettingsContainer] =
+    useState<HTMLDivElement | null>(null);
   const [fitRequest, setFitRequest] = useState(0);
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
@@ -168,6 +175,7 @@ export default function Workspace({
   const [result, setResult] = useState<Result | null>(null);
   const [message, setMessage] = useState("");
   const { theme: palette, setTheme } = useTheme();
+  const unitDisplay = useUnitSystem();
   const theme = palette.mode;
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
@@ -508,7 +516,7 @@ export default function Workspace({
     }
   }
   function add(kind: Kind, position?: { x: number; y: number }) {
-    const id = `${kind}-${crypto.randomUUID().slice(0, 6)}`;
+    const id = availableEquipmentTag(kind, project.units);
     const unit = newUnit(
       kind,
       id,
@@ -521,10 +529,7 @@ export default function Workspace({
         settings.mixture === "catalog" && !settings.catalog
           ? []
           : thermoContext(settings).ids;
-      unit.params.packedBed = defaultPackedBed(
-        ids,
-        settings.mixture === "demo",
-      );
+      unit.params.packedBed = defaultPackedBed(ids);
     }
     change({ ...project, units: [...project.units, unit] }, `Add ${kind}`);
     setSelected(id);
@@ -1354,6 +1359,9 @@ export default function Workspace({
           <h1>{project.name}</h1>
         </div>
         <div className="header-actions">
+          {view !== "2D" && !isFullscreen ? (
+            <div ref={setGraphicsSettingsContainer} />
+          ) : null}
           <ThermodynamicSelector
             key={`${projectId}:${state.revisions.length}`}
             settings={project.thermo ?? defaultThermo}
@@ -1444,6 +1452,7 @@ export default function Workspace({
                   { name: "Results", icon: ChartNoAxesColumnIncreasing },
                   { name: "Components", icon: FlaskConical },
                   { name: "Thermodynamics", icon: Thermometer },
+                  { name: "Units", icon: Ruler },
                   { name: "Templates", icon: FolderOpen },
                   { name: "Toggle chat", icon: MessageCircle },
                   { name: "Storage settings", icon: HardDrive },
@@ -1513,25 +1522,42 @@ export default function Workspace({
                         inspect(id);
                       }}
                     />
+                  ) : drawer === "Units" ? (
+                    <UnitSettings />
                   ) : (
                     <>
                       {drawer === "Settings" ? (
-                        <div className="preference-section">
-                          <h3>Assistant</h3>
-                          <p>
-                            Open the assistant or bring back a hidden chat
-                            bubble.
-                          </p>
-                          <button
-                            className="btn"
-                            onClick={() => {
-                              setDrawer(null);
-                              handleAssistantOpenChange(true);
-                            }}
-                          >
-                            <MessageCircle size={15} /> Show assistant
-                          </button>
-                        </div>
+                        <>
+                          <div className="preference-section">
+                            <h3>Engineering units</h3>
+                            <p>
+                              {unitDisplay.label} · Choose units for equipment
+                              inputs and calculated results.
+                            </p>
+                            <button
+                              className="btn"
+                              onClick={() => openPanel("Units")}
+                            >
+                              <Ruler size={15} /> Configure units
+                            </button>
+                          </div>
+                          <div className="preference-section">
+                            <h3>Assistant</h3>
+                            <p>
+                              Open the assistant or bring back a hidden chat
+                              bubble.
+                            </p>
+                            <button
+                              className="btn"
+                              onClick={() => {
+                                setDrawer(null);
+                                handleAssistantOpenChange(true);
+                              }}
+                            >
+                              <MessageCircle size={15} /> Show assistant
+                            </button>
+                          </div>
+                        </>
                       ) : null}
                       {drawer === "Storage settings" ||
                       drawer === "Settings" ? (
@@ -1630,6 +1656,9 @@ export default function Workspace({
                 </div>
               </div>
               <div className="tool-group canvas-edit-tools">
+                {view !== "2D" && isFullscreen ? (
+                  <div ref={setGraphicsSettingsContainer} />
+                ) : null}
                 <button
                   aria-label="Properties"
                   title="Edit selected equipment"
@@ -1707,7 +1736,8 @@ export default function Workspace({
                 canvasColor="#fafbf9"
                 project={project}
                 selected={selected}
-                onSelect={inspect}
+                onSelect={setSelected}
+                graphicsSettingsContainer={graphicsSettingsContainer}
               />
             ) : view !== "2D" ? (
               <div className="empty-state">Opening 3D project…</div>

@@ -36,6 +36,16 @@ import {
   type GraphicsPreference,
 } from "../graphics/renderer";
 import type { Kind } from "@/domain/schema";
+import { shortcutsBlocked } from "@/lib/keyboard";
+import { keyboardPan, wheelNavigation, ZOOM_STEP } from "../canvas-navigation";
+import {
+  cameraDistanceLimits,
+  MIN_CAMERA_DISTANCE,
+  orbitAround,
+  panCamera,
+  updateCameraClipping,
+  zoomCamera,
+} from "./camera-navigation";
 import { displayKinds, equipmentCatalog } from "./catalog";
 import { EquipmentModel, SystemConnections } from "./EquipmentModel";
 import { PlantInfrastructure } from "./PlantInfrastructure";
@@ -57,6 +67,7 @@ export type SceneProps = {
   speed: number;
   motionVisible: boolean;
   grid: boolean;
+  onToggleGrid?: () => void;
   view: CameraView;
   reset: number;
   focus?: number;
@@ -65,6 +76,7 @@ export type SceneProps = {
   dark?: boolean;
   canvasColor?: string;
   workspace?: boolean;
+  graphicsSettingsContainer?: HTMLElement | null;
 };
 
 class SceneBoundary extends Component<
@@ -110,6 +122,8 @@ function CameraRig({
   trayCount,
   selectedId,
   focus = 0,
+  onToggleGrid,
+  onToggleLabels,
 }: Pick<
   SceneProps,
   | "mode"
@@ -121,13 +135,17 @@ function CameraRig({
   | "trayCount"
   | "selectedId"
   | "focus"
+  | "onToggleGrid"
 > & {
   subject: React.RefObject<Group | null>;
+  onToggleLabels: () => void;
 }) {
   const controls = useRef<CameraControlsImpl>(null);
   const { camera, get, gl, invalidate } = useThree();
   const hasFitted = useRef(false);
   const keys = useRef(new Set<string>());
+  const panMode = useRef(false);
+  const autoOrbitAnchored = useRef(false);
   const interacting = useRef(false);
   const previousFocus = useRef(focus);
   const reducedMotion = () =>
@@ -226,10 +244,23 @@ function CameraRig({
             Math.abs(corner.dot(up)) / Math.tan(verticalFov / 2),
         );
       }
+      const fitDistance = distance * (largeSystem ? 1.1 : 1.15);
+      const limits = cameraDistanceLimits(fitDistance);
+      const control = controls.current;
+      if (control) {
+        control.minDistance = limits.min;
+        control.maxDistance = limits.max;
+      }
+      updateCameraClipping(
+        camera,
+        fitDistance,
+        Math.max(100, limits.max + box.getSize(new Vector3()).length() * 2),
+      );
       const position = new Vector3()
         .copy(center)
-        .add(direction.multiplyScalar(distance * (largeSystem ? 1.1 : 1.15)));
+        .add(direction.multiplyScalar(fitDistance));
       controls.current?.stop();
+      void controls.current?.setFocalOffset(0, 0, 0, false);
       void controls.current?.setLookAt(
         ...position.toArray(),
         ...center.toArray(),
@@ -270,6 +301,7 @@ function CameraRig({
       .clone()
       .addScaledVector(direction, (radius / Math.sin(halfFov)) * 1.2);
     control.stop();
+    void control.setFocalOffset(0, 0, 0, false);
     void control.setLookAt(
       ...position.toArray(),
       ...center.toArray(),
@@ -283,66 +315,147 @@ function CameraRig({
     focusSelection();
   }, [focus, focusSelection]);
 
+  const anchorOrbit = () => {
+    const control = controls.current;
+    const object = subject.current;
+    if (!control) return;
+    const item = system?.equipment.find((item) => item.id === selectedId);
+    if (item) {
+      const bounds = equipmentEnvelope(item);
+      orbitAround(
+        control,
+        new Box3(
+          new Vector3(...bounds.min),
+          new Vector3(...bounds.max),
+        ).getCenter(new Vector3()),
+      );
+    } else if (mode === "inspect" && object) {
+      orbitAround(
+        control,
+        new Box3().setFromObject(object).getCenter(new Vector3()),
+      );
+    }
+    invalidate();
+  };
+
+  useEffect(() => {
+    autoOrbitAnchored.current = false;
+  }, [system, selectedId, mode, rotate, reset, view, kind]);
+
   useEffect(() => {
     const canvas = gl.domElement;
     const pressed = keys.current;
-    const movement = new Set([
-      "KeyW",
-      "KeyA",
-      "KeyS",
-      "KeyD",
-      "KeyQ",
-      "KeyE",
-      "ArrowLeft",
-      "ArrowRight",
-      "ArrowUp",
-      "ArrowDown",
-      "Equal",
-      "Minus",
-      "NumpadAdd",
-      "NumpadSubtract",
-    ]);
+    const surface =
+      canvas.closest(".plant-view") ?? canvas.parentElement?.parentElement;
+    const updateMode = () => {
+      const panning = panMode.current || pressed.has("Space");
+      canvas.setAttribute("data-navigation-mode", panning ? "pan" : "orbit");
+      canvas.style.setProperty(
+        "cursor",
+        panning ? "move" : "var(--cursor-grab, grab)",
+      );
+    };
     canvas.setAttribute("tabindex", "0");
-    canvas.style.setProperty("cursor", "var(--cursor-grab, grab)");
+    canvas.setAttribute(
+      "aria-keyshortcuts",
+      "P V Space ArrowUp ArrowDown ArrowLeft ArrowRight + - F Shift+F G L Home",
+    );
+    updateMode();
     const pointerDown = (event: PointerEvent) => {
       canvas.focus({ preventScroll: true });
       if (controls.current)
         controls.current.mouseButtons.left =
-          event.shiftKey || pressed.has("Space")
+          panMode.current || event.shiftKey || pressed.has("Space")
             ? CameraControlsImpl.ACTION.TRUCK
             : CameraControlsImpl.ACTION.ROTATE;
     };
     const keyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (
-        movement.has(event.code) ||
-        event.code === "Space" ||
-        event.code === "ShiftLeft" ||
-        event.code === "ShiftRight"
-      ) {
+        shortcutsBlocked(event) ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      )
+        return;
+      // Include labels and the viewport toolbar. Space may be held before the
+      // initial pointer-down, as it is on the 2D canvas.
+      if (
+        !(event.target instanceof Node) ||
+        (!surface?.contains(event.target) && !canvas.matches(":hover"))
+      )
+        return;
+      const control = controls.current;
+      if (!control || !(camera instanceof PerspectiveCamera)) return;
+      const key = event.key.toLowerCase();
+      const pan = keyboardPan(key, event.shiftKey);
+      let handled = true;
+      if (pan) panCamera(control, camera, pan[0], pan[1], get().size.height);
+      else if (["+", "=", "-"].includes(key))
+        zoomCamera(control, camera, key === "-" ? 1 / ZOOM_STEP : ZOOM_STEP);
+      else if (key === " ") {
+        if (event.target instanceof Element && event.target.closest("button"))
+          return;
+        pressed.add("Space");
+        updateMode();
+      } else if (key === "p" || key === "v") {
+        panMode.current = key === "p";
+        updateMode();
+      } else if ((key === "f" || key === "home") && !event.repeat) {
+        if (key === "f" && event.shiftKey) focusSelection();
+        else fitView(true);
+      } else if (key === "g" && !event.repeat) onToggleGrid?.();
+      else if (key === "l" && !event.repeat) onToggleLabels();
+      else handled = false;
+      if (handled) {
         event.preventDefault();
-        pressed.add(event.code);
+        autoOrbitAnchored.current = false;
         invalidate();
-      } else if (event.code === "KeyF" || event.code === "Home") {
-        event.preventDefault();
-        if (!event.repeat) {
-          if (event.code === "KeyF") focusSelection();
-          else fitView(true);
-        }
       }
+    };
+    const wheel = (event: WheelEvent) => {
+      const control = controls.current;
+      if (
+        !control ||
+        !(camera instanceof PerspectiveCamera) ||
+        event.defaultPrevented ||
+        !(event.target instanceof Element) ||
+        !event.target.closest("canvas, .equipment-label-layer") ||
+        document.querySelector("dialog[open]")
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      autoOrbitAnchored.current = false;
+      const gesture = wheelNavigation(event, /Mac/.test(navigator.userAgent));
+      if (event.ctrlKey || event.metaKey) {
+        const bounds = canvas.getBoundingClientRect();
+        zoomCamera(control, camera, gesture.zoom, {
+          x: ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+          y: 1 - ((event.clientY - bounds.top) / bounds.height) * 2,
+        });
+      } else
+        panCamera(control, camera, gesture.x, gesture.y, get().size.height);
+      invalidate();
     };
     const keyUp = (event: KeyboardEvent) => {
       pressed.delete(event.code);
+      updateMode();
     };
     const clear = () => {
       pressed.clear();
       interacting.current = false;
       controls.current?.cancel();
       controls.current?.stop();
-      canvas.style.setProperty("cursor", "var(--cursor-grab, grab)");
+      updateMode();
     };
     canvas.addEventListener("pointerdown", pointerDown, true);
-    canvas.addEventListener("keydown", keyDown);
+    // CameraControls connects to the Canvas wrapper; capture the wheel before
+    // its native pinch handler can also apply a lens zoom.
+    surface?.addEventListener("wheel", wheel as EventListener, {
+      capture: true,
+      passive: false,
+    });
+    window.addEventListener("keydown", keyDown, true);
     window.addEventListener("keyup", keyUp);
     canvas.addEventListener("blur", clear);
     window.addEventListener("blur", clear);
@@ -350,37 +463,39 @@ function CameraRig({
     return () => {
       clear();
       canvas.removeEventListener("pointerdown", pointerDown, true);
-      canvas.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keydown", keyDown, true);
+      surface?.removeEventListener("wheel", wheel as EventListener, true);
       window.removeEventListener("keyup", keyUp);
       canvas.removeEventListener("blur", clear);
       window.removeEventListener("blur", clear);
       document.removeEventListener("visibilitychange", clear);
     };
-  }, [gl, invalidate, fitView, focusSelection]);
+  }, [
+    gl,
+    camera,
+    get,
+    invalidate,
+    fitView,
+    focusSelection,
+    onToggleGrid,
+    onToggleLabels,
+  ]);
 
   useFrame((_, delta) => {
     const control = controls.current;
     if (!control) return;
-    const pressed = keys.current;
-    const down = (...codes: string[]) =>
-      codes.some((code) => pressed.has(code)) ? 1 : 0;
-    const x = down("KeyD", "ArrowRight") - down("KeyA", "ArrowLeft");
-    const y = down("KeyE", "ArrowUp") - down("KeyQ", "ArrowDown");
-    const z = down("KeyW") - down("KeyS");
-    const zoom = down("Equal", "NumpadAdd") - down("Minus", "NumpadSubtract");
+    if (camera instanceof PerspectiveCamera) {
+      // Preserve depth precision across a whole plant, then move the near plane
+      // inward for inspecting fittings and individual catalyst grains.
+      updateCameraClipping(camera, control.distance);
+    }
     const dt = Math.min(delta, 0.05);
-    if (x || y || z || zoom) {
-      const step =
-        (Math.max(1, control.distance) *
-          dt *
-          0.65 *
-          (down("ShiftLeft", "ShiftRight") ? 2.5 : 1)) /
-        Math.max(1, Math.hypot(x, y, z));
-      if (x || y) void control.truck(x * step, y * step, true);
-      if (z) void control.forward(z * step, true);
-      if (zoom) void control.dolly(zoom * step, true);
-      invalidate();
-    } else if (rotate && !interacting.current) {
+    if (rotate && !interacting.current) {
+      if (!autoOrbitAnchored.current) {
+        if (control.active) return;
+        anchorOrbit();
+        autoOrbitAnchored.current = true;
+      }
       void control.rotate(-dt * 0.073, 0, false);
     }
   });
@@ -395,15 +510,15 @@ function CameraRig({
       dollySpeed={0.65}
       azimuthRotateSpeed={0.8}
       polarRotateSpeed={0.8}
-      minDistance={0.6}
-      maxDistance={500}
+      truckSpeed={1}
+      minDistance={MIN_CAMERA_DISTANCE}
       minPolarAngle={0.001}
       maxPolarAngle={Math.PI * 0.495}
       mouseButtons={{
         left: CameraControlsImpl.ACTION.ROTATE,
         middle: CameraControlsImpl.ACTION.TRUCK,
         right: CameraControlsImpl.ACTION.TRUCK,
-        wheel: CameraControlsImpl.ACTION.DOLLY,
+        wheel: CameraControlsImpl.ACTION.NONE,
       }}
       touches={{
         one: CameraControlsImpl.ACTION.TOUCH_ROTATE,
@@ -412,6 +527,13 @@ function CameraRig({
       }}
       onControlStart={() => {
         interacting.current = true;
+        autoOrbitAnchored.current = false;
+        const action = controls.current?.currentAction;
+        if (
+          action === CameraControlsImpl.ACTION.ROTATE ||
+          action === CameraControlsImpl.ACTION.TOUCH_ROTATE
+        )
+          anchorOrbit();
         gl.domElement.style.setProperty(
           "cursor",
           "var(--cursor-grabbing, grabbing)",
@@ -441,10 +563,12 @@ function Studio({
   reset,
   focus,
   selectedId,
+  onToggleGrid,
+  onToggleLabels,
   onSelect,
   dark = false,
   canvasColor,
-}: SceneProps) {
+}: SceneProps & { onToggleLabels: () => void }) {
   const subject = useRef<Group>(null);
   const keyLight = useRef<DirectionalLight>(null);
   const get = useThree((state) => state.get);
@@ -594,6 +718,8 @@ function Studio({
         rotate={rotate}
         focus={focus}
         selectedId={selectedId}
+        onToggleGrid={onToggleGrid}
+        onToggleLabels={onToggleLabels}
       />
     </>
   );
@@ -662,6 +788,11 @@ function ProjectLabels({
 }
 
 export default function EquipmentScene(props: SceneProps) {
+  const [labelsVisible, setLabelsVisible] = useState(true);
+  const toggleLabels = useCallback(
+    () => setLabelsVisible((value) => !value),
+    [],
+  );
   const [lost, setLost] = useState(false);
   const [recovery, setRecovery] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -716,6 +847,7 @@ export default function EquipmentScene(props: SceneProps) {
         info={info}
         preference={preference}
         onChange={changePreference}
+        container={props.graphicsSettingsContainer}
       />
       <SceneBoundary key={recovery} onRetry={retry}>
         {lost ? (
@@ -750,6 +882,7 @@ export default function EquipmentScene(props: SceneProps) {
               {...props}
               playing={props.playing && visible}
               rotate={props.rotate && visible}
+              onToggleLabels={toggleLabels}
             />
             <ProjectLabels labels={labels} elements={labelElements} />
           </Canvas>
@@ -757,6 +890,7 @@ export default function EquipmentScene(props: SceneProps) {
         {!lost && labels.length ? (
           <div
             className={`equipment-label-layer${props.workspace ? " plant-labels" : ""}`}
+            style={{ display: labelsVisible ? undefined : "none" }}
           >
             {labels.map((item) => (
               <button

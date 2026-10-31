@@ -1,4 +1,5 @@
 "use client";
+import { useUnitSystem } from "./useUnitSystem";
 import {
   memo,
   useCallback,
@@ -13,6 +14,7 @@ import {
 } from "react";
 import { Hand, Maximize, Minus, Plus } from "lucide-react";
 import { shortcutsBlocked } from "@/lib/keyboard";
+import { keyboardPan } from "./canvas-navigation";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -128,7 +130,14 @@ const UnitNode = memo(function UnitNode({
         style={frame}
         aria-hidden="true"
       />
-      <span className="unit-tag">{n.id}</span>
+      <div className="unit-label">
+        <span className="unit-tag" title={n.id}>
+          {n.id}
+        </span>
+        <span className="unit-name" title={n.name}>
+          {n.name}
+        </span>
+      </div>
       {p.inputs.map((id, i) => (
         <Handle
           key={id}
@@ -153,7 +162,6 @@ const UnitNode = memo(function UnitNode({
         />
       )}
       <EquipmentIcon kind={n.kind} size={128} />
-      <span className="unit-name">{n.name}</span>
       {p.outputs.map((id, i) => (
         <Handle
           key={id}
@@ -318,6 +326,7 @@ interface Props {
   presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
 }
 function Inner(props: Props) {
+  const display = useUnitSystem();
   const {
     project,
     selected,
@@ -376,20 +385,14 @@ function Inner(props: Props) {
         return;
       }
       const viewport = rf.getViewport();
-      const step = event.shiftKey ? 256 : 64;
       let handled = true;
       if (key.startsWith("arrow")) {
-        const delta = {
-          arrowleft: [step, 0],
-          arrowright: [-step, 0],
-          arrowup: [0, step],
-          arrowdown: [0, -step],
-        }[key];
+        const delta = keyboardPan(key, event.shiftKey);
         if (delta)
           void rf.setViewport({
             ...viewport,
-            x: viewport.x + delta[0],
-            y: viewport.y + delta[1],
+            x: viewport.x - delta[0],
+            y: viewport.y - delta[1],
           });
         else handled = false;
       } else if (["+", "=", "-"].includes(key))
@@ -635,11 +638,13 @@ function Inner(props: Props) {
       }),
       project.units.map((unit) => {
         const position = positions[unit.id] ?? unit.position;
+        const verticalPorts =
+          unit.kind === "PBR" || unit.kind === "Distillation";
         return {
           id: unit.id,
-          x: position.x,
-          y: position.y - 28,
-          width: 128,
+          x: position.x - (verticalPorts ? 0 : 8),
+          y: position.y - 58,
+          width: verticalPorts ? 192 : 144,
           height: 186,
         };
       }),
@@ -867,7 +872,7 @@ function Inner(props: Props) {
             edge.id;
           setHover(
             s
-              ? `${name} · ${flow(s).toFixed(3)} mol/s · ${s.temperature.toFixed(1)} K · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
+              ? `${name} · ${display.format(flow(s), "molarFlow")} · ${display.format(s.temperature, "temperature", 1)} · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
               : `${name} · Run to calculate`,
           );
         }}

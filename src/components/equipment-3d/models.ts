@@ -28,6 +28,8 @@ import type { Kind } from "@/domain/schema";
 import { pipeCurve } from "./operation";
 import type { SystemExample } from "./system-geometry";
 import { columnLayout, type EquipmentModelOptions } from "./column-layout";
+import { distributorBores, packedBedLayout } from "./packed-bed-layout";
+import { createCatalystPacking } from "./packed-bed-packing";
 
 type Point = [number, number, number];
 type Axis = "x" | "y" | "z";
@@ -436,6 +438,21 @@ class Fabricator {
         );
       },
     );
+  }
+
+  instrumentPlug(position: Point) {
+    // Keep the welded boss and short neck opaque in inspection mode, so the
+    // fitting still visibly meets the shell instead of appearing to float.
+    const plug = new Fabricator();
+    plug.cylinder([-0.008, 0, 0], 0.068, 0.036, "satin", "x");
+    plug.cylinder([-0.065, 0, 0], 0.033, 0.098, "steel", "x");
+    plug.cylinder([-0.116, 0, 0], 0.046, 0.025, "satin", "x");
+    plug.cylinder([-0.144, 0, 0], 0.044, 0.038, "steel", "x", 0.044, 6);
+    plug.cylinder([-0.166, 0, 0], 0.032, 0.012, "satin", "x");
+    const assembly = plug.build("capped-instrument-port");
+    assembly.position.set(...position);
+    assembly.applyMatrix4(this.frame);
+    this.assemblies.push(assembly);
   }
 
   valve(position: Point, finish: Finish = "teal", axis: Axis = "x") {
@@ -1158,12 +1175,12 @@ function cooler(f: Fabricator, section: boolean) {
 }
 
 function reactor(f: Fabricator, section: boolean) {
-  f.cylinder([0, 0.1, 0], 0.84, 0.2, "dark");
+  f.cylinder([0, 0.06, 0], 0.78, 0.12, "dark");
   f.shell([0, 0.49, 0], 0.54, 0.7, false, "teal", "y", false);
   for (let i = 0; i < 10; i++) {
     const a = (i * TAU) / 10;
     f.cylinder(
-      [Math.cos(a) * 0.73, 0.23, Math.sin(a) * 0.73],
+      [Math.cos(a) * 0.69, 0.155, Math.sin(a) * 0.69],
       0.032,
       0.07,
       "steel",
@@ -1172,11 +1189,37 @@ function reactor(f: Fabricator, section: boolean) {
       6,
     );
   }
-  f.sphere([0, 0.88, 0], [0.66, 0.32, 0.66]);
-  f.shell([0, 2.12, 0], 0.66, 2.48, section, "satin");
-  f.sphere([0, 3.36, 0], [0.66, 0.33, 0.66]);
-  for (const y of [1.02, 2.08, 3.24])
-    f.flange([0, y, 0], 0.71, "y", "steel", 16);
+  // Hollow dished heads leave the inlet plenum and outlet sump open. A full
+  // ellipsoid would occupy the distributor and hide the collecting liquid.
+  const cutaway = section && !f.transparent;
+  for (const [y, upper] of [
+    [0.88, false],
+    [3.36, true],
+  ] as const)
+    f.enclosure(() =>
+      f.part(
+        new SphereGeometry(
+          1,
+          64,
+          20,
+          cutaway ? Math.PI : 0,
+          cutaway ? Math.PI * 1.5 : TAU,
+          upper ? 0.125 : Math.PI / 2,
+          Math.PI / 2 - 0.125,
+        ).scale(0.66, 0.33, 0.66),
+        "satin",
+        [0, y, 0],
+      ),
+    );
+  f.shell([0, 2.12, 0], packedBedLayout.shellRadius, 2.48, section, "satin");
+  f.flange([0, 3.36, 0], 0.69, "y", "steel", 20);
+  for (const y of [0.9, 2.08]) f.ring([0, y, 0], 0.663, 0.008, "steel");
+  if (cutaway)
+    for (const [x, z] of [
+      [0.66, 0],
+      [0, 0.66],
+    ])
+      f.rod([x, 0.88, z], [x, 3.36, z], 0.009, "steel");
   f.nozzle([0, 3.8, 0], "y", 0.32, 0.11);
   f.pipe(
     [
@@ -1186,6 +1229,8 @@ function reactor(f: Fabricator, section: boolean) {
       [-0.99, 3.55, 0],
     ],
     0.08,
+    "steel",
+    section,
   );
   f.flange([-0.99, 3.55, 0], 0.15, "y");
   f.pipe(
@@ -1195,11 +1240,12 @@ function reactor(f: Fabricator, section: boolean) {
       [1.04, 0.48, 0.08],
     ],
     0.085,
+    "steel",
+    section,
   );
   f.valve([0.82, 0.48, 0.08]);
   for (const y of [1.5, 2.65]) {
-    f.nozzle([-0.73, y, 0], "x", 0.3, 0.05, "steel", -1);
-    f.box([-0.92, y, 0], [0.12, 0.16, 0.14], "gold");
+    f.instrumentPlug([-packedBedLayout.shellRadius, y, 0]);
   }
   f.gauge([0.35, 3.96, 0.32], 3.55);
   for (const x of [-0.46, 0.46]) {
@@ -1207,48 +1253,46 @@ function reactor(f: Fabricator, section: boolean) {
     f.box([x, 3.56, -0.2], [0.12, 0.16, 0.04], "steel");
   }
   if (section) {
-    for (const base of [1.12, 2.22]) {
-      f.annulus([0, base, 0], 0.6, 0.55, 0.04, "dark");
-      for (let z = -0.52; z <= 0.53; z += 0.065) {
-        const span = Math.sqrt(0.55 ** 2 - z ** 2);
-        f.rod([-span, base, z], [span, base, z], 0.009, "steel", 6);
+    for (const bed of packedBedLayout.beds) {
+      const base = bed.support;
+      f.annulus([0, base, 0], 0.632, 0.588, 0.035, "dark");
+      // Closely spaced wire screen, backed by deeper load-bearing beams.
+      for (let z = -0.58; z <= 0.58; z += 0.022) {
+        const span = Math.sqrt(0.59 ** 2 - z ** 2);
+        f.rod([-span, base, z], [span, base, z], 0.004, "steel", 5);
       }
       for (const x of [-0.28, 0.28])
-        f.rod([x, base - 0.025, -0.47], [x, base - 0.025, 0.47], 0.024, "dark");
-      for (let layer = 0; layer < 7; layer++) {
-        for (let row = -4; row <= 4; row++)
-          for (let col = -4; col <= 4; col++) {
-            const x = row * 0.128 + (layer % 2) * 0.055,
-              z = col * 0.128 + (row % 2) * 0.036;
-            if (x * x + z * z < 0.28)
-              f.sphere(
-                [x, base + 0.09 + layer * 0.12, z],
-                [0.062, 0.054, 0.062],
-                (col + row + layer) % 3 === 0 ? "copper" : "gold",
-                8,
-                false,
-              );
-          }
-      }
-    }
-    const distributionHoles: { x: number; y: number; r: number }[] = [];
-    for (let x = -0.36; x <= 0.37; x += 0.12)
-      for (let y = -0.36; y <= 0.37; y += 0.12)
-        if (x * x + y * y < 0.22) distributionHoles.push({ x, y, r: 0.025 });
-    for (const y of [3.2, 2.1])
+        f.box([x, base - 0.028, 0], [0.022, 0.048, 1.03], "dark");
+      const y = bed.distributor;
       f.part(
-        perforatedPlate(0.55, distributionHoles),
+        perforatedPlate(
+          0.613,
+          distributorBores.map(({ x, z, radius }) => ({ x, y: z, r: radius })),
+          0.018,
+        ),
         "steel",
         [0, y, 0],
         [-Math.PI / 2, 0, 0],
       );
-    for (let i = 0; i < 6; i++) {
-      const a = (i * TAU) / 6;
+      f.annulus([0, y + 0.012, 0], 0.63, 0.606, 0.045, "steel");
+      for (const { x, z, radius } of distributorBores)
+        f.annulus([x, y - 0.019, z], radius + 0.003, radius, 0.045, "steel");
+    }
+    // Inlet impingement diffuser spreads the incoming jet over the top tray.
+    f.cylinder([0, 3.275, 0], 0.13, 0.012, "steel");
+    for (const x of [-0.1, 0.1])
+      f.rod([x, 3.21, 0], [x, 3.28, 0], 0.009, "dark");
+    // Screened collector above the bottom nozzle; it remains open to drainage.
+    for (const y of [0.77, 0.81, 0.85, 0.89])
+      f.ring([0, y, 0], 0.112, 0.005, "steel");
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU;
       f.rod(
-        [0, 3.25, 0],
-        [Math.cos(a) * 0.5, 3.25, Math.sin(a) * 0.5],
-        0.025,
+        [Math.cos(a) * 0.112, 0.75, Math.sin(a) * 0.112],
+        [Math.cos(a) * 0.112, 0.9, Math.sin(a) * 0.112],
+        0.004,
         "steel",
+        5,
       );
     }
   } else f.plate([0, 2.6, 0.665], 0.34);
@@ -1507,6 +1551,8 @@ export function createEquipmentModel(
   };
   builders[kind](f, section || transparent);
   const model = f.build(kind);
+  if (kind === "PBR" && (section || transparent))
+    model.add(createCatalystPacking());
   if (kind === "Distillation") model.userData.column = columnLayout(options);
   return model;
 }

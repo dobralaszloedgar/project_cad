@@ -1,5 +1,6 @@
 import {
   Box3,
+  Color,
   CylinderGeometry,
   DoubleSide,
   ExtrudeGeometry,
@@ -13,15 +14,23 @@ import {
   Quaternion,
   Shape,
   SphereGeometry,
+  Sphere,
   TubeGeometry,
   Vector2,
   Vector3,
 } from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { Kind } from "@/domain/schema";
 import { liquidMaterial, vaporMaterial } from "./fluid-materials";
 import { OperationClock, pipeCurve, type Point } from "./operation";
 import { flowColors, type SystemExample } from "./system-geometry";
 import { columnLayout, type EquipmentModelOptions } from "./column-layout";
+import {
+  bedRivulets,
+  bedDrainage,
+  distributorBores,
+  packedBedLayout,
+} from "./packed-bed-layout";
 
 type Bubble = {
   x: number;
@@ -40,6 +49,15 @@ const random = (n: number) => {
 class Contents {
   readonly group = new Group();
   private bubbles: Bubble[] = [];
+  private droplets: {
+    mesh: InstancedMesh;
+    curves: ReturnType<typeof pipeCurve>[];
+    lengths: number[];
+    radius: number;
+    perPath: number;
+    velocity: number;
+    pendant: boolean;
+  }[] = [];
   constructor(
     private clock: OperationClock,
     private color = flowColors.feed,
@@ -139,6 +157,119 @@ class Contents {
     this.group.add(mesh);
   }
 
+  trickles(
+    paths: Point[][],
+    radius: number,
+    name: string,
+    opacity = 0.78,
+    coalescing = false,
+  ) {
+    const geometries = paths.map((points, i) => {
+      const curve = pipeCurve(points);
+      const geometry = new TubeGeometry(
+        curve,
+        Math.max(12, (points.length - 1) * 4),
+        radius,
+        6,
+        false,
+      );
+      const uv = geometry.getAttribute("uv");
+      if (coalescing) {
+        const positions = geometry.getAttribute("position");
+        const normals = geometry.getAttribute("normal");
+        for (let vertex = 0; vertex < positions.count; vertex++) {
+          const t = uv.getX(vertex);
+          // The meniscus draws into a neck with an uneven, fuller stream below.
+          const thickness = 1.35 - t * 0.55 + Math.sin(t * 9 + i * 2.7) * 0.14;
+          positions.setXYZ(
+            vertex,
+            positions.getX(vertex) +
+              normals.getX(vertex) * radius * (thickness - 1),
+            positions.getY(vertex) +
+              normals.getY(vertex) * radius * (thickness - 1),
+            positions.getZ(vertex) +
+              normals.getZ(vertex) * radius * (thickness - 1),
+          );
+        }
+        geometry.computeVertexNormals();
+      }
+      const length = curve.getLength();
+      // Physical distance gives every path the same downward velocity; phase
+      // offsets keep a bed of independent rivulets from flashing in unison.
+      for (let vertex = 0; vertex < uv.count; vertex++)
+        uv.setX(vertex, uv.getX(vertex) * length + random(i + 31) * 2);
+      return geometry;
+    });
+    const merged = mergeGeometries(geometries);
+    geometries.forEach((geometry) => geometry.dispose());
+    if (!merged) return;
+    const mesh = new Mesh(
+      merged,
+      liquidMaterial(this.clock, {
+        mode: "trickle",
+        color: this.color,
+        amplitude: radius * (coalescing ? 0.42 : 0.12),
+        opacity,
+        froth: 0,
+      }),
+    );
+    mesh.name = name;
+    mesh.renderOrder = 1;
+    this.group.add(mesh);
+  }
+
+  drops(
+    paths: Point[][],
+    radius: number,
+    perPath: number,
+    velocity: number,
+    name: string,
+    pendant = false,
+  ) {
+    const curves = paths.map(pipeCurve);
+    const geometry = new SphereGeometry(1, 10, 8);
+    if (pendant) {
+      const vertices = geometry.getAttribute("position");
+      for (let i = 0; i < vertices.count; i++) {
+        const y = vertices.getY(i);
+        const neck = y > 0 ? 1 - y * y * 0.65 : 1;
+        vertices.setXYZ(i, vertices.getX(i) * neck, y, vertices.getZ(i) * neck);
+      }
+      geometry.computeVertexNormals();
+    }
+    const mesh = new InstancedMesh(
+      geometry,
+      new MeshPhysicalMaterial({
+        color: new Color(this.color).lerp(new Color("#c1eee7"), 0.12),
+        transparent: true,
+        opacity: 0.92,
+        roughness: 0.08,
+        metalness: 0,
+        clearcoat: 1,
+        ior: 1.333,
+        depthWrite: false,
+      }),
+      curves.length * perPath,
+    );
+    mesh.name = name;
+    mesh.renderOrder = 1;
+    mesh.visible = false;
+    mesh.boundingBox = new Box3()
+      .setFromPoints(paths.flat().map((p) => new Vector3(...p)))
+      .expandByScalar(radius * 1.7);
+    mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new Sphere());
+    this.group.add(mesh);
+    this.droplets.push({
+      mesh,
+      curves,
+      lengths: curves.map((curve) => curve.getLength()),
+      radius,
+      perPath,
+      velocity,
+      pendant,
+    });
+  }
+
   vapor(
     position: Point,
     width: number,
@@ -221,6 +352,53 @@ class Contents {
     return {
       group: this.group,
       update: (active: boolean) => {
+        for (const {
+          mesh,
+          curves,
+          lengths,
+          radius,
+          perPath,
+          velocity,
+          pendant,
+        } of this.droplets) {
+          mesh.visible = active;
+          if (!active) continue;
+          for (let path = 0; path < curves.length; path++) {
+            for (let drop = 0; drop < perPath; drop++) {
+              const phase =
+                (this.clock.uniform.value *
+                  velocity *
+                  (pendant
+                    ? 0.7 + random(path + 211) * 0.7
+                    : 1 / lengths[path]) +
+                  random(path + 109) +
+                  drop / perPath) %
+                1;
+              if (pendant) {
+                const falling = Math.max(0, (phase - 0.58) / 0.42);
+                curves[path].getPointAt(falling * falling, point);
+                const growth =
+                  phase < 0.58
+                    ? Math.cbrt(phase / 0.58)
+                    : Math.min(1, (1 - phase) * 18);
+                const r = radius * growth;
+                const stretch =
+                  1.15 + (phase < 0.58 ? phase / 0.58 : 1 - falling) * 0.9;
+                scale.set(r, r * stretch, r);
+                point.y -= r * stretch * (1 - falling);
+              } else {
+                curves[path].getPointAt(phase, point);
+                const r = radius * Math.min(1, phase * 12, (1 - phase) * 12);
+                scale.set(r, r * 1.7, r);
+              }
+              mesh.setMatrixAt(
+                path * perPath + drop,
+                matrix.compose(point, rotation, scale),
+              );
+            }
+          }
+          mesh.instanceMatrix.needsUpdate = true;
+        }
         if (!this.bubbles.length) return;
         bubbles.visible = active;
         if (!active) return;
@@ -446,50 +624,106 @@ export function createProcessContents(
           flowColors.cool,
         );
       break;
-    case "PBR":
+    case "PBR": {
       c.stream(
         [
           [-0.99, 3.55, 0],
           [-0.99, 4.07, 0],
           [0, 4.07, 0],
-          [0, 3.3, 0],
+          [0, 3.29, 0],
         ],
         0.058,
       );
       c.stream(
         [
+          [0, packedBedLayout.collector, 0],
           [0, 0.75, 0],
           [0, 0.48, 0.08],
           [1.04, 0.48, 0.08],
         ],
         0.06,
       );
-      // Thin liquid rivulets wet the fixed packing, with short distributor jets.
-      for (const base of [1.12, 2.22]) {
-        for (let i = 0; i < 16; i++) {
-          const a = 0.12 + i * 0.095,
-            x = Math.sin(a) * 0.51,
-            z = Math.cos(a) * 0.51;
-          const points: Point[] = [];
-          for (let j = 0; j <= 14; j++)
-            points.push([
-              x + Math.sin(j * 2.4 + i) * 0.016,
-              base + 0.88 - j * 0.059,
-              z + Math.sin(j * 2.1 + i) * 0.015,
-            ]);
-          c.stream(points, 0.012, 0.94);
-        }
+      c.trickles(
+        Array.from({ length: 12 }, (_, i): Point[] => {
+          const a = (i / 12) * Math.PI * 2;
+          return [
+            [Math.cos(a) * 0.08, 3.285, Math.sin(a) * 0.08],
+            [Math.cos(a) * 0.17, 3.26, Math.sin(a) * 0.17],
+            [Math.cos(a) * 0.26, 3.216, Math.sin(a) * 0.26],
+          ];
+        }),
+        0.006,
+        "inlet-diffuser-liquid",
+      );
+      for (const [index, bed] of packedBedLayout.beds.entries()) {
+        c.surface([0, bed.distributor + 0.014, 0], 0.599, 0.0015, 0.015);
+        const feeds = distributorBores.map(({ x, z }, i): Point[] => [
+          [x, bed.distributor - 0.04, z],
+          [
+            x + Math.sin(i * 2.7) * 0.008,
+            bed.top + 0.07,
+            z + Math.cos(i) * 0.008,
+          ],
+          [
+            x + Math.sin(i * 2.7) * 0.016,
+            bed.top + 0.025,
+            z + Math.cos(i) * 0.016,
+          ],
+        ]);
+        c.trickles(
+          feeds.filter((_, i) => i % 7 === index),
+          0.006,
+          `bed-${index + 1}-distributor-threads`,
+          0.88,
+          true,
+        );
+        c.drops(
+          feeds.filter((_, i) => i % 7 !== index),
+          0.009,
+          1,
+          1.2,
+          `bed-${index + 1}-distributor-beads`,
+          true,
+        );
+        const wetting = bedRivulets(index);
+        c.trickles(wetting, 0.0022, `bed-${index + 1}-wetting-films`, 0.38);
+        c.drops(
+          wetting,
+          0.007,
+          2,
+          0.17,
+          `bed-${index + 1}-descending-droplets`,
+        );
+        const drainage = bedDrainage(index);
+        c.trickles(
+          drainage.branches,
+          0.007,
+          `bed-${index + 1}-gathering-films`,
+          0.88,
+          true,
+        );
+        c.trickles(
+          drainage.streams,
+          0.014,
+          `bed-${index + 1}-merged-streams`,
+          0.94,
+          true,
+        );
+        c.drops(
+          drainage.drips,
+          0.011,
+          1,
+          0.9,
+          `bed-${index + 1}-pendant-drops`,
+          true,
+        );
       }
-      for (const x of [-0.24, 0, 0.24])
-        for (const z of [0, 0.24])
-          c.stream(
-            [
-              [x, 3.19, z],
-              [x, 3.06, z],
-            ],
-            0.009,
-          );
+      // A shallow sump collects the distributed drainage before the low outlet.
+      // Its radius is inside the dished head at this elevation.
+      c.surface([0, packedBedLayout.collector, 0], 0.59, 0.003, 0.025);
+      c.bulk([0, 0.79, 0], 0.59, 0.06);
       break;
+    }
     case "Distillation": {
       const layout = columnLayout(options);
       const top = (y: number) => y + layout.topOffset;

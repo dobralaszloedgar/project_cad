@@ -17,35 +17,65 @@ import { PackedBedResults } from "./reactions/PackedBedResults";
 import { defaultPackedBed } from "@/domain/reactions/schema";
 import { packedBedIssues } from "@/domain/reactions/validation";
 import { componentFlows } from "@/domain/stream-composition";
+import type { Dimension } from "@/domain/unit-definitions";
+import EngineeringInput from "./EngineeringInput";
+import NumberInput from "./NumberInput";
+import { useUnitSystem } from "./useUnitSystem";
 
 type NumericParam = {
   [K in keyof Unit["params"]]-?: Unit["params"][K] extends number ? K : never;
 }[keyof Unit["params"]];
 
-const streamRows: {
+const parameterDimensions: Partial<Record<NumericParam, Dimension>> = {
+  temperature: "temperature",
+  pressure: "pressure",
+  flow: "molarFlow",
+  heatDuty: "power",
+};
+
+function setupParams(
+  unit: Unit,
+  componentIds: readonly string[],
+): Unit["params"] {
+  if (unit.kind !== "PBR" || unit.params.packedBed) return unit.params;
+  return {
+    ...unit.params,
+    packedBed: {
+      ...defaultPackedBed(componentIds),
+      catalystMass: unit.params.catalystMass,
+    },
+  };
+}
+
+function streamRows(display: ReturnType<typeof useUnitSystem>): {
   label: string;
   component?: number;
   value: (stream: Stream, properties?: Result["properties"][string]) => string;
-}[] = [
-  {
-    label: "Molar flow",
-    value: (stream) => `${flow(stream).toFixed(4)} mol/s`,
-  },
-  {
-    label: "Temperature",
-    value: (stream) => `${stream.temperature.toFixed(2)} K`,
-  },
-  {
-    label: "Pressure",
-    value: (stream) => `${(stream.pressure / 1000).toFixed(3)} kPa`,
-  },
-  { label: "Phase", value: (_stream, properties) => properties?.phase ?? "—" },
-  {
-    label: "Vapor fraction",
-    value: (_stream, properties) =>
-      properties?.vaporFraction?.toFixed(5) ?? "Undefined",
-  },
-];
+}[] {
+  return [
+    {
+      label: "Molar flow",
+      value: (stream) => display.format(flow(stream), "molarFlow", 4),
+    },
+    {
+      label: "Temperature",
+      value: (stream) => display.format(stream.temperature, "temperature", 2),
+    },
+    {
+      label: "Pressure",
+      value: (stream) => display.format(stream.pressure, "pressure", 3),
+    },
+    {
+      label: "Phase",
+      value: (_stream, properties) => properties?.phase ?? "—",
+    },
+    {
+      label: "Vapor fraction",
+      value: (_stream, properties) =>
+        properties?.vaporFraction?.toFixed(5) ?? "Undefined",
+    },
+  ];
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -158,11 +188,13 @@ function EquipmentResults({
   dirty: boolean;
 }) {
   const eq = result?.equipment[unit.id];
+  const display = useUnitSystem();
+  const rows = streamRows(display);
   const settings = project.thermo ?? defaultThermo;
   const names = componentNames(settings);
   const context = thermoContext(settings);
   const resultRows = [
-    ...streamRows.slice(0, 3),
+    ...rows.slice(0, 3),
     ...names.map((name, index) => ({
       label: `Mole fraction ${name}`,
       value: (stream: Stream) =>
@@ -173,7 +205,7 @@ function EquipmentResults({
             ).toFixed(5)
           : "Undefined at zero flow",
     })),
-    ...streamRows.slice(3),
+    ...rows.slice(3),
   ];
   const edges = project.edges.filter((edge) =>
     unit.kind === "Product" ? edge.target === unit.id : edge.source === unit.id,
@@ -202,7 +234,7 @@ function EquipmentResults({
             <dl className="equipment-result-values">
               <div>
                 <dt>Heat duty</dt>
-                <dd>{(eq.duty / 1000).toFixed(3)} kW</dd>
+                <dd>{display.format(eq.duty, "power")}</dd>
               </div>
               {eq.conversion !== undefined && (
                 <div>
@@ -285,24 +317,24 @@ export default function EquipmentEditor({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
-  const [params, setParams] = useState(unit.params);
-  const [reactionDraft, setReactionDraft] = useState(unit.params.packedBed);
+  const settings = project.thermo ?? defaultThermo;
+  const context = thermoContext(settings);
+  const [params, setParams] = useState(() => setupParams(unit, context.ids));
+  const display = useUnitSystem();
   const [name, setName] = useState(unit.name);
   const [tab, setTab] = useState<"setup" | "results">("setup");
   const [appliedUnit, setAppliedUnit] = useState(unit);
   // Refresh the draft after an applied edit without losing the selected tab.
   if (appliedUnit !== unit) {
     setAppliedUnit(unit);
-    setParams(unit.params);
+    setParams(setupParams(unit, context.ids));
     setName(unit.name);
   }
-  const settings = project.thermo ?? defaultThermo;
   const thermal = unit.kind === "Heater" || unit.kind === "Cooler";
   const dirty =
     name !== unit.name ||
     JSON.stringify(params) !== JSON.stringify(unit.params);
   const formId = `equipment-form-${unit.id}`;
-  const context = thermoContext(settings);
   const components = context.ids.map((id) => context.catalog.get(id).name);
   const labels = componentNames(settings);
   const chemicals = context.ids.map((id) => context.catalog.get(id));
@@ -333,26 +365,43 @@ export default function EquipmentEditor({
     step: string,
     suffix?: string,
   ) {
+    const dimension = parameterDimensions[key];
+    const title = suffix ? label.slice(0, label.lastIndexOf(" (")) : label;
+    const displayedSuffix = dimension
+      ? display.quantityLabel(dimension)
+      : suffix;
     return (
       <label className="equipment-field">
-        <span>{suffix ? label.slice(0, label.lastIndexOf(" (")) : label}</span>
+        <span>{title}</span>
         <span className="equipment-quantity">
-          <input
-            className="input"
-            aria-label={label}
-            type="number"
-            required
-            min={min}
-            max={max}
-            step={step}
-            value={Number.isNaN(params[key]) ? "" : params[key]}
-            onChange={(event) =>
-              setParams({ ...params, [key]: event.target.valueAsNumber })
-            }
-          />
-          {suffix && (
+          {dimension ? (
+            <EngineeringInput
+              className="input"
+              aria-label={`${title} (${displayedSuffix})`}
+              required
+              dimension={dimension}
+              min={min}
+              max={max}
+              step={step === "any" ? undefined : Number(step)}
+              value={params[key]}
+              onValueChange={(value) => setParams({ ...params, [key]: value })}
+            />
+          ) : (
+            <NumberInput
+              className="input"
+              aria-label={label}
+              required
+              min={min}
+              max={max}
+              step={step === "any" ? 0.001 : Number(step)}
+              integer={key === "trayCount"}
+              value={params[key]}
+              onValueChange={(value) => setParams({ ...params, [key]: value })}
+            />
+          )}
+          {displayedSuffix && (
             <span className="equipment-unit" aria-hidden="true">
-              {suffix}
+              {displayedSuffix}
             </span>
           )}
         </span>
@@ -538,25 +587,20 @@ export default function EquipmentEditor({
                           key={chemical.id}
                         >
                           <span>{chemical.name}</span>
-                          <input
+                          <NumberInput
                             className="input"
-                            type="number"
                             required
-                            min="0"
-                            max="1"
-                            step="any"
+                            min={0}
+                            max={1}
+                            step={0.01}
                             aria-label={`Mole fraction ${chemical.name}`}
-                            value={
-                              Number.isFinite(composition[chemical.id])
-                                ? composition[chemical.id]
-                                : ""
-                            }
-                            onChange={(e) =>
+                            value={composition[chemical.id]}
+                            onValueChange={(value) =>
                               setParams({
                                 ...params,
                                 composition: {
                                   ...composition,
-                                  [chemical.id]: e.target.valueAsNumber,
+                                  [chemical.id]: value,
                                 },
                               })
                             }
@@ -682,118 +726,17 @@ export default function EquipmentEditor({
             {unit.kind === "PBR" && (
               <>
                 <Section title="Operating conditions">
-                  {temperature}
+                  <div className="equipment-field-grid">{temperature}</div>
                   <p className="equipment-help">
                     Isothermal operation. Inlet pressure comes from the
                     connected stream.
                   </p>
                 </Section>
-                <Section title="Reaction model">
-                  <label>
-                    Reaction setup
-                    <select
-                      className="select"
-                      aria-label="Reaction setup"
-                      value={params.packedBed ? "reaction-set" : "teaching"}
-                      onChange={(e) => {
-                        const config = defaultPackedBed(
-                          context.ids,
-                          settings.mixture === "demo",
-                        );
-                        config.catalystMass = params.catalystMass;
-                        if (config.reactions[0])
-                          config.reactions[0].rateConstant =
-                            params.catalystRateConstant;
-                        if (params.packedBed)
-                          setReactionDraft(params.packedBed);
-                        setParams({
-                          ...params,
-                          packedBed:
-                            e.target.value === "reaction-set"
-                              ? (reactionDraft ?? config)
-                              : undefined,
-                        });
-                      }}
-                    >
-                      <option value="reaction-set">
-                        Reaction set · configurable chemistry
-                      </option>
-                      <option value="teaching">
-                        Synthetic A → B teaching model
-                      </option>
-                    </select>
-                  </label>
-                  {!params.packedBed && (
-                    <>
-                      <div className="equipment-reaction">
-                        <strong>A → B</strong>
-                        <span>First order · isothermal</span>
-                      </div>
-                      <label className="equipment-field">
-                        Reaction basis
-                        <select
-                          className="select"
-                          value={params.reactorMode}
-                          onChange={(event) =>
-                            setParams({
-                              ...params,
-                              reactorMode: event.target
-                                .value as Unit["params"]["reactorMode"],
-                            })
-                          }
-                        >
-                          <option value="catalyst-weight">Catalyst mass</option>
-                          <option value="residence-time">Residence time</option>
-                        </select>
-                      </label>
-                      {params.reactorMode === "catalyst-weight" ? (
-                        <div className="equipment-field-grid">
-                          {field(
-                            "catalystMass",
-                            "Catalyst mass (kg)",
-                            0,
-                            10000,
-                            "any",
-                            "kg",
-                          )}
-                          {field(
-                            "catalystRateConstant",
-                            "Rate constant at 450 K (m³/(kg·s))",
-                            Number.MIN_VALUE,
-                            10,
-                            "any",
-                            "m³/(kg·s)",
-                          )}
-                        </div>
-                      ) : (
-                        field(
-                          "residenceTime",
-                          "Residence time (s)",
-                          0,
-                          1000,
-                          "0.1",
-                          "s",
-                        )
-                      )}
-                      <p className="equipment-help">
-                        Synthetic A/B reaction. Combine multiple feeds in an
-                        upstream mixer.
-                      </p>
-                      {(settings.mixture !== "demo" ||
-                        settings.modelId !== "ideal-gas") && (
-                        <p className="equipment-help" role="status">
-                          This reaction requires the synthetic A/B mixture and
-                          ideal-gas model. The selected thermodynamic settings
-                          are unsupported.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </Section>
                 {params.packedBed && (
                   <PackedBedSetup
                     value={params.packedBed}
                     chemicals={chemicals}
+                    temperature={params.temperature}
                     onChange={(packedBed) => {
                       setParams({ ...params, packedBed });
                       setValidationError("");

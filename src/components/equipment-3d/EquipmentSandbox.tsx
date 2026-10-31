@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import type { Kind } from "@/domain/schema";
 import { EquipmentIcon, EquipmentPanelIcon } from "@/components/EquipmentIcon";
+import NumberInput from "../NumberInput";
 import { equipmentCatalog, equipmentGroups } from "./catalog";
 import { equipmentReferences } from "./references";
 import type { CameraView, SceneMode } from "./EquipmentScene";
@@ -55,6 +56,7 @@ export default function EquipmentSandbox() {
   const [motionVisible, setMotionVisible] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [grid, setGrid] = useState(true);
+  const toggleGrid = useCallback(() => setGrid((value) => !value), []);
   const [view, setView] = useState<CameraView>("perspective");
   const [reset, setReset] = useState(0);
   const detail = equipmentCatalog[kind];
@@ -310,6 +312,7 @@ export default function EquipmentSandbox() {
               speed={speed}
               motionVisible={motionVisible}
               grid={grid}
+              onToggleGrid={toggleGrid}
               view={view}
               reset={reset}
               onSelect={select}
@@ -361,9 +364,8 @@ export default function EquipmentSandbox() {
             </div>
             <div className={styles.orbitHint}>
               <Mouse size={14} />
-              <span>
-                Drag to orbit · right-drag to pan · scroll to zoom · WASD to
-                move
+              <span title="Arrow keys pan; +/- zoom; F fits; P pans; V orbits; G toggles grid; L toggles labels. Pinch or Ctrl/Cmd + scroll zooms at the pointer.">
+                Drag to orbit · Space + drag / scroll to pan · Pinch to zoom
               </span>
             </div>
             <button
@@ -520,18 +522,18 @@ export default function EquipmentSandbox() {
             >
               <label htmlFor="column-tray-count">Number of trays</label>
               <div>
-                <input
+                <NumberInput
                   id="column-tray-count"
-                  type="number"
+                  aria-label="Number of trays"
                   min={columnTrayLimits.min}
                   max={columnTrayLimits.max}
-                  step="1"
+                  integer
                   required
                   value={trayDraft}
                   placeholder={
                     visibleTrayCounts.length > 1 ? "Per column" : undefined
                   }
-                  onChange={(event) => setTrayDraft(event.target.value)}
+                  onValueChange={(_value, text) => setTrayDraft(text)}
                 />
                 <button type="submit">Apply</button>
               </div>

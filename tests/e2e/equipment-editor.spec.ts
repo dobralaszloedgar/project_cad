@@ -2,6 +2,7 @@ import { loadProject } from "./project-fixture";
 import { expect, test, type Page } from "./test";
 import { kinds, newUnit } from "../../src/domain/schema";
 import { catalystExample, solutionExample } from "../../src/domain/examples";
+import { reactionProject } from "../helpers/reactions";
 
 async function inspect(page: Page, id: string) {
   await page.locator(".react-flow__node").filter({ hasText: id }).click();
@@ -16,10 +17,15 @@ test("all supported equipment uses Setup and Results, preserves drafts and appli
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
   for (const kind of kinds) {
+    const unit = newUnit(kind, `unit-${kind}`, 100, 100);
+    const configured = reactionProject();
+    if (kind === "PBR")
+      unit.params.packedBed = configured.units[1].params.packedBed;
     await loadProject(page, {
       version: 1,
       name: `${kind} editor`,
-      units: [newUnit(kind, `unit-${kind}`, 100, 100)],
+      thermo: kind === "PBR" ? configured.thermo : undefined,
+      units: [unit],
       edges: [],
     });
     await inspect(page, `unit-${kind}`);
@@ -68,7 +74,7 @@ test("all supported equipment uses Setup and Results, preserves drafts and appli
   }
 });
 
-test("feed composition and reactor modes retain drafts and compact layouts fit mobile in the fixed workspace appearance", async ({
+test("feed composition and reactor sizing retain drafts and compact layouts fit mobile in the fixed workspace appearance", async ({
   page,
 }) => {
   await page.goto("/");
@@ -94,13 +100,22 @@ test("feed composition and reactor modes retain drafts and compact layouts fit m
       .getByRole("complementary", { name: "Equipment connections" })
       .locator(".equipment-port"),
   ).toHaveCount(2);
-  await page.getByLabel("Reaction basis").selectOption("residence-time");
+  await expect(page.getByText("Define your first reaction")).toBeVisible();
+  await page.getByRole("button", { name: "Add reaction", exact: true }).click();
+  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
+  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByLabel("Rate constant", { exact: true }).fill("0.01");
+  await page
+    .getByLabel("Packed-bed calculation")
+    .selectOption("target-conversion");
   await expect(page.getByLabel("Catalyst mass (kg)")).toHaveCount(0);
-  await page.getByLabel("Residence time (s)").fill("12");
-  await page.getByLabel("Reaction basis").selectOption("catalyst-weight");
+  await page.getByLabel("Target conversion (%)").fill("50");
+  await page.getByLabel("Packed-bed calculation").selectOption("catalyst-mass");
   await expect(page.getByLabel("Catalyst mass (kg)")).toHaveValue("10");
-  await page.getByLabel("Reaction basis").selectOption("residence-time");
-  await expect(page.getByLabel("Residence time (s)")).toHaveValue("12");
+  await page
+    .getByLabel("Packed-bed calculation")
+    .selectOption("target-conversion");
+  await expect(page.getByLabel("Target conversion (%)")).toHaveValue("50");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await page.getByRole("button", { name: "Calculate", exact: true }).click();
   await expect(
@@ -110,14 +125,14 @@ test("feed composition and reactor modes retain drafts and compact layouts fit m
     "Single-pass conversion",
   );
   await page.getByRole("tab", { name: "Setup", exact: true }).click();
-  await page.getByLabel("Temperature (K)", { exact: true }).fill("900");
+  await page.getByLabel("Temperature (°C)", { exact: true }).fill("900");
   await page.getByRole("tab", { name: "Results", exact: true }).click();
   await page.keyboard.press("Control+Shift+Enter");
   await expect(
     page.getByRole("tabpanel", { name: "Setup", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByLabel("Temperature (K)", { exact: true }),
+    page.getByLabel("Temperature (°C)", { exact: true }),
   ).toBeFocused();
   await expect(
     page.getByText("Unsaved changes", { exact: true }),
@@ -130,7 +145,7 @@ test("feed composition and reactor modes retain drafts and compact layouts fit m
   await page.screenshot({ path: "test-results/equipment-editor-desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByLabel("Residence time (s)")).toHaveValue("12");
+  await expect(dialog.getByLabel("Target conversion (%)")).toHaveValue("50");
   await page
     .getByText("Model equations and assumptions", { exact: true })
     .click();

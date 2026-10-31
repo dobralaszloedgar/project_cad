@@ -4,6 +4,7 @@ import type { Unit } from "@/domain/schema";
 import { modelInfo, type ThermoSettings } from "@/domain/thermo/registry";
 import { mixtureName } from "@/domain/thermo/catalog";
 import "katex/dist/katex.min.css";
+import { useUnitSystem } from "./useUnitSystem";
 
 function Equation({
   children,
@@ -266,6 +267,7 @@ export function CatalystProfile({
 }: {
   profile: { catalystMass: number; conversion: number }[];
 }) {
+  const display = useUnitSystem();
   if (!profile.length) return null;
   const last = profile[profile.length - 1];
   const maxMass = last.catalystMass || 1;
@@ -291,7 +293,7 @@ export function CatalystProfile({
       <svg
         viewBox="0 0 280 182"
         role="img"
-        aria-label={`Conversion reaches ${(last.conversion * 100).toFixed(2)} percent at ${last.catalystMass} kilograms of catalyst`}
+        aria-label={`Conversion reaches ${(last.conversion * 100).toFixed(2)} percent at ${display.format(last.catalystMass, "mass")} of catalyst`}
       >
         <path d="M42 26H246M42 78H246M42 130H246" className="profile-grid" />
         <path d="M42 26V130H246" className="profile-axis" />
@@ -310,14 +312,14 @@ export function CatalystProfile({
         </text>
         {last.catalystMass > 0 && (
           <text x="246" y="149" textAnchor="middle">
-            {Number(last.catalystMass.toPrecision(5))}
+            {Number(display.value(last.catalystMass, "mass").toPrecision(5))}
           </text>
         )}
         <text x="42" y="14">
           Conversion (%)
         </text>
         <text x="144" y="173" textAnchor="middle">
-          Catalyst mass (kg)
+          Catalyst mass ({display.quantityLabel("mass")})
         </text>
       </svg>
     </figure>

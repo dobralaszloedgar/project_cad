@@ -59,8 +59,8 @@ ranges. Liquid models support 1–200 kPa and temperatures below critical points
 Enabling vapor-pressure extrapolation does not bypass Cp, latent-heat or critical
 limits. No liquid-liquid stability search, electrolyte model, pressure correction
 or liquid density is provided. The distillation template remains a single
-equilibrium flash, not a staged column. Do not infer real reaction kinetics from
-a chemical selection; the PBR remains the synthetic A/B teaching model.
+equilibrium flash, not a staged column. Chemical selection does not define a
+reaction: specify the PBR reactants, products and kinetic constants explicitly.
 
 STORAGE AND REPRODUCIBILITY
 

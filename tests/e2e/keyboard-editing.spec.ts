@@ -55,7 +55,7 @@ test("selection, clipboard, undo, redo, delete and editor shortcuts work", async
   );
   await page.keyboard.press("F2");
   await expect(editor).toBeVisible();
-  await editor.getByLabel("Molar flow (mol/s)").fill("12.5");
+  await editor.getByLabel("Molar flow (kmol/h)", { exact: true }).fill("45");
   await page.keyboard.press("Control+Shift+Enter");
   await expect(editor.locator(".equipment-result")).toBeVisible();
   await page.keyboard.press("Escape");

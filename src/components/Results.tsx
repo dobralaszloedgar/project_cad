@@ -17,6 +17,7 @@ import {
   mixtureName,
   thermoContext,
 } from "@/domain/thermo/catalog";
+import { useUnitSystem } from "./useUnitSystem";
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("en-US", { maximumFractionDigits: digits });
 export default function Results({
@@ -40,6 +41,7 @@ export default function Results({
   onCompare: (s: string) => void;
   onSelect: (s: string) => void;
 }) {
+  const display = useUnitSystem();
   const names = componentNames(project.thermo ?? defaultThermo);
   const [firstComponent] = names;
   const componentIds =
@@ -85,14 +87,14 @@ export default function Results({
               },
               {
                 label: "Net heat duty",
-                value: result ? `${fmt(result.heatDuty / 1000)} kW` : "—",
+                value: result ? display.format(result.heatDuty, "power") : "—",
                 icon: Flame,
                 detail: "Positive adds heat to process",
               },
               {
                 label: "Mass balance residual",
                 value: result
-                  ? `${result.massResidual.toExponential(2)} kg/s`
+                  ? `${display.value(result.massResidual, "massFlow").toExponential(2)} ${display.quantityLabel("massFlow")}`
                   : "—",
                 icon: Scale,
                 detail: "Products minus fresh feeds",
@@ -111,15 +113,17 @@ export default function Results({
               <h3>
                 Stream table{" "}
                 <small>
-                  SI units · {mixtureName(project.thermo ?? defaultThermo)}
+                  {display.label} ·{" "}
+                  {mixtureName(project.thermo ?? defaultThermo)}
                 </small>
               </h3>
               <table className="table">
                 <thead>
                   <tr>
                     <th>Stream</th>
-                    <th>Flow (mol/s)</th>
-                    <th>Temp. (K)</th>
+                    <th>Flow ({display.quantityLabel("molarFlow")})</th>
+                    <th>Temp. ({display.quantityLabel("temperature")})</th>
+                    <th>Pressure ({display.quantityLabel("pressure")})</th>
                     {names.map((name) => (
                       <th key={name}>{name} fraction</th>
                     ))}
@@ -140,8 +144,24 @@ export default function Results({
                             {e.name ?? e.id}
                           </button>
                         </td>
-                        <td>{s ? fmt(flow(s), 4) : "—"}</td>
-                        <td>{s ? fmt(s.temperature, 2) : "—"}</td>
+                        <td>
+                          {s
+                            ? fmt(display.value(flow(s), "molarFlow"), 4)
+                            : "—"}
+                        </td>
+                        <td>
+                          {s
+                            ? fmt(
+                                display.value(s.temperature, "temperature"),
+                                2,
+                              )
+                            : "—"}
+                        </td>
+                        <td>
+                          {s
+                            ? fmt(display.value(s.pressure, "pressure"), 3)
+                            : "—"}
+                        </td>
                         {names.map((name, i) => (
                           <td key={name}>
                             {s && flow(s) > 0
@@ -185,7 +205,12 @@ export default function Results({
                     <dt>Scaled recycle residual</dt>
                     <dd>{result.residual.toExponential(2)}</dd>
                     <dt>Energy balance residual</dt>
-                    <dd>{result.energyResidual.toExponential(2)} W</dd>
+                    <dd>
+                      {display
+                        .value(result.energyResidual, "power")
+                        .toExponential(2)}{" "}
+                      {display.quantityLabel("power")}
+                    </dd>
                   </dl>
                   {result.history.length > 1 ? (
                     <svg
@@ -306,8 +331,8 @@ export default function Results({
                   <p className="delta">
                     Conversion {fmt(previous.conversion * 100, 2)}% →{" "}
                     {fmt(result.conversion * 100, 2)}%<br />
-                    Net duty {fmt(previous.heatDuty / 1000)} →{" "}
-                    {fmt(result.heatDuty / 1000)} kW
+                    Net duty {display.format(previous.heatDuty, "power")} →{" "}
+                    {display.format(result.heatDuty, "power")}
                   </p>
                 ) : (
                   <p className="muted">

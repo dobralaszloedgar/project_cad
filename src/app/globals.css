@@ -727,30 +727,43 @@ h3 {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   border: 1px dashed var(--accent);
 }
-.unit-tag {
+.unit-label {
   position: absolute;
-  top: -28px;
-  left: -30px;
-  right: -30px;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  width: 144px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   text-align: center;
+  pointer-events: none;
+}
+.unit-tag {
+  max-width: 100%;
   font-size: 12px;
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .unit-name {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 50%;
-  width: max-content;
-  max-width: 160px;
-  transform: translateX(-50%);
-  padding: 0 4px;
-  background: var(--canvas);
-  font-size: 12px;
+  max-width: 100%;
+  font-size: 11px;
   color: var(--muted);
-  text-align: center;
-  line-height: 1.25;
+  font-weight: 400;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
   white-space: normal;
 }
 .material-handle {
@@ -765,9 +778,12 @@ h3 {
      tooltips and hit targets; React Flow still enforces port direction. */
   pointer-events: all;
 }
-.equipment-node.bottom-outlet .unit-name {
+.equipment-node.bottom-outlet .unit-label {
   left: calc(50% + 12px);
+  width: 116px;
   transform: none;
+  align-items: flex-start;
+  text-align: left;
 }
 .react-flow__handle.mixer-drop-handle {
   left: 31.25%;

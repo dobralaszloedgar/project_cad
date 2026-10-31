@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "./test";
+import { loadProject } from "./project-fixture";
 import {
   catalystExample,
   thermalCycleExample,
@@ -34,26 +35,26 @@ test("duty setup calculates temperature and persists the active specification", 
   await expect(page.locator(".react-flow__node")).toHaveCount(4);
   await inspect(page, "H-401");
   await expect(page.getByLabel("Thermal specification")).toHaveValue("duty");
-  await expect(page.getByLabel("Temperature (K)", { exact: true })).toHaveCount(
-    0,
-  );
-  await page.getByLabel("Heat duty (W)", { exact: true }).fill("45000");
+  await expect(
+    page.getByLabel("Temperature (°C)", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("Heat duty (kW)", { exact: true }).fill("45");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await page.getByRole("tab", { name: "Results", exact: true }).click();
-  await expect(page.locator(".equipment-result")).toContainText("45.000 kW");
+  await expect(page.locator(".equipment-result")).toContainText("45 kW");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(
     page.locator(".stream-table tr").filter({ hasText: "Stream 2" }),
-  ).toContainText("448.39");
+  ).toContainText("175.24");
   await page.keyboard.press("Escape");
   await expect(page.getByText("Saved on this device")).toBeVisible();
   await page.reload();
   await inspect(page, "H-401");
   await expect(page.getByLabel("Thermal specification")).toHaveValue("duty");
-  await expect(page.getByLabel("Heat duty (W)", { exact: true })).toHaveValue(
-    "45000",
+  await expect(page.getByLabel("Heat duty (kW)", { exact: true })).toHaveValue(
+    "45",
   );
 });
 
@@ -66,7 +67,7 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await loadTemplate(page, "Catalyst-weight reactor");
+  await loadProject(page, catalystExample());
   const reactor = page
     .locator(".react-flow__node")
     .filter({ hasText: "R-601" });
@@ -75,15 +76,19 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await page.keyboard.press("Escape");
   await inspect(page, "R-601");
-  await expect(page.getByLabel("Reaction basis")).toHaveValue(
-    "catalyst-weight",
-  );
+  await expect(page.getByText("Define your first reaction")).toBeVisible();
+  await expect(page.getByLabel("Reaction basis")).toHaveCount(0);
   await page.getByRole("tab", { name: "Results", exact: true }).click();
-  await expect(
-    page.getByRole("img", { name: /kilograms of catalyst/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("img", { name: /kg of catalyst/ })).toBeVisible();
   await expect(page.locator(".equipment-result")).toContainText("16.52%");
   await page.getByRole("tab", { name: "Setup", exact: true }).click();
+  await page.getByRole("button", { name: "Add reaction", exact: true }).click();
+  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
+  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByLabel("Rate constant", { exact: true }).fill("0.01");
+  await page
+    .getByLabel("Activation energy (kJ/mol)", { exact: true })
+    .fill("40");
   await page.getByLabel("Catalyst mass (kg)", { exact: true }).fill("20");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await page.getByRole("tab", { name: "Results", exact: true }).click();
@@ -100,7 +105,7 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
     page
       .locator('.model-notes annotation[encoding="application/x-tex"]')
       .filter({
-        hasText: String.raw`\frac{dF_A}{dW}`,
+        hasText: String.raw`\frac{dF_i}{dW}`,
       }),
   ).toHaveCount(1);
   await expect(

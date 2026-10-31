@@ -275,8 +275,10 @@
   gap: 8px;
   margin-top: 8px;
 }
-.columnControl input {
+.columnControl :global(.number-input) {
   width: 85px;
+}
+.columnControl input {
   min-height: 36px;
   padding: 6px 10px;
   border: 1px solid var(--border);

@@ -1,6 +1,8 @@
 import { test, expect, type Locator, type Page } from "./test";
 
 async function start(page: Page) {
+  // Keep a test's loaded scene stable while the shared dev workspace is edited.
+  await page.routeWebSocket(/\/_next\/webpack-hmr/, () => {});
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
@@ -147,6 +149,13 @@ test("3D orbit, pan, keyboard movement, focus, and camera presets work without l
   const label = page.locator(".plant-label").filter({ hasText: "R-101" });
   await expect(canvas).toBeVisible({ timeout: 30000 });
   await expect(label).toBeVisible();
+  const other = page.locator(".plant-label").filter({ hasText: "S-101" });
+  await other.click();
+  await expect(other).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await label.click();
+  await expect(label).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
   await settled(label);
   const bounds = (await canvas.boundingBox())!;
   const pointer = {
@@ -173,7 +182,7 @@ test("3D orbit, pan, keyboard movement, focus, and camera presets work without l
   }
   const beforeKey = await labelPosition(label);
   await canvas.focus();
-  await page.keyboard.down("d");
+  await page.keyboard.down("ArrowRight");
   try {
     await expect
       .poll(
@@ -182,7 +191,7 @@ test("3D orbit, pan, keyboard movement, focus, and camera presets work without l
       )
       .toBeGreaterThan(10);
   } finally {
-    await page.keyboard.up("d");
+    await page.keyboard.up("ArrowRight");
   }
   await settled(label);
   const beforeResize = await labelPosition(label);
@@ -208,4 +217,83 @@ test("3D orbit, pan, keyboard movement, focus, and camera presets work without l
   await settled(label);
   await page.screenshot({ path: "test-results/navigation-3d.png" });
   expect(errors).toEqual([]);
+});
+
+test("3D shares scroll, pinch, fit, selection focus and pan-mode shortcuts with 2D", async ({
+  page,
+}) => {
+  test.setTimeout(180000);
+  await start(page);
+  await page.getByRole("button", { name: "3D schematic" }).click();
+  const canvas = page.getByLabel("Interactive 3D equipment model");
+  const reactor = page.locator(".plant-label").filter({ hasText: "R-101" });
+  const splitter = page.locator(".plant-label").filter({ hasText: "S-101" });
+  await expect(canvas).toBeVisible({ timeout: 30000 });
+  await settled(reactor);
+  const bounds = (await canvas.boundingBox())!;
+  await page.mouse.move(
+    bounds.x + bounds.width * 0.55,
+    bounds.y + bounds.height * 0.25,
+  );
+  const before = await labelPosition(reactor);
+  const beforeOther = await labelPosition(splitter);
+  await page.mouse.wheel(90, 70);
+  await settled(reactor);
+  const panned = await labelPosition(reactor);
+  const pannedOther = await labelPosition(splitter);
+  expect(panned.x).toBeLessThan(before.x);
+  expect(panned.y).toBeLessThan(before.y);
+  // A pan preserves each object's depth and therefore their relative size.
+  expect(
+    Math.abs((pannedOther.x - beforeOther.x) / (panned.x - before.x)),
+  ).toBeGreaterThan(0.5);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  await settled(reactor);
+  const pinched = await labelPosition(reactor);
+  expect(
+    Math.hypot(pinched.x - panned.x, pinched.y - panned.y),
+  ).toBeGreaterThan(5);
+  await canvas.focus();
+  await page.keyboard.press("f");
+  await settled(reactor);
+  const fitted = await labelPosition(reactor);
+  expect(fitted.x).toBeCloseTo(before.x, 0);
+  expect(fitted.y).toBeCloseTo(before.y, 0);
+  // Repeated zoom-out stops at a finite scene-relative limit.
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 2000);
+  await page.keyboard.up("Control");
+  await settled(reactor);
+  const limit = await labelPosition(reactor);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 2000);
+  await page.keyboard.up("Control");
+  await settled(reactor);
+  expect((await labelPosition(reactor)).x).toBeCloseTo(limit.x, 1);
+  expect((await labelPosition(reactor)).y).toBeCloseTo(limit.y, 1);
+  await page.keyboard.press("f");
+  await settled(reactor);
+  await reactor.click();
+  await page.keyboard.press("Shift+f");
+  await settled(reactor);
+  expect(
+    Math.abs((await labelPosition(reactor)).x - bounds.width / 2),
+  ).toBeLessThan(bounds.width * 0.15);
+  await canvas.focus();
+  await page.keyboard.press("p");
+  await expect(canvas).toHaveAttribute("data-navigation-mode", "pan");
+  await page.keyboard.press("v");
+  await expect(canvas).toHaveAttribute("data-navigation-mode", "orbit");
+  await page.keyboard.down("Space");
+  await expect(canvas).toHaveAttribute("data-navigation-mode", "pan");
+  await page.keyboard.up("Space");
+  await expect(canvas).toHaveAttribute("data-navigation-mode", "orbit");
+  await page.keyboard.press("l");
+  await expect(reactor).toBeHidden();
+  await page.keyboard.press("l");
+  await expect(reactor).toBeVisible();
+  await page.keyboard.press("e");
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Eye, Focus, Pause, Play, Scan } from "lucide-react";
 import type { Project } from "@/domain/schema";
 import EquipmentScene, { type CameraView } from "./equipment-3d/EquipmentScene";
@@ -13,6 +13,7 @@ export default function Plant3D({
   dark = false,
   canvasColor,
   initialPlaying = false,
+  graphicsSettingsContainer,
 }: {
   project: Project;
   selected: string | null;
@@ -20,8 +21,11 @@ export default function Plant3D({
   dark?: boolean;
   canvasColor?: string;
   initialPlaying?: boolean;
+  graphicsSettingsContainer?: HTMLElement | null;
 }) {
   const [transparent, setTransparent] = useState(true);
+  const [grid, setGrid] = useState(true);
+  const toggleGrid = useCallback(() => setGrid((value) => !value), []);
   const [playing, setPlaying] = useState(
     () =>
       initialPlaying &&
@@ -56,7 +60,8 @@ export default function Plant3D({
           playing={playing}
           speed={speed}
           motionVisible
-          grid
+          grid={grid}
+          onToggleGrid={toggleGrid}
           view={view}
           rotate={false}
           reset={reset}
@@ -64,6 +69,7 @@ export default function Plant3D({
           selectedId={selected}
           dark={dark}
           canvasColor={canvasColor}
+          graphicsSettingsContainer={graphicsSettingsContainer}
           workspace
           onSelect={(_, id) => {
             if (id) onSelect(id);
@@ -80,7 +86,7 @@ export default function Plant3D({
           <div className="tool-group">
             <button
               aria-label="Reset camera"
-              title="Fit plant (Home)"
+              title="Fit plant (F / Home)"
               onClick={() => setReset((value) => value + 1)}
             >
               <Scan size={15} />
@@ -88,7 +94,7 @@ export default function Plant3D({
             </button>
             <button
               aria-label="Focus selected equipment"
-              title="Focus selected equipment (F)"
+              title="Focus selected equipment (Shift+F)"
               disabled={!project.units.some((unit) => unit.id === selected)}
               onClick={() => setFocus((value) => value + 1)}
             >
@@ -158,9 +164,9 @@ export default function Plant3D({
       ) : null}
       <div
         className="navigation-hint"
-        title="Drag to orbit. Right/middle or Shift/Space + drag to pan. Scroll/pinch to zoom. Focus the canvas to use WASD to move, Q/E to move down/up, arrows to pan, Shift to move faster, F to focus, and Home to fit the plant."
+        title="Drag to orbit around selected equipment. Scroll, right/middle drag, or Space + drag to pan. Pinch or Ctrl/Cmd + scroll to zoom at the pointer. Arrow keys pan (Shift moves faster); +/- zoom; F fits the plant; Shift+F focuses selection; P pans; V orbits/selects; G toggles grid; L toggles labels."
       >
-        Drag to orbit · Right-drag to pan · Scroll to zoom · WASD to move
+        Drag to orbit · Space + drag / scroll to pan · Pinch to zoom · F to fit
       </div>
     </div>
   );

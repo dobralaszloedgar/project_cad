@@ -1,21 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Plus, Trash2, ArrowRight } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import type { Chemical } from "@/domain/thermo/data";
 import {
   reactionSchema,
   type PackedBedConfig,
   type Reaction,
 } from "@/domain/reactions/schema";
-import { defaultRateLaw } from "@/domain/reactions/rateLaw";
+import { reactionRateLaw } from "@/domain/reactions/rateLaw";
 import {
   packedBedIssues,
-  reactionEquation,
   reactionIssues,
   rateConstantUnit,
 } from "@/domain/reactions/validation";
 import { RateLawEditor } from "./RateLawEditor";
+import { RatePreview } from "./RatePreview";
+import { ReactionEquation } from "./ReactionEquation";
+import { MathFormula } from "./RateMath";
+import type { Dimension } from "@/domain/unit-definitions";
+import EngineeringInput from "../EngineeringInput";
+import NumberInput from "../NumberInput";
+import { useUnitSystem } from "../useUnitSystem";
 import "./reactions.css";
 
 function NumberField({
@@ -24,31 +30,52 @@ function NumberField({
   onChange,
   min = 0,
   max,
+  step,
   unit,
+  dimension,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  step?: number;
   unit?: string;
+  dimension?: Dimension;
 }) {
+  const display = useUnitSystem();
+  const title = dimension ? label.slice(0, label.lastIndexOf(" (")) : label;
+  const suffix = dimension ? display.quantityLabel(dimension) : unit;
+  const accessibleLabel = dimension ? `${title} (${suffix})` : label;
   return (
     <label className="equipment-field">
-      <span>{label}</span>
+      <span>{title}</span>
       <span className="equipment-quantity">
-        <input
-          className="input"
-          aria-label={label}
-          type="number"
-          step="any"
-          required
-          min={min}
-          max={max}
-          value={Number.isFinite(value) ? value : ""}
-          onChange={(e) => onChange(e.target.valueAsNumber)}
-        />
-        {unit && <span className="equipment-unit">{unit}</span>}
+        {dimension ? (
+          <EngineeringInput
+            className="input"
+            aria-label={accessibleLabel}
+            dimension={dimension}
+            required
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onValueChange={onChange}
+          />
+        ) : (
+          <NumberInput
+            className="input"
+            aria-label={label}
+            step={step}
+            required
+            min={min}
+            max={max}
+            value={value}
+            onValueChange={onChange}
+          />
+        )}
+        {suffix && <span className="equipment-unit">{suffix}</span>}
       </span>
     </label>
   );
@@ -129,19 +156,17 @@ function SpeciesTable({
               </option>
             ))}
           </select>
-          <input
+          <NumberInput
             className="input"
             aria-label={`${side} coefficient ${i + 1}`}
-            type="number"
             required
-            min="0.000001"
-            max="1000"
-            step="any"
+            min={0.000001}
+            max={1000}
             value={Math.abs(row.coefficient)}
-            onChange={(e) =>
-              Number.isFinite(e.target.valueAsNumber) &&
-              e.target.valueAsNumber > 0 &&
-              patch(row.index, { coefficient: sign * e.target.valueAsNumber })
+            onValueChange={(value) =>
+              Number.isFinite(value) &&
+              value > 0 &&
+              patch(row.index, { coefficient: sign * value })
             }
           />
           <button
@@ -196,10 +221,12 @@ export function PackedBedSetup({
   value,
   chemicals,
   onChange,
+  temperature,
 }: {
   value: PackedBedConfig;
   chemicals: Chemical[];
   onChange: (value: PackedBedConfig) => void;
+  temperature: number;
 }) {
   const [selectedId, setSelectedId] = useState(value.reactions[0]?.id);
   const selected =
@@ -218,6 +245,9 @@ export function PackedBedSetup({
   const edit = (change: Partial<Reaction>) =>
     updateReaction({ ...selected, ...change });
   const issues = packedBedIssues(value, chemicals);
+  const basisName =
+    chemicals.find((c) => c.id === selected?.basisComponentId)?.name ??
+    "basis species";
   const add = (reaction: Reaction) => {
     patch({ reactions: [...value.reactions, reaction] });
     setSelectedId(reaction.id);
@@ -265,6 +295,7 @@ export function PackedBedSetup({
           {value.sizingMode === "catalyst-mass" ? (
             <NumberField
               label="Catalyst mass (kg)"
+              dimension="mass"
               unit="kg"
               value={value.catalystMass}
               max={1e9}
@@ -282,6 +313,7 @@ export function PackedBedSetup({
           )}
           <NumberField
             label="Pressure drop (Pa)"
+            dimension="pressureDifference"
             unit="Pa"
             value={value.pressureDrop}
             max={2e6}
@@ -308,6 +340,7 @@ export function PackedBedSetup({
           {value.flowModel === "constant-flow" && (
             <NumberField
               label="Volumetric flow (m³/s)"
+              dimension="volumeFlow"
               unit="m³/s"
               value={value.volumetricFlow}
               min={1e-12}
@@ -316,6 +349,12 @@ export function PackedBedSetup({
             />
           )}
         </div>
+        {value.sizingMode === "target-conversion" && (
+          <p className="equipment-help">
+            Target the overall disappearance of an inlet reactant across all
+            enabled reactions.
+          </p>
+        )}
         <p className="equipment-help">
           Isothermal gas reaction. Pressure drops linearly across the bed.{" "}
           {value.flowModel === "ideal-gas"
@@ -332,8 +371,8 @@ export function PackedBedSetup({
           </span>
         </div>
         <p className="equipment-help">
-          Main, competing and consecutive reactions share the same mixture and
-          are solved together.
+          Define main, competing and consecutive reactions. All enabled
+          reactions share the mixture and are solved together.
         </p>
         <div className="reaction-cards" aria-label="Reactions in this reactor">
           {value.reactions.map((reaction, index) => (
@@ -348,18 +387,23 @@ export function PackedBedSetup({
                 aria-pressed={selected?.id === reaction.id}
                 onClick={() => setSelectedId(reaction.id)}
               >
-                <strong>{reaction.name}</strong>
-                <span>{reactionEquation(reaction, chemicals)}</span>
+                <span className="reaction-card-title">
+                  <strong>{reaction.name}</strong>
+                  <small>
+                    {!reaction.enabled
+                      ? "Disabled"
+                      : reactionIssues(reaction, chemicals).length
+                        ? "Needs attention"
+                        : "Ready"}
+                  </small>
+                </span>
+                <span className="reaction-card-equation">
+                  <ReactionEquation reaction={reaction} chemicals={chemicals} />
+                </span>
                 <small>
-                  {!reaction.enabled
-                    ? "Disabled"
-                    : reactionIssues(reaction, chemicals).length
-                      ? "Needs attention"
-                      : "Ready"}{" "}
-                  ·{" "}
                   {reaction.rateLaw
-                    ? "General rate law"
-                    : `Order ${reaction.order}`}
+                    ? `General law · ${reaction.rateLaw.mode === "custom" ? "custom expression" : "table builder"}`
+                    : `Power law · order ${reaction.order} · k = ${reaction.rateConstant}`}
                 </small>
               </button>
               <label className="reaction-enable">
@@ -376,6 +420,15 @@ export function PackedBedSetup({
             </div>
           ))}
         </div>
+        {!value.reactions.length && (
+          <div className="reaction-empty">
+            <strong>Define your first reaction</strong>
+            <p>
+              Choose reactants and products from the project components, then
+              enter the rate law and its constants.
+            </p>
+          </div>
+        )}
         <div className="reaction-actions">
           <button
             className="btn btn-sm"
@@ -426,6 +479,19 @@ export function PackedBedSetup({
         </div>
         {selected && (
           <div className="reaction-definition" key={selected.id}>
+            <div className="reaction-definition-heading">
+              <h4>Reaction definition</h4>
+              <span>
+                {value.reactions.indexOf(selected) + 1} of{" "}
+                {value.reactions.length}
+              </span>
+            </div>
+            {!selected.enabled && (
+              <p className="equipment-help">
+                This reaction is disabled. Its definition is retained and
+                contributes zero rate.
+              </p>
+            )}
             <label>
               Reaction name
               <input
@@ -438,8 +504,9 @@ export function PackedBedSetup({
               />
             </label>
             <div className="reaction-equation" aria-label="Reaction equation">
-              <ArrowRight size={16} />
-              <span>{reactionEquation(selected, chemicals)}</span>
+              <span>
+                <ReactionEquation reaction={selected} chemicals={chemicals} />
+              </span>
             </div>
             <div className="reaction-sides">
               <SpeciesTable
@@ -459,126 +526,140 @@ export function PackedBedSetup({
               Enter positive coefficients on each side. Components absent from
               the reaction remain inert. Add chemicals in Project components.
             </p>
-            <div className="equipment-field-grid">
-              <label>
-                Rate basis species
-                <select
-                  className="select"
-                  aria-label="Rate basis species"
-                  value={selected.basisComponentId}
-                  onChange={(e) => edit({ basisComponentId: e.target.value })}
-                >
-                  <option value="" disabled>
-                    Select a reactant
-                  </option>
-                  {selected.stoichiometry
-                    .filter((s) => s.coefficient < 0)
-                    .map((s) => (
-                      <option key={s.componentId} value={s.componentId}>
-                        {chemicals.find((c) => c.id === s.componentId)?.name ??
-                          s.componentId}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Rate law
-                <select
-                  className="select"
-                  aria-label="Rate law model"
-                  value={selected.rateLaw ? "general" : "power-law"}
-                  onChange={(e) => {
-                    if (selected.rateLaw)
-                      setRateDrafts({
-                        ...rateDrafts,
-                        [selected.id]: selected.rateLaw,
+            <section className="reaction-kinetics">
+              <h4>Reaction kinetics</h4>
+              <div className="equipment-field-grid">
+                <label>
+                  Rate basis species
+                  <select
+                    className="select"
+                    aria-label="Rate basis species"
+                    value={selected.basisComponentId}
+                    onChange={(e) => edit({ basisComponentId: e.target.value })}
+                  >
+                    <option value="" disabled>
+                      Select a reactant
+                    </option>
+                    {selected.stoichiometry
+                      .filter((s) => s.coefficient < 0)
+                      .map((s) => (
+                        <option key={s.componentId} value={s.componentId}>
+                          {chemicals.find((c) => c.id === s.componentId)
+                            ?.name ?? s.componentId}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Rate law
+                  <select
+                    className="select"
+                    aria-label="Rate law model"
+                    value={selected.rateLaw ? "general" : "power-law"}
+                    onChange={(e) => {
+                      if (selected.rateLaw)
+                        setRateDrafts({
+                          ...rateDrafts,
+                          [selected.id]: selected.rateLaw,
+                        });
+                      const law = reactionRateLaw({
+                        ...selected,
+                        rateLaw: undefined,
                       });
-                    const law = defaultRateLaw(
-                      selected.basisComponentId,
-                      true,
-                      selected.rateConstant,
-                      selected.order,
-                    );
-                    law.parameters[0] = {
-                      ...law.parameters[0],
-                      activationEnergy: selected.activationEnergy,
-                      referenceTemperature: selected.referenceTemperature,
-                    };
-                    edit({
-                      rateLaw:
-                        e.target.value === "general"
-                          ? (rateDrafts[selected.id] ?? law)
-                          : undefined,
-                    });
-                  }}
-                >
-                  <option value="power-law">
-                    Simple power law · one species
-                  </option>
-                  <option value="general">
-                    General law · table or expression
-                  </option>
-                </select>
-              </label>
-            </div>
-            {selected.rateLaw ? (
-              <RateLawEditor
-                law={selected.rateLaw}
-                components={chemicals}
-                packed
-                basisName={
-                  chemicals.find((c) => c.id === selected.basisComponentId)
-                    ?.name ?? selected.basisComponentId
-                }
-                reactionName={selected.name}
-                onChange={(rateLaw) => edit({ rateLaw })}
-              />
-            ) : (
-              <>
-                <p className="reaction-rate-preview">
-                  −r = k(T) C<sup>{selected.order}</sup> · net disappearance of
-                  the rate basis, mol/(kg·s)
-                </p>
-                <div className="equipment-field-grid">
-                  <NumberField
-                    label="Reaction order"
-                    value={selected.order}
-                    max={20}
-                    onChange={(order) => edit({ order })}
+                      edit({
+                        rateLaw:
+                          e.target.value === "general"
+                            ? (rateDrafts[selected.id] ?? law)
+                            : undefined,
+                      });
+                    }}
+                  >
+                    <option value="power-law">
+                      Simple power law · one species
+                    </option>
+                    <option value="general">
+                      General rate law · tables or expression
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <p className="equipment-help">
+                Rates describe net disappearance of the basis species. Reaction
+                extent is the rate divided by its stoichiometric coefficient.
+              </p>
+              {selected.rateLaw ? (
+                <RateLawEditor
+                  law={selected.rateLaw}
+                  components={chemicals}
+                  packed
+                  basisName={basisName}
+                  temperature={temperature}
+                  reactionName={selected.name}
+                  onChange={(rateLaw) => edit({ rateLaw })}
+                />
+              ) : (
+                <>
+                  <RatePreview
+                    law={reactionRateLaw(selected)}
+                    components={chemicals}
+                    basisName={basisName}
+                    temperature={temperature}
                   />
-                  <NumberField
-                    label="Rate constant"
-                    unit={rateConstantUnit(selected.order)}
-                    value={selected.rateConstant}
-                    max={1e20}
-                    onChange={(rateConstant) => edit({ rateConstant })}
-                  />
-                  <NumberField
-                    label="Activation energy (J/mol)"
-                    unit="J/mol"
-                    value={selected.activationEnergy}
-                    min={-1e6}
-                    max={1e6}
-                    onChange={(activationEnergy) => edit({ activationEnergy })}
-                  />
-                  <NumberField
-                    label="Reference temperature (K)"
-                    unit="K"
-                    value={selected.referenceTemperature}
-                    min={250}
-                    max={800}
-                    onChange={(referenceTemperature) =>
-                      edit({ referenceTemperature })
-                    }
-                  />
-                </div>
-                <p className="equipment-help">
-                  Changing reaction order changes the units of k. Use a general
-                  law for multiple species, reverse rates or inhibition. Zero
-                  activation energy makes k independent of temperature.
-                </p>
-              </>
-            )}
+                  <div className="equipment-field-grid">
+                    <NumberField
+                      label="Reaction order"
+                      value={selected.order}
+                      max={20}
+                      step={0.1}
+                      onChange={(order) => edit({ order })}
+                    />
+                    <NumberField
+                      label="Rate constant"
+                      unit={rateConstantUnit(selected.order)}
+                      value={selected.rateConstant}
+                      max={1e20}
+                      step={0.01}
+                      onChange={(rateConstant) => edit({ rateConstant })}
+                    />
+                    <NumberField
+                      label="Activation energy (J/mol)"
+                      dimension="enthalpy"
+                      unit="J/mol"
+                      value={selected.activationEnergy}
+                      min={-1e6}
+                      max={1e6}
+                      onChange={(activationEnergy) =>
+                        edit({ activationEnergy })
+                      }
+                    />
+                    <NumberField
+                      label="Reference temperature (K)"
+                      dimension="temperature"
+                      unit="K"
+                      value={selected.referenceTemperature}
+                      min={250}
+                      max={800}
+                      onChange={(referenceTemperature) =>
+                        edit({ referenceTemperature })
+                      }
+                    />
+                  </div>
+                  {!!selected.activationEnergy && (
+                    <MathFormula
+                      latex={String.raw`k_f(T) = k_f(T_{\mathrm{ref}})\exp\left[-\frac{E}{R}\left(\frac{1}{T}-\frac{1}{T_{\mathrm{ref}}}\right)\right]`}
+                      label="Reference-temperature Arrhenius equation"
+                      className="arrhenius-math"
+                    />
+                  )}
+                  <p className="equipment-help">
+                    Changing reaction order changes the units of k. Use a
+                    general law for multiple species, reverse rates or
+                    inhibition. Zero activation energy makes k independent of
+                    temperature.
+                  </p>
+                </>
+              )}
+            </section>
           </div>
         )}
         {!!issues.length && (

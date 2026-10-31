@@ -6,7 +6,10 @@ import { rateFormula, ratePreview } from "@/domain/reactions/rateLaw";
 import {
   escapeMathText,
   rateExpressionLatex,
+  rateExpressionSymbols,
+  rateSymbolLatex,
 } from "@/domain/reactions/rateExpression";
+import "katex/dist/katex.min.css";
 
 export function MathFormula({
   latex,
@@ -55,13 +58,17 @@ export function RateMath({
   law,
   components,
   basisName,
+  parameterValues,
 }: {
   law: RateLaw;
   components: ChemicalComponent[];
   basisName: string;
+  parameterValues?: Record<string, number>;
 }) {
   let latex: string;
   try {
+    const formula = rateFormula(law);
+    const symbols = rateExpressionSymbols(formula);
     const labels = Object.fromEntries(
       law.variables.map((v) => {
         const species = chemicalLatex(
@@ -78,11 +85,24 @@ export function RateMath({
         return [v.symbol, `${prefix}_{${species}}`];
       }),
     );
+    for (const parameter of law.parameters) {
+      if (!symbols.has(parameter.symbol)) continue;
+      if (parameterValues) {
+        const value = parameterValues[parameter.symbol];
+        if (!Number.isFinite(value)) throw new Error("Incomplete constant");
+        const text = String(Number(value.toPrecision(7)));
+        const numeric = rateExpressionLatex(text, []);
+        labels[parameter.symbol] =
+          value < 0 || /e/i.test(text) ? `\\left(${numeric}\\right)` : numeric;
+      } else if (parameter.activationEnergy) {
+        labels[parameter.symbol] = `${rateSymbolLatex(parameter.symbol)}(T)`;
+      }
+    }
     latex = `-r_{${chemicalLatex(
       components.find((c) => c.name === basisName),
       basisName,
     )}} = ${rateExpressionLatex(
-      rateFormula(law),
+      formula,
       [...law.variables, ...law.parameters].map((v) => v.symbol),
       labels,
     )}`;

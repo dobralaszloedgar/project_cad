@@ -57,27 +57,9 @@ export const packedBedSchema = z
 export type Reaction = z.infer<typeof reactionSchema>;
 export type PackedBedConfig = z.infer<typeof packedBedSchema>;
 
-export function defaultPackedBed(
-  ids: readonly string[],
-  synthetic = false,
-): PackedBedConfig {
-  const basis = ids[0] ?? "A";
+export function defaultPackedBed(ids: readonly string[]): PackedBedConfig {
   return packedBedSchema.parse({
-    conversionComponentId: basis,
-    reactions: synthetic
-      ? [
-          {
-            id: "reaction-1",
-            name: "A to B",
-            basisComponentId: basis,
-            stoichiometry: [
-              { componentId: basis, coefficient: -1 },
-              { componentId: ids[1] ?? "B", coefficient: 1 },
-            ],
-            rateConstant: 0.01,
-            activationEnergy: 40000,
-          },
-        ]
-      : [],
+    conversionComponentId: ids[0] ?? "A",
+    reactions: [],
   });
 }

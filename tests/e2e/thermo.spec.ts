@@ -146,6 +146,8 @@ test("nonideal mixer energy balance agrees in the browser and simulation API", a
   const row = page
     .locator(".stream-table tbody tr")
     .filter({ has: page.getByRole("button", { name: "mixed", exact: true }) });
-  await expect(row).toContainText(result.streams.mixed.temperature.toFixed(2));
+  await expect(row).toContainText(
+    (result.streams.mixed.temperature - 273.15).toFixed(2),
+  );
   await expect(row).toContainText("liquid");
 });

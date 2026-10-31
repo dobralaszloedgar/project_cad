@@ -1,9 +1,10 @@
 import { useEffect, type RefObject } from "react";
 import { useReactFlow, useStoreApi } from "@xyflow/react";
+import { wheelNavigation } from "./canvas-navigation";
+export { ZOOM_STEP } from "./canvas-navigation";
 
 export const CANVAS_MIN_ZOOM = 0.05;
 export const CANVAS_MAX_ZOOM = 3;
-export const ZOOM_STEP = 1.54;
 
 export function useCanvasWheelNavigation(
   area: RefObject<HTMLDivElement | null>,
@@ -30,15 +31,11 @@ export function useCanvasWheelNavigation(
       event.stopPropagation();
       // Accumulate both axes without dropping fractional trackpad movement.
       const before = pending ?? flow.getViewport();
+      const gesture = wheelNavigation(event, /Mac/.test(navigator.userAgent));
       if (event.ctrlKey || event.metaKey) {
-        const unit = event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002;
-        const pinch = event.ctrlKey && /Mac/.test(navigator.userAgent) ? 10 : 1;
         const zoom = Math.min(
           CANVAS_MAX_ZOOM,
-          Math.max(
-            CANVAS_MIN_ZOOM,
-            before.zoom * 2 ** (-event.deltaY * unit * pinch * 2.7),
-          ),
+          Math.max(CANVAS_MIN_ZOOM, before.zoom * gesture.zoom),
         );
         const bounds = domNode.getBoundingClientRect();
         const x = event.clientX - bounds.left;
@@ -50,10 +47,9 @@ export function useCanvasWheelNavigation(
           zoom,
         };
       } else {
-        const unit = event.deltaMode === 1 ? 20 : 1;
         pending = {
-          x: before.x - event.deltaX * unit * 0.5,
-          y: before.y - event.deltaY * unit * 0.5,
+          x: before.x - gesture.x,
+          y: before.y - gesture.y,
           zoom: before.zoom,
         };
       }

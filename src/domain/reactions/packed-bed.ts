@@ -1,5 +1,5 @@
 import type { Chemical } from "../thermo/data";
-import { compileRateLaw, defaultRateLaw } from "./rateLaw";
+import { compileRateLaw, reactionRateLaw } from "./rateLaw";
 import { integrateExtents } from "./integrate";
 import { packedBedIssues } from "./validation";
 import type { PackedBedConfig } from "./schema";
@@ -71,18 +71,9 @@ export function solvePackedBed(
       -r.stoichiometry.find((s) => s.componentId === r.basisComponentId)!
         .coefficient,
   );
-  const rates = reactions.map((r) => {
-    const law =
-      r.rateLaw ??
-      defaultRateLaw(r.basisComponentId, true, r.rateConstant, r.order);
-    if (!r.rateLaw)
-      law.parameters[0] = {
-        ...law.parameters[0],
-        activationEnergy: r.activationEnergy,
-        referenceTemperature: r.referenceTemperature,
-      };
-    return compileRateLaw(law, chemicals, true);
-  });
+  const rates = reactions.map((r) =>
+    compileRateLaw(reactionRateLaw(r), chemicals, true),
+  );
   const flowsAt = (x: number[]) =>
     Object.fromEntries(
       ids.map((id, i) => [
