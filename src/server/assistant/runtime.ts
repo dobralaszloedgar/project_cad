@@ -17,6 +17,7 @@ import {
 } from "../../assistant/protocol";
 import { AssistantStore } from "./store";
 import type { AssistantProvider } from "./providers/types";
+import { saveAttachments, validateAttachmentBytes } from "./attachments";
 
 type Scope = { origin: string; projectId: string; clientId: string };
 type Active = {
@@ -94,16 +95,30 @@ export class AssistantRuntime {
   }
   snapshot(scope: Scope, id?: string): AssistantSnapshot {
     this.own(scope, true);
+    const history = this.store.list(scope.origin, scope.projectId);
+    const latest =
+      this.active.get(this.key(scope))?.chat ??
+      history.find((chat) => chat.runs.length);
+    const lastRun = latest?.runs.at(-1);
     return {
-      conversations: this.store
-        .list(scope.origin, scope.projectId)
-        .map(({ id, title, provider, updatedAt }) => ({
+      conversations: history.map(
+        ({ id, title, provider, updatedAt, archived }) => ({
           id,
           title,
           provider,
           updatedAt,
-        })),
+          archived,
+        }),
+      ),
       conversation: id ? publicConversation(this.chat(scope, id)) : undefined,
+      activeConversation: this.active.get(this.key(scope))
+        ? publicConversation(this.active.get(this.key(scope))!.chat)
+        : undefined,
+      capabilities: ["attachments-v1", "chat-history-v1"],
+      activity:
+        latest && lastRun
+          ? { conversationId: latest.id, run: lastRun }
+          : undefined,
       commands: [...this.pending.values()]
         .filter(
           (p) =>
@@ -162,6 +177,13 @@ export class AssistantRuntime {
       );
     if (chat.runs.length >= 100)
       throw new Error("This conversation is full. Start a new conversation.");
+    const files = request.attachments ?? [];
+    validateAttachmentBytes(files);
+    const cwd = join(this.root, "sessions", chat.id);
+    mkdirSync(cwd, { recursive: true, mode: 0o700 });
+    const attachmentDirectory = join(cwd, request.requestId);
+    mkdirSync(attachmentDirectory, { recursive: true, mode: 0o700 });
+    saveAttachments(attachmentDirectory, files);
     const run: AssistantRun = {
       id: crypto.randomUUID(),
       requestId: request.requestId,
@@ -171,6 +193,12 @@ export class AssistantRuntime {
       activities: [],
       proposals: [],
       createdAt: new Date().toISOString(),
+      attachments: files.map(({ id, name, type, size }) => ({
+        id,
+        name,
+        type,
+        size,
+      })),
     };
     chat.runs.push(run);
     chat.updatedAt = run.createdAt;
@@ -179,8 +207,6 @@ export class AssistantRuntime {
     const abort = new AbortController(),
       active = { chat, run, abort };
     this.active.set(key, active);
-    const cwd = join(this.root, "sessions", chat.id);
-    mkdirSync(cwd, { recursive: true, mode: 0o700 });
     const deadline = setTimeout(
       () =>
         this.cancelKey(
@@ -194,6 +220,7 @@ export class AssistantRuntime {
         conversation: chat,
         cwd,
         prompt: request.message,
+        attachments: files,
         signal: abort.signal,
         text: (delta) => {
           if (run.status === "running" && run.text.length < 100000)
@@ -338,6 +365,20 @@ export class AssistantRuntime {
   cancel(scope: Scope) {
     this.own(scope);
     this.cancelKey(this.key(scope), "Stopped by you.");
+  }
+  updateConversation(
+    scope: Scope,
+    id: string,
+    update: { title?: string; archived?: boolean },
+  ) {
+    this.own(scope);
+    const chat = this.chat(scope, id);
+    if (update.archived && this.active.get(this.key(scope))?.chat.id === id)
+      throw new Error("Stop this conversation before archiving it.");
+    if (update.title !== undefined) chat.title = update.title;
+    if (update.archived !== undefined) chat.archived = update.archived;
+    this.store.save(chat);
+    return publicConversation(chat);
   }
   detach(scope: Scope) {
     const key = this.key(scope);

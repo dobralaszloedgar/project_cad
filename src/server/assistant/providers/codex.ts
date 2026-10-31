@@ -9,6 +9,7 @@ import {
 } from "../../../assistant/protocol";
 import { assistantInstructions } from "../../../assistant/tools";
 import { providerExecutable } from "../config";
+import { imageAttachments } from "../attachments";
 import {
   currentProjectPrompt,
   type AssistantProvider,
@@ -344,7 +345,13 @@ export class CodexProvider implements AssistantProvider {
         void rpc
           .request<{ turn: { id: string } }>("turn/start", {
             threadId,
-            input: [{ type: "text", text: prompt, text_elements: [] }],
+            input: [
+              { type: "text", text: prompt, text_elements: [] },
+              ...imageAttachments(input.attachments).map((file) => ({
+                type: "image",
+                url: `data:${file.type};base64,${file.data}`,
+              })),
+            ],
             effort: input.conversation.reasoning,
             environments: [],
           })

@@ -1,71 +1,13 @@
 {
   "name": "Project CAD Assistant",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "files": [
-    {
-      "platform": "windows",
-      "architecture": "x64",
-      "filename": "ProjectCAD-Assistant-windows-x64-Setup.exe",
-      "bytes": 25067345,
-      "sha256": "9893ca3c76727c590d54c523e334d73c93f3b1bd390fee753df643a48ce8ee18",
-      "signed": false
-    },
-    {
-      "platform": "windows",
-      "architecture": "x64",
-      "filename": "ProjectCAD-Assistant-windows-x64.zip",
-      "bytes": 37690993,
-      "sha256": "88793f436a3e09624d346a547658341810b3f6154b0b2a2d61e53381ed3a604b"
-    },
-    {
-      "platform": "windows",
-      "architecture": "arm64",
-      "filename": "ProjectCAD-Assistant-windows-arm64-Setup.exe",
-      "bytes": 21604236,
-      "sha256": "501e252afbe4ce9366991cabd6f918c6a9af2dea48fe795c2a5d4949165b70cb",
-      "signed": false
-    },
-    {
-      "platform": "windows",
-      "architecture": "arm64",
-      "filename": "ProjectCAD-Assistant-windows-arm64.zip",
-      "bytes": 33519349,
-      "sha256": "922e2007157fc14caea790472cdb987b98dd6fe62089f149fc3e47470a7917df"
-    },
-    {
-      "platform": "linux",
-      "architecture": "x64",
-      "filename": "ProjectCAD-Assistant-linux-x64.tar.gz",
-      "bytes": 47235133,
-      "sha256": "f709a7cec5fd21a2185bf0504713b6e310abbc07f28dd14f7c939415675ebf18"
-    },
-    {
-      "platform": "linux",
-      "architecture": "x64",
-      "filename": "ProjectCAD-Assistant-linux-x64.run",
-      "bytes": 47235472,
-      "sha256": "74b460b298b59ee8ea089cc2afb3dcf3f69323012ef58e074c5be400ff56cdb7"
-    },
-    {
-      "platform": "linux",
-      "architecture": "arm64",
-      "filename": "ProjectCAD-Assistant-linux-arm64.tar.gz",
-      "bytes": 46848023,
-      "sha256": "abc96fd901178fd7d39e8faca7cb3f6a25de9454dedad3d71710445968686bc5"
-    },
-    {
-      "platform": "linux",
-      "architecture": "arm64",
-      "filename": "ProjectCAD-Assistant-linux-arm64.run",
-      "bytes": 46848431,
-      "sha256": "194b53b908cda3b82278bfcbc64fe708b6d89883d2e1122896fc3434dc2c11b5"
-    },
     {
       "platform": "macos",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-macos-universal.pkg",
-      "bytes": 81923407,
-      "sha256": "9c10c721f16187719590252714c777794b962f39e5ea4c02598f2680a2797175",
+      "bytes": 82907141,
+      "sha256": "1b247f354cd0422fb9dce8373a4a2f0ad43e673f2f70121806401adc25f8e9b8",
       "minimumMacOS": "13.5",
       "signed": false,
       "notarized": false
@@ -74,15 +16,73 @@
       "platform": "macos",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-macos-universal.zip",
-      "bytes": 81942777,
-      "sha256": "ba8c502d7f40fcc8881f70fef51ccffc8dfcd74f2c2f33d83a962980c968a67d",
+      "bytes": 82940598,
+      "sha256": "0b0f62f8215c1298e8625f9961f978f5f1c4b1164743c91554fc99902d852b4a",
       "minimumMacOS": "13.5",
       "signed": false,
       "notarized": false
+    },
+    {
+      "platform": "windows",
+      "architecture": "x64",
+      "filename": "ProjectCAD-Assistant-windows-x64-Setup.exe",
+      "bytes": 25824128,
+      "sha256": "7f6a53f1a44bd73491d29371fbf05b7524c429d912c8019d7371b2c960b8c7cf",
+      "signed": false
+    },
+    {
+      "platform": "windows",
+      "architecture": "x64",
+      "filename": "ProjectCAD-Assistant-windows-x64.zip",
+      "bytes": 38687667,
+      "sha256": "907618791e98a0aa10e443b041e6e0b2a9be98526322f2133bcc78d66f7c40a4"
+    },
+    {
+      "platform": "windows",
+      "architecture": "arm64",
+      "filename": "ProjectCAD-Assistant-windows-arm64-Setup.exe",
+      "bytes": 22344991,
+      "sha256": "23d0ab0ec890d9d04b915342bf5c59649fbd9f6eb9b39fc8fd952062787f9302",
+      "signed": false
+    },
+    {
+      "platform": "windows",
+      "architecture": "arm64",
+      "filename": "ProjectCAD-Assistant-windows-arm64.zip",
+      "bytes": 34516074,
+      "sha256": "00ac292c073787388ff664927499827f38da9b58fb180e2108e95bf5cf701495"
+    },
+    {
+      "platform": "linux",
+      "architecture": "x64",
+      "filename": "ProjectCAD-Assistant-linux-x64.tar.gz",
+      "bytes": 48223817,
+      "sha256": "857f170d129e90e5736e27647c130e73bd21b92457927b92c8749ce406a188e9"
+    },
+    {
+      "platform": "linux",
+      "architecture": "x64",
+      "filename": "ProjectCAD-Assistant-linux-x64.run",
+      "bytes": 48224191,
+      "sha256": "711453c8dec5246c31ba33951a9fd2b1c6dc515d77477be23f0f785dea930eea"
+    },
+    {
+      "platform": "linux",
+      "architecture": "arm64",
+      "filename": "ProjectCAD-Assistant-linux-arm64.tar.gz",
+      "bytes": 47834669,
+      "sha256": "d972cbc6f411344f47b48210f075035a019db93f0cdf2ca8ba0e92775ec44708"
+    },
+    {
+      "platform": "linux",
+      "architecture": "arm64",
+      "filename": "ProjectCAD-Assistant-linux-arm64.run",
+      "bytes": 47835068,
+      "sha256": "555ff909a4a5ec595570d496fc0c495a5a82afda64411440ae06ca949e5a9fc6"
     }
   ],
   "release": {
-    "repository": "jiwoong3/project-cad-downloads",
-    "tag": "v0.1.0"
+    "repository": "dobralaszloedgar/project_cad",
+    "tag": "v0.1.1"
   }
 }

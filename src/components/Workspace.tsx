@@ -35,7 +35,6 @@ import {
   AlertCircle,
   FolderPlus,
 } from "lucide-react";
-import { useFloatingDrag } from "./useFloatingDrag";
 import Dialog from "./Dialog";
 import EquipmentLibrary from "./EquipmentLibrary";
 import Templates from "./Templates";
@@ -98,7 +97,7 @@ import {
 import ProcessCanvas from "./ProcessCanvas";
 import Inspector from "./Inspector";
 import Results from "./Results";
-import AssistantPanel from "./AssistantPanel";
+import FloatingAssistant from "./assistant/FloatingAssistant";
 const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
@@ -148,18 +147,8 @@ export default function Workspace({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [resultsOpen, setResultsOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantStarted, setAssistantStarted] = useState(false);
+  const [revealAssistant, setRevealAssistant] = useState(0);
   const assistantApplyLock = useRef(false);
-  useEffect(() => {
-    if (!assistantOpen) return;
-    const mobile = window.matchMedia("(max-width: 760px)");
-    const onResize = (event: MediaQueryListEvent) => {
-      if (event.matches) setLibraryOpen(false);
-    };
-    mobile.addEventListener("change", onResize);
-    return () => mobile.removeEventListener("change", onResize);
-  }, [assistantOpen]);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [rainbow, setRainbow] = useState(true);
@@ -180,19 +169,6 @@ export default function Workspace({
   } | null>(null);
   const [reloadConfirm, setReloadConfirm] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  const bubbleRef = useRef<HTMLButtonElement>(null);
-  const assistantRef = useRef<HTMLDivElement>(null);
-  const bubbleDrag = useFloatingDrag(
-    canvasRef,
-    bubbleRef,
-    !showProjects && !assistantOpen,
-    true,
-  );
-  const assistantDrag = useFloatingDrag(
-    canvasRef,
-    assistantRef,
-    !showProjects && assistantOpen,
-  );
   const fileRef = useRef<HTMLInputElement>(null);
   const saveQueue = useRef(Promise.resolve());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -691,7 +667,6 @@ export default function Workspace({
     setPropertiesOpen(false);
     setResultsOpen(false);
     setTemplatesOpen(false);
-    setAssistantOpen(false);
     setView("2D");
     setPlaybackOnOpen(false);
     setMenuOpen(false);
@@ -1351,50 +1326,17 @@ export default function Workspace({
               </button>
             </div>
           ) : null}
-          {!assistantOpen ? (
-            <button
-              ref={bubbleRef}
-              style={bubbleDrag.style}
-              {...bubbleDrag.dragProps}
-              className={`assistant-toggle ${assistantOpen ? "active" : ""}`}
-              aria-label={assistantOpen ? "Close assistant" : "Open assistant"}
-              title="Project CAD assistant · drag to dock in a corner"
-              onClick={() => {
-                if (!bubbleDrag.suppressClick()) {
-                  if (window.matchMedia("(max-width: 760px)").matches)
-                    setLibraryOpen(false);
-                  setAssistantOpen(true);
-                  setAssistantStarted(true);
-                }
-              }}
-            >
-              <MessageCircle size={21} />
-            </button>
-          ) : null}
-          {assistantStarted ? (
-            <div
-              className="assistant-drawer"
-              ref={assistantRef}
-              style={{
-                ...assistantDrag.style,
-                display: assistantOpen ? undefined : "none",
-              }}
-            >
-              <AssistantPanel
-                key={projectId}
-                projectId={projectId}
-                project={project}
-                folderName={folderName}
-                appliedProposalIds={state.revisions.map(
-                  (revision) => revision.id,
-                )}
-                onApply={applyAssistantProposal}
-                onClose={() => setAssistantOpen(false)}
-                dragProps={assistantDrag.dragProps}
-                onError={setMessage}
-              />
-            </div>
-          ) : null}
+          <FloatingAssistant
+            key={projectId}
+            containerRef={canvasRef}
+            projectId={projectId}
+            project={project}
+            folderName={folderName}
+            appliedProposalIds={state.revisions.map((revision) => revision.id)}
+            onApply={applyAssistantProposal}
+            onError={setMessage}
+            reveal={revealAssistant}
+          />
           <footer className="canvas-footer">
             <div className="canvas-status">
               <span className="save-status">
@@ -1477,6 +1419,19 @@ export default function Workspace({
           className="preferences-dialog"
           onClose={() => setPreferencesOpen(false)}
         >
+          <div className="preference-section">
+            <h3>Assistant</h3>
+            <p>Open the assistant or bring back a hidden chat bubble.</p>
+            <button
+              className="btn"
+              onClick={() => {
+                setPreferencesOpen(false);
+                setRevealAssistant((value) => value + 1);
+              }}
+            >
+              <MessageCircle size={15} /> Show assistant
+            </button>
+          </div>
           <div className="preference-section">
             <h3>Appearance</h3>
             <p>Choose the workspace theme.</p>

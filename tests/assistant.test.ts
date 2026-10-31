@@ -402,9 +402,20 @@ it("Muse streams text and replays function results without storing responses rem
     }),
   );
   const chat = { providerContext: [] } as unknown as StoredConversation;
+  const image = Buffer.alloc(1_200_000);
+  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(image);
   await new MuseProvider().run({
     conversation: chat,
     prompt: "Read project",
+    attachments: [
+      {
+        id: crypto.randomUUID(),
+        name: "process.png",
+        type: "image/png",
+        size: image.length,
+        data: image.toString("base64"),
+      },
+    ],
     cwd: "/tmp",
     signal: new AbortController().signal,
     text: (delta) => text.push(delta),
@@ -417,6 +428,18 @@ it("Muse streams text and replays function results without storing responses rem
   expect(text.join("")).toBe("Project read.");
   expect(requests).toBe(2);
   expect(bodies[0].store).toBe(false);
+  expect(bodies[0].input).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            type: "input_image",
+            image_url: `data:image/png;base64,${image.toString("base64")}`,
+          }),
+        ]),
+      }),
+    ]),
+  );
   expect(bodies[1].input).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
@@ -425,4 +448,84 @@ it("Muse streams text and replays function results without storing responses rem
       }),
     ]),
   );
+});
+
+it("stores original attachments without exposing bytes in polling and deduplicates retries", async () => {
+  let received: ProviderInput | undefined;
+  const { runtime, owner, create, root } = setup(async (input) => {
+    received = input;
+    input.text("File received.");
+  });
+  const chat = await create();
+  const data = Buffer.from("component,flow\nwater,25");
+  const attachment = {
+    id: crypto.randomUUID(),
+    name: "../../feed.csv",
+    type: "text/csv",
+    size: data.length,
+    data: data.toString("base64"),
+  };
+  const request = {
+    requestId: crypto.randomUUID(),
+    message: "Read the attached file",
+    attachments: [attachment],
+  };
+  const started = runtime.start(owner, chat.id, request);
+  expect(started.runs[0].attachments).toEqual([
+    {
+      id: attachment.id,
+      name: attachment.name,
+      type: attachment.type,
+      size: data.length,
+    },
+  ]);
+  await tick();
+  expect(received?.attachments).toEqual([attachment]);
+  expect(JSON.stringify(runtime.snapshot(owner, chat.id))).not.toContain(
+    attachment.data,
+  );
+  expect(runtime.start(owner, chat.id, request).runs).toHaveLength(1);
+  const { readFileSync } = await import("node:fs");
+  expect(
+    readFileSync(
+      join(
+        root,
+        "sessions",
+        chat.id,
+        request.requestId,
+        attachment.id + ".attachment",
+      ),
+    ),
+  ).toEqual(data);
+  expect(() =>
+    runtime.snapshot({ ...owner, projectId: "another" }, chat.id),
+  ).toThrow("Conversation not found");
+});
+
+it("renames and archives conversations without losing history or crossing project scopes", async () => {
+  const { runtime, owner, create } = setup();
+  const chat = await create();
+  runtime.start(owner, chat.id, {
+    requestId: crypto.randomUUID(),
+    message: "Inspect this project",
+  });
+  await tick();
+  const renamed = runtime.updateConversation(owner, chat.id, {
+    title: "Review",
+    archived: true,
+  });
+  expect(renamed).toMatchObject({ title: "Review", archived: true });
+  expect(renamed.runs).toHaveLength(1);
+  expect(runtime.snapshot(owner).conversations[0]).toMatchObject({
+    title: "Review",
+    archived: true,
+  });
+  expect(
+    runtime.updateConversation(owner, chat.id, { archived: false }).runs,
+  ).toHaveLength(1);
+  const other = { ...owner, projectId: "other-project" };
+  runtime.snapshot(other);
+  expect(() =>
+    runtime.updateConversation(other, chat.id, { title: "Wrong" }),
+  ).toThrow();
 });

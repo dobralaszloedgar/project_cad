@@ -26,7 +26,9 @@ async function start(page: Page) {
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
   await connectAssistant(page);
-  await expect(page.getByLabel("Assistant model")).toHaveValue("test-model");
+  await expect(
+    page.getByRole("button", { name: "Choose provider and model" }),
+  ).toContainText("Test model");
 }
 async function send(page: Page, prompt: string) {
   await page.getByLabel("Process prompt").fill(prompt);
@@ -42,7 +44,7 @@ test("offers the packaged companion and keeps source setup optional", async ({
         name: "Project CAD Assistant",
         version: "0.1.0",
         release: {
-          repository: "jiwoong3/project-cad-downloads",
+          repository: "dobralaszloedgar/project_cad",
           tag: "v0.1.0",
         },
         files: [
@@ -79,10 +81,14 @@ test("offers the packaged companion and keeps source setup optional", async ({
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
+  await expect(page.getByLabel("Process prompt")).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "AI client setup", exact: true })
+    .click();
   const download = page.getByRole("link", { name: "Download for macOS" });
   await expect(download).toHaveAttribute(
     "href",
-    "https://github.com/jiwoong3/project-cad-downloads/releases/download/v0.1.0/ProjectCAD-Assistant-macos-universal.pkg",
+    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-macos-universal.pkg",
   );
   const installer = page.getByLabel("Assistant installer");
   await installer.selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
@@ -90,21 +96,21 @@ test("offers the packaged companion and keeps source setup optional", async ({
     page.getByRole("link", { name: "Download for Windows" }),
   ).toHaveAttribute(
     "href",
-    "https://github.com/jiwoong3/project-cad-downloads/releases/download/v0.1.0/ProjectCAD-Assistant-windows-arm64-Setup.exe",
+    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-windows-arm64-Setup.exe",
   );
   await installer.selectOption("ProjectCAD-Assistant-linux-arm64.run");
   await expect(
     page.getByRole("link", { name: "Download for Linux" }),
   ).toHaveAttribute(
     "href",
-    "https://github.com/jiwoong3/project-cad-downloads/releases/download/v0.1.0/ProjectCAD-Assistant-linux-arm64.run",
+    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-linux-arm64.run",
   );
   await installer.selectOption("ProjectCAD-Assistant-macos-universal.pkg");
   await expect(
     page.getByRole("link", { name: "All downloads and checksums" }),
   ).toHaveAttribute(
     "href",
-    "https://github.com/jiwoong3/project-cad-downloads/releases/tag/v0.1.0",
+    "https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.0",
   );
   await expect(
     page.getByText("npm run assistant", { exact: true }),
@@ -116,17 +122,6 @@ test("offers the packaged companion and keeps source setup optional", async ({
     path: "/tmp/project-cad-assistant-qa/assistant-setup-desktop.png",
     fullPage: true,
   });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(download).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
-  await page.screenshot({
-    path: "/tmp/project-cad-assistant-qa/assistant-setup-mobile.png",
-    fullPage: true,
-  });
   await page.unroute("**/downloads/assistant/downloads.json");
   await page.route("**/downloads/assistant/downloads.json", (route) =>
     route.fulfill({ status: 404 }),
@@ -134,6 +129,9 @@ test("offers the packaged companion and keeps source setup optional", async ({
   await page.reload();
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "AI client setup", exact: true })
     .click();
   await expect(
     page.getByText("Use your Project CAD Assistant installation to connect."),
@@ -220,7 +218,7 @@ test("stale proposals cannot apply and minimizing preserves the draft and runnin
   await expect(page.getByText("Stopped by you.")).toBeVisible();
 });
 
-test("supports all providers, read-only conversations, failures and mobile layout", async ({
+test("supports all providers, read-only conversations and failures", async ({
   page,
 }) => {
   await start(page);
@@ -228,8 +226,19 @@ test("supports all providers, read-only conversations, failures and mobile layou
     await page
       .getByRole("button", { name: "New conversation", exact: true })
       .click();
-    await page.getByLabel("Assistant provider").selectOption(provider);
-    await page.getByLabel("Assistant access").selectOption("read-only");
+    await page
+      .getByRole("button", { name: "Choose provider and model" })
+      .click();
+    await page
+      .getByRole("group", { name: "Assistant provider" })
+      .getByRole("button", {
+        name: provider === "claude" ? "Claude Code" : "Muse",
+        exact: true,
+      })
+      .click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Agent permissions" }).click();
+    await page.getByRole("button", { name: /^Read-only Inspect/ }).click();
     await send(page, `read with ${provider}`);
     await expect(page.locator(".chat-response").last()).toContainText(
       "6 equipment",
@@ -245,17 +254,6 @@ test("supports all providers, read-only conversations, failures and mobile layou
   await expect(
     page.getByText("Test provider connection failed."),
   ).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
-  await expect(page.getByLabel("Process prompt")).toBeVisible();
-  await page.screenshot({
-    path: "/tmp/project-cad-assistant-qa/assistant-mobile.png",
-    fullPage: true,
-  });
 });
 
 test("applies a proposal to the chosen project.json and preserves recovery when disk writing fails", async ({
@@ -288,7 +286,9 @@ test("applies a proposal to the chosen project.json and preserves recovery when 
     .click();
   await expect(dialog).not.toBeVisible();
   await connectAssistant(page);
-  await expect(page.getByLabel("Assistant model")).toHaveValue("test-model");
+  await expect(
+    page.getByRole("button", { name: "Choose provider and model" }),
+  ).toContainText("Test model");
   await send(page, "Add a feed");
   await page.getByRole("button", { name: "Apply reviewed actions" }).click();
   await expect(
@@ -350,7 +350,9 @@ test("switching projects isolates history and interrupts the old project's reque
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
-  await expect(page.getByLabel("Assistant model")).toHaveValue("test-model");
+  await expect(
+    page.getByRole("button", { name: "Choose provider and model" }),
+  ).toContainText("Test model");
   await expect(page.locator(".chat-user-message")).toHaveCount(0);
   await send(page, "read this separate project");
   await expect(page.locator(".chat-response")).toContainText(

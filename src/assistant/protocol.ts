@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { planSchema, type Plan } from "../domain/actions";
+import { attachmentsSchema, type AttachmentInfo } from "./attachments";
 
 export const ASSISTANT_VERSION = 1;
 export const ASSISTANT_ENDPOINT = "http://127.0.0.1:43118";
@@ -22,6 +23,7 @@ export const submitSchema = z
   .object({
     requestId: z.string().uuid(),
     message: z.string().trim().min(1).max(12000),
+    attachments: attachmentsSchema.optional(),
   })
   .strict();
 export interface AssistantModel {
@@ -61,11 +63,13 @@ export interface AssistantRun {
   proposals: Proposal[];
   error?: string;
   createdAt: string;
+  attachments?: AttachmentInfo[];
 }
 export interface Conversation {
   id: string;
   projectId: string;
   title: string;
+  archived?: boolean;
   provider: ProviderId;
   model: string;
   mode: AssistantMode;
@@ -90,11 +94,14 @@ export interface ToolCommand {
 }
 export type ConversationSummary = Pick<
   Conversation,
-  "id" | "title" | "provider" | "updatedAt"
+  "id" | "title" | "provider" | "updatedAt" | "archived"
 >;
 export interface AssistantSnapshot {
   conversations: ConversationSummary[];
   conversation?: Conversation;
+  activeConversation?: Conversation;
+  activity?: { conversationId: string; run: AssistantRun };
+  capabilities?: string[];
   commands: ToolCommand[];
 }
 export const tools = {
