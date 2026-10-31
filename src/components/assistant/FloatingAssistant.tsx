@@ -190,10 +190,14 @@ export default function FloatingAssistant({
       }
     };
     const frame = requestAnimationFrame(() => {
-      if (!assistant.connected)
-        panel.current
-          ?.querySelector<HTMLButtonElement>("[data-connect-primary]")
-          ?.focus({ preventScroll: true });
+      if (!assistant.connected) {
+        const target =
+          panel.current?.querySelector<HTMLElement>("[data-connect-primary]") ??
+          panel.current?.querySelector<HTMLElement>(
+            "[data-assistant-setup-heading]",
+          );
+        target?.focus({ preventScroll: true });
+      }
     });
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", key);

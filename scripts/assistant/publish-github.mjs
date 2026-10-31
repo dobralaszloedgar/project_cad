@@ -137,7 +137,7 @@ Installers and portable archives for macOS, Windows, and Linux. Every package in
 | Windows | [x64](${baseUrl}/ProjectCAD-Assistant-windows-x64-Setup.exe) / [ARM64](${baseUrl}/ProjectCAD-Assistant-windows-arm64-Setup.exe) | Windows 11 / Server 2022 or newer |
 | Linux | [x64](${baseUrl}/ProjectCAD-Assistant-linux-x64.run) / [ARM64](${baseUrl}/ProjectCAD-Assistant-linux-arm64.run) | Desktop Linux with glibc 2.28+ |
 
-Open the assistant, enter your Project CAD website address in Settings, then set up Codex, Claude Code, or Muse. In the website, choose **Connect local assistant** and approve the connection. Project files and conversation history stay on your computer.
+Open the assistant, choose one or more agents and a default, then set up only those agents. The default website is https://projectcad.vercel.app; change it in Settings for another deployment. In the website, choose **Connect assistant** and approve the website and agent selection. Use **Manage agents** to change your selection later. Project files and conversation history stay on your computer.
 
 For Linux, make the .run file executable with chmod +x and run it as your normal user. Do not use sudo. Windows and Linux settings open in your local browser.
 
@@ -153,7 +153,7 @@ Windows: Open the x64 or ARM64 Setup.exe matching your PC. No administrator acce
 
 Linux: Choose x64 for Intel/AMD PCs or ARM64 for ARM PCs. Run chmod +x on the downloaded .run file, then execute it as your normal user without sudo. A tar.gz archive containing install.sh is also available. Requires glibc 2.28+, tar, xdg-open, and a terminal emulator. Alpine/musl is not supported.
 
-Open the assistant and set your Project CAD website URL in Settings. The default is http://127.0.0.1:3000 for local development. Set up or sign in to Codex / Claude Code, or enter a Muse API key. In the project website, choose Connect local assistant and approve the connection. Keep your project tab open while the assistant works.
+Open the assistant and choose one or more agents and a default. Set up or sign in to your selected agents, or enter a Muse API key if you selected Muse. The default website is https://projectcad.vercel.app; change it in Settings for another deployment. Continue to connection, then choose Connect assistant in the project website and approve the website and agent selection. Use Manage agents to change your selection later. Keep your project tab open while the assistant works.
 
 The companion runs on this computer. Windows and Linux settings open in the browser on 127.0.0.1:43119. Project files stay in the folder you choose. Conversations and provider settings stay under .project-cad/assistant in your home folder. Updates preserve them.
 
