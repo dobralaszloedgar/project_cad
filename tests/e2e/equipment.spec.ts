@@ -5,9 +5,11 @@ import {
 } from "../../src/domain/examples";
 
 async function loadTemplate(page: Page, name: string) {
-  await page.getByRole("button", { name: "Project menu" }).click();
   await page
-    .locator(".project-menu")
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
     .getByRole("button", { name: "Templates", exact: true })
     .click();
   await page

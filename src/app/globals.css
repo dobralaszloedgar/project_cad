@@ -64,8 +64,8 @@ button {
   --hover: #f0f3f1;
   --active: #e3eeea;
   --accent: #286e5c;
-  --symbol-fill: #fff;
-  --symbol-stroke: #7f8b85;
+  --symbol-fill: var(--canvas);
+  --symbol-stroke: color-mix(in oklab, var(--ink) 82%, var(--surface));
   --stream-stroke: #7f8e87;
   --color-primary: #286e5c;
   --color-primary-content: #fff;
@@ -93,8 +93,6 @@ button {
   --hover: #212121;
   --active: #282216;
   --accent: #e3b557;
-  --symbol-fill: #000;
-  --symbol-stroke: #93938f;
   --stream-stroke: #a5a5a5;
   --color-primary: #e3b557;
   --color-primary-content: #000;
@@ -305,10 +303,8 @@ h3 {
   color: var(--muted);
 }
 .species-count span {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--hover);
-  font-size: 11px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .simulate-button {
   height: 34px;
@@ -477,6 +473,11 @@ h3 {
   width: 100%;
   height: 100%;
   background: var(--canvas);
+}
+.canvas-panel-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
 }
 .canvas-body {
   flex: 1;
@@ -766,7 +767,8 @@ h3 {
   position: absolute;
   top: calc(100% + 10px);
   left: 50%;
-  width: 190px;
+  width: max-content;
+  max-width: 160px;
   transform: translateX(-50%);
   padding: 0 4px;
   background: var(--canvas);
@@ -777,10 +779,10 @@ h3 {
   white-space: normal;
 }
 .material-handle {
-  width: 8px !important;
-  height: 8px !important;
-  border: 1px solid var(--accent) !important;
-  background: var(--surface) !important;
+  width: 9px !important;
+  height: 9px !important;
+  border: 1.5px solid var(--accent) !important;
+  background: var(--canvas) !important;
   z-index: 3;
 }
 .react-flow__handle.material-handle {
@@ -793,12 +795,12 @@ h3 {
   transform: none;
 }
 .react-flow__handle.mixer-drop-handle {
-  left: 30.46875%;
-  top: 22.65625%;
+  left: 31.25%;
+  top: 21.875%;
   right: auto;
   bottom: auto;
-  width: 40.625%;
-  height: 54.6875%;
+  width: 37.5%;
+  height: 56.25%;
   transform: none;
   border: 0;
   border-radius: 0;
@@ -2476,6 +2478,15 @@ h3 {
   width: 186px;
   flex-shrink: 0;
   padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+.projects-sidebar > .projects-nav-item {
+  flex-shrink: 0;
+}
+.projects-preferences {
+  margin-top: auto;
+  padding-top: 24px;
 }
 .new-project-button {
   display: flex;
@@ -2599,6 +2610,35 @@ h3 {
 .project-library-title {
   padding: 12px 0 11px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+}
+.project-open-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.project-selection {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 4px 2px 10px;
+  border-radius: 8px;
+  background: var(--active);
+  color: var(--accent);
+}
+.project-selection > span {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  margin-right: 8px;
+}
+.project-selection button {
+  flex-shrink: 0;
 }
 .project-library-title h1 {
   font-size: 20px;
@@ -2636,11 +2676,55 @@ h3 {
   border-radius: 15px;
   min-width: 0;
   background: var(--surface);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 .project-card.current {
-  border-color: #8db3a7;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 .project-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.project-card.is-selected {
+  border-color: var(--accent);
+  background: var(--active);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.project-card.is-selected:hover {
+  background: color-mix(in srgb, var(--active) 85%, var(--accent));
+}
+.projects-page button {
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 150ms ease;
+}
+.projects-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.projects-page button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.projects-page button:active:not(:disabled) {
+  background-color: var(--active);
+}
+.projects-nav-item.active:hover {
+  background: var(--active);
+}
+.project-star:hover,
+.project-card-menu-toggle:hover,
+.project-view-toggle button:hover {
+  background: var(--hover);
+  color: var(--accent);
+}
+.new-project-button:hover {
+  background: var(--hover);
   border-color: var(--accent);
 }
 .project-open {
@@ -2745,37 +2829,13 @@ h3 {
   align-items: center;
   justify-content: center;
 }
-.project-card-menu {
-  position: absolute;
-  right: 10px;
-  top: 44px;
-  z-index: 3;
-  padding: 5px;
-  width: 140px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 5px 18px #17241b1c;
-}
-.project-card-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  background: none;
-  border: 0;
-  border-radius: 4px;
-  padding: 7px 8px;
-  font-size: 12px;
-  text-align: left;
-}
-.project-card-menu button:hover {
-  background: var(--hover);
-}
 .project-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.project-list .project-card.is-selected {
+  box-shadow: inset 3px 0 var(--accent);
 }
 .project-list .project-open {
   display: grid;
@@ -2820,6 +2880,113 @@ h3 {
   gap: 9px;
   font-size: 13px;
 }
+.project-context-menu {
+  position: fixed;
+  z-index: 1000;
+  width: 250px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px color-mix(in srgb, var(--ink) 16%, transparent);
+  animation: workspace-menu-in 150ms ease-out;
+  transform-origin: top;
+}
+.project-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.project-context-menu button:hover,
+.project-context-menu button:focus-visible {
+  background: var(--hover);
+  outline: none;
+}
+.project-context-menu .menu-divider {
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  border-radius: 0 0 6px 6px;
+}
+.project-storage-dialog {
+  width: min(620px, calc(100vw - 24px));
+}
+.themes-dialog {
+  width: min(560px, calc(100vw - 48px));
+}
+.themes-dialog .dialog-header {
+  padding: 23px 24px 0;
+  border: 0;
+}
+.themes-dialog .dialog-body {
+  padding: 14px 24px 24px;
+}
+@media (min-width: 761px) and (max-height: 760px) {
+  .themes-dialog .dialog-header {
+    padding: 16px 20px 0;
+  }
+  .themes-dialog .dialog-body {
+    padding: 8px 20px 16px;
+  }
+}
+@media (max-width: 480px) {
+  .themes-dialog {
+    width: calc(100vw - 24px);
+  }
+  .themes-dialog .dialog-header {
+    padding: 16px 12px 0;
+  }
+  .themes-dialog .dialog-body {
+    padding: 14px 12px 16px;
+  }
+}
+.project-storage-settings {
+  --folder-error: #a7463e;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin-bottom: 20px;
+}
+.project-storage-settings > h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.project-storage-settings > p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.project-storage-settings > p:not([role="alert"]) {
+  color: var(--muted);
+}
+.workspace[data-theme="dark"] .project-storage-settings {
+  --folder-error: #f4a6a0;
+}
+.project-storage-settings > button {
+  justify-self: start;
+}
+.project-details dt {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.project-details dd {
+  margin: 5px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
 @media (max-width: 900px) {
   .projects-sidebar {
     width: 160px;
@@ -2855,9 +3022,6 @@ h3 {
   .projects-header-actions {
     gap: 0;
   }
-  .projects-header-actions > button:last-child {
-    display: none;
-  }
   .projects-layout {
     display: flex;
     flex-direction: column;
@@ -2867,9 +3031,35 @@ h3 {
   .projects-sidebar {
     width: 100%;
     display: flex;
+    flex-direction: row;
     align-items: center;
     gap: 5px;
     padding: 0;
+  }
+  .projects-preferences {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    width: 100%;
+  }
+  .projects-preferences .projects-nav-item {
+    justify-content: flex-start;
+    flex: 1;
+  }
+  .projects-preferences .projects-nav-item svg {
+    display: block;
+  }
+  .project-library-title {
+    flex-wrap: wrap;
+  }
+  .project-selection {
+    max-width: 100%;
+  }
+  .project-selection > span {
+    max-width: 120px;
+  }
+  .project-open-hint {
+    display: none;
   }
   .new-project-button {
     margin: 0 3px 0 0;

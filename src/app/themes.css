@@ -36,8 +36,8 @@
   --hover: color-mix(in oklab, var(--ink) calc(8% * var(--step)), var(--bg));
   --active: color-mix(in oklab, var(--brand) 12%, var(--bg));
   --accent: var(--brand);
-  --symbol-fill: var(--bg);
-  --symbol-stroke: color-mix(in oklab, var(--ink) 62%, var(--bg));
+  --symbol-fill: var(--canvas);
+  --symbol-stroke: color-mix(in oklab, var(--ink) 82%, var(--bg));
   --stream-stroke: color-mix(in oklab, var(--ink) 55%, var(--bg));
   --grid: color-mix(in oklab, var(--ink) calc(15% * var(--step)), var(--page));
   --color-primary: var(--brand);

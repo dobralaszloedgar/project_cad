@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import nextEnv from "@next/env";
 import pg from "pg";
 import {
@@ -97,14 +98,51 @@ console.log(
   ),
 );
 if (process.argv.includes("--check")) process.exit(0);
-const connectionString =
-  process.env.CHEMICAL_DATABASE_MODE === "cloud"
-    ? process.env.SUPABASE_DATABASE_URL
-    : process.env.CHEMICAL_DATABASE_URL;
-if (!connectionString)
-  throw new Error(
-    "Set the catalog PostgreSQL connection in .env.local before importing.",
+// Export verified, idempotent data batches for installations managed with MCP.
+const sqlDirectory = process.argv
+  .find((arg) => arg.startsWith("--sql-dir="))
+  ?.slice(10);
+if (sqlDirectory) {
+  await mkdir(sqlDirectory, { recursive: true });
+  const literal = (value: unknown) =>
+    `'${JSON.stringify(value).replaceAll("'", "''")}'::jsonb`;
+  await writeFile(
+    join(sqlDirectory, "000-parameters.sql"),
+    `insert into thermo_catalog.parameters(hash,payload) values('${parameterHash}',${literal(parameters)}) on conflict do nothing;`,
+    "utf8",
   );
+  await writeFile(
+    join(sqlDirectory, "001-release.sql"),
+    `insert into thermo_catalog.releases(hash,parameter_hash,manifest) values('${releaseHash}','${parameterHash}',${literal(manifest)}) on conflict do nothing;`,
+    "utf8",
+  );
+  for (let i = 0; i < records.length; i += 40) {
+    const batch = records.slice(i, i + 40).map((r) => ({
+      release_hash: releaseHash,
+      id: r.chemical.id,
+      record_hash: r.hash,
+      name: r.chemical.name,
+      formula: r.chemical.formula ?? "",
+      models: r.models,
+      payload: r.chemical,
+    }));
+    await writeFile(
+      join(
+        sqlDirectory,
+        `${String(i / 40 + 2).padStart(3, "0")}-compounds.sql`,
+      ),
+      `insert into thermo_catalog.compounds(release_hash,id,record_hash,name,formula,models,payload)
+       select release_hash,id,record_hash,name,formula,models,payload from jsonb_to_recordset(${literal(batch)})
+       as x(release_hash text,id text,record_hash text,name text,formula text,models text[],payload jsonb) on conflict do nothing;`,
+      "utf8",
+    );
+  }
+  console.log(`Exported ${records.length} verified records to SQL batches.`);
+  process.exit(0);
+}
+const connectionString = process.env.SUPABASE_DATABASE_URL;
+if (!connectionString)
+  throw new Error("Set SUPABASE_DATABASE_URL in .env.local before importing.");
 let url: URL;
 try {
   url = new URL(connectionString);
@@ -146,6 +184,30 @@ try {
       "utf8",
     );
     await db.query(migration);
+  }
+  if (process.argv.includes("--migrate")) {
+    const registry = await db.query(
+      "select to_regclass('thermo_catalog.models') as name",
+    );
+    if (!registry.rows[0].name)
+      await db.query(
+        await readFile(
+          new URL(
+            "../../supabase/migrations/20261031020000_catalog_models_read_access.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+    await db.query(
+      await readFile(
+        new URL(
+          "../../supabase/migrations/20261031030000_catalog_search_order.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
   }
   await db.query(
     "insert into thermo_catalog.parameters(hash,payload) values($1,$2) on conflict do nothing",

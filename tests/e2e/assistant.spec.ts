@@ -371,7 +371,7 @@ test("switching projects isolates history and interrupts the old project's reque
       name: "Open Heated reactor with recycle",
       exact: true,
     })
-    .click();
+    .dblclick();
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();

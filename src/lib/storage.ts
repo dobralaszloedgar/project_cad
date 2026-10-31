@@ -1,4 +1,5 @@
 import { openDB } from "idb";
+import { z } from "zod";
 import { type Workspace } from "./revisions";
 import {
   parseWorkspaceImport,
@@ -90,6 +91,7 @@ async function cacheProject(
   project: SavedProject,
   folder: FolderBinding | undefined,
   activate: boolean,
+  replaceId?: string,
 ) {
   const database = await db();
   try {
@@ -101,7 +103,15 @@ async function cacheProject(
     const activeId = await current.get("activeProject");
     await tx.objectStore("projects").put(project);
     if (folder) await tx.objectStore("projectFolders").put(folder);
-    if (activate || activeId === project.id) {
+    if (replaceId && replaceId !== project.id) {
+      await tx.objectStore("projects").delete(replaceId);
+      await tx.objectStore("projectFolders").delete(replaceId);
+    }
+    if (
+      activate ||
+      activeId === project.id ||
+      (replaceId !== undefined && activeId === replaceId)
+    ) {
       await current.put(project.workspace, "current");
       await current.put(project.id, "activeProject");
     }
@@ -319,7 +329,7 @@ async function rememberDirectoryProject(
   if (folder && !(await folder.directory.isSameEntry(directory)))
     throw new FolderStorageError(
       "conflict",
-      "This project is already connected to a different folder. Import its JSON into a new project to make a separate copy.",
+      "This project is already connected to a different folder. Duplicate it from Home to make a separate copy.",
     );
   if (folder?.dirty && !discardRecovery) throw pendingRecoveryError();
   const entry: SavedProject = {
@@ -460,6 +470,53 @@ export async function createFolderProject(
     updatedAt: now,
     starred: false,
   };
+  return writeNewProjectFolder(parent, folderName, entry, true);
+}
+
+/** Switch the save binding only after a complete file has committed successfully. */
+export async function saveProjectToFolder(
+  id: string,
+  parent: ProjectDirectoryHandle,
+  name: string,
+): Promise<SavedProject> {
+  const folderName = validateProjectFolderName(name);
+  return withProjectLock(id, async () => {
+    const { project: cached, folder } = await storedProject(id);
+    if (!cached) throw new Error("This project is no longer available.");
+    // Dirty recovery is the user's latest work. Otherwise read the source file
+    // again so changing locations never silently copies a stale browser cache.
+    let source = cached;
+    if (folder && !folder.dirty) {
+      const { document } = await readDirectoryProject(folder.directory);
+      if (document.projectId !== id)
+        throw new FolderStorageError(
+          "conflict",
+          "project.json now belongs to a different project. Open its folder again to review it.",
+        );
+      // Do not acknowledge or cache this newer source until the destination
+      // commits. A failed move must not authorize stale editor state to overwrite it.
+      source = {
+        ...cached,
+        workspace: document.workspace,
+        createdAt: document.createdAt,
+        updatedAt: document.updatedAt,
+      };
+    }
+    // Legacy browser entries use keys such as "main" and "example-reactor".
+    // Native documents require a UUID; replace that browser key atomically.
+    if (!z.uuid().safeParse(source.id).success)
+      source = { ...source, id: crypto.randomUUID() };
+    return writeNewProjectFolder(parent, folderName, source, false, id);
+  });
+}
+
+async function writeNewProjectFolder(
+  parent: ProjectDirectoryHandle,
+  folderName: string,
+  entry: SavedProject,
+  activate: boolean,
+  replaceId?: string,
+): Promise<SavedProject> {
   const text = serializeProjectFile(documentFor(entry));
   return withProjectLock(
     `create:${parent.name}:${folderName.toLocaleLowerCase()}`,
@@ -502,9 +559,33 @@ export async function createFolderProject(
           "Could not create project.json. Check the folder and available disk space, then try again.",
         );
       }
-      return withProjectLock(entry.id, () =>
-        rememberDirectoryProject(directory, documentFor(entry), revision, true),
-      );
+      const saved = {
+        ...entry,
+        folderName: directory.name,
+        fileRevision: revision,
+      };
+      try {
+        await cacheProject(
+          saved,
+          {
+            id: entry.id,
+            directory,
+            name: directory.name,
+            fileRevision: revision,
+            dirty: false,
+          },
+          activate,
+          replaceId,
+        );
+      } catch {
+        throw new FolderStorageError(
+          "cache",
+          "project.json was saved, but the folder connection could not be updated. Your previous save location is still available. Try again after checking browser storage.",
+        );
+      }
+      acknowledged.set(entry.id, revision);
+      loadErrors.delete(entry.id);
+      return saved;
     },
   );
 }

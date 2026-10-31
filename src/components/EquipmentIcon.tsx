@@ -1,6 +1,10 @@
 import { type CSSProperties } from "react";
 import type { Kind } from "@/domain/schema";
-import { equipmentConnectors, equipmentSymbols } from "./equipment-symbols";
+import {
+  compactEquipmentSymbols,
+  equipmentConnectors,
+  equipmentSymbols,
+} from "./equipment-symbols";
 export const equipmentLabels: Record<Kind, string> = {
   Feed: "Feed",
   Product: "Product",
@@ -36,15 +40,17 @@ export function EquipmentIcon({
   kind: Kind;
   size?: number;
 }) {
+  const compact = size <= 48 ? compactEquipmentSymbols[kind] : undefined;
   const geometry =
+    compact ??
     equipmentSymbols[kind] +
-    (size > 48
-      ? `<path d="${equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
-      : "");
+      (size > 48
+        ? `<path d="${equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
+        : "");
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 128 128"
+      viewBox={compact ? "0 0 32 32" : "0 0 128 128"}
       width={size}
       height={size}
       fill="none"

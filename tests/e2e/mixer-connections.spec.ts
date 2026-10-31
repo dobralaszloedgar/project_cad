@@ -1,3 +1,4 @@
+import { loadProject } from "./project-fixture";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { newUnit, type Project } from "../../src/domain/schema";
 
@@ -46,11 +47,7 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "mixer.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
+  await loadProject(page, project);
   await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await page.getByRole("button", { name: "Fit View", exact: true }).click();
   const mixer = page.locator('.react-flow__node[data-id="M-center"]');

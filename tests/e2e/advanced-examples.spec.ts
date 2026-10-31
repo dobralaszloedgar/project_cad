@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
 import type { Workspace } from "../../src/lib/revisions";
+import { validateWorkspace } from "../../src/lib/project-file";
 
 const examples = [
   {
@@ -48,13 +49,24 @@ async function closeDialog(page: Page) {
   await expect(page.locator("dialog[open]")).toHaveCount(0);
 }
 async function exported(page: Page): Promise<Workspace> {
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
     .click();
   const download = await pending;
-  return JSON.parse(await fs.readFile((await download.path())!, "utf8"));
+  await page.keyboard.press("Escape");
+  // Compare canonical documents, including defaults added when an older
+  // workspace is saved and reopened (for example, generated stream names).
+  return validateWorkspace(
+    JSON.parse(await fs.readFile((await download.path())!, "utf8")),
+  );
 }
 async function projects(page: Page) {
   await page
@@ -154,7 +166,7 @@ test("example links preserve the original project and reopen an edited example w
   await expect(page.locator(".project-card")).toHaveCount(2);
   await page
     .getByRole("button", { name: `Open ${original.project.name}`, exact: true })
-    .click();
+    .dblclick();
   expect(await exported(page)).toEqual(original);
   await page.reload();
   await loaded(page);

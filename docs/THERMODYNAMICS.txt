@@ -36,9 +36,10 @@ only for this rebuild command. Native equivalent:
 
 Sample catalog and future database
 Six records are provided: synthetic A/B, benzene, toluene, ethanol and water.
-This is sample data, not a 2,000-chemical database. ChemicalProvider separates
-the model evaluator from lookup and version identity. A future database can
-resolve and cache records before evaluation; pass the resolved provider and
+The Supabase chemical catalog adds validated real chemical records alongside
+these bundled samples; see CHEMICAL_CATALOG.txt for setup and data coverage.
+ChemicalProvider separates the model evaluator from lookup and version identity.
+The database resolves and caches records before evaluation; pass the provider and
 chemical IDs to evaluateProperties. The numerical kernel accepts up to 64
 components in one mixture, independently of total catalog size. The current
 flowsheet editor remains binary and maps its A/B fields to the selected pair.

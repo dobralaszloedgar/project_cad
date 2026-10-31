@@ -222,6 +222,92 @@ afterEach(async () => {
 });
 
 describe("local folder project persistence", () => {
+  it("converts a browser project to a native document without duplicating it or losing its history", async () => {
+    const seed = workspace();
+    await storage.saveWorkspace(seed, "main");
+    const original = (await storage.listProjects())[0];
+    await storage.updateSavedProject({ ...original, starred: true });
+    const saved = await storage.saveProjectToFolder(
+      "main",
+      parent,
+      "Native study",
+    );
+    const document = parseProjectFile(await contents("Native study"));
+    expect(document.projectId).toBe(saved.id);
+    expect(document.workspace).toEqual(seed);
+    expect(document.createdAt).toBe(original.createdAt);
+    expect(await storage.activeProjectId()).toBe(saved.id);
+    expect(await storage.listProjects()).toEqual([saved]);
+    expect(saved.starred).toBe(true);
+    expect(saved.folderName).toBe("Native study");
+    await storage.saveWorkspace(seed, saved.id);
+    expect(await storage.listProjects()).toHaveLength(1);
+  });
+
+  it("a failed relocation neither changes the binding nor acknowledges unseen external edits", async () => {
+    const created = await storage.createFolderProject(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const external = parseProjectFile(await contents());
+    external.workspace.project.name = "External edit";
+    const externalText = serializeProjectFile(external);
+    await writeFile(join(temporary, "Study", "project.json"), externalText);
+    control.failWrite = true;
+    await expect(
+      storage.saveProjectToFolder(created.id, parent, "Failed move"),
+    ).rejects.toMatchObject({ code: "write" });
+    expect((await storage.getProjectFolderInfo(created.id))?.name).toBe(
+      "Study",
+    );
+    expect((await storage.listProjects())[0].workspace).toEqual(
+      created.workspace,
+    );
+    control.failWrite = false;
+    const edited = structuredClone(created.workspace);
+    edited.project.name = "Stale editor";
+    await expect(
+      storage.saveWorkspace(edited, created.id),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(await contents()).toBe(externalText);
+    // Recover the unsaved browser edits into a different folder.
+    const recovered = await storage.saveProjectToFolder(
+      created.id,
+      parent,
+      "Recovery",
+    );
+    expect(recovered.id).toBe(created.id);
+    expect(parseProjectFile(await contents("Recovery")).workspace).toEqual(
+      edited,
+    );
+    expect(await contents()).toBe(externalText);
+  });
+
+  it("relocating another project leaves the active workspace and existing destination intact", async () => {
+    const source = await storage.createFolderProject(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const active = await storage.createFolderProject(
+      parent,
+      "Active",
+      workspace(),
+    );
+    const destinationText = await contents("Active");
+    await expect(
+      storage.saveProjectToFolder(source.id, parent, "Active"),
+    ).rejects.toMatchObject({ code: "exists" });
+    expect(await contents("Active")).toBe(destinationText);
+    const moved = await storage.saveProjectToFolder(source.id, parent, "Moved");
+    expect(moved.id).toBe(source.id);
+    expect(await storage.activeProjectId()).toBe(active.id);
+    expect(await storage.loadWorkspace()).toEqual(active.workspace);
+    expect(await contents("Study")).toBe(await contents("Moved"));
+    expect(await storage.listProjects()).toHaveLength(2);
+  });
+
   it("writes full JSON and revision snapshots, then opens authoritative disk contents", async () => {
     const initial = workspace();
     const created = await storage.createFolderProject(parent, "Study", initial);

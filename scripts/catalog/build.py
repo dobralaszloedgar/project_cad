@@ -165,6 +165,6 @@ if __name__ == "__main__":
     output = Path(sys.argv[1])
     result = build()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n")
+    output.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":")) + "\n", encoding="utf-8")
     print(json.dumps({"chemicals": len(result["chemicals"]), "omitted": len(result["omittedWithoutReferenceCp"]),
                       "subgroups": len(result["parameters"]["definitions"]), "mainGroups": len(result["parameters"]["interactions"])}))

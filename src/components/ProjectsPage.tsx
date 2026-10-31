@@ -1,10 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Plus,
   Folder,
   FolderOpen,
-  Clock3,
   Star,
   Search,
   LayoutGrid,
@@ -16,10 +15,13 @@ import {
   FileBox,
   Copy,
   Pencil,
-  Moon,
-  Sun,
   ArrowLeft,
   Compass,
+  Home,
+  Palette,
+  HardDrive,
+  X,
+  Info,
 } from "lucide-react";
 import type { SavedProject } from "@/lib/storage";
 import { ports, type Project } from "@/domain/schema";
@@ -27,6 +29,9 @@ import { EquipmentIcon } from "./EquipmentIcon";
 import { equipmentPort, streamPath } from "./flow-geometry";
 import Dialog from "./Dialog";
 import BrandMark from "./BrandMark";
+import ThemePicker from "./ThemePicker";
+import ProjectStorageSettings from "./ProjectStorageSettings";
+import ProjectContextMenu from "./ProjectContextMenu";
 import folderStyles from "./CreateProjectDialog.module.css";
 function ProjectPreview({ project }: { project: Project }) {
   if (!project.units.length)
@@ -105,15 +110,15 @@ export default function ProjectsPage({
   currentId,
   onOpen,
   onNew,
-  onOpenFolder,
   onTemplates,
   onRename,
   onDuplicate,
   onStar,
   onBack,
   onLanding,
-  theme,
-  onTheme,
+  palette,
+  onPalette,
+  onSaveFolder,
   busy,
   message,
 }: {
@@ -121,23 +126,47 @@ export default function ProjectsPage({
   currentId: string;
   onOpen: (entry: SavedProject) => void;
   onNew: () => void;
-  onOpenFolder?: () => void;
   onTemplates?: () => void;
   onRename: (entry: SavedProject, name: string) => void;
   onDuplicate: (entry: SavedProject) => void;
   onStar: (entry: SavedProject) => void;
   onBack: () => void;
   onLanding: () => void;
-  theme: string;
-  onTheme: () => void;
+  palette: string;
+  onPalette: (id: string) => void;
+  onSaveFolder: (entry: SavedProject) => void;
   busy: boolean;
   message: string;
 }) {
   const [search, setSearch] = useState(""),
-    [filter, setFilter] = useState("My projects"),
-    [list, setList] = useState(false),
-    [sort, setSort] = useState("modified"),
-    [menu, setMenu] = useState<string | null>(null),
+    [filter, setFilter] = useState("Home"),
+    [list, setList] = useState(() => {
+      try {
+        return localStorage.getItem("project-cad.projectView") === "list";
+      } catch {
+        return false;
+      }
+    }),
+    [sort, setSort] = useState(() => {
+      try {
+        return localStorage.getItem("project-cad.projectSort") === "name"
+          ? "name"
+          : "modified";
+      } catch {
+        return "modified";
+      }
+    }),
+    [selected, setSelected] = useState<string | null>(null),
+    [menu, setMenu] = useState<{
+      entry: SavedProject | null;
+      x: number;
+      y: number;
+      trigger: HTMLElement;
+    } | null>(null),
+    [settings, setSettings] = useState<"Themes" | "Storage settings" | null>(
+      null,
+    ),
+    [details, setDetails] = useState<SavedProject | null>(null),
     [renaming, setRenaming] = useState<SavedProject | null>(null),
     [name, setName] = useState("");
   const visible = projects
@@ -146,20 +175,44 @@ export default function ProjectsPage({
         (filter !== "Starred" || entry.starred) &&
         entry.workspace.project.name
           .toLowerCase()
-          .includes(search.toLowerCase()),
+          .includes(search.trim().toLowerCase()),
     )
     .sort((a, b) =>
-      filter !== "Recent" && sort === "name"
+      sort === "name"
         ? a.workspace.project.name.localeCompare(b.workspace.project.name)
         : b.updatedAt.localeCompare(a.updatedAt),
     );
+  const selectedEntry = visible.find((entry) => entry.id === selected);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("project-cad.projectView", list ? "list" : "grid");
+      localStorage.setItem("project-cad.projectSort", sort);
+    } catch {
+      /* Keep preferences usable when browser storage is unavailable. */
+    }
+  }, [list, sort]);
+  function showMenu(
+    entry: SavedProject | null,
+    x: number,
+    y: number,
+    trigger: HTMLElement,
+  ) {
+    if (busy) return;
+    setSelected(entry?.id ?? null);
+    setMenu({ entry, x, y, trigger });
+  }
+  function rename(entry: SavedProject) {
+    setRenaming(entry);
+    setName(entry.workspace.project.name);
+  }
   return (
     <section className="projects-page">
       <header className="projects-header">
-        <button className="brand" onClick={onBack} aria-label="Project CAD">
+        <div className="brand">
           <BrandMark size={29} />
           <span>Project CAD</span>
-        </button>
+        </div>
         <span className="header-divider" />
         <span>Projects</span>
         <div className="projects-header-actions">
@@ -175,15 +228,9 @@ export default function ProjectsPage({
           </button>
           <button
             className="icon-button"
-            aria-label="Toggle theme"
-            onClick={onTheme}
-          >
-            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-          </button>
-          <button
-            className="icon-button"
             aria-label="Back to canvas"
             onClick={onBack}
+            disabled={busy}
           >
             <ArrowLeft size={18} />
           </button>
@@ -203,16 +250,6 @@ export default function ProjectsPage({
               <Plus size={20} />
               Create project
             </button>
-            {onOpenFolder ? (
-              <button
-                className={folderStyles.folderAction}
-                onClick={onOpenFolder}
-                disabled={busy}
-              >
-                <FolderOpen size={17} />
-                Open project folder
-              </button>
-            ) : null}
             {onTemplates ? (
               <button
                 className={folderStyles.folderAction}
@@ -225,27 +262,64 @@ export default function ProjectsPage({
             ) : null}
           </div>
           {[
-            { label: "My projects", icon: Folder },
-            { label: "Recent", icon: Clock3 },
+            { label: "Home", icon: Home },
             { label: "Starred", icon: Star },
           ].map((item) => (
             <button
               key={item.label}
               className={`projects-nav-item ${filter === item.label ? "active" : ""}`}
-              onClick={() => setFilter(item.label)}
+              aria-current={filter === item.label ? "page" : undefined}
+              onClick={() => {
+                setFilter(item.label);
+                setSelected(null);
+                setSearch("");
+                closeMenu();
+              }}
             >
               <item.icon size={17} />
               <span>{item.label}</span>
-              {item.label === "My projects" ? (
-                <small>{projects.length}</small>
-              ) : null}
             </button>
           ))}
+          <div className="projects-preferences">
+            <button
+              className="projects-nav-item"
+              onClick={() => setSettings("Themes")}
+            >
+              <Palette size={17} />
+              <span>Themes</span>
+            </button>
+            <button
+              className="projects-nav-item"
+              onClick={() => setSettings("Storage settings")}
+            >
+              <HardDrive size={17} />
+              <span>Storage settings</span>
+            </button>
+          </div>
         </nav>
         <section
           className="projects-content"
           aria-label="Project library"
           aria-busy={busy}
+          tabIndex={-1}
+          onClick={(event) => {
+            if (
+              !(event.target as Element).closest(
+                "button, input, select, .project-card",
+              )
+            )
+              setSelected(null);
+          }}
+          onContextMenu={(event) => {
+            if (
+              (event.target as Element).closest(
+                "input, select, button, .project-card",
+              )
+            )
+              return;
+            event.preventDefault();
+            showMenu(null, event.clientX, event.clientY, event.currentTarget);
+          }}
         >
           <div className="project-search-row">
             <label className="project-search">
@@ -254,15 +328,27 @@ export default function ProjectsPage({
                 aria-label="Search projects"
                 placeholder="Search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSelected(null);
+                  closeMenu();
+                }}
               />
+              {search ? (
+                <button
+                  className="icon-button"
+                  aria-label="Clear search"
+                  onClick={() => setSearch("")}
+                >
+                  <X size={15} />
+                </button>
+              ) : null}
             </label>
             <label className="project-sort">
               <ArrowDownWideNarrow size={15} />
               <select
                 aria-label="Sort projects"
-                value={filter === "Recent" ? "modified" : sort}
-                disabled={filter === "Recent"}
+                value={sort}
                 onChange={(event) => setSort(event.target.value)}
               >
                 <option value="modified">Last modified</option>
@@ -290,7 +376,57 @@ export default function ProjectsPage({
             </div>
           </div>
           <div className="project-library-title">
-            <h1>{search ? "Search results" : filter}</h1>
+            <h1>{search.trim() ? "Search results" : filter}</h1>
+            {selectedEntry ? (
+              <div
+                className="project-selection"
+                role="toolbar"
+                aria-label="Selected project"
+              >
+                <span title={selectedEntry.workspace.project.name}>
+                  {selectedEntry.workspace.project.name}
+                </span>
+                <button
+                  className="icon-button"
+                  aria-label="Open selected project"
+                  title="Open"
+                  disabled={busy}
+                  onClick={() => onOpen(selectedEntry)}
+                >
+                  <FolderOpen size={16} />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Rename selected project"
+                  title="Rename"
+                  disabled={busy}
+                  onClick={() => rename(selectedEntry)}
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Save selected project to folder"
+                  title="Save to folder…"
+                  disabled={busy}
+                  onClick={() => onSaveFolder(selectedEntry)}
+                >
+                  <HardDrive size={16} />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label="Clear selection"
+                  title="Clear selection"
+                  onClick={() => setSelected(null)}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <span className="project-open-hint">
+                Select a project · Double-click to open
+              </span>
+            )}
           </div>
           <div className="project-count">
             Projects <span>{visible.length}</span>
@@ -300,12 +436,55 @@ export default function ProjectsPage({
             <div className={list ? "project-list" : "project-grid"}>
               {visible.map((entry) => (
                 <article
-                  className={`project-card ${entry.id === currentId ? "current" : ""}`}
+                  className={`project-card ${entry.id === currentId ? "current" : ""} ${entry.id === selected ? "is-selected" : ""}`}
                   key={entry.id}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const trigger =
+                      event.currentTarget.querySelector<HTMLButtonElement>(
+                        ".project-open",
+                      )!;
+                    showMenu(entry, event.clientX, event.clientY, trigger);
+                  }}
+                  onKeyDown={(event) => {
+                    const trigger =
+                      event.currentTarget.querySelector<HTMLButtonElement>(
+                        ".project-open",
+                      )!;
+                    if (
+                      event.key === "ContextMenu" ||
+                      (event.shiftKey && event.key === "F10")
+                    ) {
+                      event.preventDefault();
+                      const rect = trigger.getBoundingClientRect();
+                      showMenu(entry, rect.left + 20, rect.top + 20, trigger);
+                    } else if (event.key === "F2" && !busy) {
+                      event.preventDefault();
+                      rename(entry);
+                    } else if (event.key === "Escape") setSelected(null);
+                  }}
                 >
                   <button
                     className="project-open"
-                    onClick={() => onOpen(entry)}
+                    onClick={(event) => {
+                      if (
+                        event.ctrlKey &&
+                        /Mac|iPhone|iPad/.test(navigator.platform)
+                      ) {
+                        showMenu(
+                          entry,
+                          event.clientX,
+                          event.clientY,
+                          event.currentTarget,
+                        );
+                        return;
+                      }
+                      setSelected(entry.id);
+                      if (event.detail === 0) onOpen(entry);
+                    }}
+                    onDoubleClick={() => onOpen(entry)}
+                    aria-pressed={selected === entry.id}
                     disabled={busy}
                     aria-label={`Open ${entry.workspace.project.name}`}
                   >
@@ -356,34 +535,21 @@ export default function ProjectsPage({
                   <button
                     className="project-card-menu-toggle"
                     aria-label={`Actions for ${entry.workspace.project.name}`}
-                    aria-expanded={menu === entry.id}
-                    onClick={() => setMenu(menu === entry.id ? null : entry.id)}
+                    aria-expanded={menu?.entry?.id === entry.id}
+                    aria-haspopup="menu"
+                    disabled={busy}
+                    onClick={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      showMenu(
+                        entry,
+                        rect.right - 250,
+                        rect.bottom + 4,
+                        event.currentTarget,
+                      );
+                    }}
                   >
                     <MoreHorizontal size={18} />
                   </button>
-                  {menu === entry.id ? (
-                    <div className="project-card-menu">
-                      <button
-                        onClick={() => {
-                          setRenaming(entry);
-                          setName(entry.workspace.project.name);
-                          setMenu(null);
-                        }}
-                      >
-                        <Pencil size={14} />
-                        Rename
-                      </button>
-                      <button
-                        onClick={() => {
-                          onDuplicate(entry);
-                          setMenu(null);
-                        }}
-                      >
-                        <Copy size={14} />
-                        Duplicate
-                      </button>
-                    </div>
-                  ) : null}
                 </article>
               ))}
             </div>
@@ -405,7 +571,11 @@ export default function ProjectsPage({
                     : "Create a project in a local folder or open an existing project folder."}
               </p>
               {!search && filter !== "Starred" ? (
-                <button className="btn btn-primary" onClick={onNew}>
+                <button
+                  className="btn btn-primary"
+                  onClick={onNew}
+                  disabled={busy}
+                >
                   Create project
                 </button>
               ) : null}
@@ -413,6 +583,126 @@ export default function ProjectsPage({
           )}
         </section>
       </div>
+      {menu ? (
+        <ProjectContextMenu
+          {...menu}
+          label={
+            menu.entry
+              ? `Actions for ${menu.entry.workspace.project.name}`
+              : "Library actions"
+          }
+          onClose={closeMenu}
+          actions={(menu.entry
+            ? [
+                {
+                  label: "Open",
+                  icon: <FolderOpen size={16} />,
+                  run: () => onOpen(menu.entry!),
+                },
+                {
+                  label: menu.entry.starred ? "Unstar" : "Star",
+                  icon: <Star size={16} />,
+                  run: () => onStar(menu.entry!),
+                },
+                {
+                  label: "Rename",
+                  icon: <Pencil size={16} />,
+                  run: () => rename(menu.entry!),
+                  divider: true,
+                },
+                {
+                  label: "Duplicate",
+                  icon: <Copy size={16} />,
+                  run: () => onDuplicate(menu.entry!),
+                },
+                {
+                  label: "Save to folder…",
+                  icon: <HardDrive size={16} />,
+                  run: () => onSaveFolder(menu.entry!),
+                },
+                {
+                  label: "Project details",
+                  icon: <Info size={16} />,
+                  run: () => setDetails(menu.entry),
+                  divider: true,
+                },
+              ]
+            : [
+                {
+                  label: "Create project",
+                  icon: <Plus size={16} />,
+                  run: onNew,
+                },
+                {
+                  label: "Themes",
+                  icon: <Palette size={16} />,
+                  run: () => setSettings("Themes"),
+                  divider: true,
+                },
+                {
+                  label: "Storage settings",
+                  icon: <HardDrive size={16} />,
+                  run: () => setSettings("Storage settings"),
+                },
+              ]
+          ).map((action) => ({ ...action, disabled: busy }))}
+        />
+      ) : null}
+      {settings === "Themes" ? (
+        <Dialog
+          title="Themes"
+          className="themes-dialog"
+          onClose={() => setSettings(null)}
+        >
+          <ThemePicker value={palette} onChange={onPalette} />
+        </Dialog>
+      ) : null}
+      {settings === "Storage settings" ? (
+        <Dialog
+          title="Storage settings"
+          className="project-storage-dialog"
+          onClose={() => setSettings(null)}
+        >
+          <ProjectStorageSettings />
+        </Dialog>
+      ) : null}
+      {details ? (
+        <Dialog
+          title="Project details"
+          className="rename-project-dialog"
+          onClose={() => setDetails(null)}
+        >
+          <dl className="project-details">
+            <dt>Name</dt>
+            <dd>{details.workspace.project.name}</dd>
+            <dt>Save location</dt>
+            <dd>
+              {details.folderName
+                ? `${details.folderName}/project.json`
+                : "Browser storage"}
+            </dd>
+            <dt>Last modified</dt>
+            <dd>{new Date(details.updatedAt).toLocaleString()}</dd>
+            <dt>Equipment</dt>
+            <dd>{details.workspace.project.units.length}</dd>
+            <dt>Revisions</dt>
+            <dd>{details.workspace.revisions.length}</dd>
+          </dl>
+          <div className="dialog-actions">
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => {
+                setDetails(null);
+                onSaveFolder(details);
+              }}
+            >
+              <FolderOpen size={16} />
+              Save to folder…
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
       {renaming ? (
         <Dialog
           title="Rename project"
@@ -433,6 +723,7 @@ export default function ProjectsPage({
               <input
                 className="input"
                 aria-label="Project name"
+                autoFocus
                 maxLength={80}
                 required
                 value={name}
@@ -447,7 +738,11 @@ export default function ProjectsPage({
               >
                 Cancel
               </button>
-              <button className="btn btn-primary" type="submit">
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={busy || !name.trim()}
+              >
                 Save name
               </button>
             </div>

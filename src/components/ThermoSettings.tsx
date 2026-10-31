@@ -1,219 +1,188 @@
 "use client";
-import { useState } from "react";
-import type { Project } from "@/domain/schema";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, LoaderCircle, Thermometer } from "lucide-react";
 import {
-  defaultThermo,
+  modelInfo,
   models,
+  type ModelId,
   type ThermoSettings,
 } from "@/domain/thermo/registry";
-import { sampleMixtures } from "@/domain/thermo/catalog";
-import { catalogSnapshotSchema, validateSnapshot } from "@/domain/thermo/data";
-import { propertyRange } from "@/domain/thermo/availability";
-import ChemicalPicker, { type ChemicalChoice } from "./ChemicalPicker";
-export default function ThermoSettingsPanel({
-  project,
+import { catalogChoices, resolveCatalogSettings } from "@/lib/chemical-catalog";
+import Dialog from "./Dialog";
+import "./thermo-settings.css";
+
+export default function ThermodynamicSelector({
+  settings,
+  open,
+  onOpenChange,
   onApply,
+  onError,
 }: {
-  project: Project;
+  settings: ThermoSettings;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onApply: (settings: ThermoSettings) => void;
+  onError: (message: string) => void;
 }) {
-  const [draft, setDraft] = useState(project.thermo ?? defaultThermo);
-  const [choices, setChoices] = useState<
-    [ChemicalChoice | undefined, ChemicalChoice | undefined]
-  >([draft.catalog?.chemicals[0], draft.catalog?.chemicals[1]]);
-  const [release, setRelease] = useState(draft.catalog?.release);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const catalogMode = draft.mixture === "catalog";
-  const ranges = draft.catalog?.chemicals.map((c) =>
-    propertyRange(c, draft.modelId),
+  const trigger = useRef<HTMLButtonElement>(null);
+  function close() {
+    onOpenChange(false);
+    requestAnimationFrame(() => trigger.current?.focus());
+  }
+  return (
+    <>
+      <button
+        ref={trigger}
+        className="model-button"
+        aria-label="Project thermodynamics"
+        title="Thermodynamic model"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => onOpenChange(true)}
+      >
+        <Thermometer size={16} />
+        <span>{modelInfo(settings.modelId).label}</span>
+        <ChevronDown className="model-chevron" size={13} />
+      </button>
+      {open && (
+        <Dialog
+          title="Thermodynamics"
+          className="thermo-dialog"
+          onClose={close}
+        >
+          <ThermodynamicModelForm
+            settings={settings}
+            onCancel={close}
+            onApply={(next) => {
+              onApply(next);
+              onOpenChange(false);
+            }}
+            onError={onError}
+          />
+        </Dialog>
+      )}
+    </>
   );
-  const model = models.find((m) => m.id === draft.modelId)!;
+}
+
+function ThermodynamicModelForm({
+  settings,
+  onCancel,
+  onApply,
+  onError,
+}: {
+  settings: ThermoSettings;
+  onCancel: () => void;
+  onApply: (settings: ThermoSettings) => void;
+  onError: (message: string) => void;
+}) {
+  const [selected, setSelected] = useState<ModelId>(settings.modelId);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const options = useRef<HTMLFieldSetElement>(null);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() =>
+      options.current
+        ?.querySelector<HTMLInputElement>("input:checked")
+        ?.focus(),
+    );
+    return () => {
+      cancelAnimationFrame(frame);
+      request.current?.abort();
+    };
+  }, []);
   return (
     <form
-      className="thermo-settings"
-      onSubmit={async (e) => {
-        e.preventDefault();
+      className="thermo-model-form"
+      aria-busy={saving}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (saving) return;
+        if (selected === settings.modelId) {
+          onCancel();
+          return;
+        }
+        const controller = new AbortController();
+        request.current = controller;
+        setSaving(true);
         setError("");
-        if (!catalogMode) {
-          onApply({ ...draft, catalog: undefined });
-          return;
-        }
-        if (!choices[0] || !choices[1] || !release) {
-          setError("Choose both chemicals first.");
-          return;
-        }
-        setLoading(true);
         try {
-          let snapshot = draft.catalog;
-          if (
-            !snapshot ||
-            (draft.modelId === "modified-unifac-2.0" && !snapshot.parameters)
-          ) {
-            const response = await fetch("/api/chemicals/selection", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                release,
-                ids: choices.map((c) => c!.id),
-                model: draft.modelId,
-              }),
-            });
-            const data = await response.json();
-            if (!response.ok)
-              throw new Error(data.error ?? "Could not load chemical data.");
-            snapshot = catalogSnapshotSchema.parse(data);
-          }
-          validateSnapshot(snapshot);
-          if (snapshot.chemicals.some((c) => !propertyRange(c, draft.modelId)))
-            throw new Error(
-              "The selected chemicals do not support this model. Choose chemicals from its search results.",
+          const next = { ...settings, modelId: selected };
+          const choices = catalogChoices(settings);
+          const resolved = choices.every(Boolean)
+            ? await resolveCatalogSettings(
+                next,
+                choices,
+                undefined,
+                controller.signal,
+              )
+            : { ...next, mixture: "catalog" as const, catalog: undefined };
+          if (controller.signal.aborted) return;
+          onApply(resolved);
+          if (!choices.every(Boolean))
+            onError("Choose project components for this model.");
+        } catch (reason) {
+          if (!controller.signal.aborted)
+            setError(
+              reason instanceof Error
+                ? reason.message
+                : "Could not change the model.",
             );
-          const applied = { ...draft, catalog: snapshot };
-          onApply(applied);
-          setDraft(applied);
-        } catch (e) {
-          setError(
-            e instanceof Error ? e.message : "Could not load chemical data.",
-          );
         } finally {
-          setLoading(false);
+          if (!controller.signal.aborted) setSaving(false);
         }
       }}
     >
-      <h3>Thermodynamic model</h3>
-      <label>
-        Property model
-        <select
-          className="select"
-          disabled={loading}
-          value={draft.modelId}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              modelId: e.target.value as ThermoSettings["modelId"],
-            })
-          }
-        >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p>{model.description}</p>
-      <label>
-        Chemical source
-        <select
-          className="select"
-          disabled={loading}
-          value={catalogMode ? "catalog" : "sample"}
-          onChange={(e) => {
-            setError("");
-            setDraft({
-              ...draft,
-              mixture: e.target.value === "catalog" ? "catalog" : "aromatics",
-            });
-          }}
-        >
-          <option value="sample">Bundled sample mixtures</option>
-          <option value="catalog">Chemical database</option>
-        </select>
-      </label>
-      {catalogMode ? (
-        <>
-          {([0, 1] as const).map((i) => (
-            <ChemicalPicker
-              key={i}
-              label={`Component ${i === 0 ? "A" : "B"}`}
-              model={draft.modelId}
-              release={release}
-              value={choices[i]}
-              disabled={loading}
-              onRelease={setRelease}
-              onSelect={(choice) => {
-                setChoices((previous) =>
-                  i === 0 ? [choice, previous[1]] : [previous[0], choice],
-                );
-                setDraft((previous) => ({ ...previous, catalog: undefined }));
+      <p className="dialog-intro">
+        Choose the model used for this project’s calculations.
+      </p>
+      <fieldset
+        ref={options}
+        className="thermo-model-options"
+        aria-label="Thermodynamic model"
+        disabled={saving}
+      >
+        {models.map((model) => (
+          <label className="thermo-model-option" key={model.id}>
+            <input
+              type="radio"
+              name="thermodynamic-model"
+              value={model.id}
+              checked={selected === model.id}
+              aria-labelledby={`thermo-${model.id}-name`}
+              aria-describedby={`thermo-${model.id}-description`}
+              onChange={() => {
+                setSelected(model.id);
                 setError("");
               }}
             />
-          ))}
-          {ranges?.every((r) => r !== null) && (
-            <p className="muted">
-              Shared data range:{" "}
-              {Math.max(...ranges.map((r) => r![0])).toFixed(1)}–
-              {Math.min(...ranges.map((r) => r![1])).toFixed(1)} K.
-            </p>
-          )}
-        </>
-      ) : (
-        <label>
-          Sample mixture (A / B)
-          <select
-            className="select"
-            disabled={loading}
-            value={draft.mixture}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                mixture: e.target.value as ThermoSettings["mixture"],
-              })
-            }
-          >
-            {Object.entries(sampleMixtures).map(([id, mixture]) => (
-              <option key={id} value={id}>
-                {mixture.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <p>{model.limitations}</p>
-      {draft.modelId !== "ideal-gas" && (
-        <label className="thermo-extrapolate">
-          <input
-            type="checkbox"
-            checked={draft.extrapolate}
-            onChange={(e) =>
-              setDraft({ ...draft, extrapolate: e.target.checked })
-            }
-          />
-          Warn and extrapolate vapor pressures outside source ranges
-        </label>
-      )}
-      {draft.modelId !== "ideal-gas" && draft.mixture === "demo" && (
-        <p role="status">
-          Select a real sample mixture. Synthetic A/B has no vapor-pressure or
-          group data.
+            <span>
+              <strong id={`thermo-${model.id}-name`}>{model.name}</strong>
+              <span
+                id={`thermo-${model.id}-description`}
+                className="thermo-model-description"
+              >
+                {model.description}
+              </span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {error && (
+        <p className="thermo-model-error" role="alert">
+          {error}
         </p>
       )}
-      {project.units.some((u) => u.kind === "PBR") &&
-        (draft.mixture !== "demo" || draft.modelId !== "ideal-gas") && (
-          <p>
-            The sample reactor supports synthetic A/B with ideal gas only. Load
-            the Raoult’s law separation template to try a liquid model.
-          </p>
-        )}
-      <button
-        className="btn btn-primary"
-        disabled={
-          loading ||
-          (draft.modelId !== "ideal-gas" && draft.mixture === "demo") ||
-          (catalogMode &&
-            (!choices[0] || !choices[1] || choices[0].id === choices[1].id))
-        }
-      >
-        {loading ? "Loading chemical data…" : "Apply physical model"}
-      </button>
-      {error && <p role="alert">{error}</p>}
-      <p className="muted">
-        {catalogMode
-          ? "Selected chemical records and model parameters are saved with this project for offline calculations."
-          : "Six bundled sample chemicals. Changes are saved with this project and its revision history."}
-      </p>
+      <div className="dialog-actions">
+        <button type="button" className="btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
+          {saving && <LoaderCircle size={15} className="thermo-spinner" />}
+          {saving ? "Applying…" : "Apply model"}
+        </button>
+      </div>
     </form>
   );
 }

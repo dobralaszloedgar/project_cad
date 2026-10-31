@@ -24,8 +24,9 @@ export const models = [
   {
     id: "ideal-gas",
     name: "Ideal gas",
+    label: "Ideal gas",
     description:
-      "PV = nRT; partial pressures and temperature-dependent gas enthalpy.",
+      "Equation of state (PV = nRT) for dilute gases at low pressure and temperatures well above condensation. Vapor only; does not predict condensation or liquid properties.",
     version: "2.0.0",
     pressureRange: [1, 1e8],
     source: "Ideal-gas equation of state",
@@ -34,7 +35,9 @@ export const models = [
   {
     id: "ideal-solution",
     name: "Ideal solution · Raoult’s law",
-    description: "Continuous vapor pressures and bracketed TP/PH flashes.",
+    label: "Raoult’s law",
+    description:
+      "Ideal liquid-mixture model with ideal vapor. Best for similar molecules, such as benzene/toluene. In this app: 1–200 kPa within component property-data ranges; cannot predict azeotropes.",
     version: "2.0.0",
     pressureRange: [1000, 200000],
     source: "Published vapor-pressure and caloric correlations",
@@ -44,8 +47,9 @@ export const models = [
   {
     id: "modified-unifac-2.0",
     name: "Modified UNIFAC 2.0",
+    label: "Modified UNIFAC 2.0",
     description:
-      "Group activity coefficients and low-pressure vapor–liquid equilibrium.",
+      "Group-contribution activity-coefficient model for nonideal liquids with ideal vapor. In this app: vapor–liquid equilibrium at 1–200 kPa with supported molecular groups and component property-data ranges. No liquid–liquid phase-split prediction.",
     version: "2.0.0",
     pressureRange: [1000, 200000],
     source: "https://doi.org/10.1021/acs.iecr.5c00077",

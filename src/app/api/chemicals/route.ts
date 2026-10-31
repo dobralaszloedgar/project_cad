@@ -3,6 +3,10 @@ import { z } from "zod";
 import { CatalogError, searchChemicals } from "@/server/catalog";
 import { modelIds } from "@/domain/thermo/registry";
 import { hashSchema } from "@/domain/thermo/data";
+import {
+  chemicalSearchFields,
+  chemicalSearchSorts,
+} from "@/lib/chemical-search";
 export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +20,23 @@ export async function GET(request: NextRequest) {
     const hash = hashSchema
       .optional()
       .parse(request.nextUrl.searchParams.get("release") ?? undefined);
-    return NextResponse.json(await searchChemicals(query, model, hash), {
-      headers: { "Cache-Control": "no-store" },
-    });
+    const options = z
+      .object({
+        field: z.enum(chemicalSearchFields),
+        sort: z.enum(chemicalSearchSorts),
+        page: z.coerce.number().int().min(1).max(5000),
+      })
+      .parse({
+        field: request.nextUrl.searchParams.get("field") ?? "all",
+        sort: request.nextUrl.searchParams.get("sort") ?? "relevance",
+        page: request.nextUrl.searchParams.get("page") ?? 1,
+      });
+    return NextResponse.json(
+      await searchChemicals(query, model, hash, options),
+      {
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
   } catch (error) {
     return NextResponse.json(
       {

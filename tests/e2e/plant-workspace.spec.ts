@@ -17,9 +17,11 @@ async function ready(page: Page) {
   });
 }
 async function template(page: Page, name: string) {
-  await page.getByRole("button", { name: "Project menu" }).click();
   await page
-    .locator(".project-menu")
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
     .getByRole("button", { name: "Templates", exact: true })
     .click();
   await page
@@ -32,7 +34,13 @@ async function closeDialog(page: Page) {
   await expect(page.locator("dialog[open]")).toHaveCount(0);
 }
 async function exportProject(page: Page) {
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
