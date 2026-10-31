@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import { reactorExample } from "../../src/domain/examples";
 import { checkpoint } from "../../src/lib/revisions";
 import { folderText, installFolderPicker } from "./folder-fixture";
@@ -50,7 +50,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await page
     .getByRole("button", { name: "Actions for Simple heating" })
     .click();
-  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
   await page.getByLabel("Project name", { exact: true }).fill("Heating study");
   await page.getByRole("button", { name: "Save name" }).click();
   await expect(
@@ -61,17 +61,14 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .click();
   await page.getByRole("button", { name: "Starred", exact: true }).click();
   await expect(page.locator(".project-card")).toHaveCount(1);
-  await page
-    .getByRole("button", { name: "My projects", exact: false })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.getByLabel("Search projects").fill("Heating");
   await expect(page.locator(".project-card")).toHaveCount(1);
   await page.getByLabel("Search projects").fill("");
   const originalFile = JSON.parse(await folderText(page, "Simple heating"));
   expect(originalFile.workspace.project.name).toBe("Heating study");
   await page.getByRole("button", { name: "Actions for Heating study" }).click();
-  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   await expect(create.getByLabel("Project name", { exact: true })).toHaveValue(
     "Heating study copy",
   );
@@ -101,16 +98,13 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .click();
   await expect(page.locator(".project-card")).toHaveCount(3);
   await page.getByLabel("Sort projects").selectOption("name");
-  await page.getByRole("button", { name: "Recent", exact: true }).click();
+  await page.getByLabel("Sort projects").selectOption("modified");
   await expect(page.getByLabel("Sort projects")).toHaveValue("modified");
-  await expect(page.getByLabel("Sort projects")).toBeDisabled();
+  await expect(page.getByLabel("Sort projects")).toBeEnabled();
   await expect(page.locator(".project-card-title strong").first()).toHaveText(
     /^Heating study(?: copy)?$/,
   );
-  await page
-    .getByRole("button", { name: "My projects", exact: false })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.getByRole("button", { name: "List view" }).click();
   await expect(page.locator(".project-list")).toBeVisible();
   await page
@@ -118,7 +112,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
       name: "Open Heated reactor with recycle",
       exact: true,
     })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await page.getByRole("button", { name: "Results", exact: true }).click();
   await page.getByRole("button", { name: /^Revisions/ }).click();
@@ -129,7 +123,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .click();
   await page
     .getByRole("button", { name: "Open Heating study", exact: true })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await expect(page.locator(".save-status")).toContainText(/^Saved/i);
   await expect(page.locator(".save-status")).toContainText("project.json");
@@ -171,7 +165,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   expect(previewsFit).toBe(true);
   await page
     .getByRole("button", { name: "Open Heating study", exact: true })
-    .click();
+    .dblclick();
   await expect(page.locator(".equipment-library")).toHaveCount(0);
   await page.getByRole("button", { name: "Open assistant" }).click();
   await expect(
@@ -225,7 +219,7 @@ test("existing single-project storage upgrades without losing the graph or histo
   await expect(page.locator(".project-card")).toHaveCount(1);
   await page
     .getByRole("button", { name: `Open ${project.name}`, exact: true })
-    .click();
+    .dblclick();
   await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await expect(page.locator(".react-flow__node")).toHaveCount(6);

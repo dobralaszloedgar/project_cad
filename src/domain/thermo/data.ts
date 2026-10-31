@@ -124,8 +124,8 @@ export type ActivityDataset = z.infer<typeof activityDatasetSchema>;
 export const catalogSnapshotSchema = z
   .object({
     release: hashSchema,
-    chemicals: z.tuple([chemicalSchema, chemicalSchema]),
-    recordHashes: z.tuple([hashSchema, hashSchema]),
+    chemicals: z.array(chemicalSchema).min(2).max(40),
+    recordHashes: z.array(hashSchema).min(2).max(40),
     parameters: z
       .object({
         hash: hashSchema,
@@ -154,8 +154,13 @@ export const contentHash = (value: unknown) =>
   bytesToHex(sha256(new TextEncoder().encode(canonicalJson(value))));
 
 export function validateSnapshot(snapshot: CatalogSnapshot) {
-  if (snapshot.chemicals[0].id === snapshot.chemicals[1].id)
-    throw new Error("Select two different chemicals for components A and B.");
+  if (
+    new Set(snapshot.chemicals.map((c) => c.id)).size !==
+    snapshot.chemicals.length
+  )
+    throw new Error("Select different chemicals for every component.");
+  if (snapshot.recordHashes.length !== snapshot.chemicals.length)
+    throw new Error("Every selected chemical needs an integrity hash.");
   snapshot.chemicals.forEach((c, i) => {
     if (contentHash(c) !== snapshot.recordHashes[i])
       throw new Error(

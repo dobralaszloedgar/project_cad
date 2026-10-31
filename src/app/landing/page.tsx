@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import LandingPage from "@/components/landing/LandingPage";
 
 export const metadata: Metadata = {
-  title: "Project CAD — Design. Build. Explore.",
+  title: "Project CAD – Landing",
   description:
     "Design a process in conversation. Build and simulate the flowsheet. Explore it in 3D.",
 };

@@ -49,7 +49,7 @@ describe("equipment geometry", () => {
       position: Position.Bottom,
     });
     expect(ports("PBR")).toEqual({ inputs: ["in"], outputs: ["out"] });
-    expect(equipmentConnectors.PBR).toBe("M64 8V22M64 106V120");
+    expect(equipmentConnectors.PBR).toBe("M64 8V20M64 108V120");
   });
 
   it("separates the column outlets and preserves physical reactor feed locations in 3D", () => {

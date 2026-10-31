@@ -1,7 +1,10 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, dismissProjectFolderSetup, type Page } from "./test";
 import fs from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
+import { loadTemplate } from "../../src/domain/templates";
+import { projectSchema } from "../../src/domain/schema";
 import type { Workspace } from "../../src/lib/revisions";
+import { validateWorkspace } from "../../src/lib/project-file";
 
 const examples = [
   {
@@ -22,7 +25,7 @@ const examples = [
   },
   {
     id: "fractionation-complex",
-    name: "Four-column recovery plant",
+    name: "Four-stage benzene–toluene recovery",
     units: 35,
     streams: 34,
     column: "D-1101",
@@ -48,13 +51,24 @@ async function closeDialog(page: Page) {
   await expect(page.locator("dialog[open]")).toHaveCount(0);
 }
 async function exported(page: Page): Promise<Workspace> {
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
     .click();
   const download = await pending;
-  return JSON.parse(await fs.readFile((await download.path())!, "utf8"));
+  await page.keyboard.press("Escape");
+  // Compare canonical documents, including defaults added when an older
+  // workspace is saved and reopened (for example, generated stream names).
+  return validateWorkspace(
+    JSON.parse(await fs.readFile((await download.path())!, "utf8")),
+  );
 }
 async function projects(page: Page) {
   await page
@@ -76,7 +90,7 @@ for (const example of examples) {
     page.on("console", (message) => {
       if (message.type() === "error") errors.push(message.text());
     });
-    const expected = plantTemplate(id)!;
+    const expected = projectSchema.parse(loadTemplate(id) ?? plantTemplate(id));
     expect(expected.units.length).toBe(example.units);
     await page.goto(exampleUrl(id));
     await loaded(page);
@@ -154,7 +168,7 @@ test("example links preserve the original project and reopen an edited example w
   await expect(page.locator(".project-card")).toHaveCount(2);
   await page
     .getByRole("button", { name: `Open ${original.project.name}`, exact: true })
-    .click();
+    .dblclick();
   expect(await exported(page)).toEqual(original);
   await page.reload();
   await loaded(page);
@@ -188,8 +202,9 @@ test("play links animate on request and respect reduced-motion preferences", asy
   const context = await browser.newContext({ reducedMotion: "reduce" });
   try {
     const reduced = await context.newPage();
+    await dismissProjectFolderSetup(reduced);
     await reduced.goto(
-      `http://127.0.0.1:3000${exampleUrl("parallel-complex", true)}`,
+      new URL(exampleUrl("parallel-complex", true), page.url()).href,
     );
     await loaded(reduced);
     await rendered(reduced);

@@ -151,6 +151,12 @@
   padding: 0 3.5%;
   background: linear-gradient(#fafbf9, #fafbf900);
 }
+.story .graphicsNotice {
+  top: 112px;
+  left: 4%;
+  z-index: 21;
+  max-width: calc(100% - 32px);
+}
 .brand {
   display: inline-flex;
   align-items: center;

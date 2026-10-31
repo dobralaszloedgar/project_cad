@@ -1,11 +1,19 @@
 CHEMICAL DATABASE AND THERMODYNAMIC MODELS
 
-The chemical database is now connected to all three models. Open Preferences,
-choose a Property model, select Chemical database, then search for components
-A and B by name, formula or CAS number. Search returns only chemicals with the
-data needed by that model. Apply physical model downloads and verifies both
-records and the necessary activity parameters. Operating conditions and project
-files are not sent to Supabase. They remain in local project storage.
+The chemical database always connects to Supabase automatically. Click the
+model name in the flowsheet header to choose Ideal gas, Raoult's law or Modified
+UNIFAC 2.0 from a compact dropdown. The selected model applies immediately.
+Click the flask button to open Project components, then search by name, formula
+or CAS number. Filter by identifier and choose Relevance or Name A–Z. Relevance
+puts exact matches before prefixes and other matches, then favors common process
+chemicals and broader model coverage. Short searches match name prefixes or whole
+identifiers. The sort preference is remembered. Results are paged 20 at a time
+after filtering and ordering the full catalog, and include only chemicals with
+the data needed by the selected model. Add chemicals to slots A and B; remove a
+selection to replace it.
+Apply components downloads and verifies both records and any necessary activity
+parameters. There is no database-source selector or local-database fallback.
+Operating conditions and project files remain in local project storage.
 
 The current flowsheet editor has two component slots. This change expands the
 chemical catalog, not the number of component slots or reactor kinetics.
@@ -13,7 +21,7 @@ The existing synthetic A/B reactor and bundled sample mixtures still work.
 The 2D, 3D and Split views share the same saved project and selected model.
 
 Published release:
-358cf91624fb2386a0435a35b6d57373de1b6d6ad431459e78db87fcf85e5180
+274a918002b627c078e898199c08def7cd95bed6e1bbd5d8c31ae613c29c5b33
 2,050 ideal-gas records; 402 Raoult records; 341 Modified UNIFAC 2.0 records.
 These are data-coverage counts, not claims of accuracy for every chemical pair.
 The importer omitted records without a Cp path from 298.15 K and rejected one
@@ -56,12 +64,15 @@ a chemical selection; the PBR remains the synthetic A/B teaching model.
 
 STORAGE AND REPRODUCIBILITY
 
-Private schema thermo_catalog stores immutable releases, compounds and parameter
-sets. SHA-256 identifies the source manifest, records and parameter data. Public
-read RPCs are security-invoker functions executable only by service_role.
-The server uses the secret key; no Supabase secret is sent to the browser or
-included in desktop companion packages. Tables have RLS enabled and no direct
-anon/authenticated grants. The runtime server has read access, not import access.
+Schema thermo_catalog stores immutable releases, compounds and parameter sets,
+plus a registry of exactly three supported models. SHA-256 identifies the source
+manifest, records and parameter data. Public read RPCs are SECURITY INVOKER
+functions. Tables stay in an unexposed schema with SELECT-only RLS policies for
+anon/authenticated; no write privileges are granted to these roles. The server
+uses a publishable key for these public scientific records. Secret keys remain
+supported for older service-role-only installations; they must never be sent to
+the browser or included in desktop companion packages. No project data is sent
+to Supabase. GET /api/chemicals/models returns the registry and coverage counts.
 
 The browser saves selected data with the project and revision history. JSON
 export/import and offline recalculation preserve the selected record hashes.
@@ -72,8 +83,8 @@ subset hash. Server and browser use the same Rust/WASM numerical kernel.
 
 REBUILD AND IMPORT
 
-1. Use .env.example to configure .env.local. In cloud mode, SUPABASE_URL and
-   SUPABASE_SECRET_KEY enable runtime HTTPS reads. SUPABASE_DATABASE_URL is
+1. Use .env.example to configure .env.local. SUPABASE_URL and
+   SUPABASE_PUBLISHABLE_KEY enable runtime HTTPS reads. SUPABASE_DATABASE_URL is
    used only for import/migration. On IPv4 networks copy the Session pooler
    URL from Supabase Connect; do not guess its host. Download the server root
    certificate from Database Settings and set CHEMICAL_DATABASE_SSL_CA_FILE.
@@ -87,12 +98,27 @@ REBUILD AND IMPORT
      npm run catalog:import -- /tmp/chemical-catalog.json --check
 4. Install the additive schema and import using the configured database:
      npm run catalog:import -- /tmp/chemical-catalog.json --migrate
-   Later imports can omit --migrate. Each import is atomic; repeated imports
+   This installs both timestamped migrations, including model registration and
+   read-only access. Later imports can omit --migrate. Each import is atomic; repeated imports
    of the same release are idempotent. Existing published rows are immutable.
-5. Restart the app after changing server credentials. Use Chemical database
-   in Preferences; no credential is entered into the product UI.
-For local development, the migration expects the standard Supabase roles
-(anon, authenticated and service_role), as provided by the local Supabase stack.
+   For an MCP-managed database, apply both migrations then export data batches:
+     npm run catalog:import -- /tmp/chemical-catalog.json --sql-dir=/path/batches
+   Execute the resulting SQL in filename order with administrative credentials.
+   Batches are idempotent. A release stays hidden until all records are imported.
+5. Restart the app after changing server credentials. Use Project components;
+   no credential is entered into the product UI. Hosting deployments require the
+   same environment variables in their own server environment.
+The migration expects the standard Supabase roles (anon, authenticated and
+service_role). Application runtime reads always use the configured HTTPS API.
+
+WORKSPACE CONTROLS
+
+The flowsheet uses a fixed light appearance without theme controls or a
+three-dot project menu. Creation, templates and JSON import are available on
+Projects. JSON export remains in workspace Storage settings. Model selection
+preserves existing chemical identities and loads missing model data before
+applying the change. Project components preserves drafts until Apply components;
+Cancel discards them. Previously saved catalog records remain usable offline.
 
 VALIDATION
 
@@ -104,6 +130,8 @@ Regenerate fixtures with scripts/catalog/reference.py using the built catalog.
 tests/e2e/catalog.spec.ts covers selection, export, offline reload, server parity,
 service errors and the preserved 3D view. Run against the actual catalog with:
   CATALOG_LIVE_TESTS=1 npx playwright test tests/e2e/catalog.spec.ts
+tests/e2e/workspace-thermodynamics.spec.ts also covers direct header access,
+the three supported choices, cancellation and responsive layouts.
 Without that flag, UI tests use pinned public fixtures and the live test skips.
 
 SOURCE NOTICES

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { mkdir, readFile } from "node:fs/promises";
 import { newUnit } from "../../src/domain/schema";
 import { checkpoint } from "../../src/lib/revisions";
@@ -81,9 +81,9 @@ async function createProject(page: Page, name: string, capture = false) {
   await dialog
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
-  await expect(dialog.locator("code").last()).toContainText(
-    `${name}/project.json`,
-  );
+  await expect(
+    dialog.getByRole("button", { name: "Change folder", exact: true }),
+  ).toContainText(`Laptop projects/${name}`);
   await expect(
     dialog.getByRole("button", { name: "Create project", exact: true }),
   ).toBeEnabled();
@@ -193,26 +193,10 @@ test("folder project writes JSON, autosaves history, reloads and opens from its 
     "Edited on disk",
   );
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
-  await page.goto("/api/ai");
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve, reject) => {
-        const request = indexedDB.deleteDatabase("project-cad");
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-        request.onblocked = () =>
-          reject(new Error("App database remained open"));
-      }),
-  );
-  await folderControls(page, { open: "Laptop study" });
-  await page.goto("/");
-  await expect(
-    page.getByRole("button", { name: "Run simulation" }),
-  ).toBeEnabled();
   await library(page);
   await page
-    .getByRole("button", { name: "Open project folder", exact: true })
-    .click();
+    .getByRole("button", { name: "Open Edited on disk", exact: true })
+    .dblclick();
   await expect(page.locator(".project-heading h1")).toHaveText(
     "Edited on disk",
   );
@@ -326,7 +310,7 @@ test("cancelled picks and existing directories never create or overwrite a proje
       name: "Open Heated reactor with recycle",
       exact: true,
     })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await library(page);
   await replaceFolderText(
@@ -334,10 +318,9 @@ test("cancelled picks and existing directories never create or overwrite a proje
     "Existing study",
     '{"format":"project-cad","formatVersion":999}',
   );
-  await folderControls(page, { open: "Existing study" });
   await page
-    .getByRole("button", { name: "Open project folder", exact: true })
-    .click();
+    .getByRole("button", { name: "Open Existing study", exact: true })
+    .dblclick();
   await expect(
     page.getByRole("region", { name: "Project library" }),
   ).toBeVisible();
@@ -435,12 +418,12 @@ test("denied access and failed writes preserve recovery until an explicit retry 
       name: "Open Heated reactor with recycle",
       exact: true,
     })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await library(page);
   await page
     .getByRole("button", { name: "Open Recovery study", exact: true })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(1);
   await expect(page.locator(".save-status")).not.toContainText(/^Saved/i);
   expect(await folderText(page, "Recovery study")).toBe(original);
@@ -504,7 +487,7 @@ test("unsupported browsers explain folder access and preserve existing projects"
     .locator(".project-card")
     .first()
     .getByRole("button", { name: /^Open / })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
 });
 
@@ -541,7 +524,7 @@ test("a direct 3D example stays independent from the saved folder project", asyn
   await expect(page.locator(".project-card")).toHaveCount(3);
   await page
     .getByRole("button", { name: "Open Alongside example", exact: true })
-    .click();
+    .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(1);
   await expect(page.locator(".save-status")).toContainText(
     "Alongside example/project.json",
@@ -568,7 +551,7 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
   await page
     .getByRole("button", { name: "Actions for Source study", exact: true })
     .click();
-  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   const copyDialog = page.getByRole("dialog", {
     name: "Create project",
     exact: true,
@@ -609,7 +592,7 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
   await page
     .getByRole("button", { name: "Actions for Updated source", exact: true })
     .click();
-  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
   await expect(
     copyDialog.getByLabel("Project name", { exact: true }),
   ).toHaveValue("Updated source copy");

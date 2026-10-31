@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { loadProject } from "./project-fixture";
+import { test, expect } from "./test";
 import { distillationExample, reactorExample } from "../../src/domain/examples";
 import { ports } from "../../src/domain/schema";
 
@@ -40,7 +41,9 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(menu.getByRole("button")).toHaveText([
     "Equipment",
     "Results",
-    "Themes",
+    "Components",
+    "Thermodynamics",
+    "Templates",
     "Toggle chat",
     "Storage settings",
     "Settings",
@@ -53,14 +56,11 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   );
   await menu.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(menu).toHaveCount(0);
-  await expect(page.getByLabel("Property model")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Export project", exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".workspace-drawer")).toHaveCount(1);
   await expect(page.locator("dialog[open]")).toHaveCount(0);
-  await page.getByRole("radio", { name: "Obsidian", exact: true }).check();
-  await expect(page.locator("main.workspace")).toHaveAttribute(
-    "data-theme",
-    "dark",
-  );
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(tabs.getByRole("button", { name: "Results" })).toHaveAttribute(
     "aria-expanded",
@@ -74,28 +74,33 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await tabs.getByRole("button", { name: "Equipment" }).click();
   await tabs.getByRole("button", { name: "Equipment" }).click();
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
-  await page.screenshot({ path: "test-results/clean-canvas-dark.png" });
+  await page.screenshot({ path: "test-results/clean-canvas.png" });
   expect(
     await page.locator(".react-flow__viewport").getAttribute("style"),
   ).toBe(viewport);
   await pullTab.click();
-  await page.screenshot({ path: "test-results/workspace-menu-dark.png" });
-  await menu.getByRole("button", { name: "Themes" }).click();
-  await expect(
-    page.getByRole("complementary", { name: "Themes" }),
-  ).toBeVisible();
-  await page.getByRole("radio", { name: "Light", exact: true }).check();
-  await expect(page.locator("main.workspace")).toHaveAttribute(
-    "data-theme",
-    "light",
-  );
-  await pullTab.click();
+  await page.screenshot({ path: "test-results/workspace-menu.png" });
   await menu.getByRole("button", { name: "Storage settings" }).click();
   await expect(
     page.getByRole("button", { name: "Export project", exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .focus();
+  await page.keyboard.press("ArrowLeft");
   await pullTab.click();
   await menu.getByRole("button", { name: "Toggle chat" }).click();
+  await expect(page.locator(".assistant-drawer")).toBeVisible();
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Settings", exact: true }).click();
+  await page
+    .getByRole("complementary", { name: "Settings", exact: true })
+    .getByRole("heading", { name: "Assistant", exact: true })
+    .click();
+  await expect(page.locator(".assistant-drawer")).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Show assistant", exact: true })
+    .click();
   await expect(page.locator(".assistant-drawer")).toBeVisible();
   await pullTab.click();
   await menu.getByRole("button", { name: "Toggle chat" }).click();
@@ -151,11 +156,7 @@ test("solid stream and arrow colors follow composition before and after simulati
   await page.getByRole("button", { name: "Run simulation" }).click();
   expect(await colors()).toEqual(initial);
   await page.keyboard.press("Escape");
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "separation.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(distillationExample())),
-  });
+  await loadProject(page, distillationExample());
   await expect(page.locator(".react-flow__edge")).toHaveCount(3);
   expect(new Set(Object.values(await colors())).size).toBe(3);
 });
@@ -178,48 +179,41 @@ test("material handles match equipment roles and cursors use the shared drag han
   ).toHaveCount(2);
   const pane = page.locator(".react-flow__pane");
   const reactor = page.locator('.react-flow__node[data-id="R-101"]');
-  for (const theme of ["light", "dark"]) {
-    if (theme === "dark")
-      await page.getByRole("button", { name: "Toggle theme" }).click();
-    const box = (await reactor.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await expect(reactor).toHaveCSS(
-      "cursor",
-      /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
-    );
-    await page.mouse.down();
-    await page.mouse.move(
-      box.x + box.width / 2 + 30,
-      box.y + box.height / 2 + 30,
-      { steps: 8 },
-    );
-    await expect(reactor).toHaveCSS(
-      "cursor",
-      /url\(.*\/cursors\/grabbing\.svg.*\) 8 8, grabbing$/,
-    );
-    await page.mouse.up();
-    await expect(reactor).toHaveCSS(
-      "cursor",
-      /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
-    );
-    await expect(pane).toHaveCSS("cursor", "default");
-    await page.keyboard.press("p");
-    await expect(pane).toHaveCSS(
-      "cursor",
-      /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
-    );
-    await page.keyboard.press("v");
-    await page.getByRole("button", { name: "Equipment", exact: true }).click();
-    await expect(page.getByLabel("Search equipment")).toHaveCSS(
-      "cursor",
-      "text",
-    );
-    await page.keyboard.press("Escape");
-    await expect(
-      page.getByRole("button", { name: "Workspace menu", exact: true }),
-    ).toHaveCSS("cursor", "pointer");
-    await expect(page.locator("main.workspace")).toHaveCSS("cursor", "default");
-  }
+  const box = (await reactor.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(reactor).toHaveCSS(
+    "cursor",
+    /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width / 2 + 30,
+    box.y + box.height / 2 + 30,
+    { steps: 8 },
+  );
+  await expect(reactor).toHaveCSS(
+    "cursor",
+    /url\(.*\/cursors\/grabbing\.svg.*\) 8 8, grabbing$/,
+  );
+  await page.mouse.up();
+  await expect(reactor).toHaveCSS(
+    "cursor",
+    /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
+  );
+  await expect(pane).toHaveCSS("cursor", "default");
+  await page.keyboard.press("p");
+  await expect(pane).toHaveCSS(
+    "cursor",
+    /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
+  );
+  await page.keyboard.press("v");
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
+  await expect(page.getByLabel("Search equipment")).toHaveCSS("cursor", "text");
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Workspace menu", exact: true }),
+  ).toHaveCSS("cursor", "pointer");
+  await expect(page.locator("main.workspace")).toHaveCSS("cursor", "default");
 });
 
 test("phone pull tab and panels remain reachable without page overflow", async ({
@@ -250,8 +244,18 @@ test("phone pull tab and panels remain reachable without page overflow", async (
     await expect(pullTab).toBeVisible();
   }
   await pullTab.click();
-  await menu.getByRole("button", { name: "Themes" }).click();
-  await page.getByRole("radio", { name: "Obsidian", exact: true }).check();
+  await menu.getByRole("button", { name: "Storage settings" }).click();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
+  await expect(page.locator(".assistant-drawer")).toBeVisible();
+  await expect(page.locator(".workspace-drawer")).toHaveCount(0);
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("complementary", { name: "Settings" }),
+  ).toBeVisible();
+  await expect(page.locator(".assistant-drawer")).not.toBeVisible();
   await pullTab.click();
   await page.screenshot({ path: "test-results/pull-tabs-mobile.png" });
 });

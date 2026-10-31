@@ -1,53 +1,21 @@
-import { expect, test, type Page } from "@playwright/test";
+import { loadProject } from "./project-fixture";
+import { expect, test, type Page } from "./test";
 import { solutionExample } from "../../src/domain/examples";
 import { simulate } from "../../src/domain/solver";
 import { catalogSnapshotSchema } from "../../src/domain/thermo/data";
-import { referenceChemicals, settingsFor } from "../helpers/catalog";
+import { settingsFor } from "../helpers/catalog";
+import { catalogFixture, chooseComponent } from "./catalog-fixture";
 import type { ModelId } from "../../src/domain/thermo/registry";
 
 const live = process.env.CATALOG_LIVE_TESTS === "1";
 async function setup(page: Page) {
-  if (!live) {
-    await page.route("**/api/chemicals?*", async (route) => {
-      const query = new URL(route.request().url()).searchParams.get("query")!;
-      const results = referenceChemicals.filter((c) =>
-        `${c.id} ${c.name}`.includes(query),
-      );
-      await route.fulfill({
-        json: { release: "a".repeat(64), total: results.length, results },
-      });
-    });
-    await page.route("**/api/chemicals/selection", async (route) => {
-      const input = route.request().postDataJSON();
-      await route.fulfill({
-        json: settingsFor(input.ids, input.model).catalog,
-      });
-    });
-  }
+  await catalogFixture(page);
   await page.goto("/");
   await expect(page).toHaveTitle(/Project CAD/);
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await page
-    .getByLabel("Import project file")
-    .setInputFiles({
-      name: "catalog-flow.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(solutionExample())),
-    });
-}
-async function choose(page: Page, component: "A" | "B", cas: string) {
-  await page
-    .getByRole("searchbox", {
-      name: `Search component ${component.toLowerCase()}`,
-    })
-    .fill(cas);
-  await page
-    .getByRole("list", { name: `Component ${component} search results` })
-    .getByRole("button")
-    .filter({ hasText: cas })
-    .click();
+  await loadProject(page, solutionExample());
 }
 
 test("catalog selection calculates, persists offline and preserves the 3D view", async ({
@@ -58,11 +26,20 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   page.on("pageerror", (e) => errors.push(e.message));
   await setup(page);
   await page.locator(".model-button").click();
-  await page.getByLabel("Property model").selectOption("modified-unifac-2.0");
-  await page.getByLabel("Chemical source").selectOption("catalog");
-  await choose(page, "A", "71-43-2");
-  await choose(page, "B", "108-88-3");
-  await page.getByRole("button", { name: "Apply physical model" }).click();
+  await page
+    .getByRole("radio", { name: "Modified UNIFAC 2.0", exact: true })
+    .check();
+  await page.getByRole("button", { name: "Apply model", exact: true }).click();
+  await expect(page.locator(".model-button")).toContainText(
+    "Modified UNIFAC 2.0",
+  );
+  await page
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+
+  await chooseComponent(page, "A", "71-43-2");
+  await chooseComponent(page, "B", "108-88-3");
+  await page.getByRole("button", { name: "Apply components" }).click();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );
@@ -77,7 +54,13 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await expect(
     page.getByText("Saved on this device", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
@@ -107,18 +90,22 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
     timeout: 30000,
   });
   await page.getByRole("button", { name: "2D flowsheet", exact: true }).click();
-  await page.locator(".model-button").click();
-  await expect(page.locator(".chemical-selected").first()).toContainText(
+  await page
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+  await expect(page.getByLabel("Component A", { exact: true })).toContainText(
     "benzene",
   );
   await page.screenshot({ path: "/tmp/project-cad-catalog-desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByLabel("Chemical source")).toBeVisible();
+  await expect(
+    page.getByRole("searchbox", { name: "Search chemical database" }),
+  ).toBeVisible();
   await page
-    .getByRole("button", { name: "Apply physical model" })
+    .getByRole("button", { name: "Apply components" })
     .scrollIntoViewIfNeeded();
   await expect(
-    page.getByRole("button", { name: "Apply physical model" }),
+    page.getByRole("button", { name: "Apply components" }),
   ).toBeVisible();
   await page.screenshot({ path: "/tmp/project-cad-catalog-mobile.png" });
   expect(errors).toEqual([]);
@@ -134,16 +121,21 @@ test("catalog service errors remain visible without replacing the current model"
       json: { error: "Chemical catalog is temporarily unavailable." },
     }),
   );
-  await page.locator(".model-button").click();
-  await page.getByLabel("Chemical source").selectOption("catalog");
   await page
-    .getByRole("searchbox", { name: "Search component a" })
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Remove component A", exact: true })
+    .click();
+
+  await page
+    .getByRole("searchbox", { name: "Search chemical database" })
     .fill("ethanol");
   await expect(
-    page.locator(".chemical-picker").getByRole("alert"),
+    page.locator(".chemical-browser").getByRole("alert"),
   ).toContainText("temporarily unavailable");
   await expect(
-    page.getByRole("button", { name: "Apply physical model" }),
+    page.getByRole("button", { name: "Apply components" }),
   ).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(page.locator(".model-button")).toContainText("Raoult");
@@ -193,4 +185,44 @@ test("live catalog filters model coverage and supplies all three calculation mod
     },
   });
   expect(invalid.status()).toBe(422);
+});
+
+test("canceling a pending chemical selection does not apply it later", async ({
+  page,
+}) => {
+  await setup(page);
+  let releaseResponse!: () => void;
+  const hold = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  let responseFinished!: () => void;
+  const finished = new Promise<void>((resolve) => {
+    responseFinished = resolve;
+  });
+  await page.route("**/api/chemicals/selection", async (route) => {
+    const input = route.request().postDataJSON();
+    await hold;
+    await route
+      .fulfill({ json: settingsFor(input.ids, input.model).catalog })
+      .catch(() => {});
+    responseFinished();
+  });
+  await page
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+  await chooseComponent(page, "A", "64-17-5");
+  await chooseComponent(page, "B", "7732-18-5");
+  const started = page.waitForRequest("**/api/chemicals/selection");
+  await page.getByRole("button", { name: "Apply components" }).click();
+  await started;
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  releaseResponse();
+  await finished;
+  await expect(page.locator(".model-button")).toContainText("Raoult");
+  await page
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+  await expect(page.getByLabel("Component A", { exact: true })).toContainText(
+    "71-43-2",
+  );
 });

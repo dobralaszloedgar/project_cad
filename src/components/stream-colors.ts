@@ -13,17 +13,17 @@ export const STREAM_COLOR_LABELS = [
 ] as const;
 export const STREAM_COLOR_COUNT = STREAM_COLOR_LABELS.length;
 
-function signature(stream?: Pick<Stream, "a" | "b">) {
+function signature(stream?: Pick<Stream, "a" | "b" | "components">) {
+  if (!stream) return null;
+  const values = stream.components ?? { a: stream.a, b: stream.b };
+  const total = Object.values(values).reduce((sum, n) => sum + n, 0);
   if (
-    !stream ||
-    !Number.isFinite(stream.a + stream.b) ||
-    stream.a < 0 ||
-    stream.b < 0 ||
-    stream.a + stream.b <= 0
+    !(total > 0) ||
+    Object.values(values).some((n) => !Number.isFinite(n) || n < 0)
   )
     return null;
-  const total = stream.a + stream.b;
-  return Object.entries({ a: stream.a, b: stream.b })
+  return Object.entries(values)
+    .sort(([a], [b]) => a.localeCompare(b))
     .filter(([, value]) => value > 0)
     .map(([id, value]) => `${id}:${(value / total).toFixed(6)}`)
     .join("|");
@@ -71,6 +71,7 @@ export function streamColorIndices(
       signature(streams?.[edge.id]) ??
       (source?.kind === "Feed"
         ? signature({
+            components: source.params.composition,
             a: source.params.fractionA,
             b: 1 - source.params.fractionA,
           })

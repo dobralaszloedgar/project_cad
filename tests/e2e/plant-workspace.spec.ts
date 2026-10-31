@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import fs from "node:fs/promises";
 
 async function start(page: Page) {
@@ -17,9 +17,11 @@ async function ready(page: Page) {
   });
 }
 async function template(page: Page, name: string) {
-  await page.getByRole("button", { name: "Project menu" }).click();
   await page
-    .locator(".project-menu")
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
     .getByRole("button", { name: "Templates", exact: true })
     .click();
   await page
@@ -32,7 +34,13 @@ async function closeDialog(page: Page) {
   await expect(page.locator("dialog[open]")).toHaveCount(0);
 }
 async function exportProject(page: Page) {
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
@@ -93,17 +101,15 @@ test("column tray edits persist through 3D, Split, export and reload", async ({
   page,
 }) => {
   await start(page);
-  await template(page, "Ideal separation");
+  await template(page, "Raoult’s law separation");
   const before = (await exportProject(page)).project;
   await view(page, "3D schematic");
   await ready(page);
   await page.locator(".plant-label").filter({ hasText: "D-201" }).click();
   await expect(page.getByLabel("Visible trays (3D)")).toHaveValue("8");
-  expect(
-    await page
-      .getByLabel("Relative volatility A/B")
-      .evaluate((input) => (input as HTMLInputElement).checkValidity()),
-  ).toBe(true);
+  await expect(
+    page.getByText(/The feed temperature and pressure determine/),
+  ).toBeVisible();
   await page.getByLabel("Visible trays (3D)").fill("12");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await closeDialog(page);
@@ -139,10 +145,9 @@ test("large plant templates are editable application projects", async ({
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await start(page);
-  for (const [name, count] of [
-    ["Integrated process plant", 25],
-    ["Parallel reaction & finishing", 17],
-    ["Three-column fractionation", 21],
+  for (const [name, count, trays] of [
+    ["Three-stage benzene–toluene recovery", 21, 8],
+    ["Four-stage benzene–toluene recovery", 35, 14],
   ] as const) {
     await template(page, name);
     await view(page, "3D schematic");
@@ -164,7 +169,9 @@ test("large plant templates are editable application projects", async ({
       );
     expect(column).toBeTruthy();
     await selector.selectOption(column!);
-    await expect(page.getByLabel("Visible trays (3D)")).toHaveValue("8");
+    await expect(page.getByLabel("Visible trays (3D)")).toHaveValue(
+      String(trays),
+    );
     await closeDialog(page);
     await page.getByRole("button", { name: "Run simulation" }).click();
     await expect(page.locator(".diagnostics h3")).toHaveText("Converged");

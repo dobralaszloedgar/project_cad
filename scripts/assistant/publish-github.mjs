@@ -1,8 +1,7 @@
-import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs, promisify } from "node:util";
+import { parseArgs } from "node:util";
 import { output } from "./artifacts.mjs";
 import {
   assertReleaseAssets,
@@ -12,8 +11,20 @@ import {
   verifyLocalArtifacts,
 } from "./release-manifest.mjs";
 import { stagePublishedDownloads } from "./stage-downloads.mjs";
+import { githubPublisher } from "./github-publisher.mjs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import {
+  assertReferenceContent,
+  checkGitReferences,
+  checkSourceReferences,
+  loadReferencePolicy,
+} from "./reference-policy.mjs";
+import { checkPackageReferences } from "./reference-check.mjs";
 
 const execute = promisify(execFile);
+const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
+
 const { values } = parseArgs({
   options: {
     repo: { type: "string" },
@@ -32,18 +43,17 @@ const pins = JSON.parse(
 const repository = values.repo || config.repository;
 if (typeof repository !== "string" || !repositoryPattern.test(repository))
   throw new Error("Expected --repo owner/repository.");
+const publisher = config.repository.split("/")[0];
+if (repository.split("/")[0].toLowerCase() !== publisher.toLowerCase())
+  throw new Error(
+    `Release repositories must belong to the configured publisher, ${publisher}.`,
+  );
 const tag = `v${pins.version}`;
 if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error("Invalid release version.");
 const endpoint = `repos/${repository}/releases/tags/${tag}`;
 const baseUrl = `https://github.com/${repository}/releases/download/${tag}`;
 
-async function gh(args) {
-  const { stdout } = await execute("gh", args, {
-    timeout: 900000,
-    maxBuffer: 4 * 1024 * 1024,
-  });
-  return stdout.trim();
-}
+let gh;
 async function findRelease() {
   try {
     return JSON.parse(await gh(["api", endpoint]));
@@ -62,11 +72,12 @@ async function findRelease() {
     return pages.flat().find((release) => release.tag_name === tag);
   }
 }
-async function getPublicJson(url) {
+async function getPublicJson(url, { allowMissing = false } = {}) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(60000),
     headers: { Accept: "application/json" },
   });
+  if (allowMissing && response.status === 404) return undefined;
   if (!response.ok)
     throw new Error(
       `Public release request failed (${response.status}): ${url}`,
@@ -101,6 +112,8 @@ async function syncPublishedRelease() {
 if (values["sync-only"]) {
   await syncPublishedRelease();
 } else {
+  const policy = await loadReferencePolicy();
+  await checkSourceReferences(projectRoot, policy);
   const local = validateManifest(
     JSON.parse(await readFile(join(output, "downloads.json"), "utf8")),
   );
@@ -109,6 +122,7 @@ if (values["sync-only"]) {
       "Rebuild all packages for the version in releases.json before publishing.",
     );
   await verifyLocalArtifacts(output, local);
+  await checkPackageReferences(output, local, policy);
   const manifest = { ...local, release: { repository, tag } };
   validateManifest(manifest, { published: true });
   const staging = join(output, "github", tag);
@@ -127,7 +141,7 @@ Open the assistant, enter your Project CAD website address in Settings, then set
 
 For Linux, make the .run file executable with chmod +x and run it as your normal user. Do not use sudo. Windows and Linux settings open in your local browser.
 
-These macOS packages are ad-hoc signed and not notarized; Windows installers are unsigned. Windows packages have been cross compiled and inspected but have not been runtime-tested on Windows. macOS and Linux ARM64 installation and lifecycle checks have passed.
+These macOS packages are ad-hoc signed and not notarized; Windows installers are unsigned. macOS installation and lifecycle checks have passed. Windows and Linux packages have been cross compiled and checked for archive integrity and CPU architecture; this release has not been runtime-tested on those operating systems.
 
 See INSTALL.txt for setup instructions and SHA256SUMS.txt for checksums. Portable ZIP and tar.gz archives are also attached.
 `;
@@ -166,11 +180,13 @@ Verify downloads against SHA256SUMS.txt. Each binary also has a .sha256 sidecar 
   }
   for (const [filename, text] of Object.entries(generated)) {
     const data = Buffer.from(text);
+    assertReferenceContent(data, filename, policy);
     const path = join(staging, filename);
     await writeFile(path, data);
     expected.push({ filename, path, bytes: data.length, sha256: sha256(data) });
   }
-  const notesFile = join(staging, "release-notes.md");
+  const notesFile = join(staging, "release-notes.txt");
+  assertReferenceContent(Buffer.from(notes), "release-notes.txt", policy);
   await writeFile(notesFile, notes);
   console.log(
     `Verified ${local.files.length} packages. Release: ${repository} ${tag}.`,
@@ -195,10 +211,40 @@ Verify downloads against SHA256SUMS.txt. Each binary also has a .sha256 sidecar 
       ),
     );
   } else {
+    const { stdout: status } = await execute("git", ["status", "--porcelain"], {
+      cwd: projectRoot,
+    });
+    if (status.trim())
+      throw new Error(
+        "Commit the reviewed project changes before publishing a release.",
+      );
+    const { stdout: revision } = await execute("git", ["rev-parse", "HEAD"], {
+      cwd: projectRoot,
+    });
+    const sourceCommit = revision.trim();
+    await checkGitReferences(projectRoot, policy, sourceCommit);
+    const remoteCommit = await getPublicJson(
+      `https://api.github.com/repos/${repository}/commits/${sourceCommit}`,
+    );
+    if (remoteCommit.sha !== sourceCommit)
+      throw new Error("Push and verify the release source before publishing.");
+    const taggedCommit = await getPublicJson(
+      `https://api.github.com/repos/${repository}/commits/${tag}`,
+      { allowMissing: true },
+    );
+    if (taggedCommit && taggedCommit.sha !== sourceCommit)
+      throw new Error(
+        "The release tag uses a different source commit. Use its matching checkout or a new version.",
+      );
+    gh = await githubPublisher(publisher);
     const repo = JSON.parse(await gh(["api", `repos/${repository}`]));
     if (repo.private || repo.archived)
       throw new Error(
         "Use a public, active repository dedicated to installer downloads.",
+      );
+    if (!repo.permissions?.push)
+      throw new Error(
+        `The ${publisher} account needs write access to ${repository} to publish releases.`,
       );
     let release = await findRelease();
     if (!release) {
@@ -209,6 +255,8 @@ Verify downloads against SHA256SUMS.txt. Each binary also has a .sha256 sidecar 
         "--repo",
         repository,
         "--draft",
+        "--target",
+        sourceCommit,
         "--title",
         `Project CAD Assistant ${local.version}`,
         "--notes-file",
@@ -217,6 +265,27 @@ Verify downloads against SHA256SUMS.txt. Each binary also has a .sha256 sidecar 
       release = await findRelease();
     }
     if (!release) throw new Error("Could not create a draft release.");
+    if (release.draft) {
+      await gh([
+        "release",
+        "edit",
+        tag,
+        "--repo",
+        repository,
+        "--target",
+        sourceCommit,
+        "--title",
+        `Project CAD Assistant ${local.version}`,
+        "--notes-file",
+        notesFile,
+      ]);
+      release = await findRelease();
+    }
+    assertReferenceContent(
+      Buffer.from(JSON.stringify({ name: release.name, body: release.body })),
+      "release metadata",
+      policy,
+    );
     for (const file of expected) {
       const existing = release.assets.find(
         (asset) => asset.name === file.filename,

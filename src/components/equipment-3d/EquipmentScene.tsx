@@ -11,14 +11,30 @@ import {
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
-  AdaptiveDpr,
-  Environment,
-  Grid,
   Lightformer,
   CameraControls,
   CameraControlsImpl,
 } from "@react-three/drei";
-import { Box3, Group, MathUtils, PerspectiveCamera, Vector3 } from "three";
+import {
+  Box3,
+  DirectionalLight,
+  Group,
+  MathUtils,
+  PerspectiveCamera,
+  Vector3,
+} from "three";
+import { FloorGrid } from "../graphics/FloorGrid";
+import { GraphicsSettings } from "../graphics/GraphicsSettings";
+import { AccelerationHelp } from "../graphics/AccelerationHelp";
+import { RendererRuntime } from "../graphics/RendererRuntime";
+import { StudioEnvironment } from "../graphics/StudioEnvironment";
+import {
+  createSceneRenderer,
+  readGraphicsPreference,
+  saveGraphicsPreference,
+  type GraphicsInfo,
+  type GraphicsPreference,
+} from "../graphics/renderer";
 import type { Kind } from "@/domain/schema";
 import { displayKinds, equipmentCatalog } from "./catalog";
 import { EquipmentModel, SystemConnections } from "./EquipmentModel";
@@ -64,10 +80,7 @@ class SceneBoundary extends Component<
       return (
         <div className="equipment-scene-error">
           <h2>The 3D preview is unavailable</h2>
-          <p>
-            Try again with hardware acceleration enabled. Your project is
-            preserved.
-          </p>
+          <AccelerationHelp />
           <button onClick={this.props.onRetry}>Reload preview</button>
         </div>
       );
@@ -433,16 +446,19 @@ function Studio({
   canvasColor,
 }: SceneProps) {
   const subject = useRef<Group>(null);
+  const keyLight = useRef<DirectionalLight>(null);
   const get = useThree((state) => state.get);
   useEffect(() => {
-    const { gl, invalidate } = get();
+    const { invalidate } = get();
+    const shadow = keyLight.current?.shadow;
+    if (!shadow) return;
     // Camera movement does not change the equipment's shadows. Rebuild them
     // after geometry edits, or each frame when equipment is actually animated.
-    gl.shadowMap.autoUpdate = playing;
-    gl.shadowMap.needsUpdate = true;
+    shadow.autoUpdate = playing;
+    shadow.needsUpdate = true;
     invalidate();
     return () => {
-      gl.shadowMap.autoUpdate = true;
+      shadow.autoUpdate = true;
     };
   }, [get, kind, mode, system, trayCount, section, transparent, playing]);
   const motion = { playing, speed, motionVisible, transparent };
@@ -454,6 +470,7 @@ function Studio({
       />
       <ambientLight intensity={0.65} />
       <directionalLight
+        ref={keyLight}
         position={[5, 10, 6]}
         intensity={2.7}
         color="#fff8ee"
@@ -472,7 +489,7 @@ function Studio({
         intensity={1.8}
         color="#dcebf0"
       />
-      <Environment resolution={128} frames={1} environmentIntensity={0.8}>
+      <StudioEnvironment resolution={128} intensity={0.8}>
         <Lightformer
           position={[-4, 4, 2]}
           scale={[5, 9, 1]}
@@ -494,7 +511,7 @@ function Studio({
           color="#fff2dd"
           target={[0, 0, 0]}
         />
-      </Environment>
+      </StudioEnvironment>
       <group ref={subject}>
         {mode === "inspect" ? (
           <EquipmentModel
@@ -554,9 +571,8 @@ function Studio({
         <shadowMaterial transparent opacity={0.12} />
       </mesh>
       {grid ? (
-        <Grid
+        <FloorGrid
           position={[0, -0.03, 0]}
-          infiniteGrid
           cellSize={0.5}
           sectionSize={2.5}
           cellThickness={0.5}
@@ -645,43 +661,22 @@ function ProjectLabels({
   return null;
 }
 
-function RendererHealth({
-  onLost,
-  onVisible,
-}: {
-  onLost: (lost: boolean) => void;
-  onVisible: (visible: boolean) => void;
-}) {
-  const gl = useThree((state) => state.gl);
-  useEffect(() => {
-    const canvas = gl.domElement;
-    let intersects = true;
-    const reportVisibility = () => onVisible(intersects && !document.hidden);
-    const observer = new IntersectionObserver(([entry]) => {
-      intersects = entry.isIntersecting;
-      reportVisibility();
-    });
-    observer.observe(canvas);
-    document.addEventListener("visibilitychange", reportVisibility);
-    const handleLoss = (event: Event) => {
-      event.preventDefault();
-      onLost(true);
-    };
-    canvas.setAttribute("aria-label", "Interactive 3D equipment model");
-    canvas.addEventListener("webglcontextlost", handleLoss);
-    return () => {
-      canvas.removeEventListener("webglcontextlost", handleLoss);
-      document.removeEventListener("visibilitychange", reportVisibility);
-      observer.disconnect();
-    };
-  }, [gl, onLost, onVisible]);
-  return null;
-}
-
 export default function EquipmentScene(props: SceneProps) {
   const [lost, setLost] = useState(false);
   const [recovery, setRecovery] = useState(0);
   const [visible, setVisible] = useState(true);
+  const [preference, setPreference] = useState(readGraphicsPreference);
+  const [info, setInfo] = useState<GraphicsInfo | null>(null);
+  const [recoverWithWebGL, setRecoverWithWebGL] = useState(false);
+  const handleLost = useCallback(() => setLost(true), []);
+  const createRenderer = useCallback(
+    ({ canvas }: { canvas: EventTarget }) =>
+      createSceneRenderer({
+        canvas: canvas as HTMLCanvasElement,
+        preference: recoverWithWebGL ? "webgl" : preference,
+      }),
+    [preference, recoverWithWebGL],
+  );
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const labels = useMemo<EquipmentInstance[]>(
     () =>
@@ -700,72 +695,92 @@ export default function EquipmentScene(props: SceneProps) {
     [props.mode, props.system],
   );
   const retry = () => {
+    // A lost WebGPU device may be the OS switching GPUs. Retry on the broadly
+    // supported backend with a fresh canvas; never reuse a lost GPU context.
+    setRecoverWithWebGL(info?.backend === "webgpu");
+    setInfo(null);
+    setLost(false);
+    setRecovery((v) => v + 1);
+  };
+  const changePreference = (value: GraphicsPreference) => {
+    saveGraphicsPreference(value);
+    setPreference(value);
+    setRecoverWithWebGL(false);
+    setInfo(null);
     setLost(false);
     setRecovery((v) => v + 1);
   };
   return (
-    <SceneBoundary key={recovery} onRetry={retry}>
-      {lost ? (
-        <div className="equipment-scene-error">
-          <h2>The 3D connection was interrupted</h2>
-          <p>Reload the preview to reconnect to your graphics hardware.</p>
-          <button onClick={retry}>Reload preview</button>
-        </div>
-      ) : (
-        <Canvas
-          shadows="percentage"
-          dpr={[1, 1.75]}
-          performance={{ min: 0.6, debounce: 200 }}
-          frameloop={
-            visible && (props.rotate || props.playing) ? "always" : "demand"
-          }
-          camera={{ position: [7, 5, 10], fov: 36, near: 0.05, far: 600 }}
-          gl={{ antialias: true, alpha: false }}
-          fallback={
-            <div className="equipment-scene-error">
-              <h2>WebGL is unavailable</h2>
-              <p>
-                Open this view in a browser with hardware acceleration enabled.
-              </p>
-            </div>
-          }
-        >
-          <AdaptiveDpr />
-          <RendererHealth onLost={setLost} onVisible={setVisible} />
-          <Studio
-            {...props}
-            playing={props.playing && visible}
-            rotate={props.rotate && visible}
-          />
-          <ProjectLabels labels={labels} elements={labelElements} />
-        </Canvas>
-      )}
-      {!lost && labels.length ? (
-        <div
-          className={`equipment-label-layer${props.workspace ? " plant-labels" : ""}`}
-        >
-          {labels.map((item) => (
-            <button
-              key={item.id}
-              data-label-id={item.id}
-              ref={(element) => {
-                if (element) labelElements.current.set(item.id, element);
-                else labelElements.current.delete(item.id);
-              }}
-              className={`equipment-world-label${props.mode === "process" ? " has-tag" : ""}${labels.length > 10 ? " compact-label" : ""}${props.workspace ? " plant-label" : ""}${props.selectedId === item.id ? " active" : ""}`}
-              title={`${item.tag} · ${item.title}`}
-              aria-label={`${item.tag} ${item.title}`}
-              aria-pressed={
-                props.workspace ? props.selectedId === item.id : undefined
-              }
-              onClick={() => props.onSelect(item.kind, item.id)}
-            >
-              {props.mode === "process" ? <span>{item.tag}</span> : null}
-              <span className="equipment-label-title">{item.title}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </SceneBoundary>
+    <>
+      <GraphicsSettings
+        info={info}
+        preference={preference}
+        onChange={changePreference}
+      />
+      <SceneBoundary key={recovery} onRetry={retry}>
+        {lost ? (
+          <div className="equipment-scene-error">
+            <h2>The 3D connection was interrupted</h2>
+            <p>Reload the preview to reconnect to your graphics hardware.</p>
+            <button onClick={retry}>Reload preview</button>
+          </div>
+        ) : (
+          <Canvas
+            shadows="percentage"
+            dpr={[1, 1.75]}
+            frameloop={
+              visible && (props.rotate || props.playing) ? "always" : "demand"
+            }
+            camera={{ position: [7, 5, 10], fov: 36, near: 0.05, far: 600 }}
+            gl={createRenderer}
+            fallback={
+              <div className="equipment-scene-error">
+                <h2>3D graphics are unavailable</h2>
+                <AccelerationHelp />
+              </div>
+            }
+          >
+            <RendererRuntime
+              onLost={handleLost}
+              onVisible={setVisible}
+              onInfo={setInfo}
+              label="Interactive 3D equipment model"
+            />
+            <Studio
+              {...props}
+              playing={props.playing && visible}
+              rotate={props.rotate && visible}
+            />
+            <ProjectLabels labels={labels} elements={labelElements} />
+          </Canvas>
+        )}
+        {!lost && labels.length ? (
+          <div
+            className={`equipment-label-layer${props.workspace ? " plant-labels" : ""}`}
+          >
+            {labels.map((item) => (
+              <button
+                key={item.id}
+                data-label-id={item.id}
+                ref={(element) => {
+                  if (element) labelElements.current.set(item.id, element);
+                  else labelElements.current.delete(item.id);
+                }}
+                className={`equipment-world-label${props.mode === "process" ? " has-tag" : ""}${labels.length > 10 ? " compact-label" : ""}${props.workspace ? " plant-label" : ""}${props.selectedId === item.id ? " active" : ""}`}
+                title={`${item.tag} · ${item.title}`}
+                aria-label={`${item.tag} ${item.title}`}
+                aria-pressed={
+                  props.workspace ? props.selectedId === item.id : undefined
+                }
+                onClick={() => props.onSelect(item.kind, item.id)}
+              >
+                {props.mode === "process" ? <span>{item.tag}</span> : null}
+                <span className="equipment-label-title">{item.title}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </SceneBoundary>
+    </>
   );
 }

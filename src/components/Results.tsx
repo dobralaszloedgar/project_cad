@@ -11,7 +11,12 @@ import { type Project } from "@/domain/schema";
 import { flow, type Result, simulate } from "@/domain/solver";
 import { type Revision, diff } from "@/lib/revisions";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { mixtureName } from "@/domain/thermo/catalog";
+import { componentFlows } from "@/domain/stream-composition";
+import {
+  componentNames,
+  mixtureName,
+  thermoContext,
+} from "@/domain/thermo/catalog";
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("en-US", { maximumFractionDigits: digits });
 export default function Results({
@@ -35,6 +40,13 @@ export default function Results({
   onCompare: (s: string) => void;
   onSelect: (s: string) => void;
 }) {
+  const names = componentNames(project.thermo ?? defaultThermo);
+  const [firstComponent] = names;
+  const componentIds =
+    result?.provenance.chemicalIds ??
+    (project.thermo?.mixture === "catalog" && !project.thermo.catalog
+      ? []
+      : thermoContext(project.thermo ?? defaultThermo).ids);
   const baseline = revisions.find((r) => r.id === compareId);
   const changes = baseline ? diff(baseline.project, project) : null;
   let previous: Result | null = null;
@@ -66,7 +78,7 @@ export default function Results({
           <div className="kpi-row">
             {[
               {
-                label: "Conversion of A",
+                label: `Conversion of ${firstComponent}`,
                 value: result ? `${fmt(result.conversion * 100, 2)}%` : "—",
                 icon: FlaskConical,
                 detail: "Overall fresh-feed basis",
@@ -108,7 +120,9 @@ export default function Results({
                     <th>Stream</th>
                     <th>Flow (mol/s)</th>
                     <th>Temp. (K)</th>
-                    <th>A fraction</th>
+                    {names.map((name) => (
+                      <th key={name}>{name} fraction</th>
+                    ))}
                     <th>Phase</th>
                     <th>Vapor fraction</th>
                   </tr>
@@ -128,9 +142,18 @@ export default function Results({
                         </td>
                         <td>{s ? fmt(flow(s), 4) : "—"}</td>
                         <td>{s ? fmt(s.temperature, 2) : "—"}</td>
-                        <td>
-                          {s && flow(s) > 0 ? fmt(s.a / flow(s), 4) : "—"}
-                        </td>
+                        {names.map((name, i) => (
+                          <td key={name}>
+                            {s && flow(s) > 0
+                              ? fmt(
+                                  componentFlows(s, componentIds)[
+                                    componentIds[i]
+                                  ] / flow(s),
+                                  4,
+                                )
+                              : "—"}
+                          </td>
+                        ))}
                         <td>{result?.properties[e.id]?.phase ?? "—"}</td>
                         <td>
                           {result?.properties[e.id]?.vaporFraction != null

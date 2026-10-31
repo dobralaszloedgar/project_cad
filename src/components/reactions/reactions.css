@@ -1,0 +1,319 @@
+.reaction-set,
+.reaction-definition,
+.reaction-species,
+.reactor-results {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.reaction-set-heading,
+.reaction-actions,
+.reaction-equation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.reaction-set-heading {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+.reaction-set-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.reaction-set-heading > span,
+.reaction-species-labels {
+  color: var(--muted);
+  font-size: 11px;
+}
+.reaction-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  gap: 8px;
+}
+.reaction-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 0;
+}
+.reaction-card.is-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.reaction-card.is-disabled {
+  opacity: 0.65;
+}
+.reaction-card-select {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0 0 10px;
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.reaction-card-select small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.equipment-editor .equipment-form .reaction-enable,
+.rate-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+.reaction-definition {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.reaction-equation {
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--hover);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.reaction-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.reaction-species h4 {
+  margin: 0;
+  font-size: 12px;
+}
+.reaction-species-row,
+.reaction-species-labels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px 30px;
+  gap: 8px;
+  align-items: center;
+}
+.reaction-species > .btn {
+  justify-self: start;
+}
+.reaction-rate-preview {
+  font-size: 12px;
+  margin: 0;
+  padding: 12px;
+  background: var(--hover);
+  border-radius: 6px;
+}
+.reaction-issues,
+.rate-errors {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #b7791f 40%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, #b7791f 5%, transparent);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.reaction-issues ul,
+.rate-errors ul {
+  padding-left: 18px;
+  margin: 6px 0 0;
+}
+.rate-law-editor {
+  min-width: 0;
+  font-size: 12px;
+}
+.rate-editor-columns,
+.rate-main-column,
+.rate-side-column,
+.rate-group,
+.rate-species-card,
+.rate-parameter {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.rate-editor-columns {
+  gap: 20px;
+}
+.rate-group {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  align-content: start;
+}
+.rate-group h4 {
+  margin: 0;
+  font-size: 13px;
+}
+.rate-law-editor .engineering-help {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+}
+.rate-law-editor label,
+.rate-dialog label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.rate-card-title,
+.rate-insert,
+.rate-preview-constants {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rate-card-title > :last-child {
+  margin-left: auto;
+}
+.rate-two-columns,
+.rate-factor-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+.rate-factor-row {
+  grid-template-columns: minmax(0, 1fr) 80px 28px;
+  align-items: end;
+}
+.rate-preview {
+  background: var(--hover);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+}
+.rate-equation {
+  overflow-wrap: anywhere;
+}
+.typeset-math {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+.typeset-math .katex-display {
+  margin: 8px 0;
+}
+.rate-law-editor .textarea {
+  width: 100%;
+  min-height: 100px;
+  font-family: monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+.rate-valid {
+  color: var(--accent);
+}
+.rate-sample {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.rate-sample > :not(summary) {
+  margin-top: 10px;
+}
+.rate-sample-result {
+  display: block;
+  padding: 10px;
+  background: var(--hover);
+  border-radius: 6px;
+}
+.rate-dialog {
+  width: min(1120px, calc(100vw - 64px));
+  height: min(900px, calc(100dvh - 64px));
+  max-height: calc(100dvh - 64px);
+  padding: 0;
+  color: var(--ink);
+  background: var(--panel, #fff);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.rate-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.rate-dialog::backdrop {
+  background: #0006;
+}
+.rate-dialog-heading,
+.rate-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.rate-dialog-heading h2 {
+  margin: 4px 0;
+  font-size: 20px;
+}
+.rate-dialog-heading p,
+.rate-dialog-footer,
+.rate-eyebrow {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rate-dialog-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 20px 24px;
+}
+.rate-dialog-footer {
+  border-bottom: 0;
+  border-top: 1px solid var(--border);
+}
+.reactor-results > .btn {
+  justify-self: start;
+}
+@media (min-width: 1100px) {
+  .rate-dialog .rate-editor-columns {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+}
+
+.rate-dialog {
+  margin: auto;
+  inset: 0;
+}
+.equipment-editor .equipment-form .rate-toggle,
+.rate-dialog .rate-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.equipment-editor .reaction-species-row .btn,
+.rate-dialog .btn-square {
+  padding: 4px;
+  flex-shrink: 0;
+}
+.equipment-editor .reaction-species-row svg,
+.rate-dialog .btn-square svg {
+  flex-shrink: 0;
+}
+.reactor-results {
+  margin-bottom: 24px;
+}
+@media (min-width: 1000px) {
+  .equipment-setup-panel:has(.reaction-set) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .equipment-setup-panel:has(.reaction-set) > .equipment-setup-side {
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 0 0 20px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .reaction-sides {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

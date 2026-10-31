@@ -1,6 +1,15 @@
-.dialog {
+.dialog:global(.workspace-dialog) {
   --folder-error: #a7463e;
-  width: min(540px, calc(100vw - 32px));
+  width: min(440px, calc(100vw - 32px));
+}
+
+.dialog :global(.dialog-header) {
+  padding: 20px 24px 12px;
+  border-bottom: 0;
+}
+
+.dialog :global(.dialog-body) {
+  padding: 8px 24px 24px;
 }
 
 :global(.workspace[data-theme="dark"]) .dialog {
@@ -9,19 +18,7 @@
 
 .form {
   display: grid;
-  gap: 22px;
-}
-
-.intro {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.65;
-  margin: 0;
-}
-
-.intro code {
-  color: var(--ink);
-  font-size: 12px;
+  gap: 20px;
 }
 
 .field {
@@ -42,11 +39,17 @@
   background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0 10px;
+  border-radius: 8px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 12px;
   font-size: 13px;
+}
+
+.field input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  outline-offset: 1px;
 }
 
 .field input[aria-invalid="true"] {
@@ -66,6 +69,52 @@
 
 .error {
   color: var(--folder-error);
+}
+
+.folderPicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+}
+
+.folderPicker:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: var(--accent);
+}
+
+.folderPicker:disabled {
+  opacity: 0.55;
+}
+
+.folderPicker > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.folderPicker > svg:first-child {
+  color: var(--accent);
+}
+
+.folderPath {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.changeFolder {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .folderRow {
@@ -132,7 +181,24 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 2px;
+  margin-top: 4px;
+}
+
+.actions > :global(.btn) {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.cancel:global(.btn) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.cancel:global(.btn):hover {
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .libraryActions {

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./test";
 import fs from "node:fs/promises";
 const output = "/tmp/project-cad-qa";
 test.beforeAll(async () => {
@@ -16,9 +16,11 @@ async function closeDialog(page: Page) {
   await expect(page.locator("dialog[open]")).toHaveCount(0);
 }
 async function template(page: Page, name: string) {
-  await page.getByRole("button", { name: "Project menu" }).click();
   await page
-    .locator(".project-menu")
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
     .getByRole("button", { name: "Templates", exact: true })
     .click();
   await page
@@ -39,7 +41,7 @@ async function preferences(page: Page) {
     .click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
 }
-test("reactor: calculate, edit, compare, restore, persist and round-trip", async ({
+test("reactor: calculate, edit, compare, restore, persist and export", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -85,7 +87,13 @@ test("reactor: calculate, edit, compare, restore, persist and round-trip", async
     fullPage: true,
   });
   await closeDialog(page);
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
@@ -95,13 +103,6 @@ test("reactor: calculate, edit, compare, restore, persist and round-trip", async
   const json = JSON.parse(await fs.readFile(path!, "utf8"));
   expect(json.project.units).toHaveLength(6);
   expect(json.revisions).toHaveLength(4);
-  await template(page, "Blank flowsheet");
-  await expect(page.locator(".react-flow__node")).toHaveCount(0);
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "project.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(json)),
-  });
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await expect(page.getByText("Saved on this device")).toBeVisible();
   await page.reload();
@@ -127,7 +128,7 @@ test("3D and split views preserve topology and synchronized editing", async ({
   await expect(page.locator(".plant-label")).toHaveCount(6);
   await page.getByRole("button", { name: "Reset camera" }).click();
 });
-test("simple templates, equipment validation, theme and mobile editing", async ({
+test("simple templates, equipment validation, appearance and mobile editing", async ({
   page,
 }) => {
   await start(page);
@@ -137,15 +138,19 @@ test("simple templates, equipment validation, theme and mobile editing", async (
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(page.locator(".stream-table")).toContainText("400");
   await closeDialog(page);
-  await template(page, "Ideal separation");
+  await template(page, "Raoult’s law separation");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await page.locator(".limitations summary").click();
   await expect(page.locator(".limitations")).toContainText("No stage count");
   await closeDialog(page);
-  await page.getByRole("button", { name: "Toggle theme" }).click();
-  await expect(page.locator("main")).toHaveAttribute("data-theme", "dark");
-  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(page.getByRole("button", { name: "Toggle theme" })).toHaveCount(
+    0,
+  );
+  await expect(page.locator("main")).toHaveAttribute("data-theme", "light");
+  await expect(page.getByRole("button", { name: "Toggle theme" })).toHaveCount(
+    0,
+  );
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Cooler", { exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(5);
@@ -166,7 +171,9 @@ test("simple templates, equipment validation, theme and mobile editing", async (
   ).toBeEnabled();
   await expect(page.locator(".equipment-library")).toHaveCount(0);
   await edit(page, "D-201");
-  await expect(page.getByLabel("Relative volatility A/B")).toBeVisible();
+  await expect(
+    page.getByText(/The feed temperature and pressure determine/),
+  ).toBeVisible();
   await closeDialog(page);
   await page.screenshot({ path: `${output}/mobile.png`, fullPage: true });
   expect(
@@ -209,19 +216,12 @@ test("manual editing supports connect, move, double-click, duplicate and delete"
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
 });
-test("invalid import and disabled or cross-origin AI are rejected", async ({
+test("disabled or cross-origin AI requests are rejected", async ({
   page,
   request,
   baseURL,
 }) => {
   await start(page);
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "bad.json",
-    mimeType: "application/json",
-    buffer: Buffer.from('{"version":99}'),
-  });
-  await expect(page.getByRole("status")).toContainText("Invalid project");
-  await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();

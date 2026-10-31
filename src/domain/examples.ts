@@ -1,4 +1,5 @@
-import { newUnit, type Project, type Connection } from "./schema";
+import { type Project, type Connection } from "./schema";
+import { templateUnit, syntheticThermo } from "./template-presets";
 const edge = (
   id: string,
   source: string,
@@ -15,12 +16,12 @@ const edge = (
 });
 export function reactorExample(): Project {
   const units = [
-    newUnit("Feed", "F-101", 0, 100),
-    newUnit("Mixer", "M-101", 185, 100),
-    newUnit("Heater", "H-101", 370, 100),
-    newUnit("PBR", "R-101", 555, 100),
-    newUnit("Splitter", "S-101", 740, 100),
-    newUnit("Product", "P-101", 925, 100),
+    templateUnit("Feed", "F-101", 0, 100),
+    templateUnit("Mixer", "M-101", 185, 100),
+    templateUnit("Heater", "H-101", 370, 100),
+    templateUnit("PBR", "R-101", 555, 100),
+    templateUnit("Splitter", "S-101", 740, 100),
+    templateUnit("Product", "P-101", 925, 100),
   ];
   // Keep the original residence-time benchmark stable for saved demos.
   units.find((unit) => unit.kind === "PBR")!.params.reactorMode =
@@ -28,6 +29,7 @@ export function reactorExample(): Project {
   return {
     version: 1,
     name: "Heated reactor with recycle",
+    thermo: syntheticThermo(),
     units,
     edges: [
       edge("s1", "F-101", "M-101"),
@@ -40,17 +42,18 @@ export function reactorExample(): Project {
   };
 }
 export function distillationExample(): Project {
-  const feed = newUnit("Feed", "F-201", 0, 100);
+  const feed = templateUnit("Feed", "F-201", 0, 100);
   feed.params.fractionA = 0.5;
   feed.params.temperature = 350;
   return {
     version: 1,
     name: "Ideal binary separation",
+    thermo: syntheticThermo(),
     units: [
       feed,
-      newUnit("Distillation", "D-201", 240, 100),
-      newUnit("Product", "P-201", 500, 0),
-      newUnit("Product", "P-202", 500, 240),
+      templateUnit("Distillation", "D-201", 240, 100),
+      templateUnit("Product", "P-201", 500, 0),
+      templateUnit("Product", "P-202", 500, 240),
     ],
     edges: [
       edge("s1", "F-201", "D-201"),
@@ -61,15 +64,16 @@ export function distillationExample(): Project {
 }
 
 export function heatingExample(): Project {
-  const heater = newUnit("Heater", "H-301", 260, 100);
+  const heater = templateUnit("Heater", "H-301", 260, 100);
   heater.params.temperature = 400;
   return {
     version: 1,
     name: "Simple heating",
+    thermo: syntheticThermo(),
     units: [
-      newUnit("Feed", "F-301", 0, 100),
+      templateUnit("Feed", "F-301", 0, 100),
       heater,
-      newUnit("Product", "P-301", 520, 100),
+      templateUnit("Product", "P-301", 520, 100),
     ],
     edges: [edge("s1", "F-301", "H-301"), edge("s2", "H-301", "P-301")],
   };
@@ -77,7 +81,7 @@ export function heatingExample(): Project {
 
 export function solutionExample(): Project {
   const project = distillationExample();
-  project.name = "Benzene / toluene TP separation";
+  project.name = "Benzene–toluene TP separation";
   project.thermo = {
     modelId: "ideal-solution",
     mixture: "aromatics",
@@ -89,18 +93,19 @@ export function solutionExample(): Project {
 }
 
 export function thermalCycleExample(): Project {
-  const heater = newUnit("Heater", "H-401", 200, 100);
+  const heater = templateUnit("Heater", "H-401", 200, 100);
   heater.params.thermalMode = "duty";
   heater.params.heatDuty = 30000;
-  const cooler = newUnit("Cooler", "C-401", 400, 100);
+  const cooler = templateUnit("Cooler", "C-401", 400, 100);
   return {
     version: 1,
     name: "Heating and cooling",
+    thermo: syntheticThermo(),
     units: [
-      newUnit("Feed", "F-401", 0, 100),
+      templateUnit("Feed", "F-401", 0, 100),
       heater,
       cooler,
-      newUnit("Product", "P-401", 600, 100),
+      templateUnit("Product", "P-401", 600, 100),
     ],
     edges: [
       edge("feed", "F-401", "H-401"),
@@ -111,23 +116,24 @@ export function thermalCycleExample(): Project {
 }
 
 export function mixingExample(): Project {
-  const first = newUnit("Feed", "F-501", 0, 0);
-  const second = newUnit("Feed", "F-502", 0, 220);
+  const first = templateUnit("Feed", "F-501", 0, 0);
+  const second = templateUnit("Feed", "F-502", 0, 220);
   second.params.fractionA = 0;
   second.params.flow = 5;
   second.params.temperature = 450;
-  const splitter = newUnit("Splitter", "S-501", 420, 100);
+  const splitter = templateUnit("Splitter", "S-501", 420, 100);
   splitter.params.recycleFraction = 0.25;
   return {
     version: 1,
     name: "Mixing and splitting",
+    thermo: syntheticThermo(),
     units: [
       first,
       second,
-      newUnit("Mixer", "M-501", 210, 100),
+      templateUnit("Mixer", "M-501", 210, 100),
       splitter,
-      newUnit("Product", "P-501", 650, 0),
-      newUnit("Product", "P-502", 650, 220),
+      templateUnit("Product", "P-501", 650, 0),
+      templateUnit("Product", "P-502", 650, 220),
     ],
     edges: [
       edge("feed-a", "F-501", "M-501"),
@@ -140,21 +146,22 @@ export function mixingExample(): Project {
 }
 
 export function catalystExample(): Project {
-  const first = newUnit("Feed", "F-601", 0, 0);
+  const first = templateUnit("Feed", "F-601", 0, 0);
   first.params.temperature = 450;
-  const second = newUnit("Feed", "F-602", 0, 240);
+  const second = templateUnit("Feed", "F-602", 0, 240);
   second.params.fractionA = 0;
   second.params.flow = 5;
   second.params.temperature = 350;
   return {
     version: 1,
     name: "Catalyst-weight reactor",
+    thermo: syntheticThermo(),
     units: [
       first,
       second,
-      newUnit("Mixer", "M-601", 200, 100),
-      newUnit("PBR", "R-601", 420, 100),
-      newUnit("Product", "P-601", 660, 240),
+      templateUnit("Mixer", "M-601", 200, 100),
+      templateUnit("PBR", "R-601", 420, 100),
+      templateUnit("Product", "P-601", 660, 240),
     ],
     edges: [
       edge("feed-a", "F-601", "M-601"),

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./test";
 
 const edgeFor = (page: Page, id: string) =>
   page.locator(`.react-flow__edge[data-id="${id}"]`);
@@ -100,11 +100,13 @@ test("stream names, individual palette choices, themes and auto reset persist", 
   await page.reload();
   await expect(first.locator(".stream-label text")).toHaveText("Fresh feed");
   await expect.poll(() => stroke(first)).toBe("rgb(118, 70, 167)");
-  await page.getByRole("button", { name: "Toggle theme" }).click();
-  await expect.poll(() => stroke(first)).toBe("rgb(195, 161, 244)");
+  await expect(page.getByRole("button", { name: "Toggle theme" })).toHaveCount(
+    0,
+  );
+  await expect.poll(() => stroke(first)).toBe("rgb(118, 70, 167)");
   await expect(first.locator(".stream-label text")).toHaveCSS(
     "fill",
-    "rgb(195, 161, 244)",
+    "rgb(118, 70, 167)",
   );
   await openStream(page, "s1");
   await expect(
@@ -114,11 +116,13 @@ test("stream names, individual palette choices, themes and auto reset persist", 
     page
       .getByRole("button", { name: "Red stream color", exact: true })
       .locator("span"),
-  ).toHaveCSS("background-color", "rgb(255, 133, 130)");
-  await page.screenshot({ path: "test-results/streams-dark-editor.png" });
+  ).toHaveCSS("background-color", "rgb(180, 63, 68)");
+  await page.screenshot({ path: "test-results/streams-editor.png" });
   await page.getByRole("button", { name: "Auto stream color" }).click();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(page.getByRole("button", { name: "Toggle theme" })).toHaveCount(
+    0,
+  );
   await expect.poll(() => stroke(first)).toBe(automatic);
   await page.screenshot({ path: "test-results/streams-light-canvas.png" });
   expect(errors).toEqual([]);

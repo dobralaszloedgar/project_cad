@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { projectSchema } from "@/domain/schema";
+import { MAX_PROJECT_REQUEST_BYTES, projectSchema } from "@/domain/schema";
 import { simulate } from "@/domain/solver";
 export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
       const chunk = await reader.read();
       if (chunk.done) break;
       bytes += chunk.value.length;
-      if (bytes > 100000) {
+      if (bytes > MAX_PROJECT_REQUEST_BYTES) {
         await reader.cancel();
         return NextResponse.json(
-          { error: "Project exceeds 100 kB." },
+          { error: "Simulation request exceeds 4 MB." },
           { status: 413 },
         );
       }

@@ -1,10 +1,17 @@
-import { test, expect, type Page } from "@playwright/test";
+import { loadProject } from "./project-fixture";
+import { test, expect, type Page } from "./test";
 import { readFile } from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
 import type { Workspace } from "../../src/lib/revisions";
 
 async function exported(page: Page): Promise<Workspace> {
-  await page.getByRole("button", { name: "Project menu" }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .click();
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Export project", exact: true })
@@ -41,13 +48,7 @@ test("Arrange turns the long 39-item flowsheet into a saved layout that fits the
   original.units.forEach((unit, i) => {
     unit.position = { x: i * 185, y: 150 };
   });
-  await page
-    .getByLabel("Import project file")
-    .setInputFiles({
-      name: "long-process.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(original)),
-    });
+  await loadProject(page, original);
   await expect(page.locator(".save-status")).toContainText(
     "Saved on this device",
   );

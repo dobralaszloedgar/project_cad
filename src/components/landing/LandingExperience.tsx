@@ -10,9 +10,24 @@ import {
   useState,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Lightformer } from "@react-three/drei";
-import { CatmullRomCurve3, MathUtils, PerspectiveCamera, Vector3 } from "three";
+import { Lightformer } from "@react-three/drei";
+import {
+  CatmullRomCurve3,
+  Fog,
+  MathUtils,
+  PerspectiveCamera,
+  Vector3,
+} from "three";
 import type { MotionValue } from "motion/react";
+import { RendererRuntime } from "../graphics/RendererRuntime";
+import { AccelerationHelp } from "../graphics/AccelerationHelp";
+import { StudioEnvironment } from "../graphics/StudioEnvironment";
+import {
+  createSceneRenderer,
+  sceneRenderer,
+  waitForSceneFrame,
+  type GraphicsInfo,
+} from "../graphics/renderer";
 import { equipmentEnvelope } from "@/components/equipment-3d/plant-routing";
 import type { SystemExample } from "@/components/equipment-3d/system-geometry";
 import SceneBoundary from "./SceneBoundary";
@@ -31,6 +46,7 @@ import styles from "./LandingPage.module.css";
 export type ExperienceProps = {
   onReady: () => void;
   onUnavailable: () => void;
+  onGraphicsInfo: (info: GraphicsInfo) => void;
   progress: MotionValue<number>;
   cadBridge: CadBridge;
   construction: MotionValue<number>;
@@ -71,7 +87,7 @@ function CameraRig({
   reduced,
   system,
 }: ExperienceProps & { system: SystemExample }) {
-  const { camera, size, invalidate, gl } = useThree();
+  const { camera, size, invalidate, gl, get } = useThree();
   const vectors = useMemo(
     () => ({
       target: new Vector3(),
@@ -185,6 +201,14 @@ function CameraRig({
       target.copy(vectors.tourTarget);
     }
     camera.lookAt(target);
+    // Portrait screens need a more distant camera to fit the same plant. Keep
+    // atmospheric fog beyond that framing distance instead of hiding the model.
+    const fog = get().scene.fog;
+    if (fog instanceof Fog) {
+      const framingDistance = camera.position.distanceTo(target);
+      fog.near = Math.max(32, framingDistance * 0.8);
+      fog.far = Math.max(100, framingDistance * 1.8);
+    }
     // DOM projection reads this in the same frame, before WebGL renders.
     camera.updateMatrixWorld();
     camera.clearViewOffset();
@@ -247,7 +271,7 @@ function Experience(props: ExperienceProps) {
         intensity={1.45}
         color="#ffd09a"
       />
-      <Environment resolution={64} frames={1} environmentIntensity={0.5}>
+      <StudioEnvironment resolution={64} intensity={0.5}>
         <Lightformer
           position={[-6, 8, 5]}
           scale={[8, 15, 1]}
@@ -269,7 +293,7 @@ function Experience(props: ExperienceProps) {
           color="#e6f7ff"
           target={[0, 2, 0]}
         />
-      </Environment>
+      </StudioEnvironment>
       <MorphingProcess
         system={system}
         progress={props.progress}
@@ -298,7 +322,7 @@ function ShaderWarmup({
   const { gl, scene, camera, invalidate } = useThree();
   const warmup = useRef({ compiled: false, frames: 0, reported: false });
   const readyFrame = useRef<number | null>(null);
-  const fence = useRef<WebGLSync | null>(null);
+  const completion = useRef<AbortController | null>(null);
   useFrame(() => {
     const state = warmup.current;
     if (!state.compiled || state.reported) return;
@@ -311,34 +335,17 @@ function ShaderWarmup({
     }
     state.reported = true;
     readyFrame.current = requestAnimationFrame(() => {
-      // This Three.js renderer requires WebGL 2; its type still includes WebGL 1.
-      const gpu = gl.getContext() as WebGL2RenderingContext;
-      const sync = gpu.fenceSync(gpu.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      if (!sync) {
-        onUnavailable();
-        return;
-      }
-      fence.current = sync;
-      gpu.flush();
-      const check = () => {
-        // A zero timeout polls the GPU without blocking the page. Submitted
-        // draw calls aren't necessarily complete, especially on a cold GPU.
-        const result = gpu.clientWaitSync(sync, 0, 0);
-        if (result === gpu.TIMEOUT_EXPIRED) {
-          readyFrame.current = requestAnimationFrame(check);
-          return;
-        }
-        gpu.deleteSync(sync);
-        fence.current = null;
-        readyFrame.current = null;
-        if (result === gpu.WAIT_FAILED) {
-          onUnavailable();
-          return;
-        }
-        gl.domElement.setAttribute("data-ready", "true");
-        onReady();
-      };
-      readyFrame.current = requestAnimationFrame(check);
+      const controller = new AbortController();
+      completion.current = controller;
+      void waitForSceneFrame(sceneRenderer(gl), controller.signal)
+        .then(() => {
+          if (controller.signal.aborted) return;
+          gl.domElement.setAttribute("data-ready", "true");
+          onReady();
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) onUnavailable();
+        });
     });
   });
   useEffect(() => {
@@ -361,9 +368,7 @@ function ShaderWarmup({
       active = false;
       cancelAnimationFrame(frame);
       if (readyFrame.current !== null) cancelAnimationFrame(readyFrame.current);
-      if (fence.current)
-        (gl.getContext() as WebGL2RenderingContext).deleteSync(fence.current);
-      fence.current = null;
+      completion.current?.abort();
     };
   }, [gl, scene, camera, invalidate, transparent, onReady, onUnavailable]);
   return null;
@@ -374,6 +379,7 @@ function Fallback({ onUnavailable }: { onUnavailable?: () => void }) {
   return (
     <div className={styles.plantFallback}>
       <span>Explore the equipment collection</span>
+      <AccelerationHelp />
       <a href="/sandbox/equipment">Open the 3D sandbox ↗</a>
     </div>
   );
@@ -384,6 +390,7 @@ function Fallback({ onUnavailable }: { onUnavailable?: () => void }) {
 // tree during that handoff; start its animation after the entrance settles.
 export default memo(function LandingExperience(props: ExperienceProps) {
   const [lost, setLost] = useState(false);
+  const [visible, setVisible] = useState(true);
   const handleUnavailable = useCallback(() => setLost(true), []);
   const fallback = <Fallback onUnavailable={props.onUnavailable} />;
   return (
@@ -393,33 +400,31 @@ export default memo(function LandingExperience(props: ExperienceProps) {
       ) : (
         <Canvas
           aria-label="Live equipment, a flowsheet and a continuously unfolding 3D process plant"
-          dpr={[1, 2]}
-          frameloop={props.playing ? "always" : "demand"}
+          dpr={[1, 1.75]}
+          frameloop={props.playing && visible ? "always" : "demand"}
           camera={{ position: [0, 8, 24], fov: 38, near: 0.1, far: 220 }}
-          gl={{
-            alpha: true,
-            antialias: true,
-            powerPreference: "high-performance",
-          }}
+          gl={createLandingRenderer}
           // Canvas fallback children are mounted even when WebGL is supported.
           // Only the error boundary/context-loss view reports unavailability.
           fallback={<Fallback />}
-          onCreated={({ gl }) => {
-            gl.domElement.addEventListener(
-              "webglcontextlost",
-              (event) => {
-                event.preventDefault();
-                setLost(true);
-              },
-              { once: true },
-            );
-          }}
         >
+          <RendererRuntime
+            onLost={handleUnavailable}
+            onVisible={setVisible}
+            onInfo={props.onGraphicsInfo}
+          />
           <Suspense fallback={null}>
-            <Experience {...props} onUnavailable={handleUnavailable} />
+            <Experience
+              {...props}
+              playing={props.playing && visible}
+              onUnavailable={handleUnavailable}
+            />
           </Suspense>
         </Canvas>
       )}
     </SceneBoundary>
   );
 });
+
+const createLandingRenderer = ({ canvas }: { canvas: EventTarget }) =>
+  createSceneRenderer({ canvas: canvas as HTMLCanvasElement, alpha: true });

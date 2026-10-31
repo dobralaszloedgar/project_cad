@@ -80,14 +80,24 @@ export async function installFolderPicker(page: Page, unsupported = false) {
                   userActivation: navigator.userActivation.isActive,
                 }),
               );
+              localStorage.setItem(
+                "folder-qa-picker-count",
+                String(
+                  Number(localStorage.getItem("folder-qa-picker-count") ?? 0) +
+                    1,
+                ),
+              );
               if (localStorage.getItem("folder-qa-cancel") === "yes") {
                 localStorage.removeItem("folder-qa-cancel");
                 throw new DOMException("Cancelled test picker", "AbortError");
               }
               const root = await navigator.storage.getDirectory();
-              const parent = await root.getDirectoryHandle("Laptop projects", {
-                create: true,
-              });
+              const parent = await root.getDirectoryHandle(
+                localStorage.getItem("folder-qa-parent") ?? "Laptop projects",
+                {
+                  create: true,
+                },
+              );
               const open = localStorage.getItem("folder-qa-open");
               return open ? parent.getDirectoryHandle(open) : parent;
             },

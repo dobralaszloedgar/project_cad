@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { thermoSchema } from "./thermo/registry";
 import { nameStreams } from "./stream-names";
+import { compositionSchema, packedBedSchema } from "./reactions/schema";
+export const MAX_PROJECT_REQUEST_BYTES = 4 * 1024 * 1024;
 export const kinds = [
   "Feed",
   "Product",
@@ -26,6 +28,8 @@ export const paramsSchema = z
     pressure: z.number().min(10000).max(2000000).default(101325),
     flow: z.number().min(0.001).max(1000).default(10),
     fractionA: z.number().min(0).max(1).default(1),
+    composition: compositionSchema.optional(),
+    packedBed: packedBedSchema.optional(),
     residenceTime: z.number().min(0).max(1000).default(10),
     reactorMode: z
       .enum(["residence-time", "catalyst-weight"])
@@ -123,7 +127,11 @@ export function validateGraph(project: Project, complete = false): string[] {
       errors.push(`Stream ${e.id} has incompatible material ports.`);
     for (const [key, acceptsMultiple] of [
       [`${e.source}:source:${e.sourcePort}`, false],
-      [`${e.target}:target:${e.targetPort}`, target.kind === "Mixer"],
+      [
+        `${e.target}:target:${e.targetPort}`,
+        target.kind === "Mixer" ||
+          (target.kind === "PBR" && !!target.params.packedBed),
+      ],
     ] as const) {
       if (used.has(key) && !acceptsMultiple)
         errors.push("Each port accepts one stream; use a mixer or splitter.");

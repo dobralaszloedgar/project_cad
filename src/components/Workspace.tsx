@@ -1,30 +1,26 @@
 "use client";
+import { defaultPackedBed } from "@/domain/reactions/schema";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   Workflow,
-  Upload,
   Download,
   Play,
   Box,
   PanelTop,
   Columns2,
-  Moon,
-  Sun,
   Info,
   Trash2,
   X,
   Home,
   Compass,
-  History,
   ChevronRight,
-  GitBranch,
   Thermometer,
   FlaskConical,
-  MoreHorizontal,
   Pencil,
   Maximize,
+  Minimize,
   MessageCircle,
   Settings2,
   FolderOpen,
@@ -33,12 +29,10 @@ import {
   CircleHelp,
   AlignHorizontalJustifyStart,
   Rainbow,
-  Palette,
   HardDrive,
   AlertCircle,
-  FolderPlus,
 } from "lucide-react";
-import { useFloatingDrag } from "./useFloatingDrag";
+import { useCanvasFullscreen } from "./useCanvasFullscreen";
 import Dialog from "./Dialog";
 import BrandMark from "./BrandMark";
 import EquipmentLibrary from "./EquipmentLibrary";
@@ -56,18 +50,16 @@ import {
   projectSchema,
   validateGraph,
 } from "@/domain/schema";
+import { reactorExample } from "@/domain/examples";
+import { loadTemplate } from "@/domain/templates";
+import ThermodynamicSelector from "./ThermoSettings";
+import ProjectComponents from "./ProjectComponents";
 import {
-  reactorExample,
-  distillationExample,
-  heatingExample,
-  solutionExample,
-  thermalCycleExample,
-  mixingExample,
-  catalystExample,
-} from "@/domain/examples";
-import ThermoSettingsPanel from "./ThermoSettings";
-import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { mixtureName } from "@/domain/thermo/catalog";
+  defaultThermo,
+  modelInfo,
+  type ThermoSettings,
+} from "@/domain/thermo/registry";
+import { mixtureName, thermoContext } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions } from "@/domain/actions";
 import type { Proposal } from "@/assistant/protocol";
@@ -82,19 +74,19 @@ import {
   saveWorkspace,
   saveWorkspaceRecovery,
   loadActiveWorkspace,
-  parseImport,
-  chooseProjectDirectory,
   createFolderProject,
-  openFolderProject,
+  saveProjectToFolder,
   activateSavedProject,
   loadSavedProject,
   getProjectFolderInfo,
   requestProjectFolderAccess,
   FolderStorageError,
-  MAX_PROJECT_FILE_BYTES,
   openExampleWorkspace,
   listProjects,
   updateSavedProject,
+  trashSavedProject,
+  restoreSavedProject,
+  deleteSavedProject,
   type SavedProject,
   type SaveLocation,
   type ProjectDirectoryHandle,
@@ -103,9 +95,10 @@ import {
 import ProcessCanvas from "./ProcessCanvas";
 import Inspector from "./Inspector";
 import Results from "./Results";
-import AssistantPanel from "./AssistantPanel";
+import FloatingAssistant from "./assistant/FloatingAssistant";
 import KeyboardHelp from "./KeyboardHelp";
-import ThemePicker from "./ThemePicker";
+import ProjectStorageSettings from "./ProjectStorageSettings";
+import ProjectFolderSetup from "./ProjectFolderSetup";
 import { useTheme } from "./useTheme";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
 import {
@@ -118,8 +111,7 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
-type WorkspacePanel =
-  "Equipment" | "Results" | "Themes" | "Storage settings" | "Settings";
+type WorkspacePanel = "Equipment" | "Results" | "Storage settings" | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
     ? `Saved to ${location.folderName}/project.json`
@@ -147,10 +139,14 @@ export default function Workspace({
   const router = useRouter();
   const [state, setState] = useState<WorkspaceState>(() => ({
     version: 1,
-    project: (exampleId && plantTemplate(exampleId)) || reactorExample(),
+    project:
+      (exampleId && (loadTemplate(exampleId) ?? plantTemplate(exampleId))) ||
+      reactorExample(),
     revisions: [],
   }));
   const [ready, setReady] = useState(false);
+  const [folderSetupDone, setFolderSetupDone] = useState(false);
+  const finishFolderSetup = useCallback(() => setFolderSetupDone(true), []);
   const [storage, setStorage] = useState("Loading local project");
   const [selection, setSelection] = useState<string[]>([]);
   const selected = selection.at(-1) ?? null;
@@ -175,11 +171,13 @@ export default function Workspace({
   const theme = palette.mode;
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
+  const [thermoDialog, setThermoDialog] = useState<
+    "model" | "components" | null
+  >(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantStarted, setAssistantStarted] = useState(false);
   const assistantApplyLock = useRef(false);
   useEffect(() => {
     if (!assistantOpen) return;
@@ -190,7 +188,11 @@ export default function Workspace({
     mobile.addEventListener("change", onResize);
     return () => mobile.removeEventListener("change", onResize);
   }, [assistantOpen]);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const handleAssistantOpenChange = useCallback((open: boolean) => {
+    setAssistantOpen(open);
+    if (open && window.matchMedia("(max-width: 760px)").matches)
+      setDrawer(null);
+  }, []);
   const [compositionColors, setCompositionColors] = useState(true);
   const [projectId, setProjectId] = useState("main");
   const [showProjects, setShowProjects] = useState(false);
@@ -208,21 +210,12 @@ export default function Workspace({
     revisions?: Revision[];
   } | null>(null);
   const [reloadConfirm, setReloadConfirm] = useState(false);
+  const [saveFolderDraft, setSaveFolderDraft] = useState<SavedProject | null>(
+    null,
+  );
   const canvasRef = useRef<HTMLElement>(null);
-  const bubbleRef = useRef<HTMLButtonElement>(null);
-  const assistantRef = useRef<HTMLDivElement>(null);
-  const bubbleDrag = useFloatingDrag(
-    canvasRef,
-    bubbleRef,
-    !showProjects && !assistantOpen,
-    true,
-  );
-  const assistantDrag = useFloatingDrag(
-    canvasRef,
-    assistantRef,
-    !showProjects && assistantOpen,
-  );
-  const fileRef = useRef<HTMLInputElement>(null);
+  const { isFullscreen, isViewportFullscreen, toggleFullscreen } =
+    useCanvasFullscreen(canvasRef, setMessage);
   const saveQueue = useRef(Promise.resolve());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveVersion = useRef(0);
@@ -230,6 +223,9 @@ export default function Workspace({
     () => projectSchema.parse(state.project),
     [state.project],
   );
+  useEffect(() => {
+    document.title = `Project CAD – ${!ready || showProjects ? "Home" : project.name}`;
+  }, [ready, showProjects, project.name]);
   const pullTabRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuPinned = useRef(false);
@@ -241,6 +237,23 @@ export default function Workspace({
     closeWorkspaceMenu();
     if (panel === "Results") setTab("Results");
     setDrawer(panel);
+    if (window.matchMedia("(max-width: 760px)").matches)
+      setAssistantOpen(false);
+  }
+  function openThermodynamics(section: "model" | "components") {
+    closeWorkspaceMenu();
+    setDrawer(null);
+    setThermoDialog(section);
+  }
+  function applyThermodynamics(settings: ThermoSettings) {
+    change(
+      applyActions(project, {
+        summary: "Change thermodynamics and components",
+        actions: [{ type: "set_thermo_model", ...settings }],
+      }),
+      `Model: ${modelInfo(settings.modelId).name}`,
+    );
+    setThermoDialog(null);
   }
   function closeDrawer() {
     setDrawer(null);
@@ -320,7 +333,9 @@ export default function Workspace({
   );
   useEffect(() => {
     let active = true;
-    const example = exampleId ? plantTemplate(exampleId) : undefined;
+    const example = exampleId
+      ? (loadTemplate(exampleId) ?? plantTemplate(exampleId))
+      : undefined;
     const opening =
       example && exampleId
         ? openExampleWorkspace(exampleId, {
@@ -333,11 +348,13 @@ export default function Workspace({
       .then(async ({ workspace: saved, projectId: id }) => {
         const info = await getProjectFolderInfo(id);
         if (!active) return;
-        const initialProject = example ?? reactorExample();
+        const initialProject = id
+          ? (example ?? reactorExample())
+          : blankProject();
         let workspace = saved ?? {
           version: 1 as const,
           project: initialProject,
-          revisions: [checkpoint(initialProject, "Initial example")],
+          revisions: id ? [checkpoint(initialProject, "Initial example")] : [],
         };
         if (
           initialArrange &&
@@ -363,6 +380,11 @@ export default function Workspace({
           window.history.replaceState(window.history.state, "", url);
         }
         setProjectId(id);
+        if (!id) {
+          setSavedProjects(await listProjects());
+          if (!active) return;
+          setShowProjects(true);
+        }
         setDrawer(null);
         setState(workspace);
         if (initialArrange || !window.matchMedia("(max-width: 760px)").matches)
@@ -377,7 +399,7 @@ export default function Workspace({
         )
           lastSaved.current = { id, workspace };
         reportFolder(info);
-        if (!saved) setStorage("Saving…");
+        if (workspace !== saved && id) setStorage("Saving…");
         setPersistenceReady(true);
         setReady(true);
       })
@@ -392,7 +414,7 @@ export default function Workspace({
     };
   }, [exampleId, initialArrange, reportFolder, reportSaveError]);
   useEffect(() => {
-    if (!ready || !persistenceReady || projectBusy) return;
+    if (!ready || !persistenceReady || projectBusy || !projectId) return;
     if (
       lastSaved.current?.id === projectId &&
       lastSaved.current.workspace === state
@@ -427,6 +449,7 @@ export default function Workspace({
     function beforeUnload(event: BeforeUnloadEvent) {
       if (
         ready &&
+        projectId &&
         (saveIssue ||
           lastSaved.current?.id !== projectId ||
           lastSaved.current?.workspace !== state)
@@ -492,6 +515,17 @@ export default function Workspace({
       position?.x ?? 200 + (project.units.length % 4) * 180,
       position?.y ?? 350 + Math.floor(project.units.length / 4) * 100,
     );
+    if (kind === "PBR") {
+      const settings = project.thermo ?? defaultThermo;
+      const ids =
+        settings.mixture === "catalog" && !settings.catalog
+          ? []
+          : thermoContext(settings).ids;
+      unit.params.packedBed = defaultPackedBed(
+        ids,
+        settings.mixture === "demo",
+      );
+    }
     change({ ...project, units: [...project.units, unit] }, `Add ${kind}`);
     setSelected(id);
   }
@@ -513,23 +547,11 @@ export default function Workspace({
     }
   }
   function loadExample(name: string) {
-    const factories: Record<string, () => Project> = {
-      solution: solutionExample,
-      heating: heatingExample,
-      reactor: reactorExample,
-      distillation: distillationExample,
-      "thermal-cycle": thermalCycleExample,
-      mixing: mixingExample,
-      catalyst: catalystExample,
-    };
-    const next = Object.hasOwn(factories, name)
-      ? factories[name]()
-      : (plantTemplate(name) ?? {
-          version: 1 as const,
-          name: "Untitled process",
-          units: [],
-          edges: [],
-        });
+    const next = name === "empty" ? blankProject() : loadTemplate(name);
+    if (!next) {
+      setMessage("This template is unavailable.");
+      return;
+    }
     if (showProjects) {
       setTemplatesOpen(false);
       setCreateDraft({ seed: next });
@@ -544,46 +566,6 @@ export default function Workspace({
     setTemplatesOpen(false);
     setPropertiesOpen(false);
     setDrawer(null);
-  }
-  async function importFile(file: File) {
-    if (!ready || projectBusy) return;
-    setProjectBusy(true);
-    try {
-      if (file.size > MAX_PROJECT_FILE_BYTES)
-        throw new Error("Project file exceeds 32 MB.");
-      const imported = parseImport(await file.text());
-      if (state.revisions.length + imported.revisions.length > 240)
-        throw new Error(
-          "Combined revision history is too large. Import a project-only JSON file.",
-        );
-      setStorage("Saving…");
-      editHistory.current = {
-        past: [...editHistory.current.past, project],
-        future: [],
-      };
-      setState((s) => ({
-        version: 1,
-        project: imported.project,
-        revisions: [
-          ...s.revisions,
-          checkpoint(s.project, "Before import"),
-          ...imported.revisions.map((r) => ({ ...r, id: crypto.randomUUID() })),
-          checkpoint(imported.project, "Imported project"),
-        ],
-      }));
-      setResult(null);
-      setSelected(null);
-      setCompareId("");
-      setMessage("Project imported; previous work remains in Revisions.");
-    } catch (e) {
-      setMessage(
-        e instanceof Error && e.name !== "ZodError"
-          ? e.message
-          : "Invalid project file. Expected a version 1 Project CAD document with valid equipment and streams.",
-      );
-    } finally {
-      setProjectBusy(false);
-    }
   }
   function exportFile() {
     const blob = new Blob([JSON.stringify(state, null, 2)], {
@@ -727,6 +709,7 @@ export default function Workspace({
     }
   }
   async function flushCurrentProject() {
+    if (!projectId) return;
     if (!persistenceReady)
       throw new Error(
         "Could not load local storage. Reload the app before saving a project.",
@@ -791,7 +774,6 @@ export default function Workspace({
       await preserveCurrentProject();
       setSavedProjects(await listProjects());
       setShowProjects(true);
-      setMenuOpen(false);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -811,7 +793,6 @@ export default function Workspace({
     setAssistantOpen(false);
     setView("2D");
     setPlaybackOnOpen(false);
-    setMenuOpen(false);
     const url = new URL(window.location.href);
     for (const key of ["example", "view", "play"]) url.searchParams.delete(key);
     window.history.replaceState(window.history.state, "", url);
@@ -887,25 +868,32 @@ export default function Workspace({
       setProjectBusy(false);
     }
   }
-  async function openProjectFolder() {
-    if (!ready || projectBusy) return;
+  async function changeProjectFolder(
+    name: string,
+    parent: ProjectDirectoryHandle,
+  ) {
+    if (projectBusy || !saveFolderDraft)
+      throw new Error(
+        "Another project action is in progress. Please try again.",
+      );
     setProjectBusy(true);
-    setProjectMessage("");
-    setMenuOpen(false);
     try {
-      // Native pickers need the activation from this click.
-      const directory = await chooseProjectDirectory();
-      if (!directory) return;
-      const savedToFile = await preserveCurrentProject();
-      await activateProject(await openFolderProject(directory));
-      if (!savedToFile)
-        setMessage(
-          `Changes to ${project.name} are kept in this browser. Open it from Projects to finish saving its file.`,
-        );
-    } catch (error) {
-      const description = errorMessage(error);
-      setProjectMessage(description);
-      setMessage(description);
+      if (saveFolderDraft.folderName)
+        await requestProjectFolderAccess(saveFolderDraft.id);
+      await preserveCurrentProject();
+      const saved = await saveProjectToFolder(saveFolderDraft.id, parent, name);
+      if (saveFolderDraft.id === projectId) {
+        ++saveVersion.current;
+        setProjectId(saved.id);
+        setState(saved.workspace);
+        lastSaved.current = { id: saved.id, workspace: saved.workspace };
+        reportSaved({ location: "folder", folderName: saved.folderName });
+      }
+      setSavedProjects(await listProjects());
+      setProjectMessage(
+        `Saved to ${saved.folderName}/project.json. Future changes save here automatically.`,
+      );
+      setSaveFolderDraft(null);
     } finally {
       setProjectBusy(false);
     }
@@ -1056,13 +1044,55 @@ export default function Workspace({
       setProjectBusy(false);
     }
   }
-  function toggleFullscreen() {
-    const action = document.fullscreenElement
-      ? document.exitFullscreen()
-      : canvasRef.current?.requestFullscreen();
-    void action?.catch(() =>
-      setMessage("Full screen is unavailable in this browser."),
-    );
+  async function manageProjectTrash(
+    entry: SavedProject,
+    action: "trash" | "restore" | "delete",
+  ): Promise<boolean> {
+    if (projectBusy) return false;
+    setProjectBusy(true);
+    setProjectMessage("");
+    try {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      ++saveVersion.current;
+      await saveQueue.current.catch(() => {});
+      if (action === "trash") {
+        if (entry.id === projectId) await preserveCurrentProject();
+        const active = await trashSavedProject(entry.id);
+        if (entry.id === projectId) {
+          const workspace: WorkspaceState = active?.workspace ?? {
+            version: 1,
+            project: blankProject(),
+            revisions: [],
+          };
+          const id = active?.id ?? "";
+          lastSaved.current = { id, workspace };
+          setProjectId(id);
+          setState(workspace);
+          resetEditor();
+          reportFolder(
+            id ? await getProjectFolderInfo(id).catch(() => null) : null,
+          );
+        }
+      } else if (action === "restore") {
+        await restoreSavedProject(entry.id);
+      } else {
+        await deleteSavedProject(entry.id);
+      }
+      setSavedProjects(await listProjects());
+      setProjectMessage(
+        action === "trash"
+          ? `“${entry.workspace.project.name}” moved to Trash.`
+          : action === "restore"
+            ? `“${entry.workspace.project.name}” restored to Home.`
+            : `“${entry.workspace.project.name}” permanently deleted${entry.folderName ? " from disk" : ""}.`,
+      );
+      return true;
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+      return false;
+    } finally {
+      setProjectBusy(false);
+    }
   }
   function undoEdit(redo = false) {
     const history = editHistory.current;
@@ -1104,10 +1134,10 @@ export default function Workspace({
         event.isComposing
       )
         return;
+      if (thermoDialog === "model") return;
       if (isCloseKey(event) && !document.querySelector("dialog[open]")) {
         event.preventDefault();
-        if (menuOpen) setMenuOpen(false);
-        else if (assistantOpen) setAssistantOpen(false);
+        if (assistantOpen) setAssistantOpen(false);
         else setSelection([]);
         canvasRef.current?.focus();
         return;
@@ -1190,6 +1220,24 @@ export default function Workspace({
   ) : null;
   const projectDialogs = (
     <>
+      {ready && !folderSetupDone ? (
+        <ProjectFolderSetup
+          onComplete={finishFolderSetup}
+          onConnected={() => {
+            if (folderName) void retrySave();
+          }}
+        />
+      ) : null}
+      {saveFolderDraft ? (
+        <CreateProjectDialog
+          seed={saveFolderDraft.workspace.project}
+          saveLocation
+          onCreate={changeProjectFolder}
+          onClose={() => {
+            if (!projectBusy) setSaveFolderDraft(null);
+          }}
+        />
+      ) : null}
       {createDraft ? (
         <CreateProjectDialog
           seed={createDraft.seed}
@@ -1244,15 +1292,18 @@ export default function Workspace({
           currentId={projectId}
           onOpen={(entry) => void openProject(entry)}
           onNew={() => setCreateDraft({ seed: blankProject() })}
-          onOpenFolder={() => void openProjectFolder()}
           onTemplates={() => setTemplatesOpen(true)}
           onRename={(entry, name) => void editSavedProject(entry, name)}
           onDuplicate={(entry) => void editSavedProject(entry, undefined, true)}
           onStar={(entry) => void editSavedProject(entry)}
+          onTrash={(entry) => void manageProjectTrash(entry, "trash")}
+          onRestore={(entry) => void manageProjectTrash(entry, "restore")}
+          onDelete={(entry) => manageProjectTrash(entry, "delete")}
           onBack={() => setShowProjects(false)}
           onLanding={() => void openLanding()}
-          theme={theme}
-          onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
+          palette={palette.id}
+          onPalette={setTheme}
+          onSaveFolder={setSaveFolderDraft}
           busy={projectBusy}
           message={projectMessage}
         />
@@ -1267,8 +1318,11 @@ export default function Workspace({
     );
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
-    <main className="workspace" data-theme={theme} data-palette={palette.id}>
-      <header className="app-header" inert={!ready || projectBusy}>
+    <main className="workspace" data-theme="light" data-palette="light">
+      <header
+        className="app-header"
+        inert={!ready || projectBusy || isViewportFullscreen}
+      >
         <button
           className="brand"
           onClick={() => void openProjects()}
@@ -1289,113 +1343,41 @@ export default function Workspace({
           </button>
           <button
             className="icon-button"
-            aria-label="Open revision history"
-            title="Revision history"
-            onClick={() => openResults("Revisions")}
-          >
-            <History size={18} />
-          </button>
-        </div>
-        <div className="project-heading">
-          <h1>{project.name}</h1>
-          <ChevronRight size={15} />
-          <span className="revision-badge">
-            <GitBranch size={13} />v{Math.max(1, state.revisions.length)}
-          </span>
-        </div>
-        <div className="header-actions">
-          <button
-            className="btn landing-page-button"
             aria-label="Landing page"
             title="Landing page"
             onClick={() => void openLanding()}
           >
-            <Compass size={16} />
-            <span>Landing page</span>
+            <Compass size={18} />
           </button>
+        </div>
+        <div className="project-heading">
+          <h1>{project.name}</h1>
+        </div>
+        <div className="header-actions">
+          <ThermodynamicSelector
+            key={`${projectId}:${state.revisions.length}`}
+            settings={project.thermo ?? defaultThermo}
+            open={thermoDialog === "model"}
+            onOpenChange={(open) =>
+              open ? openThermodynamics("model") : setThermoDialog(null)
+            }
+            onApply={applyThermodynamics}
+            onError={setMessage}
+          />
           <button
-            className="model-button"
-            onClick={() => openPanel("Settings")}
-          >
-            <Thermometer size={16} />
-            <span>
-              {modelInfo((project.thermo ?? defaultThermo).modelId).name}
-            </span>
-          </button>
-          <span
             className="species-count"
-            title={mixtureName(project.thermo ?? defaultThermo)}
+            aria-label="Project components"
+            aria-haspopup="dialog"
+            title={`Components: ${mixtureName(project.thermo ?? defaultThermo)}`}
+            onClick={() => openThermodynamics("components")}
           >
             <FlaskConical size={16} />
-            <span>2</span>
-          </span>
-          <button
-            className="icon-button theme-button"
-            aria-label="Toggle theme"
-            title="Toggle theme"
-            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-          >
-            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+            <span>
+              {project.thermo?.mixture === "catalog"
+                ? (project.thermo.catalog?.chemicals.length ?? 0)
+                : 2}
+            </span>
           </button>
-          <div className="project-menu-wrap">
-            <button
-              className="icon-button"
-              aria-label="Project menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              <MoreHorizontal size={19} />
-            </button>
-            {menuOpen ? (
-              <div className="project-menu">
-                <button
-                  disabled={!ready || projectBusy}
-                  onClick={() => {
-                    setCreateDraft({ seed: blankProject() });
-                    setMenuOpen(false);
-                  }}
-                >
-                  <FolderPlus size={15} />
-                  Create project
-                </button>
-                <button
-                  disabled={!ready || projectBusy}
-                  onClick={() => void openProjectFolder()}
-                >
-                  <FolderOpen size={15} />
-                  Open project folder
-                </button>
-                <button
-                  onClick={() => {
-                    setTemplatesOpen(true);
-                    setMenuOpen(false);
-                  }}
-                >
-                  <FolderOpen size={15} />
-                  Templates
-                </button>
-                <button
-                  onClick={() => {
-                    fileRef.current?.click();
-                    setMenuOpen(false);
-                  }}
-                  disabled={!ready}
-                >
-                  <Upload size={15} />
-                  Import project
-                </button>
-                <button
-                  onClick={() => {
-                    exportFile();
-                    setMenuOpen(false);
-                  }}
-                >
-                  <Download size={15} />
-                  Export project
-                </button>
-              </div>
-            ) : null}
-          </div>
           <button
             className="btn btn-primary simulate-button"
             aria-label="Run simulation"
@@ -1406,23 +1388,11 @@ export default function Workspace({
             Simulate
           </button>
         </div>
-        <input
-          ref={fileRef}
-          hidden
-          type="file"
-          accept=".json,application/json"
-          aria-label="Import project file"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void importFile(f);
-            e.target.value = "";
-          }}
-        />
       </header>
       {saveNotice}
       <div className="editor-body" inert={!ready || projectBusy}>
         <section
-          className="canvas-panel"
+          className={`canvas-panel${isViewportFullscreen ? " canvas-panel-fullscreen" : ""}`}
           ref={canvasRef}
           tabIndex={-1}
           aria-label="Process canvas"
@@ -1472,7 +1442,9 @@ export default function Workspace({
                 {[
                   { name: "Equipment", icon: EquipmentPanelIcon },
                   { name: "Results", icon: ChartNoAxesColumnIncreasing },
-                  { name: "Themes", icon: Palette },
+                  { name: "Components", icon: FlaskConical },
+                  { name: "Thermodynamics", icon: Thermometer },
+                  { name: "Templates", icon: FolderOpen },
                   { name: "Toggle chat", icon: MessageCircle },
                   { name: "Storage settings", icon: HardDrive },
                   { name: "Settings", icon: Settings2 },
@@ -1483,8 +1455,18 @@ export default function Workspace({
                       pullTabRef.current?.focus();
                       if (name === "Toggle chat") {
                         closeWorkspaceMenu();
-                        setAssistantOpen(!assistantOpen);
-                        setAssistantStarted(true);
+                        handleAssistantOpenChange(!assistantOpen);
+                      } else if (name === "Templates") {
+                        closeWorkspaceMenu();
+                        setDrawer(null);
+                        setTemplatesOpen(true);
+                      } else if (
+                        name === "Components" ||
+                        name === "Thermodynamics"
+                      ) {
+                        openThermodynamics(
+                          name === "Components" ? "components" : "model",
+                        );
                       } else openPanel(name as WorkspacePanel);
                     }}
                   >
@@ -1533,33 +1515,28 @@ export default function Workspace({
                     />
                   ) : (
                     <>
-                      {drawer === "Themes" || drawer === "Settings" ? (
-                        <div className="preference-section">
-                          <h3>Appearance</h3>
-                          <ThemePicker value={palette.id} onChange={setTheme} />
-                        </div>
-                      ) : null}
                       {drawer === "Settings" ? (
                         <div className="preference-section">
-                          <ThermoSettingsPanel
-                            project={project}
-                            onApply={(settings) => {
-                              change(
-                                applyActions(project, {
-                                  summary: "Change thermodynamic model",
-                                  actions: [
-                                    { type: "set_thermo_model", ...settings },
-                                  ],
-                                }),
-                                `Model: ${modelInfo(settings.modelId).name}`,
-                              );
+                          <h3>Assistant</h3>
+                          <p>
+                            Open the assistant or bring back a hidden chat
+                            bubble.
+                          </p>
+                          <button
+                            className="btn"
+                            onClick={() => {
+                              setDrawer(null);
+                              handleAssistantOpenChange(true);
                             }}
-                          />
+                          >
+                            <MessageCircle size={15} /> Show assistant
+                          </button>
                         </div>
                       ) : null}
                       {drawer === "Storage settings" ||
                       drawer === "Settings" ? (
                         <div className="preference-section">
+                          <ProjectStorageSettings />
                           <h3>Local project</h3>
                           <p>
                             {folderName
@@ -1673,11 +1650,22 @@ export default function Workspace({
                 </button>
                 <button
                   className="toolbar-icon"
-                  aria-label="Maximize canvas"
-                  title="Maximize canvas"
+                  aria-label={
+                    isFullscreen ? "Exit full screen" : "Maximize canvas"
+                  }
+                  aria-pressed={isFullscreen}
+                  title={
+                    isFullscreen
+                      ? "Exit full screen (Esc)"
+                      : "Full screen (F11)"
+                  }
                   onClick={toggleFullscreen}
                 >
-                  <Maximize size={16} />
+                  {isFullscreen ? (
+                    <Minimize size={16} />
+                  ) : (
+                    <Maximize size={16} />
+                  )}
                 </button>
                 <button
                   className="toolbar-icon"
@@ -1715,8 +1703,8 @@ export default function Workspace({
             {view !== "2D" && ready ? (
               <Plant3D
                 initialPlaying={playbackOnOpen}
-                dark={theme === "dark"}
-                canvasColor={palette.swatch[0]}
+                dark={false}
+                canvasColor="#fafbf9"
                 project={project}
                 selected={selected}
                 onSelect={inspect}
@@ -1751,50 +1739,19 @@ export default function Workspace({
               </button>
             </div>
           ) : null}
-          {!assistantOpen ? (
-            <button
-              ref={bubbleRef}
-              style={bubbleDrag.style}
-              {...bubbleDrag.dragProps}
-              className={`assistant-toggle ${assistantOpen ? "active" : ""}`}
-              aria-label={assistantOpen ? "Close assistant" : "Open assistant"}
-              title="Project CAD assistant · drag to dock in a corner"
-              onClick={() => {
-                if (!bubbleDrag.suppressClick()) {
-                  if (window.matchMedia("(max-width: 760px)").matches)
-                    setDrawer(null);
-                  setAssistantOpen(true);
-                  setAssistantStarted(true);
-                }
-              }}
-            >
-              <MessageCircle size={21} />
-            </button>
-          ) : null}
-          {assistantStarted ? (
-            <div
-              className="assistant-drawer"
-              ref={assistantRef}
-              style={{
-                ...assistantDrag.style,
-                display: assistantOpen ? undefined : "none",
-              }}
-            >
-              <AssistantPanel
-                key={projectId}
-                projectId={projectId}
-                project={project}
-                folderName={folderName}
-                appliedProposalIds={state.revisions.map(
-                  (revision) => revision.id,
-                )}
-                onApply={applyAssistantProposal}
-                onClose={() => setAssistantOpen(false)}
-                dragProps={assistantDrag.dragProps}
-                onError={setMessage}
-              />
-            </div>
-          ) : null}
+          <FloatingAssistant
+            key={projectId}
+            containerRef={canvasRef}
+            controlsRef={workspaceMenuRef}
+            open={assistantOpen}
+            onOpenChange={handleAssistantOpenChange}
+            projectId={projectId}
+            project={project}
+            folderName={folderName}
+            appliedProposalIds={state.revisions.map((revision) => revision.id)}
+            onApply={applyAssistantProposal}
+            onError={setMessage}
+          />
           <footer className="canvas-footer">
             <div className="canvas-status">
               <span className="save-status">
@@ -1818,6 +1775,19 @@ export default function Workspace({
       </div>
       {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
       {projectDialogs}
+      {thermoDialog === "components" ? (
+        <Dialog
+          title="Project components"
+          className="components-dialog"
+          onClose={() => setThermoDialog(null)}
+        >
+          <ProjectComponents
+            project={project}
+            onCancel={() => setThermoDialog(null)}
+            onApply={applyThermodynamics}
+          />
+        </Dialog>
+      ) : null}
       {templatesOpen ? (
         <Templates
           onClose={() => setTemplatesOpen(false)}

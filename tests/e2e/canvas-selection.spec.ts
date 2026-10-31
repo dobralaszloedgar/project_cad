@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 const node = (page: Page, id: string) =>
   page.locator(`.react-flow__node[data-id="${id}"]`);
@@ -103,9 +103,9 @@ test("modifier selection toggles and stream selection opens its editor only on d
   page,
 }) => {
   await node(page, "F-101").click();
-  await node(page, "R-101").click({ modifiers: ["Control"] });
+  await node(page, "R-101").click({ modifiers: ["ControlOrMeta"] });
   await selected(page, ["F-101", "R-101"]);
-  await node(page, "F-101").click({ modifiers: ["Control"] });
+  await node(page, "F-101").click({ modifiers: ["ControlOrMeta"] });
   await selected(page, ["R-101"]);
   await node(page, "P-101").click({ modifiers: ["Shift"] });
   await selected(page, ["R-101", "P-101"]);
@@ -195,7 +195,9 @@ test("pull tab animates on hover, bridges pointer travel, pins on click and supp
     bounds.y + bounds.height / 2,
   );
   await expect(menu).toBeVisible();
-  await menu.getByRole("button", { name: "Themes", exact: true }).hover();
+  await menu
+    .getByRole("button", { name: "Storage settings", exact: true })
+    .hover();
   await expect(menu).toBeVisible();
   await page.mouse.move(700, 170);
   await expect(menu).toHaveCount(0);
@@ -250,11 +252,18 @@ test.describe("touch canvas", () => {
     );
     await tab.tap();
     await expect(menu).toBeVisible();
-    await menu.getByRole("button", { name: "Themes", exact: true }).tap();
+    await menu
+      .getByRole("button", { name: "Storage settings", exact: true })
+      .tap();
     await expect(
-      page.getByRole("complementary", { name: "Themes", exact: true }),
+      page.getByRole("complementary", {
+        name: "Storage settings",
+        exact: true,
+      }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Close Themes", exact: true }).tap();
+    await page
+      .getByRole("button", { name: "Close Storage settings", exact: true })
+      .tap();
     const before = await camera(page);
     const input = await page.context().newCDPSession(page);
     await input.send("Input.dispatchTouchEvent", {

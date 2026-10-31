@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "../domain/schema";
 import { executeProjectTool } from "./tools";
+import type { ChatAttachment } from "./attachments";
 import {
   ASSISTANT_ENDPOINT,
   type AssistantSnapshot,
@@ -92,6 +93,11 @@ export function useAssistant(projectId: string, project: Project) {
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversation, setConversation] = useState<Conversation>();
+  const [activeConversation, setActiveConversation] = useState<Conversation>();
+  const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [activity, setActivity] = useState<AssistantSnapshot["activity"]>();
+  const [selectedId, setSelectedId] = useState<string>();
+  const cache = useRef(new Map<string, Conversation>());
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const [clientId, setClientId] = useState("");
@@ -101,6 +107,7 @@ export function useAssistant(projectId: string, project: Project) {
   const retry = useRef<{
     chatId: string;
     message: string;
+    attachmentIds: string;
     requestId: string;
   } | null>(null);
   const loadLatest = useRef(true);
@@ -182,10 +189,23 @@ export function useAssistant(projectId: string, project: Project) {
         }
         setConnected(true);
         setConversations(value.conversations);
+        setCapabilities(value.capabilities ?? []);
+        setActiveConversation(value.activeConversation);
+        setActivity(value.activity);
+        if (value.activeConversation)
+          cache.current.set(
+            value.activeConversation.id,
+            value.activeConversation,
+          );
+        if (value.conversation)
+          cache.current.set(value.conversation.id, value.conversation);
         if (id === selected.current) {
           setConversation(value.conversation);
-          if (!id && loadLatest.current && value.conversations[0])
-            selected.current = value.conversations[0].id;
+          if (!id && loadLatest.current) {
+            const latest = value.conversations.find((item) => !item.archived);
+            selected.current = latest?.id;
+            setSelectedId(latest?.id);
+          }
           loadLatest.current = false;
         }
         for (const command of value.commands) {
@@ -288,8 +308,9 @@ export function useAssistant(projectId: string, project: Project) {
   }
   function select(id?: string) {
     selected.current = id;
+    setSelectedId(id);
     loadLatest.current = false;
-    setConversation(undefined);
+    setConversation(id ? cache.current.get(id) : undefined);
     setError("");
   }
   async function send(
@@ -300,12 +321,17 @@ export function useAssistant(projectId: string, project: Project) {
       reasoning?: string;
       mode: AssistantMode;
     },
+    attachments: ChatAttachment[] = [],
+    targetId: string | null | undefined = selected.current,
+    onCreated?: (chat: Conversation) => void,
   ) {
     if (!connected || sending) return false;
     setSending(true);
     setError("");
     try {
-      let chatId = selected.current;
+      if (attachments.length && !capabilities.includes("attachments-v1"))
+        throw new Error("Update Project CAD Assistant to send files.");
+      let chatId = targetId;
       if (!chatId) {
         const created = await request<Conversation>(
           token,
@@ -314,23 +340,38 @@ export function useAssistant(projectId: string, project: Project) {
           { projectId, projectName: projectRef.current.name, ...settings },
         );
         chatId = created.id;
-        selected.current = chatId;
-        setConversation(created);
+        cache.current.set(chatId, created);
+        onCreated?.(created);
       }
       const requestId =
-        retry.current?.chatId === chatId && retry.current.message === message
+        retry.current?.chatId === chatId &&
+        retry.current.message === message &&
+        retry.current.attachmentIds ===
+          attachments.map((file) => file.id).join(",")
           ? retry.current.requestId
           : crypto.randomUUID();
-      retry.current = { chatId, message, requestId };
+      retry.current = {
+        chatId,
+        message,
+        requestId,
+        attachmentIds: attachments.map((file) => file.id).join(","),
+      };
       const updated = await request<Conversation>(
         token,
         clientId,
         path("/send"),
-        { conversationId: chatId, message, requestId },
+        {
+          conversationId: chatId,
+          message,
+          requestId,
+          ...(attachments.length ? { attachments } : {}),
+        },
       );
       retry.current = null;
       if (selected.current === chatId) setConversation(updated);
-      return true;
+      cache.current.set(chatId, updated);
+      setActiveConversation(updated);
+      return updated;
     } catch (failure) {
       report(failure);
       return false;
@@ -342,8 +383,9 @@ export function useAssistant(projectId: string, project: Project) {
     proposal: Proposal,
     status: "applied" | "dismissed",
     result: string,
+    targetId = selected.current,
   ) {
-    const chatId = selected.current;
+    const chatId = targetId;
     if (!chatId) throw new Error("Select the proposal's conversation first.");
     try {
       const updated = await request<Conversation>(
@@ -365,12 +407,57 @@ export function useAssistant(projectId: string, project: Project) {
       report(failure);
     }
   }
+  async function updateConversation(
+    id: string,
+    update: { title?: string; archived?: boolean },
+  ) {
+    try {
+      const updated = await request<Conversation>(
+        token,
+        clientId,
+        path("/conversation"),
+        { conversationId: id, ...update },
+      );
+      cache.current.set(id, updated);
+      if (selected.current === id) setConversation(updated);
+      setConversations((items) =>
+        items.map((item) =>
+          item.id === id
+            ? { ...item, title: updated.title, archived: updated.archived }
+            : item,
+        ),
+      );
+      return true;
+    } catch (failure) {
+      report(failure);
+      return false;
+    }
+  }
+  function disconnect() {
+    pairCleanup.current?.();
+    setConnected(false);
+    setToken("");
+    sessionStorage.removeItem(tokenKey);
+    setProviders([]);
+    setConversation(undefined);
+    setActiveConversation(undefined);
+    setConversations([]);
+    setError("");
+    selected.current = undefined;
+    setSelectedId(undefined);
+    loadLatest.current = true;
+    cache.current.clear();
+  }
   return {
     connected,
     connecting,
     providers,
     conversations,
     conversation,
+    selectedId,
+    activeConversation,
+    capabilities,
+    activity,
     error,
     sending,
     connect,
@@ -379,5 +466,10 @@ export function useAssistant(projectId: string, project: Project) {
     stop,
     decide,
     refreshProviders,
+    updateConversation,
+    getConversation: (id: string) => cache.current.get(id),
+    disconnect,
+    cancelConnect: () => pairCleanup.current?.(),
   };
 }
+export type AssistantClient = ReturnType<typeof useAssistant>;

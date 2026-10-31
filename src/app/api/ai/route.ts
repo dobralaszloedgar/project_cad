@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { projectSchema } from "@/domain/schema";
+import { MAX_PROJECT_REQUEST_BYTES, projectSchema } from "@/domain/schema";
 import { generatePlan, metaStatus } from "@/server/meta";
 export const runtime = "nodejs";
 const requestSchema = z
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       const chunk = await reader.read();
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
-      if (bytes > 100000) {
+      if (bytes > MAX_PROJECT_REQUEST_BYTES) {
         await reader.cancel();
         return NextResponse.json(
           { error: "Request too large." },

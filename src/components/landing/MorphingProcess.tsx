@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Grid } from "@react-three/drei";
+import { FloorGrid } from "../graphics/FloorGrid";
 import { Group, Material, Mesh, MeshBasicMaterial } from "three";
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
@@ -196,7 +196,7 @@ export default function MorphingProcess({
             opacity={0}
           />
         </mesh>
-        <Grid
+        <FloorGrid
           args={[28, 16]}
           position={[0.3, -0.12, -1.3]}
           cellSize={0.5}

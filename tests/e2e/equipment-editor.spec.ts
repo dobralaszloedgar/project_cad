@@ -1,17 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
-import { kinds, newUnit, type Project } from "../../src/domain/schema";
+import { loadProject } from "./project-fixture";
+import { expect, test, type Page } from "./test";
+import { kinds, newUnit } from "../../src/domain/schema";
 import { catalystExample, solutionExample } from "../../src/domain/examples";
-
-async function importProject(page: Page, project: Project) {
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "equipment-ui.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  await expect(page.locator(".react-flow__node")).toHaveCount(
-    project.units.length,
-  );
-}
 
 async function inspect(page: Page, id: string) {
   await page.locator(".react-flow__node").filter({ hasText: id }).click();
@@ -26,7 +16,7 @@ test("all supported equipment uses Setup and Results, preserves drafts and appli
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
   for (const kind of kinds) {
-    await importProject(page, {
+    await loadProject(page, {
       version: 1,
       name: `${kind} editor`,
       units: [newUnit(kind, `unit-${kind}`, 100, 100)],
@@ -78,14 +68,14 @@ test("all supported equipment uses Setup and Results, preserves drafts and appli
   }
 });
 
-test("feed composition and reactor modes retain drafts and compact layouts fit mobile and dark themes", async ({
+test("feed composition and reactor modes retain drafts and compact layouts fit mobile in the fixed workspace appearance", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await importProject(page, catalystExample());
+  await loadProject(page, catalystExample());
   await inspect(page, "F-601");
   await page.getByLabel("Mole fraction A", { exact: true }).fill("0.35");
   await expect(page.getByLabel("Mole fraction B", { exact: true })).toHaveText(
@@ -133,9 +123,11 @@ test("feed composition and reactor modes retain drafts and compact layouts fit m
     page.getByText("Unsaved changes", { exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Toggle theme" }).click();
+  await expect(page.getByRole("button", { name: "Toggle theme" })).toHaveCount(
+    0,
+  );
   await inspect(page, "R-601");
-  await page.screenshot({ path: "test-results/equipment-editor-dark.png" });
+  await page.screenshot({ path: "test-results/equipment-editor-desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Residence time (s)")).toHaveValue("12");
@@ -166,7 +158,7 @@ test("liquid separation only offers supported flash controls and reports both ou
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
   const project = solutionExample();
-  await importProject(page, project);
+  await loadProject(page, project);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await page.keyboard.press("Escape");

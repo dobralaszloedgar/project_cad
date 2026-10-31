@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, MessageCircle } from "lucide-react";
+import { ArrowLeft, Download, LoaderCircle, Monitor, Plug } from "lucide-react";
 import { assistantDownloads } from "@/assistant/downloads";
 import styles from "./AssistantPanel.module.css";
 
 export default function AssistantSetup({
   connect,
   connecting,
+  cancel,
+  setup,
+  onSetup,
 }: {
   connect: () => void;
   connecting: boolean;
+  cancel: () => void;
+  setup: boolean;
+  onSetup: (value: boolean) => void;
 }) {
   const [downloads, setDownloads] =
     useState<ReturnType<typeof assistantDownloads>>();
@@ -46,10 +52,54 @@ export default function AssistantSetup({
     return () => abort.abort();
   }, []);
 
+  if (!setup)
+    return (
+      <div className={styles.connect}>
+        <div className={styles.deviceIcon}>
+          <Monitor size={26} strokeWidth={1.5} />
+        </div>
+        <h2>
+          {connecting ? "Approve on your computer" : "Your agents, right here"}
+        </h2>
+        <p>
+          {connecting
+            ? "Approve the connection dialog on your computer."
+            : "Connect Project CAD Assistant to use Codex, Claude Code or Muse in this chat."}
+        </p>
+        <div className={styles.connectActions}>
+          <button
+            className={styles.primaryButton}
+            data-connect-primary
+            disabled={connecting}
+            onClick={connect}
+          >
+            {connecting ? (
+              <LoaderCircle size={16} className={styles.spinner} />
+            ) : (
+              <Plug size={16} />
+            )}
+            {connecting ? "Waiting for approval" : "Connect local assistant"}
+          </button>
+          {connecting ? (
+            <button className={styles.textButton} onClick={cancel}>
+              Cancel
+            </button>
+          ) : null}
+          <button
+            className={styles.secondaryButton}
+            onClick={() => onSetup(true)}
+          >
+            AI client setup
+          </button>
+        </div>
+      </div>
+    );
   return (
-    <div className={styles.connect}>
-      <MessageCircle size={28} />
-      <h2>Connect your assistant</h2>
+    <div className={styles.setup}>
+      <button className={styles.textButton} onClick={() => onSetup(false)}>
+        <ArrowLeft size={14} /> Back to assistant
+      </button>
+      <h2>AI client setup</h2>
       <p>
         Use Codex, Claude Code, or Muse with this project. Conversations stay on
         your laptop.
@@ -97,11 +147,11 @@ export default function AssistantSetup({
         <p>Use your Project CAD Assistant installation to connect.</p>
       )}
       <button
-        className="btn btn-primary"
+        className={styles.primaryButton}
         onClick={connect}
         disabled={connecting}
       >
-        {connecting ? "Waiting for connection…" : "Connect local assistant"}
+        {connecting ? "Waiting for approval…" : "Connect local assistant"}
       </button>
       <details className={styles.development}>
         <summary>Run from source</summary>

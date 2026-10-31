@@ -1,30 +1,36 @@
-import { test, expect } from "@playwright/test";
+import { loadProject } from "./project-fixture";
+import { test, expect } from "./test";
 import { solutionExample } from "../../src/domain/examples";
+import { catalogFixture } from "./catalog-fixture";
 import { newUnit, type Project } from "../../src/domain/schema";
 
 test("three model choices, real flash, model change and saved settings", async ({
   page,
 }) => {
+  await catalogFixture(page);
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "sample.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(solutionExample())),
-  });
+  await loadProject(page, solutionExample());
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(page.locator(".stream-table")).toContainText("two-phase");
   await expect(page.locator(".diagnostics")).toContainText("Raoult");
   await page.keyboard.press("Escape");
   await page.locator(".model-button").click();
-  await expect(page.getByLabel("Property model").locator("option")).toHaveCount(
-    3,
+  await expect(
+    page
+      .getByRole("dialog", { name: "Thermodynamics", exact: true })
+      .getByRole("radio"),
+  ).toHaveCount(3);
+  await page
+    .getByRole("radio", { name: "Modified UNIFAC 2.0", exact: true })
+    .check();
+  await page.getByRole("button", { name: "Apply model", exact: true }).click();
+  await expect(page.locator(".model-button")).toContainText(
+    "Modified UNIFAC 2.0",
   );
-  await page.getByLabel("Property model").selectOption("modified-unifac-2.0");
-  await page.getByRole("button", { name: "Apply physical model" }).click();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
@@ -41,9 +47,11 @@ test("three model choices, real flash, model change and saved settings", async (
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );
-  await page.locator(".model-button").click();
-  await expect(page.getByLabel("Sample mixture (A / B)")).toHaveValue(
-    "aromatics",
+  await page
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+  await expect(page.getByLabel("Component A", { exact: true })).toContainText(
+    "71-43-2",
   );
   await page.screenshot({
     path: "test-results/thermodynamic-settings.png",
@@ -132,11 +140,7 @@ test("nonideal mixer energy balance agrees in the browser and simulation API", a
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  await page.getByLabel("Import project file").setInputFiles({
-    name: "mixing.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
+  await loadProject(page, project);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   const row = page

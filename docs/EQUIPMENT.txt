@@ -6,8 +6,9 @@ state. Molar flows are mol/s, temperatures K, pressures Pa and heat duties W.
 The 2D symbols and 3D shapes are schematic, not mechanical dimensions.
 
 Feed and Product
-Feed sets total molar flow F, fraction zA, temperature and pressure:
-  FA = F zA; FB = F (1-zA).
+Feed sets total molar flow F, mole fractions zi, temperature and pressure:
+  Fi = F zi; sum(zi) = 1.
+Catalog projects support 2–40 components. Legacy binary feeds retain fraction zA.
 Product is a terminal material sink and reports its incoming stream unchanged.
 One connection per port prevents accidental duplication of material.
 
@@ -47,34 +48,54 @@ There is no area sizing, heat-transfer coefficient, utility circuit or pressure
 drop. Supported calculated temperatures remain inside 250-800 K.
 
 Packed-bed reactor
-This is a deliberately small synthetic A -> B reaction, with equal molecular
-weights of 0.028 kg/mol, Cp=30 J/(mol K), and formation enthalpies 0 and -20000
-J/mol at 298.15 K. It supports only the ideal-gas synthetic A/B mixture. Real
-sample chemicals are not assigned invented reaction kinetics. One or two
-physical feeds are mixed by component and enthalpy balance before reaction.
+New reactors use a configurable reaction set. Existing projects keep their
+synthetic catalyst-mass or residence-time mode until explicitly switched.
 
-New reactors use a catalyst-mass basis, W in kg of catalyst:
-  dFA/dW = -k(T) CA; dFB/dW = k(T) CA
-  CA = FA P / (Ftotal R T)
-  k(T) = k450 exp[-40000/R (1/T - 1/450)].
-Here k450 defaults to 0.01 m3/(kg-cat s), with an editable synthetic value.
-Temperature and pressure are constant along the bed; equal molar stoichiometry
-keeps Ftotal constant. A bounded fourth-order Runge-Kutta integration solves
-conversion in coordinate u=kPW/(Ftotal RT), producing a 41-point
-conversion-versus-catalyst-mass profile. The independent analytical benchmark is
-  X = 1-exp[-k(T)PW/(Ftotal RT)].
-Increasing flow reduces conversion at fixed catalyst mass in this model.
-Zero catalyst gives zero conversion; an inlet without A has zero conversion
-and reaction extent. The reactor has one material inlet; combine multiple feeds
-in an upstream mixer for component and energy accounting.
+Define reactants and products with positive coefficients in the corresponding
+editor tables. Internally, negative coefficients consume species and positive
+coefficients produce them. Each reaction has its own basis reactant and rate:
+  dFi/dW = sum_j(nu_ij r_j / abs(nu_basis,j)).
+Rates describe net disappearance of the basis species in mol/(kg-cat s).
+Enabled reactions are integrated together in extent coordinates using adaptive
+Dormand-Prince 5(4); disabled reactions remain saved and contribute zero extent.
+Independent feeds may connect to the same reactor inlet. The inlet mixer
+conserves every component and enthalpy at the lowest flowing inlet pressure.
 
-Existing projects retain the residence-time basis unless explicitly changed:
-  k(T) = 0.1 exp[-40000/R (1/T - 1/450)] s^-1
-  X = 1-exp[-k(T) tau].
-The original recycle template retains this basis for reproducible saved results.
-For either basis, extent=FA,in X and Q=Hout-Hin includes sensible and reaction
-enthalpy. No pressure drop, transport resistance, catalyst deactivation,
-equilibrium reversal, fitted real kinetics or mechanical bed sizing is claimed.
+Simple laws use r = k(T) C_basis^n with any order from 0 to 20. General laws use
+species tables or bounded arithmetic expressions with concentrations, partial
+pressures, mole fractions, mass concentrations or mass fractions; explicit
+reverse rates and adsorption/inhibition denominators are available. Rate and
+species units are selectable. Changing units or order requires constants
+consistent with the new law; constants are never fitted automatically.
+  k(T) = k(Tref) exp[-E/R (1/T - 1/Tref)].
+The expression parser supports arithmetic, powers, exp, log/ln, sqrt, abs,
+min, max and pow, plus T (K), P (Pa) and R. Expressions cannot execute code.
+
+The reaction model is isothermal gas only, using the ideal-gas thermodynamic
+model. Local volume flow is Ftotal R T / P, or an explicitly specified constant
+volume flow. Constant-flow mode neglects gas expansion. A prescribed pressure
+drop is linear along the bed and must leave positive outlet pressure.
+
+Specify catalyst mass to calculate conversion, or a target disappearance of a
+chosen inlet reactant to calculate required mass (up to 1e9 kg). Sizing finds
+the first resolved crossing of the target and re-solves the full pressure
+profile when a total pressure drop is prescribed. Targets must be strictly
+between zero and complete conversion. Equilibrium limits, unavailable feed,
+nonphysical depletion and unresolved stiff kinetics produce errors.
+
+Q = Hout - Hin includes formation and sensible enthalpy. Real reacting species
+require supported neutral molecular formulae and formation enthalpies. Atom
+and molecular-mass balance are checked before calculation. The UI reports
+species inlet/outlet flows, extents, conversion, duty, outlet pressure and
+catalyst mass. The conversion profile and CSV include the integrated states.
+No phase equilibrium, transport resistance, catalyst deactivation, hydraulic
+bed sizing or mechanical design is implied by this model.
+
+Legacy synthetic modes retain A -> B, equal 0.028 kg/mol molecular weights,
+Cp=30 J/(mol K), formation enthalpies 0 and -20000 J/mol, and E=40000 J/mol.
+Catalyst-mass mode uses k450=0.01 m3/(kg-cat s) and X=1-exp[-kPW/(Ftotal RT)].
+Residence-time mode uses k450=0.1 s^-1 and X=1-exp[-k tau]. Pressure is constant
+and multiple feeds must be combined in an upstream mixer for these modes.
 
 Simplified separation
 With ideal gas, Distillation represents one binary equilibrium contact:
@@ -107,3 +128,7 @@ https://learncheme.com/quiz-yourself/interactive-self-study-modules/energy-balan
 Property sources and thermodynamic limitations remain in SOURCES.txt and
 THERMODYNAMICS.txt. Agreement with analytical cases is numerical verification,
 not experimental validation of the synthetic kinetic constants.
+
+Multicomponent separation uses the first component as the light key; all remaining
+components have equal relative volatility in the ideal-gas teaching contact.
+Liquid models perform a multicomponent TP flash with species conservation.

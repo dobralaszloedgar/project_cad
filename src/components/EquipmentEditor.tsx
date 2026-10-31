@@ -5,16 +5,26 @@ import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { mixtureName, thermoContext } from "@/domain/thermo/catalog";
+import {
+  componentNames,
+  mixtureName,
+  thermoContext,
+} from "@/domain/thermo/catalog";
 import { EquipmentModelNotes, CatalystProfile } from "./EquipmentModelNotes";
 import "./equipment-setup.css";
+import { PackedBedSetup } from "./reactions/PackedBedSetup";
+import { PackedBedResults } from "./reactions/PackedBedResults";
+import { defaultPackedBed } from "@/domain/reactions/schema";
+import { packedBedIssues } from "@/domain/reactions/validation";
+import { componentFlows } from "@/domain/stream-composition";
 
 type NumericParam = {
-  [K in keyof Unit["params"]]: Unit["params"][K] extends number ? K : never;
+  [K in keyof Unit["params"]]-?: Unit["params"][K] extends number ? K : never;
 }[keyof Unit["params"]];
 
 const streamRows: {
   label: string;
+  component?: number;
   value: (stream: Stream, properties?: Result["properties"][string]) => string;
 }[] = [
   {
@@ -28,20 +38,6 @@ const streamRows: {
   {
     label: "Pressure",
     value: (stream) => `${(stream.pressure / 1000).toFixed(3)} kPa`,
-  },
-  {
-    label: "Mole fraction A",
-    value: (stream) =>
-      flow(stream)
-        ? (stream.a / flow(stream)).toFixed(5)
-        : "Undefined at zero flow",
-  },
-  {
-    label: "Mole fraction B",
-    value: (stream) =>
-      flow(stream)
-        ? (stream.b / flow(stream)).toFixed(5)
-        : "Undefined at zero flow",
   },
   { label: "Phase", value: (_stream, properties) => properties?.phase ?? "—" },
   {
@@ -162,6 +158,23 @@ function EquipmentResults({
   dirty: boolean;
 }) {
   const eq = result?.equipment[unit.id];
+  const settings = project.thermo ?? defaultThermo;
+  const names = componentNames(settings);
+  const context = thermoContext(settings);
+  const resultRows = [
+    ...streamRows.slice(0, 3),
+    ...names.map((name, index) => ({
+      label: `Mole fraction ${name}`,
+      value: (stream: Stream) =>
+        flow(stream)
+          ? (
+              componentFlows(stream, context.ids)[context.ids[index]] /
+              flow(stream)
+            ).toFixed(5)
+          : "Undefined at zero flow",
+    })),
+    ...streamRows.slice(3),
+  ];
   const edges = project.edges.filter((edge) =>
     unit.kind === "Product" ? edge.target === unit.id : edge.source === unit.id,
   );
@@ -200,6 +213,13 @@ function EquipmentResults({
             </dl>
             {eq.profile && <CatalystProfile profile={eq.profile} />}
           </div>
+          {eq.packedBed && (
+            <PackedBedResults
+              result={eq.packedBed}
+              chemicals={context.ids.map((id) => context.catalog.get(id))}
+              config={unit.params.packedBed!}
+            />
+          )}
           <Section
             title={
               unit.kind === "Product" ? "Received stream" : "Outlet streams"
@@ -225,7 +245,7 @@ function EquipmentResults({
                   </tr>
                 </thead>
                 <tbody>
-                  {streamRows.map(({ label, value }) => (
+                  {resultRows.map(({ label, value }) => (
                     <tr key={label}>
                       <th scope="row">{label}</th>
                       {edges.map((edge) => {
@@ -266,6 +286,7 @@ export default function EquipmentEditor({
   onDelete: () => void;
 }) {
   const [params, setParams] = useState(unit.params);
+  const [reactionDraft, setReactionDraft] = useState(unit.params.packedBed);
   const [name, setName] = useState(unit.name);
   const [tab, setTab] = useState<"setup" | "results">("setup");
   const [appliedUnit, setAppliedUnit] = useState(unit);
@@ -283,6 +304,27 @@ export default function EquipmentEditor({
   const formId = `equipment-form-${unit.id}`;
   const context = thermoContext(settings);
   const components = context.ids.map((id) => context.catalog.get(id).name);
+  const labels = componentNames(settings);
+  const chemicals = context.ids.map((id) => context.catalog.get(id));
+  const multiComposition = context.ids.length > 2 || !!params.composition;
+  const composition = Object.fromEntries(
+    context.ids.map((id, i) => [
+      id,
+      params.composition?.[id] ??
+        (params.composition
+          ? 0
+          : i === 0
+            ? params.fractionA
+            : i === 1
+              ? 1 - params.fractionA
+              : 0),
+    ]),
+  );
+  const compositionTotal = Object.values(composition).reduce(
+    (sum, n) => sum + n,
+    0,
+  );
+  const [validationError, setValidationError] = useState("");
   function field(
     key: NumericParam,
     label: string,
@@ -397,7 +439,34 @@ export default function EquipmentEditor({
             }}
             onSubmit={(event) => {
               event.preventDefault();
-              onApply({ ...unit, name: name.trim(), params });
+              const issues =
+                params.packedBed && unit.kind === "PBR"
+                  ? packedBedIssues(params.packedBed, chemicals)
+                  : [];
+              if (
+                unit.kind === "Feed" &&
+                multiComposition &&
+                Math.abs(compositionTotal - 1) > 1e-8
+              )
+                issues.push("Feed mole fractions must sum to 1.");
+              if (issues.length) {
+                setValidationError(issues[0]);
+                setTab("setup");
+                return;
+              }
+              setValidationError("");
+              onApply({
+                ...unit,
+                name: name.trim(),
+                params:
+                  unit.kind === "Feed" && multiComposition
+                    ? {
+                        ...params,
+                        composition,
+                        fractionA: composition[context.ids[0]],
+                      }
+                    : params,
+              });
               const submitter = (event.nativeEvent as SubmitEvent).submitter;
               if (submitter?.dataset.editorAction === "calculate")
                 setTab("results");
@@ -425,6 +494,11 @@ export default function EquipmentEditor({
                 />
               </label>
             </div>
+            {validationError && (
+              <p className="reaction-issues" role="alert">
+                {validationError}
+              </p>
+            )}
             {unit.kind === "Feed" && (
               <>
                 <Section title="Feed conditions">
@@ -452,29 +526,107 @@ export default function EquipmentEditor({
                   )}
                 </Section>
                 <Section title="Composition">
-                  <div className="equipment-composition-heading">
-                    <span>Component</span>
-                    <span>Mole fraction</span>
-                  </div>
-                  <div className="equipment-composition-row">
-                    <span>
-                      {components[0]} <small>A</small>
-                    </span>
-                    {field("fractionA", "Mole fraction A", 0, 1, "0.01")}
-                  </div>
-                  <div className="equipment-composition-row">
-                    <span>
-                      {components[1]} <small>B</small>
-                    </span>
-                    <output aria-label="Mole fraction B">
-                      {Number.isFinite(params.fractionA)
-                        ? Number((1 - params.fractionA).toFixed(8))
-                        : "—"}
-                    </output>
-                  </div>
-                  <p className="equipment-help">
-                    Component B is the balance to a total mole fraction of 1.
-                  </p>
+                  {multiComposition ? (
+                    <>
+                      <div className="equipment-composition-heading">
+                        <span>Component</span>
+                        <span>Mole fraction</span>
+                      </div>
+                      {chemicals.map((chemical) => (
+                        <div
+                          className="equipment-composition-row"
+                          key={chemical.id}
+                        >
+                          <span>{chemical.name}</span>
+                          <input
+                            className="input"
+                            type="number"
+                            required
+                            min="0"
+                            max="1"
+                            step="any"
+                            aria-label={`Mole fraction ${chemical.name}`}
+                            value={
+                              Number.isFinite(composition[chemical.id])
+                                ? composition[chemical.id]
+                                : ""
+                            }
+                            onChange={(e) =>
+                              setParams({
+                                ...params,
+                                composition: {
+                                  ...composition,
+                                  [chemical.id]: e.target.valueAsNumber,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      ))}
+                      <div className="reaction-actions">
+                        <output aria-label="Total mole fraction">
+                          Total:{" "}
+                          {Number.isFinite(compositionTotal)
+                            ? Number(compositionTotal.toFixed(8))
+                            : "—"}
+                        </output>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={
+                            !Number.isFinite(compositionTotal) ||
+                            compositionTotal <= 0
+                          }
+                          onClick={() =>
+                            setParams({
+                              ...params,
+                              composition: Object.fromEntries(
+                                Object.entries(composition).map(([id, n]) => [
+                                  id,
+                                  n / compositionTotal,
+                                ]),
+                              ),
+                            })
+                          }
+                        >
+                          Normalize composition
+                        </button>
+                      </div>
+                      <p className="equipment-help">
+                        Specify every feed component. Fractions must sum to 1;
+                        products may enter with zero flow.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="equipment-composition-heading">
+                        <span>Component</span>
+                        <span>Mole fraction</span>
+                      </div>
+                      <div className="equipment-composition-row">
+                        <span>{components[0]}</span>
+                        {field(
+                          "fractionA",
+                          `Mole fraction ${labels[0]}`,
+                          0,
+                          1,
+                          "0.01",
+                        )}
+                      </div>
+                      <div className="equipment-composition-row">
+                        <span>{components[1]}</span>
+                        <output aria-label={`Mole fraction ${labels[1]}`}>
+                          {Number.isFinite(params.fractionA)
+                            ? Number((1 - params.fractionA).toFixed(8))
+                            : "—"}
+                        </output>
+                      </div>
+                      <p className="equipment-help">
+                        {components[1]} is the balance to a total mole fraction
+                        of 1.
+                      </p>
+                    </>
+                  )}
                 </Section>
               </>
             )}
@@ -532,73 +684,122 @@ export default function EquipmentEditor({
                 <Section title="Operating conditions">
                   {temperature}
                   <p className="equipment-help">
-                    Isothermal operation. Pressure comes from the inlet stream.
+                    Isothermal operation. Inlet pressure comes from the
+                    connected stream.
                   </p>
                 </Section>
                 <Section title="Reaction model">
-                  <div className="equipment-reaction">
-                    <strong>A → B</strong>
-                    <span>First order · isothermal</span>
-                  </div>
-                  <label className="equipment-field">
-                    Reaction basis
+                  <label>
+                    Reaction setup
                     <select
                       className="select"
-                      value={params.reactorMode}
-                      onChange={(event) =>
+                      aria-label="Reaction setup"
+                      value={params.packedBed ? "reaction-set" : "teaching"}
+                      onChange={(e) => {
+                        const config = defaultPackedBed(
+                          context.ids,
+                          settings.mixture === "demo",
+                        );
+                        config.catalystMass = params.catalystMass;
+                        if (config.reactions[0])
+                          config.reactions[0].rateConstant =
+                            params.catalystRateConstant;
+                        if (params.packedBed)
+                          setReactionDraft(params.packedBed);
                         setParams({
                           ...params,
-                          reactorMode: event.target
-                            .value as Unit["params"]["reactorMode"],
-                        })
-                      }
+                          packedBed:
+                            e.target.value === "reaction-set"
+                              ? (reactionDraft ?? config)
+                              : undefined,
+                        });
+                      }}
                     >
-                      <option value="catalyst-weight">Catalyst mass</option>
-                      <option value="residence-time">Residence time</option>
+                      <option value="reaction-set">
+                        Reaction set · configurable chemistry
+                      </option>
+                      <option value="teaching">
+                        Synthetic A → B teaching model
+                      </option>
                     </select>
                   </label>
-                  {params.reactorMode === "catalyst-weight" ? (
-                    <div className="equipment-field-grid">
-                      {field(
-                        "catalystMass",
-                        "Catalyst mass (kg)",
-                        0,
-                        10000,
-                        "any",
-                        "kg",
+                  {!params.packedBed && (
+                    <>
+                      <div className="equipment-reaction">
+                        <strong>A → B</strong>
+                        <span>First order · isothermal</span>
+                      </div>
+                      <label className="equipment-field">
+                        Reaction basis
+                        <select
+                          className="select"
+                          value={params.reactorMode}
+                          onChange={(event) =>
+                            setParams({
+                              ...params,
+                              reactorMode: event.target
+                                .value as Unit["params"]["reactorMode"],
+                            })
+                          }
+                        >
+                          <option value="catalyst-weight">Catalyst mass</option>
+                          <option value="residence-time">Residence time</option>
+                        </select>
+                      </label>
+                      {params.reactorMode === "catalyst-weight" ? (
+                        <div className="equipment-field-grid">
+                          {field(
+                            "catalystMass",
+                            "Catalyst mass (kg)",
+                            0,
+                            10000,
+                            "any",
+                            "kg",
+                          )}
+                          {field(
+                            "catalystRateConstant",
+                            "Rate constant at 450 K (m³/(kg·s))",
+                            Number.MIN_VALUE,
+                            10,
+                            "any",
+                            "m³/(kg·s)",
+                          )}
+                        </div>
+                      ) : (
+                        field(
+                          "residenceTime",
+                          "Residence time (s)",
+                          0,
+                          1000,
+                          "0.1",
+                          "s",
+                        )
                       )}
-                      {field(
-                        "catalystRateConstant",
-                        "Rate constant at 450 K (m³/(kg·s))",
-                        Number.MIN_VALUE,
-                        10,
-                        "any",
-                        "m³/(kg·s)",
+                      <p className="equipment-help">
+                        Synthetic A/B reaction. Combine multiple feeds in an
+                        upstream mixer.
+                      </p>
+                      {(settings.mixture !== "demo" ||
+                        settings.modelId !== "ideal-gas") && (
+                        <p className="equipment-help" role="status">
+                          This reaction requires the synthetic A/B mixture and
+                          ideal-gas model. The selected thermodynamic settings
+                          are unsupported.
+                        </p>
                       )}
-                    </div>
-                  ) : (
-                    field(
-                      "residenceTime",
-                      "Residence time (s)",
-                      0,
-                      1000,
-                      "0.1",
-                      "s",
-                    )
-                  )}
-                  <p className="equipment-help">
-                    Synthetic A/B reaction. Combine multiple feeds in an
-                    upstream mixer.
-                  </p>
-                  {(settings.mixture !== "demo" ||
-                    settings.modelId !== "ideal-gas") && (
-                    <p className="equipment-help" role="status">
-                      This reaction requires the synthetic A/B mixture and
-                      ideal-gas model. The selected thermodynamic settings are
-                      unsupported.
-                    </p>
+                    </>
                   )}
                 </Section>
+                {params.packedBed && (
+                  <PackedBedSetup
+                    value={params.packedBed}
+                    chemicals={chemicals}
+                    onChange={(packedBed) => {
+                      setParams({ ...params, packedBed });
+                      setValidationError("");
+                    }}
+                  />
+                )}
               </>
             )}
             {unit.kind === "Splitter" && (
@@ -639,7 +840,9 @@ export default function EquipmentEditor({
                     <div className="equipment-field-grid">
                       {field(
                         "relativeVolatility",
-                        "Relative volatility A/B",
+                        context.ids.length > 2
+                          ? "Relative volatility: first / remaining components"
+                          : "Relative volatility A/B",
                         1.01,
                         20,
                         "0.01",
