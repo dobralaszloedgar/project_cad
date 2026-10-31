@@ -16,7 +16,7 @@ Checks:
 
 The default example is a real deterministic calculation, not an AI response.
 The template menu includes Heating and cooling, Mixing and splitting, and
-Catalyst-weight reactor. The catalyst example connects two feeds to the PBR;
+Catalyst-weight reactor. The catalyst example combines two feeds in a mixer before the PBR;
 after Simulate, open its properties to see conversion versus catalyst mass.
 Heater/Cooler setup selects either outlet temperature or ideal-gas heat duty.
 See EQUIPMENT.txt for equations, units and supported limits.

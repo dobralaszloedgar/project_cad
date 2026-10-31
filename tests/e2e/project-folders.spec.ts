@@ -39,6 +39,16 @@ async function start(page: Page) {
   ).toBeEnabled();
 }
 
+async function addEquipment(page: Page, kind: string) {
+  const equipment = page.getByRole("button", {
+    name: "Equipment",
+    exact: true,
+  });
+  if ((await equipment.getAttribute("aria-expanded")) !== "true")
+    await equipment.click();
+  await page.getByTitle(`Add ${kind}`, { exact: true }).click();
+}
+
 async function library(page: Page) {
   await page
     .getByRole("button", { name: "Open projects", exact: true })
@@ -131,8 +141,8 @@ test("folder project writes JSON, autosaves history, reloads and opens from its 
       JSON.parse(localStorage.getItem("folder-qa-picker-call")!),
     ),
   ).toMatchObject({ options: { mode: "readwrite" }, userActivation: true });
-  await page.getByTitle("Add Feed", { exact: true }).click();
-  await page.getByTitle("Add Product", { exact: true }).click();
+  await addEquipment(page, "Feed");
+  await addEquipment(page, "Product");
   await page
     .locator(".react-flow__handle.source")
     .first()
@@ -348,7 +358,7 @@ test("external edits cannot be overwritten and unsaved work survives reload", as
   original.workspace.project.name = "External edit";
   const external = JSON.stringify(original, null, 2);
   await replaceFolderText(page, "Conflict study", external);
-  await page.getByTitle("Add Feed", { exact: true }).click();
+  await addEquipment(page, "Feed");
   await expect(
     page.getByRole("alert").filter({ hasText: "project.json" }),
   ).toContainText(/changed|conflict|could not|couldn.t/i);
@@ -409,7 +419,7 @@ test("denied access and failed writes preserve recovery until an explicit retry 
   await createProject(page, "Recovery study");
   const original = await folderText(page, "Recovery study");
   await folderControls(page, { permission: "denied", grant: "denied" });
-  await page.getByTitle("Add Feed", { exact: true }).click();
+  await addEquipment(page, "Feed");
   await expect
     .poll(async () => (await recoveryWorkspace(page)).project.units.length)
     .toBe(1);
@@ -452,7 +462,7 @@ test("denied access and failed writes preserve recovery until an explicit retry 
   await expect(page.locator(".save-status")).toContainText(/^Saved/i);
   const beforeFailure = await folderText(page, "Recovery study");
   await folderControls(page, { "write-failure": "yes" });
-  await page.getByTitle("Add Product", { exact: true }).click();
+  await addEquipment(page, "Product");
   await expect
     .poll(async () => (await recoveryWorkspace(page)).project.units.length)
     .toBe(2);
@@ -503,7 +513,7 @@ test("a direct 3D example stays independent from the saved folder project", asyn
 }) => {
   await start(page);
   await createProject(page, "Alongside example");
-  await page.getByTitle("Add Feed", { exact: true }).click();
+  await addEquipment(page, "Feed");
   await expect
     .poll(
       async () =>
@@ -578,7 +588,7 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
     page.locator('.react-flow__node[data-id="F-EXTERNAL"]'),
   ).toBeVisible();
   expect(await folderText(page, "Source study")).toBe(externalText);
-  await page.getByTitle("Add Product", { exact: true }).click();
+  await addEquipment(page, "Product");
   await expect
     .poll(
       async () =>

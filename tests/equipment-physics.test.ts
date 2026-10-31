@@ -175,13 +175,14 @@ describe("catalyst-weight packed-bed equation", () => {
     expect(result.result.profile).toBeUndefined();
   });
 
-  it("mixes two physical inlets and closes the complete reactor energy balance", () => {
+  it("accepts a mixed inlet and closes the complete reactor energy balance", () => {
     const unit = newUnit("PBR", "reactor", 0, 0);
     const feeds = [
       { a: 3, b: 0, temperature: 300, pressure: 200000 },
       { a: 0, b: 2, temperature: 600, pressure: 100000 },
     ];
-    const result = operate(unit, feeds);
+    const mixed = operate(newUnit("Mixer", "mixer", 0, 0), feeds);
+    const result = operate(unit, mixed.outputs);
     const output = result.outputs[0];
     expect(flow(output)).toBeCloseTo(5, 12);
     expect(output.pressure).toBe(100000);
@@ -226,7 +227,7 @@ describe("equipment boundaries and flowsheet conservation", () => {
       operate(newUnit("Heater", "heater", 0, 0), [inlet, inlet]),
     ).toThrow(/inlets/);
     expect(() =>
-      operate(newUnit("PBR", "reactor", 0, 0), [inlet, inlet, inlet]),
+      operate(newUnit("PBR", "reactor", 0, 0), [inlet, inlet]),
     ).toThrow(/inlets/);
     expect(() => operate(newUnit("Product", "product", 0, 0), [])).toThrow(
       /missing inlet/,
@@ -293,6 +294,7 @@ describe("equipment boundaries and flowsheet conservation", () => {
       units: [
         first,
         second,
+        newUnit("Mixer", "mixer", 100, 0),
         newUnit("PBR", "reactor", 200, 0),
         newUnit("Product", "product", 400, 0),
       ],
@@ -300,7 +302,7 @@ describe("equipment boundaries and flowsheet conservation", () => {
         {
           id: "a",
           source: "first",
-          target: "reactor",
+          target: "mixer",
           sourcePort: "out",
           targetPort: "in",
           color: "teal",
@@ -308,10 +310,18 @@ describe("equipment boundaries and flowsheet conservation", () => {
         {
           id: "b",
           source: "second",
-          target: "reactor",
+          target: "mixer",
           sourcePort: "out",
           targetPort: "in2",
           color: "blue",
+        },
+        {
+          id: "mixed",
+          source: "mixer",
+          target: "reactor",
+          sourcePort: "out",
+          targetPort: "in",
+          color: "teal",
         },
         {
           id: "out",

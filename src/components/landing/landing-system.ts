@@ -18,11 +18,11 @@ export function makeLandingSystem(): SystemExample {
     }),
   );
   const rack = {
-    start: -7.7,
-    end: 6,
+    start: -11.7,
+    end: 10.5,
     halfWidth: 1.45,
     levels: [3.35, 4.05, 4.75],
-    frames: [-7.7, -4.3, -0.85, 2.6, 6],
+    frames: [-11.7, -7.3, -2.85, 1.6, 6, 10.5],
   };
   const footprint = equipmentFootprint(equipment);
   return {

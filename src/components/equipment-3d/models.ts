@@ -1188,7 +1188,6 @@ function reactor(f: Fabricator, section: boolean) {
     0.08,
   );
   f.flange([-0.99, 3.55, 0], 0.15, "y");
-  f.nozzle([-0.85, 2.9, 0], "x", 0.38, 0.08, "steel", -1);
   f.pipe(
     [
       [0, 0.75, 0],

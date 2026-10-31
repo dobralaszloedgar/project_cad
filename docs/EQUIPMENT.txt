@@ -65,7 +65,8 @@ conversion-versus-catalyst-mass profile. The independent analytical benchmark is
   X = 1-exp[-k(T)PW/(Ftotal RT)].
 Increasing flow reduces conversion at fixed catalyst mass in this model.
 Zero catalyst gives zero conversion; an inlet without A has zero conversion
-and reaction extent. Material and energy accounting includes both inlets.
+and reaction extent. The reactor has one material inlet; combine multiple feeds
+in an upstream mixer for component and energy accounting.
 
 Existing projects retain the residence-time basis unless explicitly changed:
   k(T) = 0.1 exp[-40000/R (1/T - 1/450)] s^-1

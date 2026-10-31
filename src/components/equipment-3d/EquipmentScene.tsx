@@ -2,6 +2,7 @@
 
 import {
   Component,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -10,13 +11,14 @@ import {
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
+  AdaptiveDpr,
   Environment,
   Grid,
   Lightformer,
-  OrbitControls,
+  CameraControls,
+  CameraControlsImpl,
 } from "@react-three/drei";
 import { Box3, Group, MathUtils, PerspectiveCamera, Vector3 } from "three";
-import type { OrbitControls as OrbitControlsType } from "three-stdlib";
 import type { Kind } from "@/domain/schema";
 import { displayKinds, equipmentCatalog } from "./catalog";
 import { EquipmentModel, SystemConnections } from "./EquipmentModel";
@@ -41,9 +43,11 @@ export type SceneProps = {
   grid: boolean;
   view: CameraView;
   reset: number;
+  focus?: number;
   onSelect: (kind: Kind, instanceId?: string) => void;
   selectedId?: string | null;
   dark?: boolean;
+  canvasColor?: string;
   workspace?: boolean;
 };
 
@@ -91,138 +95,319 @@ function CameraRig({
   rotate,
   system,
   trayCount,
+  selectedId,
+  focus = 0,
 }: Pick<
   SceneProps,
-  "mode" | "kind" | "view" | "reset" | "rotate" | "system" | "trayCount"
+  | "mode"
+  | "kind"
+  | "view"
+  | "reset"
+  | "rotate"
+  | "system"
+  | "trayCount"
+  | "selectedId"
+  | "focus"
 > & {
   subject: React.RefObject<Group | null>;
 }) {
-  const controls = useRef<OrbitControlsType>(null);
-  const { camera, size, invalidate } = useThree();
-  useEffect(() => {
-    const object = subject.current;
-    if (!object || !(camera instanceof PerspectiveCamera)) return;
-    const largeSystem = mode === "process" && !!system?.site;
-    const box = new Box3().setFromObject(object);
-    if (box.isEmpty()) return;
-    // Include room for the ground labels, independently of the canvas UI.
-    box.min.y -= mode === "inspect" ? 0.05 : 0.35;
-    const center = box.getCenter(new Vector3());
-    const fitPoints: Vector3[] = [];
-    const addCorners = (min: number[], max: number[]) => {
-      for (const x of [min[0], max[0]])
-        for (const y of [min[1], max[1]])
-          for (const z of [min[2], max[2]])
-            fitPoints.push(new Vector3(x, y, z));
-    };
-    if (largeSystem) {
-      const plant = system!;
-      for (const item of plant.equipment) {
-        const bounds = equipmentEnvelope(item);
-        addCorners(
-          bounds.min.map((v) => v - 0.15),
-          bounds.max.map((v) => v + 0.15),
-        );
-        fitPoints.push(
-          new Vector3(item.position[0], -0.15, item.position[2] + 1.4),
-        );
-      }
-      for (const stream of plant.streams)
-        for (const point of stream.points)
-          fitPoints.push(new Vector3(...point));
-      if (plant.site)
-        for (const { center, size } of rackMembers(plant.site.rack))
+  const controls = useRef<CameraControlsImpl>(null);
+  const { camera, get, gl, invalidate } = useThree();
+  const hasFitted = useRef(false);
+  const keys = useRef(new Set<string>());
+  const interacting = useRef(false);
+  const previousFocus = useRef(focus);
+  const reducedMotion = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const fitView = useCallback(
+    (animate: boolean) => {
+      const size = get().size;
+      const object = subject.current;
+      if (!object || !(camera instanceof PerspectiveCamera)) return;
+      const largeSystem = mode === "process" && !!system?.site;
+      const box = new Box3().setFromObject(object);
+      if (box.isEmpty()) return;
+      // Include room for the ground labels, independently of the canvas UI.
+      box.min.y -= mode === "inspect" ? 0.05 : 0.35;
+      const center = box.getCenter(new Vector3());
+      const fitPoints: Vector3[] = [];
+      const addCorners = (min: number[], max: number[]) => {
+        for (const x of [min[0], max[0]])
+          for (const y of [min[1], max[1]])
+            for (const z of [min[2], max[2]])
+              fitPoints.push(new Vector3(x, y, z));
+      };
+      if (largeSystem) {
+        const plant = system!;
+        for (const item of plant.equipment) {
+          const bounds = equipmentEnvelope(item);
           addCorners(
-            center.map((v, i) => v - size[i] / 2),
-            center.map((v, i) => v + size[i] / 2),
+            bounds.min.map((v) => v - 0.15),
+            bounds.max.map((v) => v + 0.15),
           );
-    } else addCorners(box.min.toArray(), box.max.toArray());
-    // Fit the projected corners, rather than a sphere whose empty volume makes
-    // wide multi-equipment scenes unnecessarily small.
-    const verticalFov = MathUtils.degToRad(camera.fov);
-    const horizontalFov =
-      2 * Math.atan((Math.tan(verticalFov / 2) * size.width) / size.height);
-    const direction =
-      view === "front"
-        ? new Vector3(0, 0.04, 1)
-        : view === "top"
-          ? new Vector3(0, 1, 0.001)
-          : new Vector3(
-              largeSystem
-                ? 0.4
-                : mode === "collection"
-                  ? 0.3
-                  : mode === "process"
-                    ? 0.22
-                    : 0.75,
-              largeSystem
-                ? 1.05
-                : mode === "collection"
-                  ? 0.85
-                  : mode === "process"
-                    ? 0.5
-                    : 0.48,
-              1,
+          fitPoints.push(
+            new Vector3(item.position[0], -0.15, item.position[2] + 1.4),
+          );
+        }
+        for (const stream of plant.streams)
+          for (const point of stream.points)
+            fitPoints.push(new Vector3(...point));
+        if (plant.site)
+          for (const { center, size } of rackMembers(plant.site.rack))
+            addCorners(
+              center.map((v, i) => v - size[i] / 2),
+              center.map((v, i) => v + size[i] / 2),
             );
-    direction.normalize();
-    const right = new Vector3(0, 1, 0).cross(direction).normalize();
-    const up = direction.clone().cross(right).normalize();
-    if (largeSystem) {
-      // Fit the occupied silhouette, rather than empty air above the low bays.
-      // This also centers the tall rear vessels and low front skids together.
-      for (const axis of [right, up]) {
-        const projections = fitPoints.map((point) =>
-          point.clone().sub(center).dot(axis),
-        );
-        center.addScaledVector(
-          axis,
-          (Math.min(...projections) + Math.max(...projections)) / 2,
+      } else addCorners(box.min.toArray(), box.max.toArray());
+      // Fit the projected corners, rather than a sphere whose empty volume makes
+      // wide multi-equipment scenes unnecessarily small.
+      const verticalFov = MathUtils.degToRad(camera.fov);
+      const horizontalFov =
+        2 * Math.atan((Math.tan(verticalFov / 2) * size.width) / size.height);
+      const direction =
+        view === "front"
+          ? new Vector3(0, 0.04, 1)
+          : view === "top"
+            ? new Vector3(0, 1, 0.001)
+            : new Vector3(
+                largeSystem
+                  ? 0.4
+                  : mode === "collection"
+                    ? 0.3
+                    : mode === "process"
+                      ? 0.22
+                      : 0.75,
+                largeSystem
+                  ? 1.05
+                  : mode === "collection"
+                    ? 0.85
+                    : mode === "process"
+                      ? 0.5
+                      : 0.48,
+                1,
+              );
+      direction.normalize();
+      const right = new Vector3(0, 1, 0).cross(direction).normalize();
+      const up = direction.clone().cross(right).normalize();
+      if (largeSystem) {
+        // Fit the occupied silhouette, rather than empty air above the low bays.
+        // This also centers the tall rear vessels and low front skids together.
+        for (const axis of [right, up]) {
+          const projections = fitPoints.map((point) =>
+            point.clone().sub(center).dot(axis),
+          );
+          center.addScaledVector(
+            axis,
+            (Math.min(...projections) + Math.max(...projections)) / 2,
+          );
+        }
+      }
+      let distance = 0;
+      for (const point of fitPoints) {
+        const corner = point.clone().sub(center);
+        distance = Math.max(
+          distance,
+          corner.dot(direction) +
+            Math.abs(corner.dot(right)) / Math.tan(horizontalFov / 2),
+          corner.dot(direction) +
+            Math.abs(corner.dot(up)) / Math.tan(verticalFov / 2),
         );
       }
-    }
-    let distance = 0;
-    for (const point of fitPoints) {
-      const corner = point.clone().sub(center);
-      distance = Math.max(
-        distance,
-        corner.dot(direction) +
-          Math.abs(corner.dot(right)) / Math.tan(horizontalFov / 2),
-        corner.dot(direction) +
-          Math.abs(corner.dot(up)) / Math.tan(verticalFov / 2),
+      const position = new Vector3()
+        .copy(center)
+        .add(direction.multiplyScalar(distance * (largeSystem ? 1.1 : 1.15)));
+      controls.current?.stop();
+      void controls.current?.setLookAt(
+        ...position.toArray(),
+        ...center.toArray(),
+        animate && !reducedMotion(),
       );
+      invalidate();
+    },
+    [camera, get, subject, mode, system, view, invalidate],
+  );
+  useEffect(() => {
+    fitView(hasFitted.current);
+    hasFitted.current = true;
+  }, [fitView, reset, kind, trayCount]);
+
+  const focusSelection = useCallback(() => {
+    const control = controls.current;
+    const item = system?.equipment.find((item) => item.id === selectedId);
+    if (!control || !item || !(camera instanceof PerspectiveCamera)) {
+      fitView(true);
+      return;
     }
-    camera.position
-      .copy(center)
-      .add(direction.multiplyScalar(distance * (largeSystem ? 1.1 : 1.15)));
-    camera.lookAt(center);
-    camera.updateProjectionMatrix();
-    controls.current?.target.copy(center);
-    controls.current?.update();
+    const bounds = equipmentEnvelope(item);
+    const box = new Box3(
+      new Vector3(...bounds.min),
+      new Vector3(...bounds.max),
+    );
+    const center = box.getCenter(new Vector3());
+    const radius = box.getSize(new Vector3()).length() / 2;
+    const halfFov = Math.min(
+      MathUtils.degToRad(camera.fov) / 2,
+      Math.atan(Math.tan(MathUtils.degToRad(camera.fov) / 2) * camera.aspect),
+    );
+    const direction = camera.position
+      .clone()
+      .sub(control.getTarget(new Vector3()))
+      .normalize();
+    const position = center
+      .clone()
+      .addScaledVector(direction, (radius / Math.sin(halfFov)) * 1.2);
+    control.stop();
+    void control.setLookAt(
+      ...position.toArray(),
+      ...center.toArray(),
+      !reducedMotion(),
+    );
     invalidate();
-  }, [
-    camera,
-    size.width,
-    size.height,
-    subject,
-    mode,
-    system,
-    trayCount,
-    kind,
-    view,
-    reset,
-    invalidate,
-  ]);
+  }, [camera, system, selectedId, fitView, invalidate]);
+  useEffect(() => {
+    if (focus === previousFocus.current) return;
+    previousFocus.current = focus;
+    focusSelection();
+  }, [focus, focusSelection]);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const pressed = keys.current;
+    const movement = new Set([
+      "KeyW",
+      "KeyA",
+      "KeyS",
+      "KeyD",
+      "KeyQ",
+      "KeyE",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+      "Equal",
+      "Minus",
+      "NumpadAdd",
+      "NumpadSubtract",
+    ]);
+    canvas.setAttribute("tabindex", "0");
+    canvas.style.setProperty("cursor", "var(--cursor-grab, grab)");
+    const pointerDown = (event: PointerEvent) => {
+      canvas.focus({ preventScroll: true });
+      if (controls.current)
+        controls.current.mouseButtons.left =
+          event.shiftKey || pressed.has("Space")
+            ? CameraControlsImpl.ACTION.TRUCK
+            : CameraControlsImpl.ACTION.ROTATE;
+    };
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (
+        movement.has(event.code) ||
+        event.code === "Space" ||
+        event.code === "ShiftLeft" ||
+        event.code === "ShiftRight"
+      ) {
+        event.preventDefault();
+        pressed.add(event.code);
+        invalidate();
+      } else if (event.code === "KeyF" || event.code === "Home") {
+        event.preventDefault();
+        if (!event.repeat) {
+          if (event.code === "KeyF") focusSelection();
+          else fitView(true);
+        }
+      }
+    };
+    const keyUp = (event: KeyboardEvent) => {
+      pressed.delete(event.code);
+    };
+    const clear = () => {
+      pressed.clear();
+      interacting.current = false;
+      controls.current?.cancel();
+      controls.current?.stop();
+      canvas.style.setProperty("cursor", "var(--cursor-grab, grab)");
+    };
+    canvas.addEventListener("pointerdown", pointerDown, true);
+    canvas.addEventListener("keydown", keyDown);
+    window.addEventListener("keyup", keyUp);
+    canvas.addEventListener("blur", clear);
+    window.addEventListener("blur", clear);
+    document.addEventListener("visibilitychange", clear);
+    return () => {
+      clear();
+      canvas.removeEventListener("pointerdown", pointerDown, true);
+      canvas.removeEventListener("keydown", keyDown);
+      window.removeEventListener("keyup", keyUp);
+      canvas.removeEventListener("blur", clear);
+      window.removeEventListener("blur", clear);
+      document.removeEventListener("visibilitychange", clear);
+    };
+  }, [gl, invalidate, fitView, focusSelection]);
+
+  useFrame((_, delta) => {
+    const control = controls.current;
+    if (!control) return;
+    const pressed = keys.current;
+    const down = (...codes: string[]) =>
+      codes.some((code) => pressed.has(code)) ? 1 : 0;
+    const x = down("KeyD", "ArrowRight") - down("KeyA", "ArrowLeft");
+    const y = down("KeyE", "ArrowUp") - down("KeyQ", "ArrowDown");
+    const z = down("KeyW") - down("KeyS");
+    const zoom = down("Equal", "NumpadAdd") - down("Minus", "NumpadSubtract");
+    const dt = Math.min(delta, 0.05);
+    if (x || y || z || zoom) {
+      const step =
+        (Math.max(1, control.distance) *
+          dt *
+          0.65 *
+          (down("ShiftLeft", "ShiftRight") ? 2.5 : 1)) /
+        Math.max(1, Math.hypot(x, y, z));
+      if (x || y) void control.truck(x * step, y * step, true);
+      if (z) void control.forward(z * step, true);
+      if (zoom) void control.dolly(zoom * step, true);
+      invalidate();
+    } else if (rotate && !interacting.current) {
+      void control.rotate(-dt * 0.073, 0, false);
+    }
+  });
   return (
-    <OrbitControls
+    <CameraControls
       ref={controls}
       makeDefault
-      autoRotate={rotate}
-      autoRotateSpeed={0.7}
-      enableDamping
-      dampingFactor={0.09}
-      minDistance={1.5}
-      maxDistance={250}
-      maxPolarAngle={Math.PI * 0.49}
+      regress
+      smoothTime={0.18}
+      draggingSmoothTime={0.06}
+      dollyToCursor
+      dollySpeed={0.65}
+      azimuthRotateSpeed={0.8}
+      polarRotateSpeed={0.8}
+      minDistance={0.6}
+      maxDistance={500}
+      minPolarAngle={0.001}
+      maxPolarAngle={Math.PI * 0.495}
+      mouseButtons={{
+        left: CameraControlsImpl.ACTION.ROTATE,
+        middle: CameraControlsImpl.ACTION.TRUCK,
+        right: CameraControlsImpl.ACTION.TRUCK,
+        wheel: CameraControlsImpl.ACTION.DOLLY,
+      }}
+      touches={{
+        one: CameraControlsImpl.ACTION.TOUCH_ROTATE,
+        two: CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,
+        three: CameraControlsImpl.ACTION.TOUCH_TRUCK,
+      }}
+      onControlStart={() => {
+        interacting.current = true;
+        gl.domElement.style.setProperty(
+          "cursor",
+          "var(--cursor-grabbing, grabbing)",
+        );
+      }}
+      onControlEnd={() => {
+        interacting.current = false;
+        gl.domElement.style.setProperty("cursor", "var(--cursor-grab, grab)");
+      }}
     />
   );
 }
@@ -241,14 +426,32 @@ function Studio({
   grid,
   view,
   reset,
+  focus,
+  selectedId,
   onSelect,
   dark = false,
+  canvasColor,
 }: SceneProps) {
   const subject = useRef<Group>(null);
+  const get = useThree((state) => state.get);
+  useEffect(() => {
+    const { gl, invalidate } = get();
+    // Camera movement does not change the equipment's shadows. Rebuild them
+    // after geometry edits, or each frame when equipment is actually animated.
+    gl.shadowMap.autoUpdate = playing;
+    gl.shadowMap.needsUpdate = true;
+    invalidate();
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [get, kind, mode, system, trayCount, section, transparent, playing]);
   const motion = { playing, speed, motionVisible, transparent };
   return (
     <>
-      <color attach="background" args={[dark ? "#000000" : "#f4f6f4"]} />
+      <color
+        attach="background"
+        args={[canvasColor ?? (dark ? "#000000" : "#f4f6f4")]}
+      />
       <ambientLight intensity={0.65} />
       <directionalLight
         position={[5, 10, 6]}
@@ -310,6 +513,7 @@ function Studio({
                   section={section}
                   {...motion}
                   onClick={(event) => {
+                    if (event.delta > 4 || event.button !== 0) return;
                     event.stopPropagation();
                     onSelect(item);
                   }}
@@ -330,6 +534,7 @@ function Studio({
                 liquidColor={item.color}
                 {...motion}
                 onClick={(event) => {
+                  if (event.delta > 4 || event.button !== 0) return;
                   event.stopPropagation();
                   onSelect(item.kind, item.id);
                 }}
@@ -371,6 +576,8 @@ function Studio({
         view={view}
         reset={reset}
         rotate={rotate}
+        focus={focus}
+        selectedId={selectedId}
       />
     </>
   );
@@ -384,7 +591,30 @@ function ProjectLabels({
   labels: EquipmentInstance[];
   elements: LabelRefs;
 }) {
-  const point = new Vector3();
+  const point = useMemo(() => new Vector3(), []);
+  const widths = useRef(new Map<string, number>());
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    // Measure labels outside the render loop: interleaved width reads and
+    // transform writes otherwise force layout once per label while navigating.
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const id = (entry.target as HTMLElement).dataset.labelId;
+        if (id)
+          widths.current.set(id, (entry.target as HTMLElement).offsetWidth);
+      }
+      invalidate();
+    });
+    widths.current.clear();
+    for (const item of labels) {
+      const element = elements.current.get(item.id);
+      if (element) {
+        widths.current.set(item.id, element.offsetWidth);
+        observer.observe(element);
+      }
+    }
+    return () => observer.disconnect();
+  }, [labels, elements, invalidate]);
   useFrame(({ camera, size }) => {
     const occupied: { x: number; y: number; width: number }[] = [];
     for (const item of labels) {
@@ -399,7 +629,7 @@ function ProjectLabels({
       );
       const x = ((point.x + 1) * size.width) / 2;
       const y = ((-point.y + 1) * size.height) / 2;
-      const width = element.offsetWidth;
+      const width = widths.current.get(item.id) ?? 80;
       const collision =
         labels.length > 10 &&
         occupied.some(
@@ -485,6 +715,7 @@ export default function EquipmentScene(props: SceneProps) {
         <Canvas
           shadows="percentage"
           dpr={[1, 1.75]}
+          performance={{ min: 0.6, debounce: 200 }}
           frameloop={
             visible && (props.rotate || props.playing) ? "always" : "demand"
           }
@@ -499,6 +730,7 @@ export default function EquipmentScene(props: SceneProps) {
             </div>
           }
         >
+          <AdaptiveDpr />
           <RendererHealth onLost={setLost} onVisible={setVisible} />
           <Studio
             {...props}
@@ -515,6 +747,7 @@ export default function EquipmentScene(props: SceneProps) {
           {labels.map((item) => (
             <button
               key={item.id}
+              data-label-id={item.id}
               ref={(element) => {
                 if (element) labelElements.current.set(item.id, element);
                 else labelElements.current.delete(item.id);

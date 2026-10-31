@@ -76,11 +76,13 @@ test("assistant opens from each dock, remembers its corner and stays inside the 
   expect(panelBox.y).toBeGreaterThanOrEqual(0);
   expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(1100);
   expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(800);
-  await page.mouse.click(275, 220);
+  await page.mouse.click(panelBox.x - 20, panelBox.y + panelBox.height / 2);
   await expect(page.locator(".assistant-drawer")).not.toBeVisible();
 });
 
-test("drag-to-hide can be restored from preferences", async ({ page }) => {
+test("drag-to-hide can be restored from workspace settings", async ({
+  page,
+}) => {
   await page.goto("/");
   const bubble = page.getByRole("button", {
     name: "Open assistant",
@@ -96,7 +98,13 @@ test("drag-to-hide can be restored from preferences", async ({ page }) => {
     canvas.y + canvas.height - 48 - (before.y + 22),
   );
   await expect(bubble).not.toBeVisible();
-  await page.getByRole("button", { name: "Preferences", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Show assistant", exact: true })
     .click();
@@ -104,14 +112,16 @@ test("drag-to-hide can be restored from preferences", async ({ page }) => {
     page.getByRole("heading", { name: "Your agents, right here" }),
   ).toBeVisible();
 });
-test("rainbow streams animate, can be disabled, and the 3D switch remains visible", async ({
+test("composition colors animate, can be disabled, and the 3D switch remains visible", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const rainbow = page.getByRole("button", { name: "Rainbow flow" });
+  const rainbow = page.getByRole("button", {
+    name: "Color streams by composition",
+  });
   await expect(rainbow).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".stream-flow-motion")).toHaveCount(6);
   await expect(page.locator(".stream-flow-motion").first()).toHaveCSS(

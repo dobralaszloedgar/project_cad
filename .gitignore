@@ -4,6 +4,7 @@ node_modules/
 !.env.example
 *.tsbuildinfo
 playwright-report/
+.playwright-mcp/
 test-results/
 rust/thermo/target/
 .DS_Store

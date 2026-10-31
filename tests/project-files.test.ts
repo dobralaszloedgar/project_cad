@@ -12,6 +12,7 @@ import {
 import { basename, join } from "node:path";
 import { tmpdir } from "node:os";
 import { heatingExample } from "../src/domain/examples";
+import { projectSchema } from "../src/domain/schema";
 import { checkpoint, type Workspace } from "../src/lib/revisions";
 import {
   parseProjectFile,
@@ -185,7 +186,7 @@ let control: DiskControl;
 let parent: ProjectDirectoryHandle;
 let storage: typeof import("../src/lib/storage");
 const workspace = (): Workspace => {
-  const project = heatingExample();
+  const project = projectSchema.parse(heatingExample());
   return { version: 1, project, revisions: [checkpoint(project, "Initial")] };
 };
 const contents = (name = "Study") =>

@@ -123,9 +123,7 @@ export default function Results({
                             className="stream-link"
                             onClick={() => onSelect(e.id)}
                           >
-                            {e.id.length > 15
-                              ? `${e.source} → ${e.target}`
-                              : e.id}
+                            {e.name ?? e.id}
                           </button>
                         </td>
                         <td>{s ? fmt(flow(s), 4) : "—"}</td>

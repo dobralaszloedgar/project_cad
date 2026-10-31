@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import LandingPage from "@/components/landing/LandingPage";
 
 export const metadata: Metadata = {
-  title: "Project CAD — From a thought to a whole new world.",
+  title: "Project CAD — Design. Build. Explore.",
   description:
-    "Describe your process. Watch it become a flowsheet. Explore transparent, animated process equipment in 3D with Project CAD.",
+    "Design a process in conversation. Build and simulate the flowsheet. Explore it in 3D.",
 };
 
 export const viewport: Viewport = { themeColor: "#06151f" };

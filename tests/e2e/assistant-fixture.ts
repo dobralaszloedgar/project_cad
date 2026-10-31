@@ -97,7 +97,7 @@ export async function installAssistant(page: Page) {
     ]),
   ) as Record<ProviderId, AssistantProvider>;
   const runtime = new AssistantRuntime(store, adapters, root);
-  const origin = "http://127.0.0.1:3000";
+  const origin = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
   const server = createAssistantServer(runtime, { port: 0, origins: [origin] });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

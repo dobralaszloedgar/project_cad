@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
+import { projectSchema } from "../../src/domain/schema";
 import type { Workspace } from "../../src/lib/revisions";
 
 const examples = [
@@ -76,7 +77,7 @@ for (const example of examples) {
     page.on("console", (message) => {
       if (message.type() === "error") errors.push(message.text());
     });
-    const expected = plantTemplate(id)!;
+    const expected = projectSchema.parse(plantTemplate(id)!);
     expect(expected.units.length).toBe(example.units);
     await page.goto(exampleUrl(id));
     await loaded(page);
@@ -189,7 +190,7 @@ test("play links animate on request and respect reduced-motion preferences", asy
   try {
     const reduced = await context.newPage();
     await reduced.goto(
-      `http://127.0.0.1:3000${exampleUrl("parallel-complex", true)}`,
+      new URL(exampleUrl("parallel-complex", true), page.url()).href,
     );
     await loaded(reduced);
     await rendered(reduced);

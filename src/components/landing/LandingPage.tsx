@@ -26,6 +26,8 @@ import { useMotionPreference } from "./use-motion-preference";
 import styles from "./LandingPage.module.css";
 import CadWorkbench, { createCadBridge } from "./CadWorkbench";
 import BuildActivity from "./BuildActivity";
+import DesignChat from "./DesignChat";
+import BrandMark from "@/components/BrandMark";
 import { useStoryPlayback } from "./use-story-playback";
 import { STORY_END, STORY_STOPS } from "./landing-playback";
 
@@ -34,16 +36,10 @@ const LandingExperience = dynamic(() => import("./LandingExperience"), {
   loading: () => null,
 });
 const spring = { stiffness: 300, damping: 30, mass: 1 };
-const entranceSpring = { type: "spring" as const, stiffness: 32, damping: 14 };
 // Entering the GPU-heavy workspace starts a new document, releasing this scene
 // before the equipment sandbox creates its own renderer.
 const MotionLink = motion.a;
-const chapters = ["Imagine", "Build", "Explore"];
-const thoughts = [
-  "Thinking through your process…",
-  "Choosing the right equipment…",
-  "Finding the connections…",
-];
+const chapters = ["Design", "Build", "Explore"];
 
 function EntryLink({ href, children }: { href: string; children: ReactNode }) {
   const x = useSpring(0, spring);
@@ -88,18 +84,18 @@ export default function LandingPage() {
   const [motionEnabled, setMotionEnabled] = useState(true);
   const [visible, setVisible] = useState(true);
   const [transparent, setTransparent] = useState(true);
-  const [thought, setThought] = useState(0);
   const [sceneReady, setSceneReady] = useState(false);
-  const [sceneEntered, setSceneEntered] = useState(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
   const onSceneUnavailable = useCallback(() => setSceneUnavailable(true), []);
-  const { progress, construction, speed } = useStoryPlayback(
-    scrollYProgress,
-    motionEnabled,
-    visible && sceneEntered,
-    reduced,
-  );
+  const {
+    progress,
+    design,
+    construction,
+    simulation,
+    replayDesign,
+    sendDesign,
+  } = useStoryPlayback(scrollYProgress, motionEnabled, visible, reduced);
   const [tourStop, setTourStop] = useState(0);
   const normalizedProgress = useTransform(
     progress,
@@ -107,6 +103,7 @@ export default function LandingPage() {
   );
   const chapterRef = useRef(0);
   const playing = motionEnabled && !reduced && visible;
+  const sceneOpacity = useTransform(progress, [0.12, 0.3], [0, 1]);
   const heroOpacity = useTransform(progress, [0, 0.16, 0.29], [1, 1, 0]);
   const heroY = useTransform(progress, [0, 0.28], [0, 70]);
   const buildOpacity = useTransform(
@@ -143,14 +140,6 @@ export default function LandingPage() {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
-  useEffect(() => {
-    if (!playing || !sceneEntered || chapter !== 0) return;
-    const timer = window.setInterval(
-      () => setThought((value) => (value + 1) % thoughts.length),
-      2800,
-    );
-    return () => window.clearInterval(timer);
-  }, [playing, sceneEntered, chapter]);
 
   const travelTo = (position: number) => {
     const element = root.current;
@@ -175,26 +164,10 @@ export default function LandingPage() {
   };
   const goTo = (index: number) => travelTo(STORY_STOPS[index]);
   const tourCopy = [
-    [
-      "Now,",
-      "step inside.",
-      "Every vessel. Every stream. A whole new perspective.",
-    ],
-    [
-      "Heat,",
-      "exchanged.",
-      "Follow the flow through the shell and tube bundle.",
-    ],
-    [
-      "Inside",
-      "the reaction.",
-      "See the catalyst beds inside the transparent reactor.",
-    ],
-    [
-      "Separation,",
-      "tray by tray.",
-      "Explore the column internals and the flow between stages.",
-    ],
+    "Step inside your process.",
+    "Follow the heat.",
+    "Inside the reaction.",
+    "Separation, tray by tray.",
   ][tourStop];
 
   return (
@@ -203,16 +176,12 @@ export default function LandingPage() {
         ref={root}
         className={styles.story}
         data-landing-page
+        data-theme="light"
+        data-palette="light"
         data-chapter={chapter}
         data-motion={playing ? "playing" : "paused"}
         data-launch-state={
-          sceneUnavailable
-            ? "unavailable"
-            : sceneEntered
-              ? "live"
-              : sceneReady
-                ? "entering"
-                : "preparing"
+          sceneUnavailable ? "unavailable" : sceneReady ? "live" : "preparing"
         }
       >
         <Link className={styles.skipLink} href="/">
@@ -222,7 +191,12 @@ export default function LandingPage() {
           className={styles.stage}
           data-landing-stage
           onPointerMove={(event) => {
-            if (!playing || !sceneEntered || event.pointerType === "touch")
+            if (
+              !playing ||
+              !sceneReady ||
+              chapter === 0 ||
+              event.pointerType === "touch"
+            )
               return;
             const rect = event.currentTarget.getBoundingClientRect();
             pointerX.set((event.clientX - rect.left) / rect.width - 0.5);
@@ -241,14 +215,7 @@ export default function LandingPage() {
               className={styles.brand}
               aria-label="Project CAD landing page"
             >
-              <svg viewBox="0 0 31 36" fill="none" aria-hidden="true">
-                <path
-                  d="M15.5 2 29 9.7v15.6L15.5 33 2 25.3V9.7L15.5 2Z M2 9.7l13.5 7.8L29 9.7 M15.5 17.5V33 M15.5 2v15.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <BrandMark />
               Project CAD
             </Link>
             <nav className={styles.chapters} aria-label="Story chapters">
@@ -273,53 +240,33 @@ export default function LandingPage() {
             </a>
           </header>
 
-          <div className={styles.experienceStage} data-shared-scene>
+          <motion.div
+            className={styles.experienceStage}
+            style={{ opacity: sceneOpacity }}
+            data-shared-scene
+          >
             <LandingExperience
               onReady={onSceneReady}
               onUnavailable={onSceneUnavailable}
               progress={progress}
               cadBridge={cadBridge}
               construction={construction}
-              playing={playing && sceneEntered}
+              simulation={simulation}
+              playing={playing && sceneReady && chapter !== 0}
               transparent={transparent}
               reduced={reduced}
               pointerX={pointerX}
               pointerY={pointerY}
             />
-          </div>
-          <motion.div
-            className={styles.launchPreview}
-            initial={false}
-            animate={{ opacity: sceneReady || sceneUnavailable ? 0 : 1 }}
-            transition={reduced ? { duration: 0 } : entranceSpring}
-            aria-hidden="true"
-            data-launch-preview
-            onAnimationComplete={() => {
-              if (sceneReady) setSceneEntered(true);
-            }}
-          >
-            <picture>
-              <source
-                media="(max-aspect-ratio: 17/20)"
-                srcSet="/landing/plant-opening-portrait.webp"
-              />
-              {/* An exact first-frame render, served before the WebGL bundle.
-                  Native picture selection avoids downloading both viewports. */}
-              <img
-                src="/landing/plant-opening-wide.webp"
-                alt=""
-                fetchPriority="high"
-                loading="eager"
-                decoding="sync"
-              />
-            </picture>
           </motion.div>
           <WorldBackdrop />
           <div className={styles.sceneVeil} aria-hidden="true" />
           <CadWorkbench
             progress={progress}
             construction={construction}
+            simulation={simulation}
             bridge={cadBridge}
+            fallback={sceneUnavailable || !sceneReady}
           />
 
           <motion.section
@@ -327,48 +274,32 @@ export default function LandingPage() {
             style={{ opacity: heroOpacity }}
             aria-hidden={chapter !== 0}
             inert={chapter !== 0}
-            aria-labelledby="imagine-title"
-            data-scene="imagine"
+            aria-labelledby="design-title"
+            data-scene="design"
           >
-            <div className={styles.prompt}>
-              <span className={styles.aiSystemLabel}>PROCESS INTELLIGENCE</span>
-              <span className={styles.thinking}>
-                <i aria-hidden="true" />
-                {sceneUnavailable
-                  ? "Live preview unavailable"
-                  : sceneEntered
-                    ? thoughts[thought]
-                    : "Bringing your plant online…"}
-              </span>
-              <button
-                onClick={() => goTo(1)}
-                className={styles.promptButton}
-                aria-label="Watch this process take shape"
+            <div className={styles.designLayout}>
+              <motion.div
+                className={styles.designCaption}
+                style={{ y: reduced ? 0 : heroY }}
               >
-                <span>
-                  Build a process with reaction,
-                  <br />
-                  separation, and recycle.
-                </span>
-                <ArrowRight size={19} />
-              </button>
-              <span className={styles.exampleLabel}>
-                EXAMPLE WORKFLOW · SCROLL TO CONSTRUCT
-              </span>
-            </div>
-            <motion.div
-              className={styles.sceneCaption}
-              style={{ y: reduced ? 0 : heroY }}
-            >
-              <h1 id="imagine-title">
-                A little thought.
-                <br />
-                <span>A whole new world.</span>
-              </h1>
-              <p>Describe it. Build it. Step inside.</p>
-            </motion.div>
-            <div className={styles.sceneActions}>
-              <EntryLink href="/">Start building</EntryLink>
+                <span className={styles.eyebrow}>FROM IDEA TO PROCESS</span>
+                <h1 id="design-title">Design.</h1>
+                <p>Start with a conversation.</p>
+                <button
+                  className={styles.textLink}
+                  onClick={() => goTo(1)}
+                  aria-label="Watch this process take shape"
+                >
+                  Watch it build <ArrowRight size={16} />
+                </button>
+              </motion.div>
+              <DesignChat
+                design={design}
+                reduced={reduced}
+                onReplay={replayDesign}
+                onSend={sendDesign}
+                onBuild={() => goTo(1)}
+              />
             </div>
           </motion.section>
 
@@ -380,14 +311,13 @@ export default function LandingPage() {
             aria-labelledby="build-title"
             data-scene="build"
           >
-            <BuildActivity construction={construction} speed={speed} />
+            <BuildActivity
+              construction={construction}
+              simulation={simulation}
+            />
             <div className={styles.sceneCaption}>
-              <h2 id="build-title">
-                Every connection,
-                <br />
-                <span>taking shape.</span>
-              </h2>
-              <p>From a thought to a working flowsheet.</p>
+              <h2 id="build-title">Build.</h2>
+              <p>Connected. Simulated. Ready.</p>
             </div>
             <div className={styles.sceneActions}>
               <button className={styles.textLink} onClick={() => goTo(2)}>
@@ -409,10 +339,8 @@ export default function LandingPage() {
               className={styles.sceneCaption}
               style={{ y: reduced ? 0 : exploreY }}
             >
-              <h2 id="explore-title">
-                {tourCopy[0]} <span>{tourCopy[1]}</span>
-              </h2>
-              <p>{tourCopy[2]}</p>
+              <h2 id="explore-title">Explore.</h2>
+              <p>{tourCopy}</p>
             </motion.div>
             <div className={styles.sceneActions}>
               <EntryLink href="/sandbox/equipment">Explore in 3D</EntryLink>
@@ -459,13 +387,13 @@ export default function LandingPage() {
             >
               <span>
                 {chapter === 0
-                  ? "Scroll to enter"
+                  ? "Scroll to build"
                   : chapter === 1
-                    ? "Scroll to step inside"
+                    ? "Scroll to explore"
                     : tourStop === 3
                       ? "Back to the beginning"
                       : tourStop === 0
-                        ? "Scroll to explore the equipment"
+                        ? "Scroll to look closer"
                         : "Keep exploring"}
               </span>
               <ArrowDown

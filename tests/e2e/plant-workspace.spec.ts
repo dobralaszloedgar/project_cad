@@ -44,6 +44,8 @@ async function exportProject(page: Page) {
 test("workspace defaults to transparent equipment and recovers 3D without losing the project", async ({
   page,
 }) => {
+  // This exercises several cold WebGL contexts, including deliberate recovery.
+  test.setTimeout(180000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await start(page);

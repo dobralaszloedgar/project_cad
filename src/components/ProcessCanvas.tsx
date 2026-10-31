@@ -1,20 +1,39 @@
 "use client";
-import { useMemo, useState, useRef, useEffect, useId } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useSyncExternalStore,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { Hand, Maximize, Minus, Plus } from "lucide-react";
+import { shortcutsBlocked } from "@/lib/keyboard";
 import {
   ReactFlow,
   ReactFlowProvider,
   Background,
   Controls,
+  ControlButton,
   Handle,
+  Position,
   MarkerType,
   BaseEdge,
-  applyNodeChanges,
   useReactFlow,
   useNodesInitialized,
+  useStore,
+  useStoreApi,
+  SelectionMode,
   type NodeProps,
   type Node,
   type EdgeProps,
+  type Edge,
   type NodeChange,
+  type EdgeChange,
   type FitViewOptions,
   type Viewport,
 } from "@xyflow/react";
@@ -27,23 +46,41 @@ import {
   validateGraph,
 } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
+import {
+  CANVAS_MIN_ZOOM,
+  CANVAS_MAX_ZOOM,
+  ZOOM_STEP,
+  useCanvasWheelNavigation,
+} from "./useCanvasWheelNavigation";
 import { equipmentPort, streamPath } from "./flow-geometry";
-import { routedStreamPath, type FlowObstacle } from "./flow-routing";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
-export const streamColors = {
-  teal: "#7f8e87",
-  blue: "#367c6c",
-  amber: "#b47b1e",
+import { availableStreamName } from "@/domain/stream-names";
+import { projectStreamColors, streamColor } from "./stream-colors";
+import { inlineStreamLabelPosition } from "./stream-label-placement";
+import {
+  routeStreams,
+  type StreamRoute,
+  type RouteEndpoint,
+} from "./stream-routing";
+const mixerDropHandle = "mixer-center";
+const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
+const subscribePointer = (onChange: () => void) => {
+  const query = window.matchMedia("(pointer: coarse)");
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
 };
+type EquipmentNode = Node<
+  { unit: Unit; connected: string[]; change?: string },
+  "equipment"
+>;
 // Keep equipment labels and the outer stream lanes clear of the floating toolbar.
 const flowFitOptions = {
   padding: { top: "110px", right: "60px", bottom: "70px", left: "60px" },
   minZoom: 0.05,
   maxZoom: 1.25,
 } satisfies FitViewOptions;
-type EquipmentNode = Node<{ unit: Unit; change?: string }, "equipment">;
 function portGeometry(kind: Kind, output: boolean, index: number) {
   const { x, y, position } = equipmentPort(kind, output, index);
   return {
@@ -57,23 +94,64 @@ function portGeometry(kind: Kind, output: boolean, index: number) {
     },
   };
 }
-function UnitNode({ data, selected }: NodeProps<EquipmentNode>) {
+const UnitNode = memo(function UnitNode({
+  data,
+  selected,
+}: NodeProps<EquipmentNode>) {
   const n = data.unit,
     p = ports(n.kind);
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState({
+    left: 0,
+    top: 0,
+    width: 128,
+    height: 128,
+  });
+  useLayoutEffect(() => {
+    const bounds = nodeRef.current?.querySelector("svg")?.getBBox();
+    if (!bounds?.width || !bounds.height) return;
+    const padding = 3 + Math.min(bounds.width, bounds.height) * 0.1;
+    setFrame({
+      left: bounds.x - padding,
+      top: bounds.y - padding,
+      width: bounds.width + padding * 2,
+      height: bounds.height + padding * 2,
+    });
+  }, [n.kind]);
   return (
     <div
-      className={`equipment-node ${selected ? "selected" : ""} ${data.change ?? ""}`}
+      ref={nodeRef}
+      className={`equipment-node ${n.kind === "PBR" || n.kind === "Distillation" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
     >
+      <div
+        className="equipment-selection-frame"
+        style={frame}
+        aria-hidden="true"
+      />
       <span className="unit-tag">{n.id}</span>
       {p.inputs.map((id, i) => (
         <Handle
           key={id}
           id={id}
           type="target"
+          aria-label={`${n.id} inlet ${id}`}
+          title={`${n.id} · ${id === "in2" ? "Secondary inlet" : "Inlet"}`}
+          isConnectable={n.kind === "Mixer" || !data.connected.includes(id)}
+          isConnectableStart={false}
           {...portGeometry(n.kind, false, i)}
           className="material-handle"
         />
       ))}
+      {n.kind === "Mixer" && (
+        <Handle
+          id={mixerDropHandle}
+          type="target"
+          position={Position.Left}
+          isConnectableStart={false}
+          className="mixer-drop-handle"
+          aria-label={`${n.id} connect streams to mixer`}
+        />
+      )}
       <EquipmentIcon kind={n.kind} size={128} />
       <span className="unit-name">{n.name}</span>
       {p.outputs.map((id, i) => (
@@ -81,103 +159,102 @@ function UnitNode({ data, selected }: NodeProps<EquipmentNode>) {
           key={id}
           id={id}
           type="source"
+          aria-label={`${n.id} outlet ${id}`}
+          title={`${n.id} · ${id === "out2" ? "Secondary outlet" : "Outlet"}`}
+          isConnectable={!data.connected.includes(id)}
+          isConnectableEnd={false}
           {...portGeometry(n.kind, true, i)}
           className="material-handle"
         />
       ))}
     </div>
   );
-}
-function PipeEdge(props: EdgeProps) {
-  const gradient = `stream-${useId().replace(/:/g, "")}`;
-  const rainbow = props.data?.rainbow === true;
-  const obstacles = props.data?.obstacles as FlowObstacle[] | undefined;
-  const routeLane =
-    typeof props.data?.routeLane === "number" ? props.data.routeLane : 0;
-  const {
-    source,
-    target,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    sourceHandleId,
-    targetHandleId,
-  } = props;
-  const path = useMemo(() => {
-    const geometry = {
-      source,
-      target,
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      sourcePosition,
-      targetPosition,
-      sourceHandleId,
-      targetHandleId,
+});
+type Pipe = Edge<{
+  compositionColors: boolean;
+  name: string;
+  color: string;
+  route?: StreamRoute;
+}>;
+const STREAM_LABEL_DETAIL_ZOOM = 0.65;
+const STREAM_LABEL_FONT_SIZE = 11 + 96 / 72;
+const PipeEdge = memo(function PipeEdge(props: EdgeProps<Pipe>) {
+  const colored = props.data?.compositionColors === true;
+  const path = props.data?.route?.path ?? streamPath(props);
+  const zoom = useStore((state) => state.transform[2]);
+  const name = props.data?.name;
+  const textRef = useRef<SVGTextElement>(null);
+  const [textBounds, setTextBounds] = useState({
+    name,
+    width: 0,
+    height: 14,
+    offsetY: 0,
+  });
+  useLayoutEffect(() => {
+    const measure = () => {
+      const text = textRef.current;
+      const bounds = text?.getBBox();
+      if (text && bounds?.width) {
+        const scale = STREAM_LABEL_FONT_SIZE / parseFloat(text.style.fontSize);
+        setTextBounds({
+          name,
+          width: bounds.width * scale,
+          height: bounds.height * scale,
+          offsetY:
+            (bounds.y + bounds.height / 2 - Number(text.getAttribute("y"))) *
+            scale,
+        });
+      }
     };
-    return (
-      (obstacles && routedStreamPath(geometry, obstacles, routeLane)) ||
-      streamPath(geometry)
-    );
-  }, [
-    obstacles,
-    routeLane,
-    source,
-    target,
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    sourceHandleId,
-    targetHandleId,
-  ]);
+    measure();
+    let active = true;
+    void document.fonts.ready.then(() => {
+      if (active) measure();
+    });
+    return () => {
+      active = false;
+    };
+  }, [name]);
+  const measured = textBounds.name === name && textBounds.width > 0;
+  const width = measured ? textBounds.width : (name?.length ?? 0) * 8;
+  const height = measured ? textBounds.height : 14;
+  const labelWidth =
+    (width + 6) / zoom + Number(props.style?.strokeWidth ?? 2.5);
+  const labelHeight = (height + 1) / zoom;
+  const offsetY = measured ? textBounds.offsetY / zoom : 0;
+  const label = useMemo(
+    () =>
+      inlineStreamLabelPosition(
+        path,
+        props.data?.route?.label ?? {
+          x: (props.sourceX + props.targetX) / 2,
+          y: (props.sourceY + props.targetY) / 2,
+        },
+        (width + 6) / STREAM_LABEL_DETAIL_ZOOM + 3.5,
+        (height + 1) / STREAM_LABEL_DETAIL_ZOOM,
+        1.75 + 1 / STREAM_LABEL_DETAIL_ZOOM,
+      ),
+    [
+      path,
+      props.data?.route?.label,
+      props.sourceX,
+      props.sourceY,
+      props.targetX,
+      props.targetY,
+      width,
+      height,
+    ],
+  );
   return (
     <g>
-      {rainbow ? (
-        <defs>
-          <linearGradient
-            id={gradient}
-            gradientUnits="userSpaceOnUse"
-            x1={props.sourceX}
-            y1={props.sourceY}
-            x2={props.targetX}
-            y2={props.targetY}
-          >
-            {[
-              "#25866a",
-              "#3192b4",
-              "#6a6bc3",
-              "#b15a9a",
-              "#cb7355",
-              "#b49836",
-              "#25866a",
-            ].map((color, index) => (
-              <stop
-                key={index}
-                offset={`${(index / 6) * 100}%`}
-                stopColor={color}
-              />
-            ))}
-          </linearGradient>
-        </defs>
-      ) : null}
       <BaseEdge
         id={props.id}
         path={path}
         markerEnd={props.markerEnd}
-        style={{
-          ...props.style,
-          ...(rainbow ? { stroke: `url(#${gradient})`, strokeWidth: 2.5 } : {}),
-        }}
+        style={props.style}
         interactionWidth={24}
       />
-      {rainbow ? (
+      {colored ? (
         <path
           className="stream-flow-motion"
           d={path}
@@ -188,22 +265,54 @@ function PipeEdge(props: EdgeProps) {
           pointerEvents="none"
         />
       ) : null}
+      {name && (
+        <g
+          className={`stream-label ${zoom < STREAM_LABEL_DETAIL_ZOOM ? "stream-label-overview" : ""}`}
+          aria-hidden="true"
+          pointerEvents="none"
+        >
+          <rect
+            className="stream-label-box"
+            x={label.x - labelWidth / 2}
+            y={label.y - labelHeight / 2}
+            width={labelWidth}
+            height={labelHeight}
+            rx={1 / zoom}
+            fill="var(--canvas)"
+          />
+          <text
+            ref={textRef}
+            x={label.x}
+            y={label.y - offsetY}
+            textAnchor="middle"
+            dominantBaseline="central"
+            style={{
+              fontSize: STREAM_LABEL_FONT_SIZE / zoom,
+              fontWeight: 500,
+              fill: props.data?.color,
+            }}
+          >
+            {name}
+          </text>
+        </g>
+      )}
     </g>
   );
-}
+});
 const nodeTypes = { equipment: UnitNode };
 const edgeTypes = { pipe: PipeEdge };
 interface Props {
   project: Project;
   fitRequest?: number;
   selected: string | null;
-  onSelect: (id: string) => void;
+  selection: string[];
+  onSelection: Dispatch<SetStateAction<string[]>>;
   onInspect: (id: string) => void;
   onChange: (project: Project, label: string) => void;
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
   onError: (message: string) => void;
   result: Result | null;
-  rainbow: boolean;
+  compositionColors: boolean;
   compare?: Project;
   /** A fixed, read-only view of the same canvas for embedded walkthroughs. */
   presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
@@ -212,23 +321,172 @@ function Inner(props: Props) {
   const {
     project,
     selected,
-    onSelect,
+    selection,
+    onSelection,
     onInspect,
     onChange,
     onAdd,
     onError,
     result,
     compare,
-    rainbow,
+    compositionColors,
     fitRequest = 0,
     presentation,
   } = props;
   const rf = useReactFlow();
+  const flowStore = useStoreApi();
+  const zoom = useStore((state) => state.transform[2]);
   const nodesInitialized = useNodesInitialized();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [panMode, setPanMode] = useState(false);
+  const [spacePan, setSpacePan] = useState(false);
+  const touch = useSyncExternalStore(
+    subscribePointer,
+    coarsePointer,
+    () => false,
+  );
+  const panning = panMode || spacePan;
+  const marqueeActive = useRef(false);
+  useCanvasWheelNavigation(containerRef, !presentation);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
+  useEffect(() => {
+    if (presentation) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        shortcutsBlocked(event) ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      )
+        return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          ".plant-viewport, .plant-view, aside, .assistant-panel, .workspace-utilities",
+        )
+      )
+        return;
+      const key = event.key.toLowerCase();
+      if (key === " ") {
+        if (event.target instanceof Element && event.target.closest("button"))
+          return;
+        event.preventDefault();
+        setSpacePan(true);
+        return;
+      }
+      const viewport = rf.getViewport();
+      const step = event.shiftKey ? 256 : 64;
+      let handled = true;
+      if (key.startsWith("arrow")) {
+        const delta = {
+          arrowleft: [step, 0],
+          arrowright: [-step, 0],
+          arrowup: [0, step],
+          arrowdown: [0, -step],
+        }[key];
+        if (delta)
+          void rf.setViewport({
+            ...viewport,
+            x: viewport.x + delta[0],
+            y: viewport.y + delta[1],
+          });
+        else handled = false;
+      } else if (["+", "=", "-"].includes(key))
+        void rf.zoomTo(
+          Math.max(
+            CANVAS_MIN_ZOOM,
+            Math.min(
+              CANVAS_MAX_ZOOM,
+              viewport.zoom * (key === "-" ? 1 / ZOOM_STEP : ZOOM_STEP),
+            ),
+          ),
+        );
+      else if (key === "f") {
+        const chosen = project.units.filter((unit) =>
+          selection.includes(unit.id),
+        );
+        void rf.fitView({
+          padding: 0.2,
+          ...(event.shiftKey && chosen.length ? { nodes: chosen } : {}),
+        });
+      } else if (key === "p") setPanMode(true);
+      else if (key === "v") setPanMode(false);
+      else if (key === "g") setShowGrid((value) => !value);
+      else if (key === "l") setShowLabels((value) => !value);
+      else handled = false;
+      if (handled) event.preventDefault();
+    }
+    const releaseSpace = (event: KeyboardEvent) => {
+      if (event.code === "Space") setSpacePan(false);
+    };
+    const resetSpace = () => setSpacePan(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", releaseSpace);
+    window.addEventListener("blur", resetSpace);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", releaseSpace);
+      window.removeEventListener("blur", resetSpace);
+    };
+  }, [rf, project.units, selection, presentation]);
+  useEffect(() => {
+    if (presentation) return;
+    return flowStore.subscribe((current, previous) => {
+      const rect = current.userSelectionRect;
+      if (
+        !marqueeActive.current ||
+        !current.userSelectionActive ||
+        !rect ||
+        rect === previous.userSelectionRect
+      )
+        return;
+      const canvas = current.domNode?.getBoundingClientRect();
+      if (!canvas || !containerRef.current) return;
+      const left = canvas.left + rect.x;
+      const top = canvas.top + rect.y;
+      const enclosed = new Set<string>();
+      for (const node of containerRef.current.querySelectorAll<HTMLElement>(
+        ".react-flow__node",
+      )) {
+        const frame = node
+          .querySelector(".equipment-selection-frame")
+          ?.getBoundingClientRect();
+        if (
+          node.dataset.id &&
+          frame &&
+          frame.left >= left &&
+          frame.top >= top &&
+          frame.right <= left + rect.width &&
+          frame.bottom <= top + rect.height
+        )
+          enclosed.add(node.dataset.id);
+      }
+      // A marquee encloses visible equipment frames, not labels or connected pipes.
+      onSelection((previous) => {
+        const remaining = new Set(enclosed);
+        return [...previous.filter((id) => remaining.delete(id)), ...remaining];
+      });
+    });
+  }, [flowStore, onSelection, presentation]);
+  const initiallyFramed = useRef(false);
+  useEffect(() => {
+    if (presentation || !nodesInitialized || initiallyFramed.current) return;
+    initiallyFramed.current = true;
+    const first = rf.getNodes()[0];
+    const container = containerRef.current;
+    if (first && container && window.matchMedia("(max-width: 760px)").matches) {
+      void rf.setViewport({
+        x: 28 - first.position.x,
+        y: Math.max(150, container.clientHeight * 0.42) - first.position.y,
+        zoom: 1,
+      });
+    }
+  }, [nodesInitialized, rf, presentation]);
   const fittedRequest = useRef(0);
   useEffect(() => {
     if (
+      presentation ||
       !fitRequest ||
       !nodesInitialized ||
       fittedRequest.current === fitRequest
@@ -242,25 +500,36 @@ function Inner(props: Props) {
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [fitRequest, nodesInitialized, rf]);
+  }, [fitRequest, nodesInitialized, rf, presentation]);
   useEffect(() => {
     if (presentation) return;
     const container = containerRef.current;
     if (!container) return;
     let frame = 0;
+    let width = container.clientWidth;
+    let height = container.clientHeight;
     const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const first = rf.getNodes()[0];
-        if (first && window.matchMedia("(max-width: 760px)").matches) {
+        const nextWidth = container.clientWidth;
+        const nextHeight = container.clientHeight;
+        if (
+          width > 0 &&
+          height > 0 &&
+          nextWidth > 0 &&
+          nextHeight > 0 &&
+          (width !== nextWidth || height !== nextHeight)
+        ) {
+          const viewport = rf.getViewport();
+          // Preserve the world point at the center instead of refitting on resize.
           void rf.setViewport({
-            x: 28 - first.position.x,
-            y: Math.max(150, container.clientHeight * 0.42) - first.position.y,
-            zoom: 1,
+            ...viewport,
+            x: viewport.x + (nextWidth - width) / 2,
+            y: viewport.y + (nextHeight - height) / 2,
           });
-          return;
         }
-        void rf.fitView(flowFitOptions);
+        width = nextWidth;
+        height = nextHeight;
       });
     });
     observer.observe(container);
@@ -276,83 +545,216 @@ function Inner(props: Props) {
     Record<string, EquipmentNode["measured"]>
   >({});
   const [hover, setHover] = useState("");
-  const changes = compare ? diff(compare, project) : null;
+  const changes = useMemo(
+    () => (compare ? diff(compare, project) : null),
+    [compare, project],
+  );
+  const baseNodes: EquipmentNode[] = useMemo(() => {
+    const connected = new Map<string, string[]>();
+    for (const edge of project.edges) {
+      connected.set(edge.source, [
+        ...(connected.get(edge.source) ?? []),
+        edge.sourcePort,
+      ]);
+      connected.set(edge.target, [
+        ...(connected.get(edge.target) ?? []),
+        edge.targetPort,
+      ]);
+    }
+    return project.units.map((unit) => ({
+      id: unit.id,
+      type: "equipment",
+      style: { pointerEvents: "none" },
+      position: unit.position,
+      data: {
+        unit,
+        connected: connected.get(unit.id) ?? [],
+        change: changes?.added.some((n) => n.id === unit.id)
+          ? "added"
+          : changes?.changed.some((n) => n.id === unit.id)
+            ? "modified"
+            : undefined,
+      },
+    }));
+  }, [project.units, project.edges, changes]);
   const nodes: EquipmentNode[] = useMemo(
     () =>
-      project.units.map((unit) => ({
-        id: unit.id,
-        type: "equipment",
-        position: positions[unit.id] ?? unit.position,
-        measured: measurements[unit.id],
-        data: {
-          unit,
-          change: changes?.added.some((n) => n.id === unit.id)
-            ? "added"
-            : changes?.changed.some((n) => n.id === unit.id)
-              ? "modified"
-              : undefined,
-        },
-        selected: unit.id === selected,
+      baseNodes.map((node) => ({
+        ...node,
+        position: positions[node.id] ?? node.position,
+        measured: measurements[node.id],
+        selected: selection.includes(node.id),
       })),
-    [project.units, positions, measurements, selected, changes],
+    [baseNodes, positions, measurements, selection],
   );
-  const obstacles = useMemo(
-    () =>
-      project.units.map((unit) => ({
-        id: unit.id,
-        ...(positions[unit.id] ?? unit.position),
-      })),
-    [project.units, positions],
+  const colors = useMemo(
+    () => (compositionColors ? projectStreamColors(project, result) : {}),
+    [project, result, compositionColors],
   );
-  const colors =
-    presentation?.colorMode === "dark"
-      ? { teal: "#8caaa4", blue: "#71bdb0", amber: "#cbb27d" }
-      : streamColors;
-  const edges = project.edges.map((e, index) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourcePort,
-    targetHandle: e.targetPort,
-    type: "pipe",
-    data: { rainbow, obstacles, routeLane: index },
-    style: {
-      stroke: colors[e.color],
-      strokeWidth: presentation ? 3 : selected === e.id ? 3 : 2,
-    },
-    markerEnd: { type: MarkerType.ArrowClosed, color: colors[e.color] },
-    selected: e.id === selected,
-  }));
-  function nodeChanges(changes: NodeChange<EquipmentNode>[]) {
-    const measuredIds = new Set(
-      changes
-        .filter((change) => change.type === "dimensions")
-        .map((change) => change.id),
+  const routes = useMemo(() => {
+    const endpoint = (
+      id: string,
+      output: boolean,
+      port: string,
+    ): RouteEndpoint | undefined => {
+      const unit = project.units.find((unit) => unit.id === id);
+      if (!unit) return undefined;
+      const position = positions[id] ?? unit.position;
+      const geometry = equipmentPort(
+        unit.kind,
+        output,
+        port.endsWith("2") ? 1 : 0,
+      );
+      // Edges attach to the outer edge of the eight-pixel connection handle.
+      return {
+        nodeId: id,
+        side: geometry.position,
+        x:
+          position.x +
+          geometry.x +
+          (geometry.position === Position.Right
+            ? 4
+            : geometry.position === Position.Left
+              ? -4
+              : 0),
+        y:
+          position.y +
+          geometry.y +
+          (geometry.position === Position.Bottom
+            ? 4
+            : geometry.position === Position.Top
+              ? -4
+              : 0),
+      };
+    };
+    return routeStreams(
+      project.edges.flatMap((edge) => {
+        const source = endpoint(edge.source, true, edge.sourcePort);
+        const target = endpoint(edge.target, false, edge.targetPort);
+        return source && target ? [{ id: edge.id, source, target }] : [];
+      }),
+      project.units.map((unit) => {
+        const position = positions[unit.id] ?? unit.position;
+        return {
+          id: unit.id,
+          x: position.x,
+          y: position.y - 28,
+          width: 128,
+          height: 186,
+        };
+      }),
     );
-    if (measuredIds.size) {
-      const initialized = applyNodeChanges(changes, nodes);
-      setMeasurements((previous) => ({
-        ...previous,
-        ...Object.fromEntries(
-          initialized
-            .filter((node) => measuredIds.has(node.id))
-            .map((node) => [node.id, node.measured]),
-        ),
-      }));
+  }, [project.units, project.edges, positions]);
+  const edges = useMemo(
+    () =>
+      project.edges.map((e) => {
+        const color =
+          e.colorIndex !== undefined
+            ? streamColor(e.colorIndex)
+            : compositionColors
+              ? colors[e.id]
+              : "var(--stream-stroke)";
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourcePort,
+          targetHandle: e.targetPort,
+          type: "pipe",
+          data: {
+            compositionColors,
+            name: e.name ?? e.id,
+            color,
+            route: routes.get(e.id),
+          },
+          ariaLabel: e.name ?? e.id,
+          style: { stroke: color, strokeWidth: selected === e.id ? 3.5 : 2.5 },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color,
+            width: 14,
+            height: 14,
+          },
+          selected: selection.includes(e.id),
+        };
+      }),
+    [project.edges, compositionColors, colors, selected, selection, routes],
+  );
+  function targetPort(connection: {
+    target: string;
+    targetHandle?: string | null;
+  }): Connection["targetPort"] {
+    if (
+      connection.targetHandle === mixerDropHandle &&
+      project.units.some(
+        (unit) => unit.id === connection.target && unit.kind === "Mixer",
+      )
+    ) {
+      // Keep persisted port IDs compatible with existing projects and distribute
+      // center drops across both inlet branches, including occupied branches.
+      const incoming = project.edges.filter(
+        (edge) => edge.target === connection.target,
+      );
+      return incoming.filter((edge) => edge.targetPort === "in").length <=
+        incoming.filter((edge) => edge.targetPort === "in2").length
+        ? "in"
+        : "in2";
     }
-    const moved = changes.filter((c) => c.type === "position" && c.position);
-    if (moved.length)
-      setPositions((prev) => ({
-        ...prev,
-        ...Object.fromEntries(
-          moved.map((c) => (c.type === "position" ? [c.id, c.position] : [])),
-        ),
-      }));
+    return connection.targetHandle as Connection["targetPort"];
   }
+  const updateSelection = useCallback(
+    (changes: (NodeChange<EquipmentNode> | EdgeChange)[]) => {
+      if (marqueeActive.current) return;
+      const selectedChanges = changes.filter(
+        (change) => change.type === "select",
+      );
+      if (!selectedChanges.length) return;
+      onSelection((previous) => {
+        const next = new Set(previous);
+        for (const change of selectedChanges) {
+          if (change.selected) next.add(change.id);
+          else next.delete(change.id);
+        }
+        return [...next];
+      });
+    },
+    [onSelection],
+  );
+  const nodeChanges = useCallback(
+    (changes: NodeChange<EquipmentNode>[]) => {
+      updateSelection(changes);
+      const dimensions = changes.filter(
+        (change) => change.type === "dimensions" && change.dimensions,
+      );
+      if (dimensions.length) {
+        setMeasurements((previous) => {
+          const next = { ...previous };
+          for (const change of dimensions) {
+            if (change.type === "dimensions")
+              next[change.id] = change.dimensions;
+          }
+          return next;
+        });
+      }
+      const moved = changes.filter((c) => c.type === "position" && c.position);
+      if (moved.length)
+        setPositions((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            moved.map((c) => (c.type === "position" ? [c.id, c.position] : [])),
+          ),
+        }));
+    },
+    [updateSelection],
+  );
+  const duration = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 220;
   return (
     <div
       ref={containerRef}
-      className="flow-wrapper"
+      className={`flow-wrapper ${panning ? "pan-mode" : ""} ${showLabels ? "" : "hide-flow-labels"}`}
+      tabIndex={0}
+      aria-label="2D process canvas"
       data-canvas-mode={presentation ? "presentation" : "editor"}
       onDragOver={(e) => {
         e.preventDefault();
@@ -384,54 +786,122 @@ function Inner(props: Props) {
         edgeTypes={edgeTypes}
         fitView={!presentation}
         fitViewOptions={flowFitOptions}
+        minZoom={CANVAS_MIN_ZOOM}
+        maxZoom={CANVAS_MAX_ZOOM}
+        panOnScroll={false}
+        panOnDrag={presentation ? false : panning || touch ? true : [1, 2]}
+        selectionOnDrag={!presentation && !panning && !touch}
+        selectionKeyCode={presentation || panning ? null : "Shift"}
+        selectionMode={SelectionMode.Partial}
+        onSelectionStart={() => {
+          marqueeActive.current = true;
+          onSelection([]);
+        }}
+        onSelectionEnd={() => {
+          marqueeActive.current = false;
+        }}
+        nodesDraggable={!presentation && !panning}
+        multiSelectionKeyCode={["Shift", "Control", "Meta"]}
+        disableKeyboardA11y
+        panActivationKeyCode={null}
+        zoomOnScroll={false}
+        zoomOnPinch={!presentation}
+        zoomActivationKeyCode={null}
         viewport={presentation?.viewport}
-        nodesDraggable={!presentation}
-        nodesConnectable={!presentation}
+        nodesConnectable={!presentation && !panning}
         nodesFocusable={!presentation}
         edgesFocusable={!presentation}
-        elementsSelectable={!presentation}
-        panOnDrag={!presentation}
-        zoomOnScroll={!presentation}
-        zoomOnPinch={!presentation}
+        elementsSelectable={!presentation && !panning}
         preventScrolling={!presentation}
-        minZoom={0.05}
-        maxZoom={1.8}
         zoomOnDoubleClick={false}
-        snapToGrid
-        snapGrid={[10, 10]}
         onNodesChange={nodeChanges}
-        onNodeDragStop={(_, node) => {
+        onEdgesChange={updateSelection}
+        onNodeDragStop={(_, node, movedNodes) => {
+          const moved = new Map(
+            movedNodes.map((item) => [item.id, item.position]),
+          );
+          moved.set(node.id, node.position);
           onChange(
             {
               ...project,
               units: project.units.map((n) =>
-                n.id === node.id ? { ...n, position: node.position } : n,
+                moved.has(n.id)
+                  ? {
+                      ...n,
+                      position: {
+                        x: Math.round(moved.get(n.id)!.x / 10) * 10,
+                        y: Math.round(moved.get(n.id)!.y / 10) * 10,
+                      },
+                    }
+                  : n,
               ),
             },
             "Move equipment",
           );
           setPositions({});
         }}
-        onNodeClick={(_, node) => !presentation && onSelect(node.id)}
-        onNodeDoubleClick={(_, node) => !presentation && onInspect(node.id)}
-        onEdgeClick={(_, edge) => !presentation && onInspect(edge.id)}
+        onNodeClick={(event, node) => {
+          if (presentation || panning) return;
+          if (!event.ctrlKey && !event.metaKey && !event.shiftKey)
+            onSelection([node.id]);
+          containerRef.current?.focus();
+        }}
+        onPaneClick={() => {
+          if (presentation || panning) return;
+          onSelection([]);
+          containerRef.current?.focus();
+        }}
+        onNodeDoubleClick={(_, node) =>
+          !presentation && !panning && onInspect(node.id)
+        }
+        onEdgeClick={() =>
+          !presentation && !panning && containerRef.current?.focus()
+        }
+        onEdgeDoubleClick={(_, edge) =>
+          !presentation && !panning && onInspect(edge.id)
+        }
         onEdgeMouseEnter={(_, edge) => {
           const s = result?.streams[edge.id];
+          const name =
+            project.edges.find((stream) => stream.id === edge.id)?.name ??
+            edge.id;
           setHover(
             s
-              ? `${edge.id} · ${flow(s).toFixed(3)} mol/s · ${s.temperature.toFixed(1)} K · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
-              : `${edge.id} · Run to calculate`,
+              ? `${name} · ${flow(s).toFixed(3)} mol/s · ${s.temperature.toFixed(1)} K · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
+              : `${name} · Run to calculate`,
           );
         }}
         onEdgeMouseLeave={() => setHover("")}
+        isValidConnection={(connection) => {
+          if (!connection.sourceHandle || !connection.targetHandle)
+            return false;
+          return (
+            validateGraph({
+              ...project,
+              edges: [
+                ...project.edges,
+                {
+                  id: "pending-connection",
+                  source: connection.source,
+                  target: connection.target,
+                  sourcePort:
+                    connection.sourceHandle as Connection["sourcePort"],
+                  targetPort: targetPort(connection),
+                  color: "teal",
+                },
+              ],
+            }).length === 0
+          );
+        }}
         onConnect={(c) => {
           if (presentation) return;
           const edge: Connection = {
             id: crypto.randomUUID(),
+            name: availableStreamName(project.edges),
             source: c.source,
             target: c.target,
             sourcePort: c.sourceHandle as Connection["sourcePort"],
-            targetPort: c.targetHandle as Connection["targetPort"],
+            targetPort: targetPort(c),
             color: "teal",
           };
           const next = { ...project, edges: [...project.edges, edge] };
@@ -458,28 +928,66 @@ function Inner(props: Props) {
           );
           return false;
         }}
-        deleteKeyCode={presentation ? null : ["Backspace", "Delete"]}
+        deleteKeyCode={null}
       >
-        <Background
-          color={presentation?.colorMode === "dark" ? "#31505a" : "#bfcac4"}
-          gap={24}
-          size={1}
-        />
+        {showGrid ? <Background color="var(--grid)" gap={24} size={1} /> : null}
         {!presentation && (
-          <Controls showInteractive={false} fitViewOptions={flowFitOptions} />
+          <Controls
+            showInteractive={false}
+            showZoom={false}
+            showFitView={false}
+          >
+            <ControlButton
+              title="Zoom in (+)"
+              aria-label="Zoom In"
+              disabled={zoom >= CANVAS_MAX_ZOOM}
+              onClick={() => void rf.zoomTo(rf.getZoom() * ZOOM_STEP)}
+            >
+              <Plus size={16} aria-hidden="true" />
+            </ControlButton>
+            <ControlButton
+              title="Zoom out (−)"
+              aria-label="Zoom Out"
+              disabled={zoom <= CANVAS_MIN_ZOOM}
+              onClick={() => void rf.zoomTo(rf.getZoom() / ZOOM_STEP)}
+            >
+              <Minus size={16} aria-hidden="true" />
+            </ControlButton>
+            <ControlButton
+              title="Fit View"
+              aria-label="Fit View"
+              onClick={() =>
+                void rf.fitView({ padding: 0.2, duration: duration() })
+              }
+            >
+              <Maximize size={16} aria-hidden="true" />
+            </ControlButton>
+            {!touch && (
+              <ControlButton
+                className="react-flow__controls-pan"
+                title="Pan canvas (P) · Select (V)"
+                aria-label="Pan canvas"
+                aria-pressed={panning}
+                onClick={() => setPanMode((value) => !value)}
+              >
+                <Hand size={16} aria-hidden="true" />
+              </ControlButton>
+            )}
+          </Controls>
         )}
       </ReactFlow>
       {!presentation && (
-        <div className="canvas-footnote">
-          <span className="desktop-canvas-hint">
-            {hover ||
-              "Drag equipment · connect material ports · double-click to edit"}
-          </span>
-          <span className="mobile-canvas-hint">
-            Drag canvas to pan · use + / − to zoom
-          </span>
+        <div className="navigation-hint">
+          {touch
+            ? "Drag to pan · Pinch to zoom"
+            : panning
+              ? "Drag to pan · V to select · Pinch to zoom"
+              : "Drag to select · Space + drag / scroll to pan · Pinch to zoom"}
         </div>
       )}
+      {!presentation && hover ? (
+        <div className="canvas-footnote">{hover}</div>
+      ) : null}
     </div>
   );
 }

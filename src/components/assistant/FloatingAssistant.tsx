@@ -17,26 +17,29 @@ import styles from "../AssistantPanel.module.css";
 const hiddenKey = "project-cad.assistant-hidden.v1";
 export default function FloatingAssistant({
   containerRef,
+  controlsRef,
+  open,
+  onOpenChange: setOpen,
   projectId,
   project,
   folderName,
   appliedProposalIds,
   onApply,
   onError,
-  reveal,
 }: {
   containerRef: RefObject<HTMLElement | null>;
+  controlsRef: RefObject<HTMLElement | null>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   projectId: string;
   project: Project;
   folderName: string | null;
   appliedProposalIds: string[];
   onApply: (proposal: Proposal) => Promise<string>;
   onError: (message: string) => void;
-  reveal: number;
 }) {
   const assistant = useAssistant(projectId, project);
-  const [open, setOpen] = useState(false),
-    [started, setStarted] = useState(false),
+  const [started, setStarted] = useState(false),
     [hidden, setHidden] = useState(false);
   const [read, setRead] = useState<string>(),
     [dismissedActivity, setDismissedActivity] = useState<string>();
@@ -52,7 +55,7 @@ export default function FloatingAssistant({
     if (panel.current?.contains(document.activeElement))
       button.current?.focus({ preventScroll: true });
     setOpen(false);
-  }, []);
+  }, [setOpen]);
   const hide = useCallback(() => {
     setOpen(false);
     setHidden(true);
@@ -61,7 +64,7 @@ export default function FloatingAssistant({
     } catch {
       /* Storage is optional. */
     }
-  }, []);
+  }, [setOpen]);
   const dock = useAssistantDock(containerRef, close, hide);
   useEffect(() => {
     if (!dock.ready) return;
@@ -128,18 +131,18 @@ export default function FloatingAssistant({
     }
   }, []);
   useEffect(() => {
-    if (!reveal) return;
-    queueMicrotask(() => {
-      setHidden(false);
-      setStarted(true);
-      setOpen(true);
-    });
-    try {
-      localStorage.removeItem(hiddenKey);
-    } catch {
-      /* Storage is optional. */
+    if (open) {
+      queueMicrotask(() => {
+        setStarted(true);
+        setHidden(false);
+      });
+      try {
+        localStorage.removeItem(hiddenKey);
+      } catch {
+        /* Storage is optional. */
+      }
     }
-  }, [reveal]);
+  }, [open]);
   useEffect(() => {
     if (!run) return;
     if (
@@ -159,7 +162,11 @@ export default function FloatingAssistant({
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !root.current?.contains(event.target))
+      if (
+        event.target instanceof Node &&
+        !root.current?.contains(event.target) &&
+        !controlsRef.current?.contains(event.target)
+      )
         close();
     };
     const key = (event: KeyboardEvent) => {
@@ -186,7 +193,7 @@ export default function FloatingAssistant({
       document.removeEventListener("pointerdown", outside);
       document.removeEventListener("keydown", key);
     };
-  }, [open, close, assistant.connected]);
+  }, [open, close, assistant.connected, controlsRef]);
   function show() {
     setStarted(true);
     setOpen(true);
@@ -237,7 +244,7 @@ export default function FloatingAssistant({
         aria-hidden={!open}
         inert={!open}
       >
-        {started ? (
+        {started || open ? (
           <AssistantPanel
             assistant={assistant}
             project={project}

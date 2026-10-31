@@ -1,6 +1,7 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import {
   Workflow,
   Upload,
@@ -15,8 +16,8 @@ import {
   Trash2,
   X,
   Home,
+  Compass,
   History,
-  PanelLeft,
   ChevronRight,
   GitBranch,
   Thermometer,
@@ -32,11 +33,15 @@ import {
   CircleHelp,
   AlignHorizontalJustifyStart,
   Rainbow,
+  Palette,
+  HardDrive,
   AlertCircle,
   FolderPlus,
 } from "lucide-react";
 import Dialog from "./Dialog";
+import BrandMark from "./BrandMark";
 import EquipmentLibrary from "./EquipmentLibrary";
+import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
 import { plantTemplate } from "@/domain/plant-templates";
 import { arrangeFlowsheet } from "@/domain/flowsheet-layout";
@@ -98,10 +103,22 @@ import ProcessCanvas from "./ProcessCanvas";
 import Inspector from "./Inspector";
 import Results from "./Results";
 import FloatingAssistant from "./assistant/FloatingAssistant";
+import KeyboardHelp from "./KeyboardHelp";
+import ThemePicker from "./ThemePicker";
+import { useTheme } from "./useTheme";
+import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
+import {
+  copySelection,
+  deleteSelection,
+  pasteSelection,
+  type SelectionCopy,
+} from "@/domain/editor";
 const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
+type WorkspacePanel =
+  "Equipment" | "Results" | "Themes" | "Storage settings" | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
     ? `Saved to ${location.folderName}/project.json`
@@ -126,6 +143,7 @@ export default function Workspace({
   initialPlayback?: boolean;
   initialArrange?: boolean;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<WorkspaceState>(() => ({
     version: 1,
     project: (exampleId && plantTemplate(exampleId)) || reactorExample(),
@@ -133,7 +151,18 @@ export default function Workspace({
   }));
   const [ready, setReady] = useState(false);
   const [storage, setStorage] = useState("Loading local project");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selection, setSelection] = useState<string[]>([]);
+  const selected = selection.at(-1) ?? null;
+  function setSelected(id: string | null) {
+    setSelection(id ? [id] : []);
+  }
+  const [helpOpen, setHelpOpen] = useState(false);
+  const editHistory = useRef<{ past: Project[]; future: Project[] }>({
+    past: [],
+    future: [],
+  });
+  const clipboard = useRef<SelectionCopy | null>(null);
+  const pasteOffset = useRef(40);
   const [view, setView] = useState<string>(initialView);
   const [fitRequest, setFitRequest] = useState(0);
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
@@ -141,17 +170,31 @@ export default function Workspace({
   const [compareId, setCompareId] = useState("");
   const [result, setResult] = useState<Result | null>(null);
   const [message, setMessage] = useState("");
-  const [theme, setTheme] = useState("light");
+  const { theme: palette, setTheme } = useTheme();
+  const theme = palette.mode;
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(true);
+  const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-  const [resultsOpen, setResultsOpen] = useState(false);
-  const [revealAssistant, setRevealAssistant] = useState(0);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const assistantApplyLock = useRef(false);
-  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  useEffect(() => {
+    if (!assistantOpen) return;
+    const mobile = window.matchMedia("(max-width: 760px)");
+    const onResize = (event: MediaQueryListEvent) => {
+      if (event.matches) setDrawer(null);
+    };
+    mobile.addEventListener("change", onResize);
+    return () => mobile.removeEventListener("change", onResize);
+  }, [assistantOpen]);
+  const handleAssistantOpenChange = useCallback((open: boolean) => {
+    setAssistantOpen(open);
+    if (open && window.matchMedia("(max-width: 760px)").matches)
+      setDrawer(null);
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [rainbow, setRainbow] = useState(true);
+  const [compositionColors, setCompositionColors] = useState(true);
   const [projectId, setProjectId] = useState("main");
   const [showProjects, setShowProjects] = useState(false);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
@@ -173,10 +216,60 @@ export default function Workspace({
   const saveQueue = useRef(Promise.resolve());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveVersion = useRef(0);
+  const project = useMemo(
+    () => projectSchema.parse(state.project),
+    [state.project],
+  );
+  const pullTabRef = useRef<HTMLButtonElement>(null);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
+  const workspaceMenuPinned = useRef(false);
+  function closeWorkspaceMenu() {
+    workspaceMenuPinned.current = false;
+    setWorkspaceMenuOpen(false);
+  }
+  function openPanel(panel: WorkspacePanel) {
+    closeWorkspaceMenu();
+    if (panel === "Results") setTab("Results");
+    setDrawer(panel);
+    if (window.matchMedia("(max-width: 760px)").matches)
+      setAssistantOpen(false);
+  }
+  function closeDrawer() {
+    setDrawer(null);
+    pullTabRef.current?.focus();
+  }
+  useEffect(() => {
+    if (!drawer && !workspaceMenuOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        !isCloseKey(event) ||
+        event.defaultPrevented ||
+        document.querySelector("dialog[open]")
+      )
+        return;
+      event.preventDefault();
+      closeWorkspaceMenu();
+      setDrawer(null);
+      pullTabRef.current?.focus();
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (
+        workspaceMenuOpen &&
+        !workspaceMenuRef.current?.contains(event.target as Node) &&
+        !pullTabRef.current?.contains(event.target as Node)
+      )
+        closeWorkspaceMenu();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [drawer, workspaceMenuOpen]);
   const lastSaved = useRef<{ id: string; workspace: WorkspaceState } | null>(
     null,
   );
-  const project = state.project;
   const reportSaved = useCallback((location: SaveLocation) => {
     setStorage(savedMessage(location));
     setFolderName(location.folderName ?? null);
@@ -262,7 +355,7 @@ export default function Workspace({
           window.history.replaceState(window.history.state, "", url);
         }
         setProjectId(id);
-        setLibraryOpen(!window.matchMedia("(max-width: 760px)").matches);
+        setDrawer(null);
         setState(workspace);
         if (initialArrange || !window.matchMedia("(max-width: 760px)").matches)
           setFitRequest((value) => value + 1);
@@ -276,7 +369,7 @@ export default function Workspace({
         )
           lastSaved.current = { id, workspace };
         reportFolder(info);
-        if (!saved) setStorage("Saving…");
+        if (workspace !== saved) setStorage("Saving…");
         setPersistenceReady(true);
         setReady(true);
       })
@@ -337,16 +430,25 @@ export default function Workspace({
     window.addEventListener("beforeunload", beforeUnload);
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [ready, saveIssue, projectId, state]);
-  function change(next: Project, label: string, run = false) {
+  function change(
+    next: Project,
+    label: string,
+    run = false,
+    recordHistory = true,
+  ) {
     if (!ready || projectBusy || assistantApplyLock.current) return;
     try {
-      projectSchema.parse(next);
+      next = projectSchema.parse(next);
       const errors = validateGraph(next);
       if (errors.length) throw new Error(errors[0]);
       if (state.revisions.length >= 245)
         throw new Error(
           "Revision limit reached. Export this project, then clear local history to continue.",
         );
+      if (recordHistory) {
+        editHistory.current.past.push(project);
+        editHistory.current.future = [];
+      }
       setState((s) => ({
         ...s,
         project: next,
@@ -368,8 +470,10 @@ export default function Workspace({
           setMessage(e instanceof Error ? e.message : "Simulation failed.");
         }
       }
+      return true;
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Invalid project.");
+      return false;
     }
   }
   function add(kind: Kind, position?: { x: number; y: number }) {
@@ -393,7 +497,8 @@ export default function Workspace({
           : "Recycle did not converge. Final iterate only.",
       );
       setTab("Results");
-      setResultsOpen(true);
+      setWorkspaceMenuOpen(false);
+      setDrawer("Results");
     } catch (e) {
       setResult(null);
       setMessage(e instanceof Error ? e.message : "Simulation failed.");
@@ -430,7 +535,7 @@ export default function Workspace({
     setCompareId("");
     setTemplatesOpen(false);
     setPropertiesOpen(false);
-    setResultsOpen(false);
+    setDrawer(null);
   }
   async function importFile(file: File) {
     if (!ready || projectBusy) return;
@@ -444,6 +549,10 @@ export default function Workspace({
           "Combined revision history is too large. Import a project-only JSON file.",
         );
       setStorage("Saving…");
+      editHistory.current = {
+        past: [...editHistory.current.past, project],
+        future: [],
+      };
       setState((s) => ({
         version: 1,
         project: imported.project,
@@ -485,6 +594,10 @@ export default function Workspace({
       return;
     }
     setStorage("Saving…");
+    editHistory.current = {
+      past: [...editHistory.current.past, project],
+      future: [],
+    };
     setState(restore(state, r));
     setResult(null);
     setMessage("Restored as a new revision. Later revisions are preserved.");
@@ -543,6 +656,10 @@ export default function Workspace({
         outcome =
           "Applied and saved to local recovery. The folder save needs attention.";
       }
+      editHistory.current = {
+        past: [...editHistory.current.past, project],
+        future: [],
+      };
       setState(next);
       setResult(null);
       setSelected(null);
@@ -559,7 +676,8 @@ export default function Workspace({
   }
   function openResults(nextTab = "Results") {
     setTab(nextTab);
-    setResultsOpen(true);
+    setWorkspaceMenuOpen(false);
+    setDrawer("Results");
   }
   function arrange() {
     const bounds = (
@@ -585,6 +703,7 @@ export default function Workspace({
         revisions: [],
       };
       setState(blank);
+      editHistory.current = { past: [], future: [] };
       setResult(null);
       setSelected(null);
       setCompareId("");
@@ -643,6 +762,19 @@ export default function Workspace({
       return false;
     }
   }
+  async function openLanding() {
+    if (!ready || projectBusy) return;
+    setProjectBusy(true);
+    try {
+      await preserveCurrentProject();
+      router.push("/landing");
+    } catch (error) {
+      setMessage(errorMessage(error));
+      setProjectMessage(errorMessage(error));
+    } finally {
+      setProjectBusy(false);
+    }
+  }
   async function openProjects() {
     if (!ready || projectBusy) return;
     setProjectBusy(true);
@@ -659,14 +791,16 @@ export default function Workspace({
     }
   }
   function resetEditor() {
-    if (window.matchMedia("(max-width: 760px)").matches) setLibraryOpen(false);
+    editHistory.current = { past: [], future: [] };
+    setDrawer(null);
+    setWorkspaceMenuOpen(false);
     setSelected(null);
     setResult(null);
     setCompareId("");
     setMessage("");
     setPropertiesOpen(false);
-    setResultsOpen(false);
     setTemplatesOpen(false);
+    setAssistantOpen(false);
     setView("2D");
     setPlaybackOnOpen(false);
     setMenuOpen(false);
@@ -914,6 +1048,126 @@ export default function Workspace({
       setProjectBusy(false);
     }
   }
+  function toggleFullscreen() {
+    const action = document.fullscreenElement
+      ? document.exitFullscreen()
+      : canvasRef.current?.requestFullscreen();
+    void action?.catch(() =>
+      setMessage("Full screen is unavailable in this browser."),
+    );
+  }
+  function undoEdit(redo = false) {
+    const history = editHistory.current;
+    const source = redo ? history.future : history.past;
+    const target = redo ? history.past : history.future;
+    const next = source.at(-1);
+    if (!next || !change(next, redo ? "Redo edit" : "Undo edit", false, false))
+      return;
+    source.pop();
+    target.push(project);
+    setSelection((ids) =>
+      ids.filter((id) =>
+        [...next.units, ...next.edges].some((item) => item.id === id),
+      ),
+    );
+  }
+  function pasteCopy(
+    copy: SelectionCopy | null,
+    offset: number,
+    label: string,
+  ) {
+    if (!copy?.units.length) return;
+    try {
+      const next = pasteSelection(project, copy, offset);
+      if (change(next.project, label)) setSelection(next.selection);
+    } catch {
+      setMessage(
+        "Cannot paste here: the project allows up to 40 equipment and 80 streams, within the canvas bounds.",
+      );
+    }
+  }
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        !ready ||
+        projectBusy ||
+        showProjects ||
+        event.defaultPrevented ||
+        event.isComposing
+      )
+        return;
+      if (isCloseKey(event) && !document.querySelector("dialog[open]")) {
+        event.preventDefault();
+        if (menuOpen) setMenuOpen(false);
+        else if (assistantOpen) setAssistantOpen(false);
+        else setSelection([]);
+        canvasRef.current?.focus();
+        return;
+      }
+      if (shortcutsBlocked(event)) return;
+      const key = event.key.toLowerCase();
+      const command = event.ctrlKey || event.metaKey;
+      let handled = true;
+      if (key === "f11" || (key === "f" && event.ctrlKey && event.metaKey))
+        toggleFullscreen();
+      else if (event.altKey) return;
+      else if (command) {
+        if (key === "s")
+          void flushCurrentProject().catch(() =>
+            setMessage("Could not save locally. Export a copy of the project."),
+          );
+        else if (key === "enter") run();
+        else if (key === "z") undoEdit(event.shiftKey);
+        else if (key === "y") undoEdit(true);
+        else if (key === "a")
+          setSelection(project.units.map((unit) => unit.id));
+        else if (key === "d")
+          pasteCopy(
+            copySelection(project, selection),
+            40,
+            "Duplicate selection",
+          );
+        else if (key === "c" || key === "x") {
+          const copy = copySelection(project, selection);
+          if (copy.units.length) {
+            clipboard.current = copy;
+            pasteOffset.current = 40;
+            if (
+              key === "x" &&
+              change(deleteSelection(project, selection), "Cut selection")
+            )
+              setSelection([]);
+          }
+        } else if (key === "v") {
+          pasteCopy(clipboard.current, pasteOffset.current, "Paste selection");
+          pasteOffset.current += 40;
+        } else handled = false;
+      } else if (key === "delete" || key === "backspace") {
+        if (
+          selection.length &&
+          change(deleteSelection(project, selection), "Delete selection")
+        )
+          setSelection([]);
+      } else if (key === "e" || key === "f2") {
+        if (selected) setPropertiesOpen(true);
+      } else if (key === "a" && event.shiftKey) arrange();
+      else if (key === "a" || key === "/") {
+        openPanel("Equipment");
+        requestAnimationFrame(() =>
+          canvasRef.current
+            ?.querySelector<HTMLInputElement>('[aria-label="Search equipment"]')
+            ?.focus(),
+        );
+      } else if (key === "r") {
+        if (drawer === "Results") closeDrawer();
+        else openResults();
+      } else if (key === "h" || key === "?") setHelpOpen(true);
+      else handled = false;
+      if (handled) event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
   const saveNotice = saveIssue ? (
     <FolderSaveNotice
       message={saveIssue.message}
@@ -975,7 +1229,7 @@ export default function Workspace({
   );
   if (showProjects)
     return (
-      <main className="workspace" data-theme={theme}>
+      <main className="workspace" data-theme={theme} data-palette={palette.id}>
         {saveNotice}
         <ProjectsPage
           projects={savedProjects}
@@ -988,6 +1242,7 @@ export default function Workspace({
           onDuplicate={(entry) => void editSavedProject(entry, undefined, true)}
           onStar={(entry) => void editSavedProject(entry)}
           onBack={() => setShowProjects(false)}
+          onLanding={() => void openLanding()}
           theme={theme}
           onTheme={() => setTheme(theme === "light" ? "dark" : "light")}
           busy={projectBusy}
@@ -1004,14 +1259,14 @@ export default function Workspace({
     );
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
-    <main className="workspace" data-theme={theme}>
+    <main className="workspace" data-theme={theme} data-palette={palette.id}>
       <header className="app-header" inert={!ready || projectBusy}>
         <button
           className="brand"
           onClick={() => void openProjects()}
           aria-label="Project CAD home"
         >
-          <Workflow size={29} />
+          <BrandMark size={29} />
           <span>Project CAD</span>
         </button>
         <span className="header-divider" />
@@ -1023,15 +1278,6 @@ export default function Workspace({
             onClick={() => void openProjects()}
           >
             <Home size={18} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Toggle equipment library"
-            title="Equipment library"
-            aria-pressed={libraryOpen}
-            onClick={() => setLibraryOpen(!libraryOpen)}
-          >
-            <PanelLeft size={18} />
           </button>
           <button
             className="icon-button"
@@ -1051,8 +1297,17 @@ export default function Workspace({
         </div>
         <div className="header-actions">
           <button
+            className="btn landing-page-button"
+            aria-label="Landing page"
+            title="Landing page"
+            onClick={() => void openLanding()}
+          >
+            <Compass size={16} />
+            <span>Landing page</span>
+          </button>
+          <button
             className="model-button"
-            onClick={() => setPreferencesOpen(true)}
+            onClick={() => openPanel("Settings")}
           >
             <Thermometer size={16} />
             <span>
@@ -1130,15 +1385,6 @@ export default function Workspace({
                   <Download size={15} />
                   Export project
                 </button>
-                <button
-                  onClick={() => {
-                    setPreferencesOpen(true);
-                    setMenuOpen(false);
-                  }}
-                >
-                  <Settings2 size={15} />
-                  Preferences
-                </button>
               </div>
             ) : null}
           </div>
@@ -1166,105 +1412,291 @@ export default function Workspace({
         />
       </header>
       {saveNotice}
-      <div
-        className={`editor-body ${libraryOpen ? "with-library" : ""}`}
-        inert={!ready || projectBusy}
-      >
-        {libraryOpen ? (
-          <EquipmentLibrary
-            onAdd={add}
-            onClose={() => setLibraryOpen(false)}
-            onPreferences={() => setPreferencesOpen(true)}
-          />
-        ) : null}
+      <div className="editor-body" inert={!ready || projectBusy}>
         <section
           className="canvas-panel"
           ref={canvasRef}
+          tabIndex={-1}
           aria-label="Process canvas"
         >
-          <div className="canvas-toolbar">
-            <div className="tool-group workspace-mode-tools">
-              <button
-                className={libraryOpen ? "active" : ""}
-                aria-label="Equipment"
-                onClick={() => setLibraryOpen(!libraryOpen)}
+          <div
+            ref={workspaceMenuRef}
+            className="workspace-utilities"
+            data-open={workspaceMenuOpen}
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse") setWorkspaceMenuOpen(true);
+            }}
+            onPointerLeave={() => {
+              if (
+                !workspaceMenuPinned.current &&
+                !workspaceMenuRef.current?.contains(document.activeElement)
+              )
+                closeWorkspaceMenu();
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                closeWorkspaceMenu();
+            }}
+          >
+            <button
+              ref={pullTabRef}
+              className={`workspace-pull-tab ${workspaceMenuOpen ? "active" : ""}`}
+              aria-label="Workspace menu"
+              title="Workspace menu"
+              aria-expanded={workspaceMenuOpen}
+              aria-controls="workspace-menu"
+              onClick={() => {
+                workspaceMenuPinned.current = !workspaceMenuPinned.current;
+                setWorkspaceMenuOpen(workspaceMenuPinned.current);
+                setDrawer(null);
+              }}
+            >
+              <Settings2 size={16} aria-hidden="true" />
+              <ChevronRight size={12} aria-hidden="true" />
+            </button>
+            {workspaceMenuOpen ? (
+              <nav
+                id="workspace-menu"
+                className="workspace-menu"
+                aria-label="Workspace"
               >
-                <Workflow size={17} />
+                <h2>Workspace</h2>
+                {[
+                  { name: "Equipment", icon: EquipmentPanelIcon },
+                  { name: "Results", icon: ChartNoAxesColumnIncreasing },
+                  { name: "Themes", icon: Palette },
+                  { name: "Toggle chat", icon: MessageCircle },
+                  { name: "Storage settings", icon: HardDrive },
+                  { name: "Settings", icon: Settings2 },
+                ].map(({ name, icon: Icon }) => (
+                  <button
+                    key={name}
+                    onClick={() => {
+                      pullTabRef.current?.focus();
+                      if (name === "Toggle chat") {
+                        closeWorkspaceMenu();
+                        handleAssistantOpenChange(!assistantOpen);
+                      } else openPanel(name as WorkspacePanel);
+                    }}
+                  >
+                    <Icon size={17} />
+                    <span>{name}</span>
+                    <ChevronRight size={13} aria-hidden="true" />
+                  </button>
+                ))}
+              </nav>
+            ) : null}
+          </div>
+          {drawer ? (
+            <aside
+              id={`workspace-${drawer.toLowerCase().replaceAll(" ", "-")}-panel`}
+              className={`workspace-drawer drawer-${drawer.toLowerCase().replaceAll(" ", "-")}`}
+              aria-label={drawer}
+            >
+              <header className="library-heading">
+                <h2>{drawer}</h2>
+                <button
+                  className="icon-button"
+                  aria-label={`Close ${drawer}`}
+                  onClick={closeDrawer}
+                >
+                  <X size={16} />
+                </button>
+              </header>
+              {drawer === "Equipment" ? (
+                <EquipmentLibrary onAdd={add} />
+              ) : (
+                <div className="workspace-drawer-content">
+                  {drawer === "Results" ? (
+                    <Results
+                      project={project}
+                      result={result}
+                      revisions={state.revisions}
+                      tab={tab}
+                      onTab={setTab}
+                      onRestore={restoreRevision}
+                      compareId={compareId}
+                      onCompare={setCompareId}
+                      onSelect={(id) => {
+                        setDrawer(null);
+                        inspect(id);
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {drawer === "Themes" || drawer === "Settings" ? (
+                        <div className="preference-section">
+                          <h3>Appearance</h3>
+                          <ThemePicker value={palette.id} onChange={setTheme} />
+                        </div>
+                      ) : null}
+                      {drawer === "Settings" ? (
+                        <div className="preference-section">
+                          <h3>Assistant</h3>
+                          <p>
+                            Open the assistant or bring back a hidden chat
+                            bubble.
+                          </p>
+                          <button
+                            className="btn"
+                            onClick={() => {
+                              setDrawer(null);
+                              handleAssistantOpenChange(true);
+                            }}
+                          >
+                            <MessageCircle size={15} /> Show assistant
+                          </button>
+                        </div>
+                      ) : null}
+                      {drawer === "Settings" ? (
+                        <div className="preference-section">
+                          <ThermoSettingsPanel
+                            project={project}
+                            onApply={(settings) => {
+                              change(
+                                applyActions(project, {
+                                  summary: "Change thermodynamic model",
+                                  actions: [
+                                    { type: "set_thermo_model", ...settings },
+                                  ],
+                                }),
+                                `Model: ${modelInfo(settings.modelId).name}`,
+                              );
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                      {drawer === "Storage settings" ||
+                      drawer === "Settings" ? (
+                        <div className="preference-section">
+                          <h3>Local project</h3>
+                          <p>
+                            {folderName
+                              ? `This project and its revisions save to ${folderName}/project.json on your laptop.`
+                              : "This project and its revisions are saved in this browser. Create a project in a folder to save directly to your laptop."}{" "}
+                            Export a JSON copy to keep or share your work.
+                          </p>
+                          <div className="preference-actions">
+                            <button className="btn" onClick={exportFile}>
+                              <Download size={15} />
+                              Export project
+                            </button>
+                            <button
+                              className="btn danger"
+                              onClick={() => {
+                                setDrawer(null);
+                                setClearConfirm(true);
+                              }}
+                            >
+                              <Trash2 size={15} />
+                              Clear local project & history
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              )}
+            </aside>
+          ) : null}
+          <div className="canvas-toolbar">
+            <nav
+              className="tool-group workspace-mode-tools"
+              aria-label="Workspace panels"
+            >
+              <button
+                className={drawer === "Equipment" ? "active" : ""}
+                aria-expanded={drawer === "Equipment"}
+                aria-controls="workspace-equipment-panel"
+                onClick={() =>
+                  drawer === "Equipment"
+                    ? closeDrawer()
+                    : openPanel("Equipment")
+                }
+              >
+                <EquipmentPanelIcon size={18} />
                 <span>Equipment</span>
               </button>
               <span className="tool-divider" />
-              <button onClick={() => openResults()}>
-                <ChartNoAxesColumnIncreasing size={17} />
-                <span>Results</span>
-              </button>
-            </div>
-            <div className="canvas-view-controls">
               <button
-                className={`rainbow-toggle ${rainbow ? "active" : ""}`}
-                aria-label="Rainbow flow"
-                aria-pressed={rainbow}
-                title="Rainbow flow"
-                onClick={() => setRainbow(!rainbow)}
-              >
-                <Rainbow size={17} />
-              </button>
-              <div className="view-switch" aria-label="Canvas view">
-                {[
-                  { name: "2D", label: "2D flowsheet", icon: PanelTop },
-                  { name: "3D", label: "3D schematic", icon: Box },
-                  { name: "Split", label: "Split", icon: Columns2 },
-                ].map((item) => (
-                  <button
-                    key={item.name}
-                    aria-label={item.label}
-                    aria-pressed={view === item.name}
-                    className={view === item.name ? "active" : ""}
-                    onClick={() => setView(item.name)}
-                  >
-                    <item.icon size={15} />
-                    <span>{item.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="tool-group canvas-edit-tools">
-              <button
-                aria-label="Properties"
-                title="Edit selected equipment"
-                disabled={!selected}
-                onClick={() => setPropertiesOpen(true)}
-              >
-                <Pencil size={16} />
-                <span>Edit</span>
-              </button>
-              <button onClick={arrange} disabled={!project.units.length}>
-                <AlignHorizontalJustifyStart size={16} />
-                <span>Arrange</span>
-              </button>
-              <button
-                className="toolbar-icon"
-                aria-label="Maximize canvas"
-                title="Maximize canvas"
-                onClick={() => {
-                  if (document.fullscreenElement)
-                    void document.exitFullscreen();
-                  else void canvasRef.current?.requestFullscreen();
-                }}
-              >
-                <Maximize size={16} />
-              </button>
-              <button
-                className="toolbar-icon"
-                aria-label="Workspace help"
-                title="Workspace help"
+                className={drawer === "Results" ? "active" : ""}
+                aria-expanded={drawer === "Results"}
+                aria-controls="workspace-results-panel"
                 onClick={() =>
-                  setMessage(
-                    "Double-click equipment to edit. Drag between ports to connect. Open projects from Home and choose New for templates; use the view switch for 2D, 3D, and Split views.",
-                  )
+                  drawer === "Results" ? closeDrawer() : openPanel("Results")
                 }
               >
-                <CircleHelp size={15} />
+                <ChartNoAxesColumnIncreasing size={18} />
+                <span>Results</span>
               </button>
+            </nav>
+            <div className="canvas-right-tools">
+              <div className="canvas-view-controls">
+                <button
+                  className={`composition-toggle ${compositionColors ? "active" : ""}`}
+                  aria-label="Color streams by composition"
+                  aria-pressed={compositionColors}
+                  title="Color streams by composition"
+                  onClick={() => setCompositionColors(!compositionColors)}
+                >
+                  <Rainbow size={17} />
+                </button>
+                <div className="view-switch" aria-label="Canvas view">
+                  {[
+                    { name: "2D", label: "2D flowsheet", icon: PanelTop },
+                    { name: "3D", label: "3D schematic", icon: Box },
+                    { name: "Split", label: "Split", icon: Columns2 },
+                  ].map((item) => (
+                    <button
+                      key={item.name}
+                      aria-label={item.label}
+                      aria-pressed={view === item.name}
+                      className={view === item.name ? "active" : ""}
+                      onClick={() => setView(item.name)}
+                    >
+                      <item.icon size={15} />
+                      <span>{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="tool-group canvas-edit-tools">
+                <button
+                  aria-label="Properties"
+                  title="Edit selected equipment"
+                  disabled={!selected}
+                  onClick={() => setPropertiesOpen(true)}
+                >
+                  <Pencil size={16} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  aria-label="Arrange"
+                  title="Arrange equipment"
+                  onClick={arrange}
+                  disabled={!project.units.length}
+                >
+                  <AlignHorizontalJustifyStart size={16} />
+                  <span>Arrange</span>
+                </button>
+                <button
+                  className="toolbar-icon"
+                  aria-label="Maximize canvas"
+                  title="Maximize canvas"
+                  onClick={toggleFullscreen}
+                >
+                  <Maximize size={16} />
+                </button>
+                <button
+                  className="toolbar-icon"
+                  aria-label="Workspace help"
+                  title="Workspace help"
+                  onClick={() => setHelpOpen(true)}
+                >
+                  <CircleHelp size={15} />
+                </button>
+              </div>
             </div>
           </div>
           <div
@@ -1272,17 +1704,18 @@ export default function Workspace({
           >
             {view !== "3D" ? (
               <ProcessCanvas
-                key={`${project.name}-${view}`}
+                key={`${projectId}-${project.name}`}
                 project={project}
                 fitRequest={fitRequest}
                 selected={selected}
-                onSelect={setSelected}
+                selection={selection}
+                onSelection={setSelection}
                 onInspect={inspect}
                 onChange={change}
                 onAdd={add}
                 onError={setMessage}
                 result={result}
-                rainbow={rainbow}
+                compositionColors={compositionColors}
                 compare={
                   state.revisions.find((r) => r.id === compareId)?.project
                 }
@@ -1292,6 +1725,7 @@ export default function Workspace({
               <Plant3D
                 initialPlaying={playbackOnOpen}
                 dark={theme === "dark"}
+                canvasColor={palette.swatch[0]}
                 project={project}
                 selected={selected}
                 onSelect={inspect}
@@ -1329,13 +1763,15 @@ export default function Workspace({
           <FloatingAssistant
             key={projectId}
             containerRef={canvasRef}
+            controlsRef={workspaceMenuRef}
+            open={assistantOpen}
+            onOpenChange={handleAssistantOpenChange}
             projectId={projectId}
             project={project}
             folderName={folderName}
             appliedProposalIds={state.revisions.map((revision) => revision.id)}
             onApply={applyAssistantProposal}
             onError={setMessage}
-            reveal={revealAssistant}
           />
           <footer className="canvas-footer">
             <div className="canvas-status">
@@ -1358,6 +1794,7 @@ export default function Workspace({
           </footer>
         </section>
       </div>
+      {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
       {projectDialogs}
       {templatesOpen ? (
         <Templates
@@ -1370,9 +1807,10 @@ export default function Workspace({
           title={
             selectedUnit
               ? `${selectedUnit.name} · ${selectedUnit.id}`
-              : "Stream properties"
+              : (project.edges.find((edge) => edge.id === selected)?.name ??
+                "Stream properties")
           }
-          className="properties-dialog"
+          className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
           onClose={() => setPropertiesOpen(false)}
         >
           <Inspector
@@ -1389,108 +1827,6 @@ export default function Workspace({
             }}
             onError={setMessage}
           />
-        </Dialog>
-      ) : null}
-      {resultsOpen ? (
-        <Dialog
-          title={tab === "Results" ? "Process results" : "Revision history"}
-          className="results-dialog"
-          onClose={() => setResultsOpen(false)}
-        >
-          <Results
-            project={project}
-            result={result}
-            revisions={state.revisions}
-            tab={tab}
-            onTab={setTab}
-            onRestore={restoreRevision}
-            compareId={compareId}
-            onCompare={setCompareId}
-            onSelect={(id) => {
-              setResultsOpen(false);
-              inspect(id);
-            }}
-          />
-        </Dialog>
-      ) : null}
-      {preferencesOpen ? (
-        <Dialog
-          title="Preferences"
-          className="preferences-dialog"
-          onClose={() => setPreferencesOpen(false)}
-        >
-          <div className="preference-section">
-            <h3>Assistant</h3>
-            <p>Open the assistant or bring back a hidden chat bubble.</p>
-            <button
-              className="btn"
-              onClick={() => {
-                setPreferencesOpen(false);
-                setRevealAssistant((value) => value + 1);
-              }}
-            >
-              <MessageCircle size={15} /> Show assistant
-            </button>
-          </div>
-          <div className="preference-section">
-            <h3>Appearance</h3>
-            <p>Choose the workspace theme.</p>
-            <div className="theme-options">
-              <button
-                className={`btn ${theme === "light" ? "chosen" : ""}`}
-                onClick={() => setTheme("light")}
-              >
-                <Sun size={16} />
-                Light
-              </button>
-              <button
-                className={`btn ${theme === "dark" ? "chosen" : ""}`}
-                onClick={() => setTheme("dark")}
-              >
-                <Moon size={16} />
-                Dark
-              </button>
-            </div>
-          </div>
-          <div className="preference-section">
-            <ThermoSettingsPanel
-              project={project}
-              onApply={(settings) => {
-                change(
-                  applyActions(project, {
-                    summary: "Change thermodynamic model",
-                    actions: [{ type: "set_thermo_model", ...settings }],
-                  }),
-                  `Model: ${modelInfo(settings.modelId).name}`,
-                );
-              }}
-            />
-          </div>
-          <div className="preference-section">
-            <h3>Local project</h3>
-            <p>
-              {folderName
-                ? `This project and its revisions save to ${folderName}/project.json on your laptop.`
-                : "This project and its revisions are saved in this browser. Create a project in a folder to save directly to your laptop."}{" "}
-              Export a JSON copy to keep or share your work.
-            </p>
-            <div className="preference-actions">
-              <button className="btn" onClick={exportFile}>
-                <Download size={15} />
-                Export project
-              </button>
-              <button
-                className="btn danger"
-                onClick={() => {
-                  setPreferencesOpen(false);
-                  setClearConfirm(true);
-                }}
-              >
-                <Trash2 size={15} />
-                Clear local project & history
-              </button>
-            </div>
-          </div>
         </Dialog>
       ) : null}
       {clearConfirm ? (

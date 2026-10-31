@@ -11,6 +11,24 @@ export const equipmentLabels: Record<Kind, string> = {
   PBR: "Packed-bed reactor",
   Distillation: "Distillation column",
 };
+export function EquipmentPanelIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="7" y="4" width="10" height="15" rx="4" />
+      <path d="M12 1V4M2 9H7M17 14H22M9 19V22M15 19V22M7 9H17M7 14H17" />
+    </svg>
+  );
+}
 export function EquipmentIcon({
   kind,
   size = 24,

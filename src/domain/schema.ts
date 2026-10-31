@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { thermoSchema } from "./thermo/registry";
+import { nameStreams } from "./stream-names";
 export const kinds = [
   "Feed",
   "Product",
@@ -56,6 +57,8 @@ export const unitSchema = z
 export const edgeSchema = z
   .object({
     id,
+    name: z.string().trim().min(1).max(60).optional(),
+    colorIndex: z.number().int().min(0).max(7).optional(),
     source: id,
     target: id,
     sourcePort: z.enum(["out", "out2"]),
@@ -68,7 +71,7 @@ export const projectSchema = z
     version: z.literal(1),
     name: z.string().min(1).max(80),
     units: z.array(unitSchema).max(40),
-    edges: z.array(edgeSchema).max(80),
+    edges: z.array(edgeSchema).max(80).transform(nameStreams),
     thermo: thermoSchema.optional(),
   })
   .strict();
@@ -76,12 +79,7 @@ export type Unit = z.infer<typeof unitSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Connection = z.infer<typeof edgeSchema>;
 export const ports = (kind: Kind) => ({
-  inputs:
-    kind === "Feed"
-      ? []
-      : kind === "Mixer" || kind === "PBR"
-        ? ["in", "in2"]
-        : ["in"],
+  inputs: kind === "Feed" ? [] : kind === "Mixer" ? ["in", "in2"] : ["in"],
   outputs:
     kind === "Product"
       ? []
@@ -123,11 +121,11 @@ export function validateGraph(project: Project, complete = false): string[] {
       !ports(target.kind).inputs.includes(e.targetPort)
     )
       errors.push(`Stream ${e.id} has incompatible material ports.`);
-    for (const key of [
-      `${e.source}:source:${e.sourcePort}`,
-      `${e.target}:target:${e.targetPort}`,
-    ]) {
-      if (used.has(key))
+    for (const [key, acceptsMultiple] of [
+      [`${e.source}:source:${e.sourcePort}`, false],
+      [`${e.target}:target:${e.targetPort}`, target.kind === "Mixer"],
+    ] as const) {
+      if (used.has(key) && !acceptsMultiple)
         errors.push("Each port accepts one stream; use a mixer or splitter.");
       used.add(key);
     }
@@ -170,6 +168,11 @@ export function validateGraph(project: Project, complete = false): string[] {
       for (const p of ports(n.kind).outputs)
         if (!used.has(`${n.id}:source:${p}`))
           errors.push(`${n.name}: connect ${p}.`);
+      if (n.kind === "Mixer") {
+        if (!ports(n.kind).inputs.some((p) => used.has(`${n.id}:target:${p}`)))
+          errors.push(`${n.name}: connect an inlet.`);
+        continue;
+      }
       for (const p of ports(n.kind).inputs.filter((p) => p !== "in2"))
         if (!used.has(`${n.id}:target:${p}`))
           errors.push(`${n.name}: connect ${p}.`);

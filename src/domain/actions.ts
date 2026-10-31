@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defaultThermo, thermoSchema } from "./thermo/registry";
+import { availableStreamName } from "./stream-names";
 import {
   unitSchema,
   edgeSchema,
@@ -82,7 +83,10 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
         project.units.push(a.unit);
         break;
       case "connect":
-        project.edges.push(a.edge);
+        project.edges.push({
+          ...a.edge,
+          name: a.edge.name ?? availableStreamName(project.edges),
+        });
         break;
       case "update": {
         const n = project.units.find((n) => n.id === a.id);

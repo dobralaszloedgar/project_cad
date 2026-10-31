@@ -120,7 +120,8 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     })
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await page.getByRole("button", { name: "Open revision history" }).click();
+  await page.getByRole("button", { name: "Results", exact: true }).click();
+  await page.getByRole("button", { name: /^Revisions/ }).click();
   await expect(page.locator(".revision-row")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await page
@@ -212,7 +213,8 @@ test("existing single-project storage upgrades without losing the graph or histo
   await page.goto("/");
   await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await page.getByRole("button", { name: "Open revision history" }).click();
+  await page.getByRole("button", { name: "Results", exact: true }).click();
+  await page.getByRole("button", { name: /^Revisions/ }).click();
   await expect(page.locator(".revision-row")).toContainText(
     "Existing checkpoint",
   );

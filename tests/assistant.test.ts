@@ -12,6 +12,7 @@ import { currentProjectPrompt } from "../src/server/assistant/providers/types";
 import type { ProviderId, StoredConversation } from "../src/assistant/protocol";
 import { executeProjectTool, projectRevision } from "../src/assistant/tools";
 import { heatingExample } from "../src/domain/examples";
+import { projectSchema } from "../src/domain/schema";
 import { createAssistantServer } from "../src/server/assistant/http";
 import {
   MuseProvider,
@@ -111,6 +112,9 @@ describe("project tools", () => {
       ],
     };
     const baseRevision = await projectRevision(project);
+    expect(await projectRevision(projectSchema.parse(project))).toBe(
+      baseRevision,
+    );
     expect(
       await executeProjectTool(
         "preview_actions",

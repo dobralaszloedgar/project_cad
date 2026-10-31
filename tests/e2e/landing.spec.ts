@@ -19,7 +19,7 @@ async function chapter(page: Page, name: string, index: number) {
     .poll(
       () =>
         page
-          .locator(`[data-scene="${["imagine", "build", "explore"][index]}"]`)
+          .locator(`[data-scene="${["design", "build", "explore"][index]}"]`)
           .evaluate((element) => Number(getComputedStyle(element).opacity)),
       { timeout: 15000 },
     )
@@ -71,9 +71,9 @@ async function expectViewportFilled(page: Page) {
   expect(view.bottom).toBe(view.height);
 }
 
-test("the opening is visible before JavaScript and hands off only after rendered frames", async ({
+test("the chat is visible before JavaScript and types, sends, and calls tools", async ({
   page,
-}) => {
+}, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -85,94 +85,68 @@ test("the opening is visible before JavaScript and hands off only after rendered
     await scripts;
     await route.continue();
   });
-  await page.addInitScript(() => {
-    const samples: { state: string; opacity: number; progress: number }[] = [];
-    Object.assign(window, { launchSamples: samples });
-    const record = () => {
-      const root = document.querySelector<HTMLElement>("[data-landing-page]");
-      const scene = document.querySelector<HTMLElement>("[data-shared-scene]");
-      const preview = document.querySelector<HTMLElement>(
-        "[data-launch-preview]",
-      );
-      if (root && scene && preview) {
-        samples.push({
-          state: root.dataset.launchState ?? "",
-          opacity: Number(getComputedStyle(preview).opacity),
-          progress: Number(
-            scene.querySelector("canvas")?.dataset.storyProgress ?? 0,
-          ),
-        });
-        if (root.dataset.launchState === "live") return;
-      }
-      requestAnimationFrame(record);
-    };
-    requestAnimationFrame(record);
-  });
   await page.goto("/landing", { waitUntil: "commit" });
   try {
-    const poster = page.locator("[data-launch-preview] img");
-    await expect(poster).toBeVisible();
-    await expect
-      .poll(() =>
-        poster.evaluate(
-          (image: HTMLImageElement) => image.complete && image.naturalWidth > 0,
-        ),
-      )
-      .toBe(true);
-    await expect(page.locator("canvas")).toHaveCount(0);
-    await expect(page.locator("[data-launch-preview]")).toHaveCSS(
-      "opacity",
-      "1",
+    await expect(page.locator("[data-landing-page]")).toHaveAttribute(
+      "data-palette",
+      "light",
     );
-    await expect(poster).toHaveAttribute("fetchpriority", "high");
+    await expect(page.locator("html")).toHaveCSS("scrollbar-width", "none");
+    await expect(
+      page.getByRole("button", { name: "Open assistant demo", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Design.", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("What would you like to build?")).toBeVisible();
+    await expect(page.locator("[data-design-chat]")).toBeVisible();
+    await expect(page.locator("canvas")).toHaveCount(0);
     await expectViewportFilled(page);
   } finally {
     release();
   }
-  await expect(page.locator("[data-landing-page]")).toHaveAttribute(
-    "data-launch-state",
-    "live",
-    { timeout: 45000 },
-  );
-  const samples = await page.evaluate(
-    () =>
-      (
-        window as unknown as {
-          launchSamples: { state: string; opacity: number; progress: number }[];
-        }
-      ).launchSamples,
-  );
-  expect(
-    samples.some(
-      (sample) =>
-        sample.state === "entering" &&
-        sample.opacity > 0.1 &&
-        sample.opacity < 0.9,
-    ),
-  ).toBe(true);
-  expect(
-    samples
-      .filter((sample) => sample.state !== "live")
-      .every((sample) => sample.progress === 0),
-  ).toBe(true);
-  await expect(page.locator("[data-launch-preview]")).toHaveCSS("opacity", "0");
-  await expect(page.locator("[data-shared-scene]")).toHaveCSS("opacity", "1");
-  await expect(page.locator("canvas[data-ready='true']")).toHaveCount(1);
+  const chat = page.locator("[data-design-chat]");
+  await expect(chat).toHaveAttribute("data-phase", "working", {
+    timeout: 45000,
+  });
+  await expect(chat.getByText("Create the flowsheet")).toBeVisible();
+  await chat.getByText("Create the flowsheet").click();
+  await expect(chat.getByText("propose_actions()")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("design-desktop.png") });
+  await page
+    .getByRole("button", { name: "Minimize assistant demo", exact: true })
+    .click();
+  await expect(chat).toHaveAttribute("data-expanded", "false");
+  await page
+    .getByRole("button", { name: "Open assistant demo", exact: true })
+    .click();
+  await expect(chat).toHaveAttribute("data-expanded", "true");
+  await page.getByRole("button", { name: "Replay chat demo" }).click();
+  await expect(chat).toHaveAttribute("data-phase", "typing");
+  await page.getByRole("button", { name: "Pause motion", exact: true }).click();
+  const paused = await chat.innerText();
+  await page.waitForTimeout(500);
+  expect(await chat.innerText()).toBe(paused);
+  await page
+    .getByRole("button", { name: "Resume motion", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Send example prompt" }).click();
+  await expect(chat).toHaveAttribute("data-phase", "working", {
+    timeout: 10000,
+  });
   expect(errors).toEqual([]);
 });
 
 test("one WebGL scene continuously unfolds the drawing and keeps operating equipment live", async ({
   page,
-}) => {
+}, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/landing");
+  await expect(page.getByRole("heading", { name: "Design." })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "A little thought. A whole new world." }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Start building" }),
+    page.getByRole("link", { name: "Open workspace", exact: true }),
   ).toHaveAttribute("href", "/");
   const canvas = page.locator("[data-shared-scene] canvas");
   // Model assembly and software WebGL warm-up are asynchronous; wait for the
@@ -182,14 +156,11 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
   });
   await expect(canvas).toBeVisible();
   const original = await canvas.elementHandle();
-  await expect(canvas).toHaveAttribute("data-process-phase", "imagine");
+  await expect(canvas).toHaveAttribute("data-process-phase", "design");
   await page.mouse.move(768, 500);
   await page.mouse.wheel(0, -2000);
   await expectViewportFilled(page);
-  await page.waitForTimeout(1800);
-  const alive = await canvas.screenshot();
-  await page.waitForTimeout(350);
-  expect((await canvas.screenshot()).equals(alive)).toBe(false);
+  await expect(page.locator("[data-design-chat]")).toBeVisible();
 
   // The prompt travels through the scene instead of teleporting to Build.
   await page
@@ -208,15 +179,21 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
       timeout: 25000,
     })
     .toBeGreaterThan(0.99);
-  await expect(
-    page.getByText("9 units connected · Ready to explore"),
-  ).toBeVisible();
+  await expect(page.getByText("Simulation complete")).toBeVisible();
   const actualCanvas = page.locator(
     '[data-live-cad] [data-canvas-mode="presentation"]',
   );
   await expect(actualCanvas.locator(".react-flow__node")).toHaveCount(9);
   await expect(actualCanvas.locator(".react-flow__edge")).toHaveCount(9);
   await expect(actualCanvas.locator(".equipment-symbol")).toHaveCount(9);
+  await expect(
+    actualCanvas.locator(".react-flow__edge-path").first(),
+  ).toHaveCSS("stroke", "rgb(180, 63, 68)");
+  const streamColors = await actualCanvas
+    .locator(".react-flow__edge-path")
+    .evaluateAll((edges) => edges.map((edge) => getComputedStyle(edge).stroke));
+  expect(new Set(streamColors).size).toBe(8);
+  await expect(canvas).toHaveAttribute("data-simulation", "1.0000");
   await expect(page.locator("[data-live-cad]")).toHaveAttribute(
     "data-built-units",
     "9",
@@ -226,6 +203,7 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
   expect(bounds!.y).toBeGreaterThan(70);
   expect(bounds!.x + bounds!.width).toBeLessThan(1280);
   expect(bounds!.y + bounds!.height).toBeLessThan(704);
+  await page.screenshot({ path: info.outputPath("build-desktop.png") });
   let previous = 0;
   for (const progress of [0.6, 0.7, 0.8]) {
     await scrollTo(page, progress);
@@ -248,6 +226,7 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
   }
   await chapter(page, "03 Explore", 2);
   await expect(canvas).toHaveAttribute("data-unfold", "1.0000");
+  await page.screenshot({ path: info.outputPath("explore-desktop.png") });
   const overview = await canvas.getAttribute("data-camera-pose");
   await scrollTo(page, 1.25);
   await expect(canvas).toHaveAttribute("data-focus", "heater", {
@@ -300,7 +279,7 @@ test("pause, shell controls and reverse navigation preserve the scene", async ({
   // Reversing the same timeline restores the exact planar state.
   await chapter(page, "02 Build", 1);
   await expect(canvas).toHaveAttribute("data-unfold", "0.0000");
-  await chapter(page, "01 Imagine", 0);
+  await chapter(page, "01 Design", 0);
   await expect(
     page.getByRole("button", { name: "Resume motion", exact: true }),
   ).toBeVisible();
@@ -315,14 +294,22 @@ test("pause, shell controls and reverse navigation preserve the scene", async ({
 
 test("mobile scenes fit, have readable controls and open the real equipment sandbox", async ({
   page,
-}) => {
+}, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/landing");
   for (const [index, name] of [
-    "01 Imagine",
+    "01 Design",
     "02 Build",
     "03 Explore",
   ].entries()) {
+    // This test inspects layout at each completed chapter. Fast scrolling and
+    // the construction/simulation gate are exercised separately below.
+    if (index === 2)
+      await expect(page.locator("[data-build-activity]")).toHaveAttribute(
+        "data-complete",
+        "true",
+        { timeout: 45000 },
+      );
     await chapter(page, name, index);
     await expectViewportFilled(page);
     expect(
@@ -331,12 +318,15 @@ test("mobile scenes fit, have readable controls and open the real equipment sand
       ),
     ).toBe(true);
     const heading = await page
-      .locator(`[data-scene="${["imagine", "build", "explore"][index]}"]`)
+      .locator(`[data-scene="${["design", "build", "explore"][index]}"]`)
       .getByRole("heading")
       .boundingBox();
     expect(heading!.x).toBeGreaterThanOrEqual(0);
     expect(heading!.x + heading!.width).toBeLessThanOrEqual(390);
     expect(heading!.y + heading!.height).toBeLessThan(844);
+    await page.screenshot({
+      path: info.outputPath(`chapter-${index}-mobile.png`),
+    });
   }
   await expect(page.locator("canvas")).toHaveCount(1);
   // Mobile browser chrome changes the visible height at either endpoint.
@@ -363,7 +353,12 @@ test("a fast scroll accelerates every build step before revealing the plant", as
   });
   await scrollTo(page, STORY_END);
   const samples = await page.evaluate(async () => {
-    const samples: { progress: number; built: number; unfold: number }[] = [];
+    const samples: {
+      progress: number;
+      built: number;
+      simulation: number;
+      unfold: number;
+    }[] = [];
     const canvas = document.querySelector("canvas")!;
     const start = performance.now();
     while (performance.now() - start < 45000) {
@@ -373,6 +368,7 @@ test("a fast scroll accelerates every build step before revealing the plant", as
       samples.push({
         progress,
         built,
+        simulation: Number(canvas.getAttribute("data-simulation")),
         unfold: Number(canvas.getAttribute("data-unfold")),
       });
       if (progress > 0.94) break;
@@ -381,13 +377,16 @@ test("a fast scroll accelerates every build step before revealing the plant", as
   });
   expect(samples.some((s) => s.built > 0.1 && s.built < 0.9)).toBe(true);
   expect(
-    samples.filter((s) => s.built < 0.999).every((s) => s.unfold === 0),
+    samples.filter((s) => s.simulation < 0.999).every((s) => s.unfold === 0),
   ).toBe(true);
   expect(
     new Set(
       samples.filter((s) => s.built < 1).map((s) => Math.floor(s.built * 18)),
     ).size,
   ).toBe(18);
+  expect(
+    samples.some((s) => s.built === 1 && s.simulation > 0 && s.simulation < 1),
+  ).toBe(true);
   expect(samples.at(-1)!.progress).toBeGreaterThan(0.94);
   await expect(canvas).toHaveAttribute("data-ready", "true");
 });

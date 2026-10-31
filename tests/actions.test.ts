@@ -3,6 +3,7 @@ import { applyActions, planSchema } from "../src/domain/actions";
 import { distillationExample, reactorExample } from "../src/domain/examples";
 import { checkpoint, restore, diff } from "../src/lib/revisions";
 import { parseImport } from "../src/lib/storage";
+import { projectSchema } from "../src/domain/schema";
 describe("actions and local revisions", () => {
   it("rejects executable and unknown actions", () => {
     expect(() =>
@@ -47,7 +48,9 @@ describe("actions and local revisions", () => {
   });
   it("round-trips JSON and rejects unsupported versions", () => {
     const p = reactorExample();
-    expect(parseImport(JSON.stringify(p)).project).toEqual(p);
+    expect(parseImport(JSON.stringify(p)).project).toEqual(
+      projectSchema.parse(p),
+    );
     expect(() => parseImport(JSON.stringify({ ...p, version: 2 }))).toThrow();
   });
 });

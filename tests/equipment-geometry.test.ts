@@ -37,7 +37,7 @@ describe("equipment geometry", () => {
     }
   });
 
-  it("retains the primary reactor ports and places the additional inlet on its side", () => {
+  it("places the reactor's single inlet at the top and outlet at the bottom", () => {
     expect(equipmentPort("PBR", false, 0)).toEqual({
       x: 64,
       y: 8,
@@ -48,11 +48,8 @@ describe("equipment geometry", () => {
       y: 120,
       position: Position.Bottom,
     });
-    expect(equipmentPort("PBR", false, 1)).toEqual({
-      x: 8,
-      y: 64,
-      position: Position.Left,
-    });
+    expect(ports("PBR")).toEqual({ inputs: ["in"], outputs: ["out"] });
+    expect(equipmentConnectors.PBR).toBe("M64 8V22M64 106V120");
   });
 
   it("separates the column outlets and preserves physical reactor feed locations in 3D", () => {
@@ -65,7 +62,7 @@ describe("equipment geometry", () => {
     );
     const reactor = newUnit("PBR", "reactor", 120, 200);
     expect(plantPort(reactor, "in").direction).toEqual([0, 1, 0]);
-    expect(plantPort(reactor, "in2").direction).toEqual([-1, 0, 0]);
+    expect(plantPort(reactor, "out").direction).toEqual([0, -1, 0]);
     expect(plantHeight("Distillation")).toBeGreaterThan(plantHeight("PBR"));
   });
 

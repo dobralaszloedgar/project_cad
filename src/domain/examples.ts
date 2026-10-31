@@ -152,12 +152,14 @@ export function catalystExample(): Project {
     units: [
       first,
       second,
-      newUnit("PBR", "R-601", 240, 100),
-      newUnit("Product", "P-601", 500, 240),
+      newUnit("Mixer", "M-601", 200, 100),
+      newUnit("PBR", "R-601", 420, 100),
+      newUnit("Product", "P-601", 660, 240),
     ],
     edges: [
-      edge("feed-a", "F-601", "R-601"),
-      edge("feed-b", "F-602", "R-601", "out", "in2"),
+      edge("feed-a", "F-601", "M-601"),
+      edge("feed-b", "F-602", "M-601", "out", "in2"),
+      edge("mixed-feed", "M-601", "R-601"),
       edge("reacted", "R-601", "P-601"),
     ],
   };

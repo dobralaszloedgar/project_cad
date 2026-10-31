@@ -19,7 +19,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { Kind } from "@/domain/schema";
-import { EquipmentIcon } from "@/components/EquipmentIcon";
+import { EquipmentIcon, EquipmentPanelIcon } from "@/components/EquipmentIcon";
 import { equipmentCatalog, equipmentGroups } from "./catalog";
 import { equipmentReferences } from "./references";
 import type { CameraView, SceneMode } from "./EquipmentScene";
@@ -120,7 +120,8 @@ export default function EquipmentSandbox() {
     <main className={styles.sandbox}>
       <header className={styles.header}>
         <Link href="/" className={styles.brand}>
-          Project CAD
+          <EquipmentPanelIcon size={29} />
+          <span>Project CAD</span>
         </Link>
         <span className={styles.headerDivider} />
         <span className={styles.breadcrumb}>Equipment sandbox</span>
@@ -360,7 +361,10 @@ export default function EquipmentSandbox() {
             </div>
             <div className={styles.orbitHint}>
               <Mouse size={14} />
-              <span>Drag to orbit · scroll to zoom</span>
+              <span>
+                Drag to orbit · right-drag to pan · scroll to zoom · WASD to
+                move
+              </span>
             </div>
             <button
               className={styles.rotateButton}

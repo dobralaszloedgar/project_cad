@@ -85,12 +85,13 @@ test("offers the packaged companion and keeps source setup optional", async ({
   await page
     .getByRole("button", { name: "AI client setup", exact: true })
     .click();
+  const installer = page.getByLabel("Assistant installer");
+  await installer.selectOption("ProjectCAD-Assistant-macos-universal.pkg");
   const download = page.getByRole("link", { name: "Download for macOS" });
   await expect(download).toHaveAttribute(
     "href",
     "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-macos-universal.pkg",
   );
-  const installer = page.getByLabel("Assistant installer");
   await installer.selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
   await expect(
     page.getByRole("link", { name: "Download for Windows" }),
@@ -158,7 +159,8 @@ test("reviews changes, saves one revision, resumes history, and reads the latest
     "6 equipment",
   );
   await page.getByRole("button", { name: "Close assistant panel" }).click();
-  await page.getByRole("button", { name: "Open revision history" }).click();
+  await page.getByRole("button", { name: "Results", exact: true }).click();
+  await page.getByRole("button", { name: /^Revisions/ }).click();
   await expect(
     page
       .locator(".revision-row")
@@ -188,7 +190,11 @@ test("stale proposals cannot apply and minimizing preserves the draft and runnin
     page.getByRole("button", { name: "Apply reviewed actions" }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "Close assistant panel" }).click();
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Feed", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Close Equipment", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();

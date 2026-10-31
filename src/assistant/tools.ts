@@ -13,7 +13,15 @@ import { tools, type AssistantMode, type ToolName } from "./protocol";
 
 export async function projectRevision(project: Project) {
   const bytes = new TextEncoder().encode(
-    JSON.stringify(projectSchema.parse(project)),
+    JSON.stringify(projectSchema.parse(project), (_key, value) =>
+      value && typeof value === "object" && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.entries(value).sort(([left], [right]) =>
+              left < right ? -1 : left > right ? 1 : 0,
+            ),
+          )
+        : value,
+    ),
   );
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) =>

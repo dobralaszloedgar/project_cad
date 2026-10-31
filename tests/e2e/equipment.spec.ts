@@ -37,12 +37,13 @@ test("duty setup calculates temperature and persists the active specification", 
   );
   await page.getByLabel("Heat duty (W)", { exact: true }).fill("45000");
   await page.getByRole("button", { name: "Apply conditions" }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(page.locator(".equipment-result")).toContainText("45.000 kW");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(
-    page.locator(".stream-table tr").filter({ hasText: "heated" }),
+    page.locator(".stream-table tr").filter({ hasText: "Stream 2" }),
   ).toContainText("450");
   await page.keyboard.press("Escape");
   await expect(page.getByText("Saved on this device")).toBeVisible();
@@ -54,7 +55,7 @@ test("duty setup calculates temperature and persists the active specification", 
   );
 });
 
-test("two-feed catalyst reactor exposes ports, calculated profile and editable limited model", async ({
+test("catalyst reactor with upstream mixing exposes its single inlet, calculated profile and editable limited model", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -67,7 +68,7 @@ test("two-feed catalyst reactor exposes ports, calculated profile and editable l
   const reactor = page
     .locator(".react-flow__node")
     .filter({ hasText: "R-601" });
-  await expect(reactor.locator(".react-flow__handle.target")).toHaveCount(2);
+  await expect(reactor.locator(".react-flow__handle.target")).toHaveCount(1);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await page.keyboard.press("Escape");
@@ -75,23 +76,31 @@ test("two-feed catalyst reactor exposes ports, calculated profile and editable l
   await expect(page.getByLabel("Reaction basis")).toHaveValue(
     "catalyst-weight",
   );
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(
     page.getByRole("img", { name: /kilograms of catalyst/ }),
   ).toBeVisible();
   await expect(page.locator(".equipment-result")).toContainText("16.52%");
+  await page.getByRole("tab", { name: "Setup", exact: true }).click();
   await page.getByLabel("Catalyst mass (kg)", { exact: true }).fill("20");
   await page.getByRole("button", { name: "Apply conditions" }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(page.locator(".equipment-result")).toContainText("30.31%");
   await page.screenshot({
     path: "test-results/equipment-catalyst.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Model", exact: true }).click();
+  await page.getByRole("tab", { name: "Setup", exact: true }).click();
+  await page
+    .getByText("Model equations and assumptions", { exact: true })
+    .click();
   await expect(page.locator(".model-notes")).toContainText("dFₐ/dW");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "3D schematic", exact: true }).click();
-  await expect(page.locator(".plant-view canvas")).toBeVisible();
-  await expect(page.locator(".plant-label")).toHaveCount(4);
+  await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
+    timeout: 30000,
+  });
+  await expect(page.locator(".plant-label")).toHaveCount(5);
   await page.screenshot({
     path: "test-results/equipment-3d.png",
     fullPage: true,
