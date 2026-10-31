@@ -53,6 +53,7 @@ test("reactor: calculate, edit, compare, restore, persist and round-trip", async
   await edit(page, "R-101");
   await page.getByLabel("Temperature (K)", { exact: true }).fill("500");
   await page.getByRole("button", { name: "Apply conditions" }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(page.locator(".equipment-result")).toContainText(
     "Calculated results",
   );
