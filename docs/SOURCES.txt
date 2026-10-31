@@ -1,5 +1,10 @@
 REFERENCES AND RELEASE STATUS
 
+Database-backed model sources, immutable release identity, public source hashes,
+SI transformations and license notices are documented in CHEMICAL_CATALOG.txt
+and scripts/catalog/build.py. The sample descriptions below refer to the
+offline teaching mixtures, which remain available alongside the database.
+
 The application is implemented in this repository using public packages.
 Equipment symbols and schematic 3D forms are constructed from original geometry
 in this repository. Equipment equations and scope are documented in EQUIPMENT.txt.

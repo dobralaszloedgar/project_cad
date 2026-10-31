@@ -5,7 +5,7 @@ import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { sampleCatalog, sampleMixtures } from "@/domain/thermo/catalog";
+import { mixtureName, thermoContext } from "@/domain/thermo/catalog";
 import { EquipmentModelNotes, CatalystProfile } from "./EquipmentModelNotes";
 import "./equipment-setup.css";
 
@@ -143,7 +143,7 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
           <dt>Property model</dt>
           <dd>{modelInfo(settings.modelId).name}</dd>
           <dt>Components</dt>
-          <dd>{sampleMixtures[settings.mixture].name}</dd>
+          <dd>{mixtureName(settings)}</dd>
         </dl>
       </Section>
     </aside>
@@ -281,9 +281,8 @@ export default function EquipmentEditor({
     name !== unit.name ||
     JSON.stringify(params) !== JSON.stringify(unit.params);
   const formId = `equipment-form-${unit.id}`;
-  const components = sampleMixtures[settings.mixture].ids.map(
-    (id) => sampleCatalog.get(id).name,
-  );
+  const context = thermoContext(settings);
+  const components = context.ids.map((id) => context.catalog.get(id).name);
   function field(
     key: NumericParam,
     label: string,

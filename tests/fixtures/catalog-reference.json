@@ -1,0 +1,1018 @@
+{
+  "source": "Independent Python thermo 0.6.1 UNIFAC(version=1, DOUF2IP), chemicals 1.5.2 EQ101/EQ106/TRCCp/Shomate, scipy quadrature. Run against the pinned public catalog; no application solver used.",
+  "chemicals": [
+    {
+      "id": "100-42-5",
+      "name": "styrene",
+      "formula": "C8H8",
+      "molecularWeight": 0.10414912,
+      "gasCp": {
+        "model": "chemsep-16",
+        "ranges": [
+          {
+            "coefficients": [
+              57.80672, -550.4249, 6.046004721017864, -9.50882e-5, 2.294759e-8
+            ],
+            "min": 100.0,
+            "max": 1500.0
+          }
+        ],
+        "source": "ChemSep v8.3, equation 16, converted to J/mol/K; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "antoine": [],
+      "formationEnthalpy": 147900.0,
+      "formationSource": "CRC; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [399.8489, -19017.34, -58.96286, 7.47957e-5, 2.0],
+        "min": 242.54,
+        "max": 636.0,
+        "criticalTemperature": 636.0,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [111062.1, 3.429275, -6.061051, 4.605581, -1.408226],
+        "min": 242.54,
+        "max": 615.29,
+        "criticalTemperature": 636.0,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "5": 1,
+        "9": 5,
+        "10": 1
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "108-88-3",
+      "name": "toluene",
+      "formula": "C7H8",
+      "molecularWeight": 0.09213842,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 50.0,
+            "max": 1500.0,
+            "coefficients": [
+              4.0, 87000.0, 204.0, 34.095, 17.743, -35740000.0, 209.0, 71.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": 50410.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [32.89891, -5013.81, -1.348918, -1.869928e-6, 2.0],
+        "min": 178.18,
+        "max": 592.15,
+        "criticalTemperature": 591.75,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [53752.0, 0.50341, 0.24755, -0.72898, 0.37794],
+        "min": 178.18,
+        "max": 569.98,
+        "criticalTemperature": 591.75,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "9": 5,
+        "11": 1
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "110-54-3",
+      "name": "hexane",
+      "formula": "C6H14",
+      "molecularWeight": 0.08617535999999999,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 200.0,
+            "max": 1500.0,
+            "coefficients": [
+              4.0, 232000.0, 124.0, 38.434, 38.156, -79930000.0, 295.0, 16.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": -166940.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [71.56625, -5848.968, -7.46028, 5.0823e-6, 2.0],
+        "min": 174.15,
+        "max": 507.6,
+        "criticalTemperature": 507.6,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [40862.41, -1.014854, 4.97802, -6.266175, 2.685532],
+        "min": 177.83,
+        "max": 493.15,
+        "criticalTemperature": 507.6,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "1": 2,
+        "2": 4
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "64-17-5",
+      "name": "ethanol",
+      "formula": "C2H6O",
+      "molecularWeight": 0.04606844,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 50.0,
+            "max": 3000.0,
+            "coefficients": [
+              4.0, 124000.0, 245.0, 50.539, -49.469, 220440000.0, 560.0, 78.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": -234570.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [88.0754, -7652.06, -9.471507, 5.928087e-6, 2.0],
+        "min": 159.05,
+        "max": 516.25,
+        "criticalTemperature": 513.92,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [63899.0, 1.2782, -2.673, 2.7973, -1.0209],
+        "min": 159.05,
+        "max": 515.65,
+        "criticalTemperature": 513.92,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "1": 1,
+        "2": 1,
+        "14": 1
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "67-56-1",
+      "name": "methanol",
+      "formula": "CH4O",
+      "molecularWeight": 0.03204186,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 50.0,
+            "max": 3000.0,
+            "coefficients": [
+              4.0, 212000.0, 392.0, 20.921, -13.466, 29080000.0, 354.0, 182.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": -200700.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [73.40342, -6548.076, -7.409987, 5.72492e-6, 2.0],
+        "min": 175.47,
+        "max": 512.64,
+        "criticalTemperature": 512.64,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [58058.0, 0.87168, -0.81501, 0.1695, 0.17846],
+        "min": 175.47,
+        "max": 513.15,
+        "criticalTemperature": 512.64,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "15": 1
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "67-64-1",
+      "name": "acetone",
+      "formula": "C3H6O",
+      "molecularWeight": 0.05807914,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 200.0,
+            "max": 1500.0,
+            "coefficients": [
+              4.0, 533000.0, 332.0, 42.217, -27.694, 46810000.0, 321.0, 132.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": -216070.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [72.77713, -5752.936, -7.680083, 6.83076e-6, 2.0],
+        "min": 178.45,
+        "max": 508.2,
+        "criticalTemperature": 508.1,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [66943.0, 3.4736, -8.9271, 10.062, -4.1656],
+        "min": 178.45,
+        "max": 508.15,
+        "criticalTemperature": 508.1,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "1": 1,
+        "18": 1
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "71-43-2",
+      "name": "benzene",
+      "formula": "C6H6",
+      "molecularWeight": 0.07811184,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 50.0,
+            "max": 1500.0,
+            "coefficients": [
+              4.0, 5884000.0, 824.0, 29.455, 10.246, -20750000.0, 99.0, 202.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": 83180.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [88.368, -6712.9, -10.022, 7.694e-6, 2.0],
+        "min": 272.04,
+        "max": 562.16,
+        "criticalTemperature": 562.05,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [48810.0, 0.61066, -0.25882, 0.032238, 0.022475],
+        "min": 273.1,
+        "max": 562.05,
+        "criticalTemperature": 562.05,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "9": 6
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "7727-37-9",
+      "name": "nitrogen",
+      "formula": "N2",
+      "molecularWeight": 0.0280134,
+      "gasCp": {
+        "model": "shomate",
+        "ranges": [
+          {
+            "min": 100.0,
+            "max": 500.0,
+            "coefficients": [
+              28.98641, 0.0018539779999999998, -9.647459e-6,
+              1.6635370000000002e-8, 117.0
+            ]
+          },
+          {
+            "min": 500.0,
+            "max": 2000.0,
+            "coefficients": [
+              19.50583, 0.01988705, -8.598535e-6, 1.3697839999999998e-9,
+              527601.0
+            ]
+          },
+          {
+            "min": 2000.0,
+            "max": 6000.0,
+            "coefficients": [
+              35.51872, 0.0011287279999999998, -1.96103e-7, 1.4662e-11,
+              -4553760.0
+            ]
+          }
+        ],
+        "source": "NIST Chemistry WebBook Shomate gas coefficients; chemicals 1.5.2; https://webbook.nist.gov/"
+      },
+      "antoine": [],
+      "formationEnthalpy": 0.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K"
+    },
+    {
+      "id": "7732-18-5",
+      "name": "water",
+      "formula": "H2O",
+      "molecularWeight": 0.01801528,
+      "gasCp": {
+        "model": "trc",
+        "ranges": [
+          {
+            "min": 50.0,
+            "max": 5000.0,
+            "coefficients": [
+              4.0, 870000.0, 1646.0, 3.111, 1.728, -54010000.0, 559.0, 304.0
+            ]
+          }
+        ],
+        "source": "TRC ideal-gas heat capacities; chemicals 1.5.2; https://chemicals.readthedocs.io/chemicals.heat_capacity.html"
+      },
+      "antoine": [],
+      "formationEnthalpy": -241822.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K",
+      "vaporPressure": {
+        "model": "dippr-101",
+        "coefficients": [74.55502, -7295.586, -7.442448, 4.2881e-6, 2.0],
+        "min": 263.15,
+        "max": 647.29,
+        "criticalTemperature": 647.14,
+        "source": "ChemSep v8.3, equation 101; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "latentHeat": {
+        "model": "dippr-106",
+        "coefficients": [59640.0, 0.86515, -1.1134, 0.67764, -0.026925],
+        "min": 273.15,
+        "max": 647.28,
+        "criticalTemperature": 647.14,
+        "source": "ChemSep v8.3, equation 106, converted to J/mol; https://raw.githubusercontent.com/DanWBR/dwsim/1abf72d1b6b41d3e9a8cc770d3cc4e8fc76e5766/DWSIM.Thermodynamics/Assets/Databases/chemsep1.xml"
+      },
+      "groups": {
+        "16": 1
+      },
+      "groupSource": "DDBST modified UNIFAC assignments distributed with thermo 0.6.1; https://www.ddbst.com/published-parameters-unifac.html"
+    },
+    {
+      "id": "7782-44-7",
+      "name": "oxygen",
+      "formula": "O2",
+      "molecularWeight": 0.0319988,
+      "gasCp": {
+        "model": "shomate",
+        "ranges": [
+          {
+            "min": 100.0,
+            "max": 700.0,
+            "coefficients": [
+              31.32234, -0.02023531, 5.7866439999999995e-5, -3.650624e-8,
+              -7374.0
+            ]
+          },
+          {
+            "min": 700.0,
+            "max": 2000.0,
+            "coefficients": [
+              30.03235, 0.008772971999999999, -3.988133e-6,
+              7.883130000000001e-10, -741599.0
+            ]
+          },
+          {
+            "min": 2000.0,
+            "max": 6000.0,
+            "coefficients": [
+              20.91111, 0.01072071, -2.020498e-6, 1.46449e-10, 9245722.0
+            ]
+          }
+        ],
+        "source": "NIST Chemistry WebBook Shomate gas coefficients; chemicals 1.5.2; https://webbook.nist.gov/"
+      },
+      "antoine": [],
+      "formationEnthalpy": 0.0,
+      "formationSource": "ATCT_G; chemicals 1.5.2; standard ideal gas at 298.15 K"
+    }
+  ],
+  "parameters": {
+    "version": 1,
+    "definitions": {
+      "1": {
+        "main": 1,
+        "R": 0.6325,
+        "Q": 1.0608
+      },
+      "2": {
+        "main": 1,
+        "R": 0.6325,
+        "Q": 0.7081
+      },
+      "5": {
+        "main": 2,
+        "R": 1.2832,
+        "Q": 1.6016
+      },
+      "9": {
+        "main": 3,
+        "R": 0.3763,
+        "Q": 0.4321
+      },
+      "10": {
+        "main": 3,
+        "R": 0.3763,
+        "Q": 0.2113
+      },
+      "11": {
+        "main": 4,
+        "R": 0.91,
+        "Q": 0.949
+      },
+      "14": {
+        "main": 5,
+        "R": 1.2302,
+        "Q": 0.8927
+      },
+      "15": {
+        "main": 6,
+        "R": 0.8585,
+        "Q": 0.9938
+      },
+      "16": {
+        "main": 7,
+        "R": 1.7334,
+        "Q": 2.4561
+      },
+      "18": {
+        "main": 9,
+        "R": 1.7048,
+        "Q": 1.67
+      }
+    },
+    "interactions": {
+      "1": {
+        "1": [0.0, 0.0, 0.0],
+        "2": [63.270508, -0.086422, 0.0],
+        "3": [150.53584, 0.020485, 0.0],
+        "4": [28.874262, 0.101934, 0.0],
+        "5": [1798.2177, -1.776088, 0.0],
+        "6": [1438.2358, -0.012914, 0.0],
+        "7": [314.15445, 0.197805, 0.0],
+        "9": [539.9737, -0.202965, 0.0]
+      },
+      "2": {
+        "1": [16.500313, -0.164552, 0.0],
+        "2": [0.0, 0.0, 0.0],
+        "3": [33.565105, 0.175524, 0.0],
+        "4": [19.73204, -0.247085, 0.0],
+        "5": [1238.3473, -0.4436, 0.0],
+        "6": [1016.40625, 0.214366, 0.0],
+        "7": [198.54648, 0.286802, 0.0],
+        "9": [257.7268, 0.135764, 0.0]
+      },
+      "3": {
+        "1": [-13.408843, -0.259877, 0.0],
+        "2": [15.343874, -0.220051, 0.0],
+        "3": [0.0, 0.0, 0.0],
+        "4": [36.213367, -0.289022, 0.0],
+        "5": [1153.8345, -0.886215, 0.0],
+        "6": [990.7952, -0.077214, 0.0],
+        "7": [296.9907, 0.132567, 0.0],
+        "9": [70.96034, 0.038773, 0.0]
+      },
+      "4": {
+        "1": [-2.320233, -0.125835, 0.0],
+        "2": [91.8227, -0.107771, 0.0],
+        "3": [126.9973, 0.045595, 0.0],
+        "4": [0.0, 0.0, 0.0],
+        "5": [1387.1511, -1.545793, 0.0],
+        "6": [1057.0122, -0.343307, 0.0],
+        "7": [201.08093, 0.070611, 0.0],
+        "9": [284.46664, -0.045573, 0.0]
+      },
+      "5": {
+        "1": [108.70487, 0.234033, 0.0],
+        "2": [283.02823, 0.263646, 0.0],
+        "3": [344.16882, 0.394765, 0.0],
+        "4": [365.83185, 0.590461, 0.0],
+        "5": [0.0, 0.0, 0.0],
+        "6": [93.02086, -0.125837, 0.0],
+        "7": [-404.878, 0.023005, 0.0],
+        "9": [97.93603, -0.218105, 0.0]
+      },
+      "6": {
+        "1": [97.63658, -0.560508, 0.0],
+        "2": [56.90523, -0.410629, 0.0],
+        "3": [77.12152, -0.319084, 0.0],
+        "4": [161.32822, -0.474933, 0.0],
+        "5": [-136.27676, 0.389215, 0.0],
+        "6": [0.0, 0.0, 0.0],
+        "7": [-315.31094, 0.176576, 0.0],
+        "9": [2.746707, -0.064914, 0.0]
+      },
+      "7": {
+        "1": [57.479225, 1.057163, 0.0],
+        "2": [141.70471, 0.839872, 0.0],
+        "3": [190.88991, 1.496544, 0.0],
+        "4": [194.47006, 1.444303, 0.0],
+        "5": [1048.2665, -2.129351, 0.0],
+        "6": [871.1367, -0.654539, 0.0],
+        "7": [0.0, 0.0, 0.0],
+        "9": [54.136395, 0.359475, 0.0]
+      },
+      "9": {
+        "1": [78.90491, -0.532257, 0.0],
+        "2": [-38.02605, -0.188363, 0.0],
+        "3": [-28.221941, 0.159279, 0.0],
+        "4": [105.28583, -0.208801, 0.0],
+        "5": [480.44296, -0.548875, 0.0],
+        "6": [428.43246, -0.730147, 0.0],
+        "7": [-33.139797, -0.175614, 0.0],
+        "9": [0.0, 0.0, 0.0]
+      }
+    },
+    "source": {
+      "citation": "Nicolas Hayer, Hans Hasse and Fabian Jirasek (2025). Modified UNIFAC 2.0—A Group-Contribution Method Completed with Machine Learning. Industrial & Engineering Chemistry Research 64, 10304–10313.",
+      "doi": "10.1021/acs.iecr.5c00077",
+      "license": "CC-BY-NC-4.0",
+      "useRestriction": "non-commercial-only",
+      "url": "https://acs.figshare.com/articles/dataset/28986186",
+      "sha256": "5ada1ec5463d54ed03048fba6400ac0f0e379a2cc32e4c8e228d775a86cca476",
+      "notice": "Nicolas Hayer, Hans Hasse and Fabian Jirasek (2025). Modified UNIFAC 2.0—A Group-Contribution Method Completed with Machine Learning. Industrial & Engineering Chemistry Research 64, 10304–10313. CC-BY-NC-4.0: https://creativecommons.org/licenses/by-nc/4.0/ Published matrix coefficients are unchanged from the pinned thermo 0.6.1 mirror. Subgroups come from the publisher supplement. This model is for non-commercial use only. Attribution and license notices must be retained; no author endorsement is implied. Group assignments retain their separate provenance."
+    }
+  },
+  "gas": [
+    {
+      "id": "100-42-5",
+      "temperature": 280,
+      "enthalpy": 145737.63363793097
+    },
+    {
+      "id": "100-42-5",
+      "temperature": 350,
+      "enthalpy": 154790.04147992496
+    },
+    {
+      "id": "100-42-5",
+      "temperature": 500,
+      "enthalpy": 180111.1295442968
+    },
+    {
+      "id": "100-42-5",
+      "temperature": 750,
+      "enthalpy": 235893.20100587467
+    },
+    {
+      "id": "108-88-3",
+      "temperature": 280,
+      "enthalpy": 48585.6642226922
+    },
+    {
+      "id": "108-88-3",
+      "temperature": 350,
+      "enthalpy": 56277.084288391394
+    },
+    {
+      "id": "108-88-3",
+      "temperature": 500,
+      "enthalpy": 78394.24339450465
+    },
+    {
+      "id": "108-88-3",
+      "temperature": 750,
+      "enthalpy": 128598.56268876804
+    },
+    {
+      "id": "110-54-3",
+      "temperature": 280,
+      "enthalpy": -169466.84314676508
+    },
+    {
+      "id": "110-54-3",
+      "temperature": 350,
+      "enthalpy": -159034.35070899045
+    },
+    {
+      "id": "110-54-3",
+      "temperature": 500,
+      "enthalpy": -130456.72376106965
+    },
+    {
+      "id": "110-54-3",
+      "temperature": 750,
+      "enthalpy": -66987.18090198858
+    },
+    {
+      "id": "64-17-5",
+      "temperature": 280,
+      "enthalpy": -235729.94601239465
+    },
+    {
+      "id": "64-17-5",
+      "temperature": 350,
+      "enthalpy": -230975.61483416974
+    },
+    {
+      "id": "64-17-5",
+      "temperature": 500,
+      "enthalpy": -218260.31740904113
+    },
+    {
+      "id": "64-17-5",
+      "temperature": 750,
+      "enthalpy": -190604.1360873069
+    },
+    {
+      "id": "67-56-1",
+      "temperature": 280,
+      "enthalpy": -201489.65957785805
+    },
+    {
+      "id": "67-56-1",
+      "temperature": 350,
+      "enthalpy": -198321.17336672268
+    },
+    {
+      "id": "67-56-1",
+      "temperature": 500,
+      "enthalpy": -190266.8857337943
+    },
+    {
+      "id": "67-56-1",
+      "temperature": 750,
+      "enthalpy": -173088.7201794153
+    },
+    {
+      "id": "67-64-1",
+      "temperature": 280,
+      "enthalpy": -217395.6479272301
+    },
+    {
+      "id": "67-64-1",
+      "temperature": 350,
+      "enthalpy": -211980.46273066712
+    },
+    {
+      "id": "67-64-1",
+      "temperature": 500,
+      "enthalpy": -197608.77084224214
+    },
+    {
+      "id": "67-64-1",
+      "temperature": 750,
+      "enthalpy": -166406.77734454063
+    },
+    {
+      "id": "71-43-2",
+      "temperature": 280,
+      "enthalpy": 81735.60716717184
+    },
+    {
+      "id": "71-43-2",
+      "temperature": 350,
+      "enthalpy": 87888.25489249229
+    },
+    {
+      "id": "71-43-2",
+      "temperature": 500,
+      "enthalpy": 105879.49069890504
+    },
+    {
+      "id": "71-43-2",
+      "temperature": 750,
+      "enthalpy": 146785.59009251112
+    },
+    {
+      "id": "7727-37-9",
+      "temperature": 280,
+      "enthalpy": -528.5197922053576
+    },
+    {
+      "id": "7727-37-9",
+      "temperature": 350,
+      "enthalpy": 1511.0541545463718
+    },
+    {
+      "id": "7727-37-9",
+      "temperature": 500,
+      "enthalpy": 5910.726873620032
+    },
+    {
+      "id": "7727-37-9",
+      "temperature": 750,
+      "enthalpy": 13482.322423099198
+    },
+    {
+      "id": "7732-18-5",
+      "temperature": 280,
+      "enthalpy": -242430.9221027567
+    },
+    {
+      "id": "7732-18-5",
+      "temperature": 350,
+      "enthalpy": -240074.2734994685
+    },
+    {
+      "id": "7732-18-5",
+      "temperature": 500,
+      "enthalpy": -234898.6262534175
+    },
+    {
+      "id": "7732-18-5",
+      "temperature": 750,
+      "enthalpy": -225739.98165342506
+    },
+    {
+      "id": "7782-44-7",
+      "temperature": 280,
+      "enthalpy": -532.5014062697642
+    },
+    {
+      "id": "7782-44-7",
+      "temperature": 350,
+      "enthalpy": 1531.3280143800262
+    },
+    {
+      "id": "7782-44-7",
+      "temperature": 500,
+      "enthalpy": 6083.996666451455
+    },
+    {
+      "id": "7782-44-7",
+      "temperature": 750,
+      "enthalpy": 14159.29090039766
+    }
+  ],
+  "liquid": [
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 310,
+      "composition": [0.2, 0.8],
+      "gamma": [1.3252133686417973, 1.0533415685358691],
+      "psat": [30419.309195627062, 6240.50882604085],
+      "idealEnthalpy": -275400.10608105425,
+      "modifiedEnthalpy": -275609.9133812234
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 310,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0301674814762016, 1.1879877780534798],
+      "psat": [30419.309195627062, 6240.50882604085],
+      "idealEnthalpy": -261131.10559181892,
+      "modifiedEnthalpy": -261888.1501395231
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 310,
+      "composition": [0.8, 0.2],
+      "gamma": [0.9962939968764247, 1.2447250265548058],
+      "psat": [30419.309195627062, 6240.50882604085],
+      "idealEnthalpy": -246862.10510258362,
+      "modifiedEnthalpy": -247494.24632639173
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 330,
+      "composition": [0.2, 0.8],
+      "gamma": [1.3782704124088831, 1.0478277788555102],
+      "psat": [74087.94119988616, 17235.253690868136],
+      "idealEnthalpy": -273761.3651656288,
+      "modifiedEnthalpy": -273862.7292812677
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 330,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0596120343982898, 1.1923721312468747],
+      "psat": [74087.94119988616, 17235.253690868136],
+      "idealEnthalpy": -259298.88588001792,
+      "modifiedEnthalpy": -259895.39222690204
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 330,
+      "composition": [0.8, 0.2],
+      "gamma": [1.00180271669623, 1.305541859170585],
+      "psat": [74087.94119988616, 17235.253690868136],
+      "idealEnthalpy": -244836.4065944071,
+      "modifiedEnthalpy": -245389.29486435337
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350,
+      "composition": [0.2, 0.8],
+      "gamma": [1.4132626994475816, 1.0427590104405882],
+      "psat": [160930.13520820678, 41706.73609157646],
+      "idealEnthalpy": -272074.4532492682,
+      "modifiedEnthalpy": -272082.5746120693
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0837738327556248, 1.1914158254289036],
+      "psat": [160930.13520820678, 41706.73609157646],
+      "idealEnthalpy": -257389.04637988954,
+      "modifiedEnthalpy": -257835.39220853095
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350,
+      "composition": [0.8, 0.2],
+      "gamma": [1.0066237926528716, 1.3511401336688043],
+      "psat": [160930.13520820678, 41706.73609157646],
+      "idealEnthalpy": -242703.63951051087,
+      "modifiedEnthalpy": -243177.49035322233
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 310,
+      "composition": [0.2, 0.8],
+      "gamma": [1.5641509287265996, 1.030560485164515],
+      "psat": [49928.96585297703, 15169.46755217656],
+      "idealEnthalpy": -269636.8428072458,
+      "modifiedEnthalpy": -268839.6220936353
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 310,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1868233826581962, 1.1944604485006458],
+      "psat": [49928.96585297703, 15169.46755217656],
+      "idealEnthalpy": -260739.110907982,
+      "modifiedEnthalpy": -259507.12193474322
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 310,
+      "composition": [0.8, 0.2],
+      "gamma": [1.0280924426805842, 1.5594154952761927],
+      "psat": [49928.96585297703, 15169.46755217656],
+      "idealEnthalpy": -251841.37900871818,
+      "modifiedEnthalpy": -251037.6721147338
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 330,
+      "composition": [0.2, 0.8],
+      "gamma": [1.4514232566664103, 1.0252845022498036],
+      "psat": [103813.1013624108, 40407.124518444376],
+      "idealEnthalpy": -266932.0412810343,
+      "modifiedEnthalpy": -266108.5868902155
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 330,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1525605908253007, 1.1598361461107138],
+      "psat": [103813.1013624108, 40407.124518444376],
+      "idealEnthalpy": -258032.91353802575,
+      "modifiedEnthalpy": -256769.90445402998
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 330,
+      "composition": [0.8, 0.2],
+      "gamma": [1.0229097965175378, 1.4470244871367435],
+      "psat": [103813.1013624108, 40407.124518444376],
+      "idealEnthalpy": -249133.78579501726,
+      "modifiedEnthalpy": -248322.32534595474
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350,
+      "composition": [0.2, 0.8],
+      "gamma": [1.3562467718847757, 1.0204608421731258],
+      "psat": [196324.71275163244, 94382.14646805916],
+      "idealEnthalpy": -264015.95066732966,
+      "modifiedEnthalpy": -263175.72595565056
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1230190658692007, 1.128912244959334],
+      "psat": [196324.71275163244, 94382.14646805916],
+      "idealEnthalpy": -255119.528899084,
+      "modifiedEnthalpy": -253840.28817469912
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350,
+      "composition": [0.8, 0.2],
+      "gamma": [1.0185217718093762, 1.3527619748859105],
+      "psat": [196324.71275163244, 94382.14646805916],
+      "idealEnthalpy": -246223.10713083838,
+      "modifiedEnthalpy": -245411.80866920092
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 310,
+      "composition": [0.2, 0.8],
+      "gamma": [1.3828418001258969, 1.0271145682269431],
+      "psat": [32551.695679381934, 21182.903690582752],
+      "idealEnthalpy": 1601.2166915013004,
+      "modifiedEnthalpy": 2100.0045469475967
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 310,
+      "composition": [0.5, 0.5],
+      "gamma": [1.1133864030494038, 1.1505129407689496],
+      "psat": [32551.695679381934, 21182.903690582752],
+      "idealEnthalpy": -72505.37398143363,
+      "modifiedEnthalpy": -71751.38639201446
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 310,
+      "composition": [0.8, 0.2],
+      "gamma": [1.014971091265367, 1.3606661573703382],
+      "psat": [32551.695679381934, 21182.903690582752],
+      "idealEnthalpy": -146611.96465436858,
+      "modifiedEnthalpy": -146145.20039946053
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 330,
+      "composition": [0.2, 0.8],
+      "gamma": [1.3202464046651297, 1.0237545992580006],
+      "psat": [68371.54903068836, 46409.00556688444],
+      "idealEnthalpy": 4774.812996062654,
+      "modifiedEnthalpy": 5287.027538552623
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 330,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0949158865610908, 1.128845336872488],
+      "psat": [68371.54903068836, 46409.00556688444],
+      "idealEnthalpy": -68897.51972766519,
+      "modifiedEnthalpy": -68131.49163988116
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 330,
+      "composition": [0.8, 0.2],
+      "gamma": [1.0124620567782003, 1.3006002587755487],
+      "psat": [68371.54903068836, 46409.00556688444],
+      "idealEnthalpy": -142569.85245139303,
+      "modifiedEnthalpy": -142100.16806835204
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 350,
+      "composition": [0.2, 0.8],
+      "gamma": [1.266255378870171, 1.0206342025614379],
+      "psat": [130049.84166892854, 91362.88840691824],
+      "idealEnthalpy": 8116.410606830301,
+      "modifiedEnthalpy": 8640.697140349916
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 350,
+      "composition": [0.5, 0.5],
+      "gamma": [1.0788486885933979, 1.1094334999644466],
+      "psat": [130049.84166892854, 91362.88840691824],
+      "idealEnthalpy": -65119.15533551957,
+      "modifiedEnthalpy": -64342.48753437014
+    },
+    {
+      "ids": ["110-54-3", "71-43-2"],
+      "temperature": 350,
+      "composition": [0.8, 0.2],
+      "gamma": [1.0102882430222189, 1.2490478047477962],
+      "psat": [130049.84166892854, 91362.88840691824],
+      "idealEnthalpy": -138354.72127786945,
+      "modifiedEnthalpy": -137882.49472280915
+    }
+  ]
+}
