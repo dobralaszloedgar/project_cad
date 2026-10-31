@@ -26,7 +26,7 @@ async function inspect(page: Page, id: string) {
 test("duty setup calculates temperature and persists the active specification", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -62,7 +62,7 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

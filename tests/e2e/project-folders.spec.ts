@@ -33,7 +33,7 @@ async function start(page: Page) {
     if (dialog.type() === "beforeunload") await dialog.accept();
     else await dialog.dismiss();
   });
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -469,7 +469,7 @@ test("unsupported browsers explain folder access and preserve existing projects"
   page,
 }) => {
   await installFolderPicker(page, true);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

@@ -4,8 +4,27 @@ import { attachmentsSchema, type AttachmentInfo } from "./attachments";
 
 export const ASSISTANT_VERSION = 1;
 export const ASSISTANT_ENDPOINT = "http://127.0.0.1:43118";
+export const PROJECT_CAD_ORIGIN = "https://projectcad.vercel.app";
 export const providerSchema = z.enum(["codex", "claude", "muse"]);
 export type ProviderId = z.infer<typeof providerSchema>;
+export const agentNames: Record<ProviderId, string> = {
+  codex: "Codex",
+  claude: "Claude Code",
+  muse: "Muse",
+};
+export const agentSelectionSchema = z
+  .object({
+    providers: z.array(providerSchema).min(1).max(3),
+    preferred: providerSchema,
+  })
+  .strict()
+  .refine(
+    ({ providers, preferred }) =>
+      new Set(providers).size === providers.length &&
+      providers.includes(preferred),
+    "Choose at least one agent and a default from your selection.",
+  );
+export type AgentSelection = z.infer<typeof agentSelectionSchema>;
 export const modeSchema = z.enum(["review", "read-only"]);
 export type AssistantMode = z.infer<typeof modeSchema>;
 export const projectIdSchema = z.string().min(1).max(100);
@@ -97,6 +116,7 @@ export type ConversationSummary = Pick<
   "id" | "title" | "provider" | "updatedAt" | "archived"
 >;
 export interface AssistantSnapshot {
+  agents?: AgentSelection | null;
   conversations: ConversationSummary[];
   conversation?: Conversation;
   activeConversation?: Conversation;

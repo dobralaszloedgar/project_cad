@@ -123,7 +123,8 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       }
     }
     expect(token, logs).not.toBe("");
-    expect((await command("status")).running).toBe(true);
+    expect((await command("status")).running).toBe(false);
+    expect((await command("status")).agents).toBeNull();
     expect((await fetch(origin + "/api/state")).status).toBe(403);
     expect(
       (
@@ -144,6 +145,36 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       "frame-ancestors 'none'",
     );
     expect(await page.text()).toContain("Your local assistant");
+    const choose = (agents: unknown) =>
+      fetch(origin + "/api/action", {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Origin: origin,
+          "Content-Type": "application/json",
+          "X-Project-CAD-Desktop": "1",
+        },
+        body: JSON.stringify({ action: "agents", agents }),
+      });
+    expect((await choose({ providers: [], preferred: "codex" })).status).toBe(
+      400,
+    );
+    expect(
+      (await choose({ providers: ["muse"], preferred: "muse" })).status,
+    ).toBe(200);
+    expect((await command("status")).running).toBe(true);
+    const unselected = await fetch(origin + "/api/action", {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        Origin: origin,
+        "Content-Type": "application/json",
+        "X-Project-CAD-Desktop": "1",
+      },
+      body: JSON.stringify({ action: "signin", provider: "codex" }),
+    });
+    expect(unselected.status).toBe(400);
+    expect(await unselected.text()).toContain("Choose this agent");
     const save = (requestOrigin: string) =>
       fetch(origin + "/api/action", {
         method: "POST",
@@ -168,6 +199,10 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     ).text();
     expect(state).not.toContain("test-key-never-returned");
     expect(JSON.parse(state).museConfigured).toBe(true);
+    expect(JSON.parse(state).agents).toEqual({
+      providers: ["muse"],
+      preferred: "muse",
+    });
     expect(
       JSON.parse(await readFile(join(data, "settings.json"), "utf8"))
         .museApiKey,

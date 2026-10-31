@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "./test";
 
 async function start(page: Page) {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

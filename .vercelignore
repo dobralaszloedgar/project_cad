@@ -1,4 +1,4 @@
-# Release binaries stay on GitHub; only the small download manifest ships here.
+# Release binaries stay in public release storage; only the small manifest ships here.
 dist/assistant/
 public/downloads/assistant/*
 !public/downloads/assistant/downloads.json

@@ -24,7 +24,7 @@ test("loaded and added equipment keeps initialized dimensions while dragging and
   page.on("console", (message) => {
     if (message.text().includes("[React Flow]")) warnings.push(message.text());
   });
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

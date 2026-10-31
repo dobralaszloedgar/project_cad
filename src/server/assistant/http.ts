@@ -9,8 +9,12 @@ import {
   ASSISTANT_VERSION,
   projectIdSchema,
   submitSchema,
+  agentNames,
+  agentSelectionSchema,
+  type AgentSelection,
 } from "../../assistant/protocol";
 import { AssistantRuntime } from "./runtime";
+import { applicationOrigin } from "./config";
 
 const escape = (value: string) =>
   value.replace(
@@ -38,21 +42,27 @@ async function readBody(req: IncomingMessage, limit = 2_000_000) {
 }
 export function createAssistantServer(
   runtime: AssistantRuntime,
-  options: { port: number; origins: string[] },
+  options: {
+    port: number;
+    origins: string[];
+    selectAgents?: (agents: AgentSelection) => void;
+  },
 ) {
   const origins = new Set(options.origins),
     tokens = new Map<string, string>();
   const pending = new Map<
     string,
-    { origin: string; nonce: string; expires: number }
+    { origin: string; nonce: string; expires: number; agents: AgentSelection }
   >();
-  function page(res: ServerResponse, body: string, script = "") {
+  function page(res: ServerResponse, body: string, script = "", status = 200) {
     const nonce = randomBytes(18).toString("base64");
-    res.writeHead(200, {
+    res.writeHead(status, {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Frame-Options": "DENY",
-      "Referrer-Policy": "no-referrer",
+      // Preserve the local Origin on the consent form POST; no-referrer makes
+      // browsers send Origin: null. Cross-origin requests still omit referrers.
+      "Referrer-Policy": "same-origin",
       "Content-Security-Policy": `default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`,
     });
     res.end(
@@ -87,14 +97,57 @@ export function createAssistantServer(
         return json(res, 200, {
           name: "Project CAD assistant",
           version: ASSISTANT_VERSION,
+          capabilities: ["agent-selection-v1"],
         });
       if (url.pathname === "/connect" && req.method === "GET") {
         const target = url.searchParams.get("origin") || "",
           nonce = url.searchParams.get("nonce") || "";
-        if (!origins.has(target) || !z.string().uuid().safeParse(nonce).success)
-          return json(res, 403, {
-            error: "This application origin is not enabled for Project CAD.",
-          });
+        let validOrigin = false;
+        try {
+          validOrigin = applicationOrigin(target) === target;
+        } catch {
+          /* Invalid address. */
+        }
+        const validNonce = z.string().uuid().safeParse(nonce).success;
+        const fail = (heading: string, message: string, status = 400) => {
+          const payload = JSON.stringify({
+            type: "project-cad-assistant-error",
+            nonce,
+            error: message,
+          }).replace(/</g, "\\u003c");
+          return page(
+            res,
+            `<h1>${heading}</h1><p>${escape(message)}</p><p>Return to Project CAD to try again.</p>`,
+            validOrigin && validNonce
+              ? `if(window.opener)window.opener.postMessage(${payload},${JSON.stringify(target).replace(/</g, "\\u003c")});`
+              : "",
+            status,
+          );
+        };
+        if (!validOrigin || !validNonce)
+          return fail(
+            "Connection link is invalid",
+            "Open the assistant in Project CAD and choose Connect again.",
+          );
+        if (!origins.has(target))
+          return fail(
+            "Enable this Project CAD website",
+            `This connector is not configured for ${target}. Open Project CAD Assistant → Settings, set Project CAD website to this address, save, and reconnect.`,
+            403,
+          );
+        const selection = agentSelectionSchema.safeParse(
+          url.searchParams.has("providers")
+            ? {
+                providers: url.searchParams.get("providers")!.split(","),
+                preferred: url.searchParams.get("preferred"),
+              }
+            : runtime.agents(),
+        );
+        if (!selection.success)
+          return fail(
+            "Choose your agents first",
+            "Choose at least one agent and a default in Project CAD, then connect again.",
+          );
         for (const [id, entry] of pending)
           if (Date.now() > entry.expires) pending.delete(id);
         if (pending.size >= 50)
@@ -104,10 +157,11 @@ export function createAssistantServer(
           origin: target,
           nonce,
           expires: Date.now() + 120000,
+          agents: selection.data,
         });
         return page(
           res,
-          `<h1>Connect Project CAD</h1><p>Allow <code>${escape(target)}</code> to use this laptop’s assistant and project conversation history?</p><p>Project changes remain subject to your review in the application.</p><form method="post" action="/connect"><input type="hidden" name="csrf" value="${csrf}"><button>Connect assistant</button></form>`,
+          `<h1>Connect your agents</h1><p>Allow <code>${escape(target)}</code> to use this computer’s assistant and project conversation history?</p><p>Selected agents: <strong>${selection.data.providers.map((id) => agentNames[id]).join(", ")}</strong><br>Default: ${agentNames[selection.data.preferred]}</p><p>Project changes remain subject to your review in the application.</p><form method="post" action="/connect"><input type="hidden" name="csrf" value="${csrf}"><button>Connect assistant</button></form>`,
         );
       }
       if (url.pathname === "/connect" && req.method === "POST") {
@@ -126,6 +180,7 @@ export function createAssistantServer(
             res,
             "<h1>Connection expired</h1><p>Return to Project CAD and connect again.</p>",
           );
+        options.selectAgents?.(entry.agents);
         if (tokens.size >= 100) tokens.delete(tokens.keys().next().value!);
         const token = randomBytes(32).toString("base64url");
         tokens.set(token, entry.origin);
@@ -133,6 +188,7 @@ export function createAssistantServer(
           type: "project-cad-assistant-connected",
           nonce: entry.nonce,
           token,
+          agents: entry.agents,
         }).replace(/</g, "\\u003c");
         return page(
           res,

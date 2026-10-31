@@ -45,6 +45,8 @@ async function scrollTo(page: Page, progress: number) {
   await page.evaluate(
     ({ value, end }) => {
       const root = document.querySelector<HTMLElement>("[data-landing-page]")!;
+      // Interrupt the chapter's scroll animation just as manual scrolling does.
+      window.dispatchEvent(new WheelEvent("wheel"));
       window.scrollTo(0, ((root.offsetHeight - innerHeight) * value) / end);
     },
     { value: progress, end: STORY_END },
@@ -71,12 +73,15 @@ async function expectViewportFilled(page: Page) {
   expect(view.bottom).toBe(view.height);
 }
 
-test("the chat is visible before JavaScript and types, sends, and calls tools", async ({
+test("the app-style assistant starts with a cursor, opens, types and sends", async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
   let release!: () => void;
   const scripts = new Promise<void>((resolve) => {
     release = resolve;
@@ -98,7 +103,12 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
     await expect(
       page.getByRole("heading", { name: "Design.", exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("What would you like to build?")).toBeVisible();
+    const bubble = page.getByRole("button", {
+      name: "Open assistant demo",
+      exact: true,
+    });
+    await expect(bubble).toHaveCSS("width", "44px");
+    await expect(bubble).toHaveCSS("height", "44px");
     await expect(page.locator("[data-design-chat]")).toBeVisible();
     await expect(page.locator("canvas")).toHaveCount(0);
     await expectViewportFilled(page);
@@ -106,12 +116,71 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
     release();
   }
   const chat = page.locator("[data-design-chat]");
+  await expect(chat).toHaveAttribute("data-intro", "cursor");
+  await expect(page.locator("[data-demo-cursor]")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("cursor-desktop.png") });
+  const approach = await page.evaluate(
+    () =>
+      new Promise<{ x: number; y: number; cursorX: number; cursorY: number }[]>(
+        (resolve) => {
+          const samples: {
+            x: number;
+            y: number;
+            cursorX: number;
+            cursorY: number;
+          }[] = [];
+          const sample = () => {
+            const button = document.querySelector<HTMLButtonElement>(
+              'button[aria-controls="landing-assistant"]',
+            )!;
+            if (button.getAttribute("aria-expanded") === "true") {
+              resolve(samples);
+              return;
+            }
+            const bubble = button.getBoundingClientRect();
+            const cursor = document
+              .querySelector("[data-demo-cursor] svg")!
+              .getBoundingClientRect();
+            samples.push({
+              x: bubble.x,
+              y: bubble.y,
+              cursorX: cursor.x + 5,
+              cursorY: cursor.y + 4,
+            });
+            requestAnimationFrame(sample);
+          };
+          sample();
+        },
+      ),
+  );
+  expect(approach.length).toBeGreaterThan(2);
+  expect(
+    Math.max(...approach.map((sample) => sample.x)) -
+      Math.min(...approach.map((sample) => sample.x)),
+  ).toBeLessThan(2);
+  expect(
+    Math.max(...approach.map((sample) => sample.y)) -
+      Math.min(...approach.map((sample) => sample.y)),
+  ).toBeLessThan(2);
+  const click = approach.at(-1)!;
+  expect(click.cursorX).toBeGreaterThan(click.x);
+  expect(click.cursorX).toBeLessThan(click.x + 44);
+  expect(click.cursorY).toBeGreaterThan(click.y);
+  expect(click.cursorY).toBeLessThan(click.y + 44);
+  await expect(chat).toHaveAttribute("data-expanded", "true", {
+    timeout: 15000,
+  });
+  await expect(
+    chat.getByRole("heading", { name: "How can I help you today?" }),
+  ).toBeVisible();
   await expect(chat).toHaveAttribute("data-phase", "working", {
     timeout: 45000,
   });
-  await expect(chat.getByText("Create the flowsheet")).toBeVisible();
-  await chat.getByText("Create the flowsheet").click();
-  await expect(chat.getByText("propose_actions()")).toBeVisible();
+  await expect(
+    chat.getByRole("button", { name: "Build this flowsheet" }),
+  ).toBeVisible({ timeout: 15000 });
+  await chat.getByText("3 project tool calls").click();
+  await expect(chat.getByText("propose actions · done")).toBeVisible();
   await page.screenshot({ path: info.outputPath("design-desktop.png") });
   await page
     .getByRole("button", { name: "Minimize assistant demo", exact: true })
@@ -124,9 +193,23 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
   await page.getByRole("button", { name: "Replay chat demo" }).click();
   await expect(chat).toHaveAttribute("data-phase", "typing");
   await page.getByRole("button", { name: "Pause motion", exact: true }).click();
-  const paused = await chat.innerText();
+  const field = chat.getByRole("textbox", {
+    name: "Example prompt",
+    includeHidden: true,
+  });
+  const paused = await field.inputValue();
+  const cursorPosition = await page
+    .locator("[data-demo-cursor] > div")
+    .last()
+    .evaluate((element) => element.getAttribute("style"));
   await page.waitForTimeout(500);
-  expect(await chat.innerText()).toBe(paused);
+  expect(await field.inputValue()).toBe(paused);
+  expect(
+    await page
+      .locator("[data-demo-cursor] > div")
+      .last()
+      .evaluate((element) => element.getAttribute("style")),
+  ).toBe(cursorPosition);
   await page
     .getByRole("button", { name: "Resume motion", exact: true })
     .click();
@@ -134,20 +217,29 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
   await expect(chat).toHaveAttribute("data-phase", "working", {
     timeout: 10000,
   });
+  await chat.getByRole("button", { name: "Build this flowsheet" }).click();
+  await expect(page.locator("[data-landing-page]")).toHaveAttribute(
+    "data-chapter",
+    "1",
+    { timeout: 15000 },
+  );
   expect(errors).toEqual([]);
 });
 
-test("one WebGL scene continuously unfolds the drawing and keeps operating equipment live", async ({
+test("one 3D scene continuously unfolds the drawing and keeps operating equipment live", async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
   await page.goto("/landing");
   await expect(page.getByRole("heading", { name: "Design." })).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Open workspace", exact: true }),
-  ).toHaveAttribute("href", "/");
+  ).toHaveAttribute("href", "/onboarding");
   const canvas = page.locator("[data-shared-scene] canvas");
   // Model assembly and software WebGL warm-up are asynchronous; wait for the
   // actual readiness signal instead of the default five-second DOM deadline.

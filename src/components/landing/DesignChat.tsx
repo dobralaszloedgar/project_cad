@@ -1,32 +1,20 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { MessageCircle, Minus } from "lucide-react";
 import {
-  ArrowUp,
-  ArrowRight,
-  Check,
-  ChevronDown,
-  LoaderCircle,
-  Paperclip,
-  RotateCcw,
-  Minus,
-  Workflow,
-} from "lucide-react";
-import {
-  AnimatePresence,
   motion,
   useMotionValueEvent,
+  useTransform,
   type MotionValue,
 } from "motion/react";
-import BrandMark from "@/components/BrandMark";
-import styles from "./LandingPage.module.css";
+import { useAssistantMorph } from "@/components/assistant/useAssistantMorph";
+import assistant from "@/components/AssistantPanel.module.css";
+import DesignChatPanel from "./DesignChatPanel";
+import styles from "./DesignChat.module.css";
 
-const prompt = "Build a process with reaction, separation, and recycle.";
-const calls = [
-  ["Read the workspace", "get_project", 0.61, 0.74],
-  ["Choose equipment", "get_capabilities", 0.75, 0.88],
-  ["Create the flowsheet", "propose_actions", 0.89, 1],
-] as const;
+const pointerOutline =
+  "M4.2 3.5 23.1 11.8Q25 12.6 23 13.5L15.3 15.7 12.9 24.1Q12.3 26.1 11.4 24.2L3.2 5.2Q2.3 3.1 4.2 3.5Z";
 
 export default function DesignChat({
   design,
@@ -43,193 +31,251 @@ export default function DesignChat({
 }) {
   const [time, setTime] = useState(design.get());
   const [openOverride, setOpenOverride] = useState<boolean | null>(null);
+  const [size, setSize] = useState({
+    width: 44,
+    height: 44,
+    centerX: 0,
+    centerY: 0,
+    ready: false,
+  });
+  const host = useRef<HTMLDivElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const control = useRef<HTMLDivElement>(null);
+  const activity = useRef<HTMLDivElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
-  useMotionValueEvent(design, "change", setTime);
-  const open = openOverride ?? time >= 0.16;
-  const sent = time >= 0.53;
-  const working = time >= 0.61;
-  const complete = time >= 1;
-  const typed = prompt.slice(
-    0,
-    Math.floor(Math.max(0, Math.min(1, (time - 0.08) / 0.37)) * prompt.length),
+  useMotionValueEvent(design, "change", (value) =>
+    setTime(Math.floor(value * 160) / 160),
   );
+  useLayoutEffect(() => {
+    const element = host.current;
+    if (!element) return;
+    const viewport = window.visualViewport;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setSize({
+        width: rect.width,
+        height: rect.height,
+        // Convert the visible page center into the demo's local coordinates.
+        centerX:
+          (viewport?.offsetLeft ?? 0) +
+          (viewport?.width ?? innerWidth) / 2 -
+          rect.left,
+        centerY:
+          (viewport?.offsetTop ?? 0) +
+          (viewport?.height ?? innerHeight) / 2 -
+          rect.top,
+        ready: true,
+      });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    window.addEventListener("resize", measure);
+    viewport?.addEventListener("resize", measure);
+    viewport?.addEventListener("scroll", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+      viewport?.removeEventListener("resize", measure);
+      viewport?.removeEventListener("scroll", measure);
+    };
+  }, []);
+  const open = openOverride ?? time >= 0.2;
+  const point = {
+    x: Math.max(0, size.width - 44),
+    y: Math.max(0, size.height - 44),
+  };
+  const bounds = { left: 0, top: 0, width: size.width, height: size.height };
+  useAssistantMorph({
+    surface,
+    content: panel,
+    control,
+    activity,
+    point,
+    panel: bounds,
+    corner: "bottom-right",
+    mode: open ? "panel" : "bubble",
+    activityWidth: 0,
+    ready: size.ready,
+    immediate: false,
+  });
+  // Hold at the center, accelerate into a gentle arc, then settle before clicking.
+  const travel = useTransform(design, [0.05, 0.16], [0, 1], {
+    ease: (value) => value ** 3 * (value * (6 * value - 15) + 10),
+  });
+  const dx = point.x + 22 - size.centerX;
+  const dy = point.y + 22 - size.centerY;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const bend = Math.min(28, distance * 0.055);
+  const cursorX = useTransform(
+    travel,
+    (value) =>
+      size.centerX +
+      dx * value -
+      (dy / distance) * bend * 4 * value * (1 - value),
+  );
+  const cursorY = useTransform(
+    travel,
+    (value) =>
+      size.centerY +
+      dy * value +
+      (dx / distance) * bend * 4 * value * (1 - value),
+  );
+  const cursorOpacity = useTransform(
+    design,
+    [0, 0.025, 0.22, 0.27],
+    [0, 1, 1, 0],
+  );
+  const cursorScale = useTransform(
+    design,
+    [0.18, 0.195, 0.205, 0.23],
+    [1, 0.82, 0.82, 1],
+  );
+  const clickOpacity = useTransform(design, [0.185, 0.2, 0.26], [0, 0.45, 0]);
+  const clickScale = useTransform(design, [0.185, 0.26], [0.7, 1.6]);
+  const anchor: CSSProperties = size.ready
+    ? {
+        transform: `translate3d(${point.x}px,${point.y}px,0)`,
+        transition: "none",
+      }
+    : { top: "auto", left: "auto", right: 0, bottom: 0, transition: "none" };
+  function close() {
+    setOpenOverride(false);
+    if (panel.current?.contains(document.activeElement))
+      launcher.current?.focus({ preventScroll: true });
+  }
   return (
     <div
-      className={styles.assistantDemo}
+      ref={host}
+      className={styles.demo}
       data-design-chat
-      data-phase={working ? "working" : sent ? "sent" : "typing"}
+      data-phase={time >= 0.7 ? "working" : time >= 0.64 ? "sent" : "typing"}
+      data-intro={
+        time < 0.2 ? "cursor" : time < 0.32 ? "opening" : "conversation"
+      }
       data-expanded={open}
+      onKeyDown={(event) => {
+        if (
+          open &&
+          event.key === "Escape" &&
+          !event.defaultPrevented &&
+          !panel.current?.querySelector("[data-assistant-popover]")
+        ) {
+          event.preventDefault();
+          close();
+        }
+      }}
     >
-      {!open && (
-        <div className={styles.pillWelcome}>
-          <BrandMark size={32} />
-          <span>What would you like to build?</span>
+      <div
+        className={assistant.root}
+        data-ready
+        data-animated
+        data-mode={open ? "panel" : "bubble"}
+        data-corner="bottom-right"
+      >
+        <div className={assistant.dockAnchor} style={anchor}>
+          <div
+            ref={surface}
+            aria-hidden
+            className={assistant.material}
+            data-animating="false"
+            style={{ width: size.width, height: size.height }}
+          />
         </div>
-      )}
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            id="landing-assistant"
-            className={styles.designChat}
-            role="region"
-            aria-label="Assistant demo"
-            initial={reduced ? false : { opacity: 0, scale: 0.92, y: 24 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 24 }}
-            transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setOpenOverride(false);
-                launcher.current?.focus();
+        <section
+          id="landing-assistant"
+          ref={panel}
+          className={assistant.drawer}
+          style={
+            {
+              ...bounds,
+              "--assistant-panel-height": `${size.height}px`,
+            } as CSSProperties
+          }
+          data-open={open || undefined}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby="landing-assistant-title"
+          aria-hidden={!open}
+          inert={!open}
+        >
+          <DesignChatPanel
+            time={time}
+            reduced={reduced}
+            onReplay={() => {
+              setOpenOverride(null);
+              launcher.current?.focus({ preventScroll: true });
+              onReplay();
+            }}
+            onSend={onSend}
+            onBuild={onBuild}
+          />
+        </section>
+        <div
+          className={`${assistant.dockAnchor} ${assistant.buttonAnchor}`}
+          style={anchor}
+        >
+          <div ref={control} className={assistant.morphControl}>
+            <button
+              ref={launcher}
+              className={assistant.bubble}
+              aria-label={
+                open ? "Minimize assistant demo" : "Open assistant demo"
               }
+              aria-expanded={open}
+              aria-controls="landing-assistant"
+              onClick={() => (open ? close() : setOpenOverride(true))}
+            >
+              {open ? (
+                <Minus size={18} strokeWidth={1.8} />
+              ) : (
+                <MessageCircle size={18} strokeWidth={1.9} />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+      {!reduced && openOverride === null && size.ready ? (
+        <div aria-hidden className={styles.cursorLayer} data-demo-cursor>
+          <motion.div
+            className={styles.click}
+            style={{
+              left: point.x,
+              top: point.y,
+              opacity: clickOpacity,
+              scale: clickScale,
+            }}
+          />
+          <motion.div
+            className={styles.cursor}
+            style={{
+              left: 0,
+              top: 0,
+              x: cursorX,
+              y: cursorY,
+              opacity: cursorOpacity,
+              scale: cursorScale,
             }}
           >
-            <div className={styles.chatHeader}>
-              <BrandMark size={22} />
-              <span>Assistant</span>
-              <span className={styles.demoLabel}>Demo</span>
-              <button
-                onClick={() => {
-                  setOpenOverride(true);
-                  onReplay();
-                }}
-                disabled={reduced}
-                aria-label="Replay chat demo"
-                title="Replay demo"
-              >
-                <RotateCcw size={15} />
-              </button>
-              <button
-                aria-label="Minimize assistant demo"
-                onClick={() => {
-                  setOpenOverride(false);
-                  launcher.current?.focus();
-                }}
-              >
-                <Minus size={16} />
-              </button>
-            </div>
-            <div className={styles.chatConversation}>
-              {!sent ? (
-                <div className={styles.chatWelcome}>
-                  <BrandMark size={36} />
-                  <span>What would you like to build?</span>
-                </div>
-              ) : (
-                <motion.div
-                  className={styles.chatMessage}
-                  initial={{
-                    opacity: 0,
-                    y: reduced ? 0 : 24,
-                    scale: reduced ? 1 : 0.97,
-                  }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  {prompt}
-                </motion.div>
-              )}
-              {working && (
-                <motion.div
-                  className={styles.chatTools}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                >
-                  <div className={styles.chatWorking}>
-                    {complete ? (
-                      <Check size={14} />
-                    ) : (
-                      <LoaderCircle size={14} className={styles.spinner} />
-                    )}
-                    <span>{complete ? "Plan ready" : "Working"}</span>
-                    <ChevronDown size={13} />
-                  </div>
-                  {calls.map(
-                    ([label, tool, start, finish]) =>
-                      time >= start && (
-                        <motion.details
-                          key={tool}
-                          className={styles.chatTool}
-                          initial={{ opacity: 0, y: reduced ? 0 : 7 }}
-                          animate={{ opacity: 1, y: 0 }}
-                        >
-                          <summary>
-                            <Workflow size={14} />
-                            <span>{label}</span>
-                            {time >= finish ? (
-                              <Check size={14} />
-                            ) : (
-                              <LoaderCircle
-                                size={14}
-                                className={styles.spinner}
-                              />
-                            )}
-                            <ChevronDown size={12} />
-                          </summary>
-                          <code>{tool}()</code>
-                        </motion.details>
-                      ),
-                  )}
-                </motion.div>
-              )}
-            </div>
-            {complete ? (
-              <button className={styles.chatBuild} onClick={onBuild}>
-                <span>
-                  Build this flowsheet <small>9 units · 9 streams</small>
-                </span>
-                <ArrowRight size={16} />
-              </button>
-            ) : (
-              <div className={styles.chatComposer}>
-                <div className={styles.chatField} aria-label="Example prompt">
-                  <Paperclip size={16} aria-hidden="true" />
-                  <span
-                    aria-hidden="true"
-                    className={sent ? styles.chatPlaceholder : undefined}
-                  >
-                    {sent
-                      ? "Ask a follow-up…"
-                      : typed || "Describe your process…"}
-                    {!sent && time > 0.08 && (
-                      <i className={styles.typingCaret} />
-                    )}
-                  </span>
-                  <span className={styles.srOnly}>{prompt}</span>
-                </div>
-                <motion.button
-                  className={styles.chatSend}
-                  onClick={onSend}
-                  disabled={sent}
-                  aria-label="Send example prompt"
-                  animate={{
-                    scale: !reduced && time >= 0.49 && time < 0.53 ? 0.82 : 1,
-                  }}
-                >
-                  {sent ? (
-                    <span className={styles.stopSquare} />
-                  ) : (
-                    <ArrowUp size={19} />
-                  )}
-                </motion.button>
-              </div>
-            )}
+            <svg width="28" height="30" viewBox="0 0 28 30" aria-hidden="true">
+              <path
+                d={pointerOutline}
+                fill="none"
+                stroke="#173b2b66"
+                strokeWidth="4"
+                strokeLinejoin="round"
+              />
+              <path
+                d={pointerOutline}
+                fill="#111713"
+                stroke="#f8fff9"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+            </svg>
           </motion.div>
-        )}
-      </AnimatePresence>
-      <button
-        ref={launcher}
-        className={styles.assistantPill}
-        data-open={open}
-        aria-label={open ? "Toggle assistant demo" : "Open assistant demo"}
-        aria-expanded={open}
-        aria-controls="landing-assistant"
-        onClick={() => setOpenOverride(!open)}
-      >
-        <BrandMark size={20} />
-        <span>{open ? "Assistant" : "Ask AI to build a process"}</span>
-        <span className={styles.pillIndicator} />
-      </button>
+        </div>
+      ) : null}
     </div>
   );
 }

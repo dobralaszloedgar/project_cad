@@ -9,7 +9,12 @@ export type AssistantDownload = {
 export function assistantDownloads(
   value: unknown,
 ):
-  | { version: string; installers: AssistantDownload[]; releaseUrl?: string }
+  | {
+      version: string;
+      installers: AssistantDownload[];
+      releaseUrl?: string;
+      checksumsUrl?: string;
+    }
   | undefined {
   if (!value || typeof value !== "object") return;
   const manifest = value as Record<string, unknown>;
@@ -20,23 +25,13 @@ export function assistantDownloads(
     !Array.isArray(manifest.files)
   )
     return;
-  let baseUrl = "/downloads/assistant";
-  let releaseUrl: string | undefined;
-  if (manifest.release !== undefined) {
-    if (!manifest.release || typeof manifest.release !== "object") return;
-    const release = manifest.release as Record<string, unknown>;
-    if (
-      typeof release.repository !== "string" ||
-      !/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(
-        release.repository,
-      ) ||
-      release.tag !== `v${manifest.version}`
-    )
-      return;
-    const repositoryUrl = `https://github.com/${release.repository}`;
-    baseUrl = `${repositoryUrl}/releases/download/${release.tag}`;
-    releaseUrl = `${repositoryUrl}/releases/tag/${release.tag}`;
+  let location;
+  try {
+    location = assistantDownloadLocation(manifest);
+  } catch {
+    return;
   }
+  const { baseUrl, releaseUrl, checksumsUrl } = location;
   const installers: AssistantDownload[] = [];
   const seen = new Set<string>();
   for (const entry of manifest.files) {
@@ -85,6 +80,7 @@ export function assistantDownloads(
     }
   }
   return installers.length
-    ? { version: manifest.version, installers, releaseUrl }
+    ? { version: manifest.version, installers, releaseUrl, checksumsUrl }
     : undefined;
 }
+import { assistantDownloadLocation } from "./download-location.mjs";

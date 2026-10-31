@@ -126,7 +126,11 @@ export default function EquipmentSandbox() {
         <span className={styles.headerDivider} />
         <span className={styles.breadcrumb}>Equipment sandbox</span>
         <span className={styles.previewTag}>Preview</span>
-        <Link href="/" className={styles.back} aria-label="Back to workspace">
+        <Link
+          href="/workspace"
+          className={styles.back}
+          aria-label="Back to workspace"
+        >
           <ArrowLeft size={14} />
           <span>Back to workspace</span>
         </Link>

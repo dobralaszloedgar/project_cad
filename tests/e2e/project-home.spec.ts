@@ -28,7 +28,7 @@ async function saveDialog(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation", exact: true }),
   ).toBeEnabled();
@@ -190,7 +190,7 @@ test("every home palette applies and theme changes sync between tabs", async ({
   context,
 }, info) => {
   const other = await context.newPage();
-  await other.goto("/");
+  await other.goto("/workspace");
   await home(other);
   await page.getByRole("button", { name: "Themes", exact: true }).click();
   const picker = page.getByRole("group", { name: "Theme", exact: true });
@@ -393,7 +393,7 @@ test("sort changes reorder the current grid and list, including filtered project
         };
       }),
   );
-  await page.goto("/");
+  await page.goto("/workspace");
   const names = page.locator(".project-card-title strong");
   const sort = page.getByRole("combobox", { name: "Sort projects" });
   await expect(names).toHaveText(["Study 2", "Alpha", "Study 10"]);

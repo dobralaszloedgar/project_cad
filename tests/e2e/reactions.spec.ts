@@ -18,7 +18,7 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
   page.on("pageerror", (error) => errors.push(error.message));
   const project = reactionProject();
   project.units[1].params.packedBed = undefined;
-  await page.goto("/");
+  await page.goto("/workspace");
   await loadProject(page, project);
   await inspect(page, "R-101");
   await page.getByLabel("Reaction setup").selectOption("reaction-set");
@@ -94,7 +94,7 @@ test("add catalog components and edit all feed fractions", async ({ page }) => {
   const project = reactionProject();
   project.thermo = settingsFor(["67-56-1", "64-17-5"]);
   project.units[0].params.composition = undefined;
-  await page.goto("/");
+  await page.goto("/workspace");
   await loadProject(page, project);
   await page
     .getByRole("button", { name: "Project components", exact: true })
@@ -135,7 +135,7 @@ test("add catalog components and edit all feed fractions", async ({ page }) => {
 test("general rate expressions, reaction duplication and disabled states persist", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await loadProject(page, reactionProject());
   await inspect(page, "R-101");
   await page

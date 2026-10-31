@@ -56,7 +56,7 @@ test("catalog ranks exact matches, filters identifiers, and pages the full sorte
 test("component search controls reset pages, remember ordering and work on mobile", async ({
   page,
 }, info) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   const components = page.getByRole("button", {
     name: "Project components",
     exact: true,

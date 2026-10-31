@@ -6,7 +6,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   page,
 }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -204,7 +204,7 @@ test("existing single-project storage upgrades without losing the graph or histo
       }),
     workspace,
   );
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await page.getByRole("button", { name: "Results", exact: true }).click();

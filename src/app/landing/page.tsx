@@ -1,14 +1,5 @@
-import type { Metadata, Viewport } from "next";
-import LandingPage from "@/components/landing/LandingPage";
-
-export const metadata: Metadata = {
-  title: "Project CAD – Landing",
-  description:
-    "Design a process in conversation. Build and simulate the flowsheet. Explore it in 3D.",
-};
-
-export const viewport: Viewport = { themeColor: "#06151f" };
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <LandingPage />;
+  redirect("/");
 }

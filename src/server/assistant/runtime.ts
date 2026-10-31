@@ -14,6 +14,7 @@ import {
   type ToolCommand,
   type ToolName,
   type AssistantSnapshot,
+  type AgentSelection,
 } from "../../assistant/protocol";
 import { AssistantStore } from "./store";
 import type { AssistantProvider } from "./providers/types";
@@ -36,12 +37,20 @@ export class AssistantRuntime {
   private active = new Map<string, Active>();
   private leases = new Map<string, { clientId: string; time: number }>();
   private pending = new Map<string, Pending>();
-  private statusCache?: { time: number; value: Promise<ProviderStatus[]> };
+  private statusCache?: {
+    time: number;
+    selection: string;
+    value: Promise<ProviderStatus[]>;
+  };
   private sweep: NodeJS.Timeout;
   constructor(
     readonly store: AssistantStore,
     private adapters: Record<ProviderId, AssistantProvider>,
     private root: string,
+    readonly agents: () => AgentSelection | null = () => ({
+      providers: ["codex", "claude", "muse"],
+      preferred: "codex",
+    }),
   ) {
     this.sweep = setInterval(() => {
       for (const [key, lease] of this.leases)
@@ -60,16 +69,19 @@ export class AssistantRuntime {
     return JSON.stringify([scope.origin, scope.projectId]);
   }
   providers(refresh = false) {
+    const agents = this.agents();
+    const selection = JSON.stringify(agents);
     if (
       !refresh &&
       this.statusCache &&
+      this.statusCache.selection === selection &&
       Date.now() - this.statusCache.time < 60000
     )
       return this.statusCache.value;
     const value = Promise.all(
-      Object.values(this.adapters).map((adapter) => adapter.status()),
+      (agents?.providers ?? []).map((id) => this.adapters[id].status()),
     );
-    this.statusCache = { time: Date.now(), value };
+    this.statusCache = { time: Date.now(), selection, value };
     return value;
   }
   private own(scope: Scope, claim = false) {
@@ -101,6 +113,7 @@ export class AssistantRuntime {
       history.find((chat) => chat.runs.length);
     const lastRun = latest?.runs.at(-1);
     return {
+      agents: this.agents(),
       conversations: history.map(
         ({ id, title, provider, updatedAt, archived }) => ({
           id,
@@ -171,6 +184,10 @@ export class AssistantRuntime {
     // Request identity survives HTTP retries and companion restarts.
     if (chat.runs.some((run) => run.requestId === request.requestId))
       return publicConversation(chat);
+    if (!this.agents()?.providers.includes(chat.provider))
+      throw new Error(
+        "This agent is not selected. Open Manage agents to enable it; your saved conversation is preserved.",
+      );
     if (this.active.has(key))
       throw new Error(
         "This project already has a running request. Stop it or wait for completion.",
