@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { catalogSnapshotSchema } from "./data";
 export const modelIds = [
   "ideal-gas",
   "ideal-solution",
@@ -8,7 +9,8 @@ export type ModelId = (typeof modelIds)[number];
 export const thermoSchema = z
   .object({
     modelId: z.enum(modelIds),
-    mixture: z.enum(["demo", "aromatics", "aqueous"]),
+    mixture: z.enum(["demo", "aromatics", "aqueous", "catalog"]),
+    catalog: catalogSnapshotSchema.optional(),
     extrapolate: z.boolean().default(false),
   })
   .strict();
@@ -22,8 +24,9 @@ export const models = [
   {
     id: "ideal-gas",
     name: "Ideal gas",
-    description: "PV = nRT; partial pressures and constant-Cp enthalpy.",
-    version: "1.0.0",
+    description:
+      "PV = nRT; partial pressures and temperature-dependent gas enthalpy.",
+    version: "2.0.0",
     pressureRange: [1, 1e8],
     source: "Ideal-gas equation of state",
     limitations: "Vapor only; does not predict condensation.",
@@ -32,9 +35,9 @@ export const models = [
     id: "ideal-solution",
     name: "Ideal solution · Raoult’s law",
     description: "Continuous vapor pressures and bracketed TP/PH flashes.",
-    version: "1.1.0",
+    version: "2.0.0",
     pressureRange: [1000, 200000],
-    source: "NIST Antoine records; IAPWS water saturation pressure",
+    source: "Published vapor-pressure and caloric correlations",
     limitations:
       "Ideal liquid and vapor; no azeotropes or liquid–liquid equilibrium.",
   },
@@ -43,11 +46,11 @@ export const models = [
     name: "Modified UNIFAC 2.0",
     description:
       "Group activity coefficients and low-pressure vapor–liquid equilibrium.",
-    version: "1.1.0",
+    version: "2.0.0",
     pressureRange: [1000, 200000],
     source: "https://doi.org/10.1021/acs.iecr.5c00077",
     limitations:
-      "Sample group coverage; published parameters are CC BY-NC 4.0. No liquid–liquid stability search.",
+      "Dortmund group assignments; published parameters are CC BY-NC 4.0. No liquid–liquid stability search.",
   },
 ] as const;
 export const modelInfo = (id: ModelId) => models.find((m) => m.id === id)!;

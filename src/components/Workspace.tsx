@@ -67,7 +67,7 @@ import {
 } from "@/domain/examples";
 import ThermoSettingsPanel from "./ThermoSettings";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { sampleMixtures } from "@/domain/thermo/catalog";
+import { mixtureName } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions } from "@/domain/actions";
 import type { Proposal } from "@/assistant/protocol";
@@ -1324,9 +1324,7 @@ export default function Workspace({
           </button>
           <span
             className="species-count"
-            title={
-              sampleMixtures[(project.thermo ?? defaultThermo).mixture].name
-            }
+            title={mixtureName(project.thermo ?? defaultThermo)}
           >
             <FlaskConical size={16} />
             <span>2</span>

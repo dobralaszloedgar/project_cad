@@ -3223,3 +3223,48 @@ h3 {
   ) {
   pointer-events: none !important;
 }
+
+.chemical-picker {
+  min-width: 0;
+  border: 1px solid var(--border, #dbe2de);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.chemical-picker legend {
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.chemical-picker .input {
+  width: 100%;
+}
+.chemical-selected span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted, #64736b);
+}
+.chemical-search-results {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.chemical-search-results button {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  border-radius: 6px;
+  display: grid;
+  gap: 3px;
+}
+.chemical-search-results button:hover,
+.chemical-search-results button:focus-visible {
+  background: var(--surface-hover, #e5efea);
+}
+.chemical-search-results button span {
+  font-size: 12px;
+  color: var(--muted, #64736b);
+}

@@ -1,5 +1,6 @@
 mod abi;
 mod activity;
+mod caloric;
 mod properties;
 
 pub fn execute(input: &str) -> String {
