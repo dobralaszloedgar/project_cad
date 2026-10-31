@@ -5,7 +5,11 @@ import {
 } from "node:http";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { ASSISTANT_VERSION, projectIdSchema } from "../../assistant/protocol";
+import {
+  ASSISTANT_VERSION,
+  projectIdSchema,
+  submitSchema,
+} from "../../assistant/protocol";
 import { AssistantRuntime } from "./runtime";
 
 const escape = (value: string) =>
@@ -23,11 +27,11 @@ const json = (res: ServerResponse, status: number, value: unknown) => {
   });
   res.end(JSON.stringify(value));
 };
-async function readBody(req: IncomingMessage) {
+async function readBody(req: IncomingMessage, limit = 2_000_000) {
   let body = "";
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 2_000_000)
+    if (Buffer.byteLength(body) > limit)
       throw new Error("Request exceeded the size limit.");
   }
   return body;
@@ -180,17 +184,29 @@ export function createAssistantServer(
         !req.headers["content-type"]?.startsWith("application/json")
       )
         return json(res, 405, { error: "Expected a JSON POST request." });
-      const body = JSON.parse(await readBody(req));
+      const body = JSON.parse(
+        await readBody(req, url.pathname === "/send" ? 14_000_000 : 2_000_000),
+      );
       if (url.pathname === "/conversations")
         return json(res, 200, await runtime.create(scope, body));
-      if (url.pathname === "/send") {
+      if (url.pathname === "/conversation") {
         const value = z
           .object({
             conversationId: z.string().uuid(),
-            requestId: z.string().uuid(),
-            message: z.string(),
+            title: z.string().trim().min(1).max(100).optional(),
+            archived: z.boolean().optional(),
           })
           .strict()
+          .parse(body);
+        return json(
+          res,
+          200,
+          runtime.updateConversation(scope, value.conversationId, value),
+        );
+      }
+      if (url.pathname === "/send") {
+        const value = submitSchema
+          .extend({ conversationId: z.string().uuid() })
           .parse(body);
         return json(
           res,
@@ -198,6 +214,7 @@ export function createAssistantServer(
           runtime.start(scope, value.conversationId, {
             requestId: value.requestId,
             message: value.message,
+            attachments: value.attachments,
           }),
         );
       }

@@ -6,6 +6,7 @@ import {
   type ProviderStatus,
 } from "../../../assistant/protocol";
 import { assistantInstructions } from "../../../assistant/tools";
+import { imageAttachments } from "../attachments";
 import {
   currentProjectPrompt,
   type AssistantProvider,
@@ -41,7 +42,16 @@ export class MuseProvider implements AssistantProvider {
     const prompt = await currentProjectPrompt(input);
     const history = [
       ...(input.conversation.providerContext || []),
-      { role: "user", content: [{ type: "input_text", text: prompt }] },
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: prompt },
+          ...imageAttachments(input.attachments).map((file) => ({
+            type: "input_image",
+            image_url: `data:${file.type};base64,${file.data}`,
+          })),
+        ],
+      },
     ];
     const toolDefinitions = toolNames
       .filter(
@@ -55,7 +65,15 @@ export class MuseProvider implements AssistantProvider {
         parameters: z.toJSONSchema(tools[name].schema),
       }));
     for (let round = 0; round < 12; round++) {
-      if (JSON.stringify(history).length > 1_500_000)
+      const body = JSON.stringify(history);
+      const textOnly = JSON.stringify(history, (key, value) =>
+        key === "image_url" &&
+        typeof value === "string" &&
+        value.startsWith("data:image/")
+          ? "[attached image]"
+          : value,
+      );
+      if (body.length > 16_000_000 || textOnly.length > 1_500_000)
         throw new Error(
           "This conversation is full. Start a new conversation to continue.",
         );

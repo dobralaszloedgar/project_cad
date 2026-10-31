@@ -103,9 +103,9 @@ test("modifier selection toggles and stream selection opens its editor only on d
   page,
 }) => {
   await node(page, "F-101").click();
-  await node(page, "R-101").click({ modifiers: ["Control"] });
+  await node(page, "R-101").click({ modifiers: ["ControlOrMeta"] });
   await selected(page, ["F-101", "R-101"]);
-  await node(page, "F-101").click({ modifiers: ["Control"] });
+  await node(page, "F-101").click({ modifiers: ["ControlOrMeta"] });
   await selected(page, ["R-101"]);
   await node(page, "P-101").click({ modifiers: ["Shift"] });
   await selected(page, ["R-101", "P-101"]);

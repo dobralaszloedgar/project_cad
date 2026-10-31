@@ -12,6 +12,8 @@ import {
 } from "../../../assistant/protocol";
 import { assistantInstructions } from "../../../assistant/tools";
 import { providerExecutable } from "../config";
+import { imageAttachments } from "../attachments";
+import type { ChatAttachment } from "../../../assistant/attachments";
 import {
   currentProjectPrompt,
   type AssistantProvider,
@@ -21,12 +23,26 @@ import {
 function promptStream(
   signal: AbortSignal,
   prompt?: string,
+  attachments?: ChatAttachment[],
 ): AsyncIterable<SDKUserMessage> {
   return (async function* () {
     if (prompt)
       yield {
         type: "user",
-        message: { role: "user", content: prompt },
+        message: {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            ...imageAttachments(attachments).map((file) => ({
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: file.type,
+                data: file.data,
+              },
+            })),
+          ],
+        },
         parent_tool_use_id: null,
         session_id: "",
       } as SDKUserMessage;
@@ -146,7 +162,7 @@ export class ClaudeProvider implements AssistantProvider {
       ),
     });
     const session = query({
-      prompt: promptStream(abort.signal, prompt),
+      prompt: promptStream(abort.signal, prompt, input.attachments),
       options: {
         ...baseOptions,
         pathToClaudeCodeExecutable: providerExecutable("claude"),

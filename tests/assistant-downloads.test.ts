@@ -16,7 +16,7 @@ function manifest() {
   return {
     name: "Project CAD Assistant",
     version: "0.1.0",
-    release: { repository: "jiwoong3/project-cad-downloads", tag: "v0.1.0" },
+    release: { repository: "dobralaszloedgar/project_cad", tag: "v0.1.0" },
     files: [
       ...["pkg", "zip"].map((ext) => ({
         platform: "macos",
@@ -54,11 +54,11 @@ describe("assistant download distribution", () => {
     const parsed = assistantDownloads(manifest());
     expect(parsed?.installers).toHaveLength(5);
     expect(parsed?.releaseUrl).toBe(
-      "https://github.com/jiwoong3/project-cad-downloads/releases/tag/v0.1.0",
+      "https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.0",
     );
     for (const file of parsed!.installers)
       expect(file.url).toBe(
-        `https://github.com/jiwoong3/project-cad-downloads/releases/download/v0.1.0/${file.filename}`,
+        `https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/${file.filename}`,
       );
   });
   it.each([

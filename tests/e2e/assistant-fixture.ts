@@ -17,6 +17,23 @@ export async function installAssistant(page: Page) {
   const root = mkdtempSync(join(tmpdir(), "project-cad-browser-assistant-"));
   const store = new AssistantStore(join(root, "history.sqlite"));
   const run = async (input: ProviderInput) => {
+    if (input.prompt.includes("attached files")) {
+      input.text(
+        input.attachments
+          ?.map(
+            (file) =>
+              `${file.name}: ${Buffer.from(file.data, "base64").toString("utf8")}`,
+          )
+          .join("\n") || "No files.",
+      );
+      return;
+    }
+    if (input.prompt.includes("rich response")) {
+      input.text(
+        "## Process review\n\n| Equipment | State |\n| --- | --- |\n| Heater | Ready |\n\n**Check** the flow before applying changes.",
+      );
+      return;
+    }
     if (input.prompt.includes("hold")) {
       input.text("Waiting for this test request.");
       await new Promise<void>((_, reject) => {
@@ -80,7 +97,7 @@ export async function installAssistant(page: Page) {
     ]),
   ) as Record<ProviderId, AssistantProvider>;
   const runtime = new AssistantRuntime(store, adapters, root);
-  const origin = "http://127.0.0.1:3000";
+  const origin = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
   const server = createAssistantServer(runtime, { port: 0, origins: [origin] });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

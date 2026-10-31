@@ -84,8 +84,23 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(
     page.getByRole("button", { name: "Export project", exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .focus();
+  await page.keyboard.press("ArrowLeft");
   await pullTab.click();
   await menu.getByRole("button", { name: "Toggle chat" }).click();
+  await expect(page.locator(".assistant-drawer")).toBeVisible();
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Settings", exact: true }).click();
+  await page
+    .getByRole("complementary", { name: "Settings", exact: true })
+    .getByRole("heading", { name: "Assistant", exact: true })
+    .click();
+  await expect(page.locator(".assistant-drawer")).not.toBeVisible();
+  await page
+    .getByRole("button", { name: "Show assistant", exact: true })
+    .click();
   await expect(page.locator(".assistant-drawer")).toBeVisible();
   await pullTab.click();
   await menu.getByRole("button", { name: "Toggle chat" }).click();
@@ -230,6 +245,17 @@ test("phone pull tab and panels remain reachable without page overflow", async (
   }
   await pullTab.click();
   await menu.getByRole("button", { name: "Storage settings" }).click();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
+  await expect(page.locator(".assistant-drawer")).toBeVisible();
+  await expect(page.locator(".workspace-drawer")).toHaveCount(0);
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("complementary", { name: "Settings" }),
+  ).toBeVisible();
+  await expect(page.locator(".assistant-drawer")).not.toBeVisible();
   await pullTab.click();
   await page.screenshot({ path: "test-results/pull-tabs-mobile.png" });
 });
