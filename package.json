@@ -2,6 +2,7 @@
   "name": "project-cad",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "assistant": "node --env-file-if-exists=.env.local --import tsx scripts/assistant.ts",
     "assistant:build": "node scripts/assistant/build.mjs",

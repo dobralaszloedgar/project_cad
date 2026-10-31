@@ -23,6 +23,7 @@ export async function buildAssistant(destination = join(root, 'dist', 'assistant
   await copyFile(join(root, 'scripts', 'assistant', 'install.mjs'), join(destination, 'install.mjs'));
   for (const file of ['desktop.html', 'icon.svg']) await copyFile(join(root, 'scripts', 'assistant', file), join(destination, file));
   await copyFile(join(root, 'node_modules', 'zod', 'LICENSE'), join(destination, 'Zod-LICENSE.txt'));
+  await copyFile(join(root, 'LICENSE'), join(destination, 'ProjectCAD-LICENSE.txt'));
   const sdk = JSON.parse(await readFile(join(sdkSource, 'package.json'), 'utf8'));
   await writeFile(join(destination, 'THIRD_PARTY_NOTICES.txt'), `Project CAD Assistant\n\nNode.js: bundled runtime; see Node-LICENSE.txt.\nZod: MIT; see Zod-LICENSE.txt.\nClaude Agent SDK ${sdk.version}: see app/node_modules/@anthropic-ai/claude-agent-sdk/LICENSE.md.\nCodex and Claude Code are obtained from their official packages only when the user requests setup. Existing provider installations and authentication are reused.\n`);
   const files = {};

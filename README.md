@@ -1,5 +1,12 @@
 # Project CAD
 
+> **Copyright (c) 2026 László Edgár Dobra. All rights reserved.**
+> No reuse license is granted for the original Project CAD code, documentation,
+> or assets. Public visibility is not permission to copy, modify, redistribute,
+> commercialize, or use this material in another project or for AI training.
+> See [LICENSE](LICENSE) for the scope and existing legal/platform rights, and
+> [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt) for separately licensed material.
+
 Project CAD is a local process-flowsheet demonstration with 2D/3D views and a Rust/WebAssembly thermodynamics kernel.
 
 ## Status
