@@ -12,6 +12,7 @@ import type { Project } from "@/domain/schema";
 import type { Proposal } from "@/assistant/protocol";
 import AssistantPanel from "../AssistantPanel";
 import { useAssistantDock } from "./useAssistantDock";
+import { useAssistantMorph } from "./useAssistantMorph";
 import styles from "../AssistantPanel.module.css";
 
 const hiddenKey = "project-cad.assistant-hidden.v1";
@@ -51,6 +52,9 @@ export default function FloatingAssistant({
     panel = useRef<HTMLElement>(null),
     button = useRef<HTMLButtonElement>(null);
   const initialActivity = useRef(false);
+  const surface = useRef<HTMLDivElement>(null),
+    control = useRef<HTMLDivElement>(null),
+    activity = useRef<HTMLDivElement>(null);
   const close = useCallback(() => {
     if (panel.current?.contains(document.activeElement))
       button.current?.focus({ preventScroll: true });
@@ -94,17 +98,22 @@ export default function FloatingAssistant({
   const activityLeft = dock.corner.endsWith("left")
     ? dock.point.x
     : dock.point.x + 44 - activityWidth;
-  const target = open
-    ? dock.panel
-    : {
-        left: showActivity ? activityLeft : dock.point.x,
-        top: dock.point.y,
-        width: showActivity ? activityWidth : 44,
-        height: 44,
-      };
-  const control = open
-    ? { left: dock.panel.left + dock.panel.width - 52, top: dock.panel.top + 4 }
-    : { left: dock.point.x, top: dock.point.y };
+  const anchor = {
+    transform: `translate3d(${dock.point.x}px,${dock.point.y}px,0)`,
+  };
+  useAssistantMorph({
+    surface,
+    content: panel,
+    control,
+    activity,
+    point: dock.point,
+    panel: dock.panel,
+    corner: dock.corner,
+    mode: open ? "panel" : showActivity ? "activity" : "bubble",
+    activityWidth,
+    ready: dock.ready,
+    immediate: dock.dragging,
+  });
   const step =
     run?.activities.find((item) => item.status === "running") ??
     run?.activities.at(-1);
@@ -215,7 +224,14 @@ export default function FloatingAssistant({
       data-mode={open ? "panel" : showActivity ? "activity" : "bubble"}
       data-corner={dock.corner}
     >
-      <div aria-hidden className={styles.material} style={target} />
+      <div className={styles.dockAnchor} style={anchor}>
+        <div
+          ref={surface}
+          aria-hidden
+          className={styles.material}
+          style={{ width: dock.panel.width, height: dock.panel.height }}
+        />
+      </div>
       <section
         ref={panel}
         className={`assistant-drawer ${styles.drawer}`}
@@ -223,18 +239,6 @@ export default function FloatingAssistant({
           {
             ...dock.panel,
             "--assistant-panel-height": `${dock.panel.height}px`,
-            "--clip-top": dock.corner.startsWith("top")
-              ? "0px"
-              : `${Math.max(0, dock.panel.height - 44)}px`,
-            "--clip-bottom": dock.corner.startsWith("top")
-              ? `${Math.max(0, dock.panel.height - 44)}px`
-              : "0px",
-            "--clip-left": dock.corner.endsWith("left")
-              ? "0px"
-              : `${Math.max(0, dock.panel.width - 44)}px`,
-            "--clip-right": dock.corner.endsWith("left")
-              ? `${Math.max(0, dock.panel.width - 44)}px`
-              : "0px",
           } as React.CSSProperties
         }
         data-open={open || undefined}
@@ -259,6 +263,7 @@ export default function FloatingAssistant({
       </section>
       {showActivity ? (
         <div
+          ref={activity}
           className={styles.activity}
           style={{
             left: activityLeft,
@@ -290,58 +295,66 @@ export default function FloatingAssistant({
           ) : null}
         </div>
       ) : null}
-      <button
-        ref={button}
-        className={`assistant-toggle ${styles.bubble}`}
-        style={control}
-        {...dock.handlers}
-        aria-label={open ? "Close assistant panel" : "Open assistant"}
-        aria-expanded={open}
-        title={
-          open
-            ? "Minimize assistant · drag to move"
-            : "Open assistant · drag or use arrow keys to dock"
-        }
-        onClick={() => {
-          if (!dock.suppressClick()) {
-            if (open) close();
-            else if (showActivity) openActivity();
-            else show();
-          }
-        }}
+      <div
+        className={`${styles.dockAnchor} ${styles.buttonAnchor}`}
+        style={anchor}
       >
-        {open ? (
-          <Minus size={18} strokeWidth={1.8} />
-        ) : working ? (
-          <span className={styles.workingDots}>
-            <i />
-            <i />
-            <i />
-          </span>
-        ) : unread && run?.status === "completed" ? (
-          <Check size={19} strokeWidth={2} />
-        ) : (
-          <MessageCircle size={18} strokeWidth={1.9} />
-        )}
-        {!open && (working || unread) ? (
-          <svg className={styles.progress} viewBox="0 0 48 48" aria-hidden>
-            <rect
-              x="1"
-              y="1"
-              width="46"
-              height="46"
-              rx="16"
-              pathLength="100"
-              style={{
-                strokeDasharray: working ? "18 82" : "100",
-                strokeDashoffset: working ? undefined : 100 - progress * 100,
-              }}
-              data-working={working || undefined}
-            />
-          </svg>
-        ) : null}
-        {unread ? <span className={styles.unread} /> : null}
-      </button>
+        <div ref={control} className={styles.morphControl}>
+          <button
+            ref={button}
+            className={`assistant-toggle ${styles.bubble}`}
+            {...dock.handlers}
+            aria-label={open ? "Close assistant panel" : "Open assistant"}
+            aria-expanded={open}
+            title={
+              open
+                ? "Minimize assistant · drag to move"
+                : "Open assistant · drag or use arrow keys to dock"
+            }
+            onClick={() => {
+              if (!dock.suppressClick()) {
+                if (open) close();
+                else if (showActivity) openActivity();
+                else show();
+              }
+            }}
+          >
+            {open ? (
+              <Minus size={18} strokeWidth={1.8} />
+            ) : working ? (
+              <span className={styles.workingDots}>
+                <i />
+                <i />
+                <i />
+              </span>
+            ) : unread && run?.status === "completed" ? (
+              <Check size={19} strokeWidth={2} />
+            ) : (
+              <MessageCircle size={18} strokeWidth={1.9} />
+            )}
+            {!open && (working || unread) ? (
+              <svg className={styles.progress} viewBox="0 0 48 48" aria-hidden>
+                <rect
+                  x="1"
+                  y="1"
+                  width="46"
+                  height="46"
+                  rx="16"
+                  pathLength="100"
+                  style={{
+                    strokeDasharray: working ? "18 82" : "100",
+                    strokeDashoffset: working
+                      ? undefined
+                      : 100 - progress * 100,
+                  }}
+                  data-working={working || undefined}
+                />
+              </svg>
+            ) : null}
+            {unread ? <span className={styles.unread} /> : null}
+          </button>
+        </div>
+      </div>
       {dock.dragging ? (
         <div
           className={styles.hideTarget}
