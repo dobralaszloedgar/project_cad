@@ -24,7 +24,16 @@ import type { Kind } from "@/domain/schema";
 import { liquidMaterial, vaporMaterial } from "./fluid-materials";
 import { OperationClock, pipeCurve, type Point } from "./operation";
 import { flowColors, type SystemExample } from "./system-geometry";
-import { columnLayout, type EquipmentModelOptions } from "./column-layout";
+import {
+  blendColors,
+  UNKNOWN_COMPOSITION_COLOR,
+  type EquipmentCompositionColors,
+} from "./composition-colors";
+import {
+  columnLayout,
+  columnOverhead,
+  type EquipmentModelOptions,
+} from "./column-layout";
 import {
   bedRivulets,
   bedDrainage,
@@ -63,6 +72,10 @@ class Contents {
     private color = flowColors.feed,
   ) {
     this.group.name = "process-contents";
+  }
+
+  tint(color: string) {
+    this.color = color;
   }
 
   surface(
@@ -110,14 +123,20 @@ class Contents {
     this.group.add(mesh);
   }
 
-  fall(position: Point, width: number, height: number, rotation = Math.PI / 2) {
+  fall(
+    position: Point,
+    width: number,
+    height: number,
+    rotation = Math.PI / 2,
+    options: { amplitude?: number; froth?: number } = {},
+  ) {
     const mesh = new Mesh(
       new PlaneGeometry(width, height, 20, 32),
       liquidMaterial(this.clock, {
         mode: "fall",
         color: this.color,
-        amplitude: 0.019,
-        froth: 0.55,
+        amplitude: options.amplitude ?? 0.019,
+        froth: options.froth ?? 0.55,
         opacity: 0.8,
       }),
     );
@@ -155,6 +174,7 @@ class Contents {
     mesh.name = "liquid-core";
     mesh.renderOrder = 1;
     this.group.add(mesh);
+    return mesh;
   }
 
   trickles(
@@ -431,8 +451,17 @@ export function createProcessContents(
     ? flowColors.warm
     : flowColors.feed,
   options: EquipmentModelOptions = {},
+  composition?: EquipmentCompositionColors,
 ) {
+  color = composition?.color ?? color;
   const c = new Contents(clock, color);
+  const inlet = composition?.ports.in ?? color;
+  const outlet = composition?.ports.out ?? color;
+  const between = (from: string, to: string, fraction: number) =>
+    blendColors([
+      { color: from, amount: 1 - Math.max(0, Math.min(1, fraction)) },
+      { color: to, amount: Math.max(0, Math.min(1, fraction)) },
+    ]);
   if (!section) return c.finish();
   switch (kind) {
     case "Feed":
@@ -519,6 +548,8 @@ export function createProcessContents(
           [0.61, 0.82, 0],
         ],
         0.077,
+        0.95,
+        inlet,
       );
       c.stream(
         [
@@ -526,6 +557,8 @@ export function createProcessContents(
           [1.39, 0.82, 0],
         ],
         0.024,
+        0.95,
+        composition?.ports.in2 ?? color,
       );
       c.stream(
         [
@@ -533,6 +566,8 @@ export function createProcessContents(
           [0.73, 2.36, 0],
         ],
         0.064,
+        0.95,
+        outlet,
       );
       break;
     }
@@ -552,6 +587,8 @@ export function createProcessContents(
             [1.38, 1.1, z],
           ],
           0.078,
+          0.95,
+          composition?.ports[z < 0 ? "out" : "out2"] ?? color,
         );
       break;
     case "Heater":
@@ -569,7 +606,7 @@ export function createProcessContents(
         ],
         0.073,
         0.95,
-        flowColors.warm,
+        composition ? outlet : flowColors.warm,
       );
       for (let y = -0.32; y <= 0.33; y += 0.16)
         for (let z = -0.32; z <= 0.33; z += 0.16)
@@ -581,8 +618,8 @@ export function createProcessContents(
               ],
               0.025,
               0.96,
-              color,
-              flowColors.warm,
+              inlet,
+              composition ? outlet : flowColors.warm,
             );
       c.vapor([0, 1.18, 0.05], 1.98, 0.75, 0.11, 0.7);
       c.stream(
@@ -596,9 +633,9 @@ export function createProcessContents(
       break;
     case "Cooler":
       for (const x of [-1.38, 1.38]) {
-        const inlet = x < 0;
+        const isInlet = x < 0;
         c.stream(
-          inlet
+          isInlet
             ? [
                 [x, 1.5, 0.85],
                 [x, 1.5, -0.61],
@@ -609,7 +646,7 @@ export function createProcessContents(
               ],
           0.066,
           0.95,
-          inlet ? color : flowColors.cool,
+          isInlet ? inlet : composition ? outlet : flowColors.cool,
         );
       }
       for (let z = -0.52; z < 0.6; z += 0.18)
@@ -621,10 +658,11 @@ export function createProcessContents(
           0.027,
           0.96,
           color,
-          flowColors.cool,
+          composition ? outlet : flowColors.cool,
         );
       break;
     case "PBR": {
+      c.tint(inlet);
       c.stream(
         [
           [-0.99, 3.55, 0],
@@ -642,6 +680,8 @@ export function createProcessContents(
           [1.04, 0.48, 0.08],
         ],
         0.06,
+        0.95,
+        outlet,
       );
       c.trickles(
         Array.from({ length: 12 }, (_, i): Point[] => {
@@ -656,6 +696,9 @@ export function createProcessContents(
         "inlet-diffuser-liquid",
       );
       for (const [index, bed] of packedBedLayout.beds.entries()) {
+        // Illustrate the change between the calculated inlet and outlet; the
+        // authored beds are visual sections, not additional reaction stages.
+        c.tint(between(inlet, outlet, index / packedBedLayout.beds.length));
         c.surface([0, bed.distributor + 0.014, 0], 0.599, 0.0015, 0.015);
         const feeds = distributorBores.map(({ x, z }, i): Point[] => [
           [x, bed.distributor - 0.04, z],
@@ -686,6 +729,9 @@ export function createProcessContents(
           true,
         );
         const wetting = bedRivulets(index);
+        c.tint(
+          between(inlet, outlet, (index + 0.5) / packedBedLayout.beds.length),
+        );
         c.trickles(wetting, 0.0022, `bed-${index + 1}-wetting-films`, 0.38);
         c.drops(
           wetting,
@@ -695,6 +741,9 @@ export function createProcessContents(
           `bed-${index + 1}-descending-droplets`,
         );
         const drainage = bedDrainage(index);
+        c.tint(
+          between(inlet, outlet, (index + 1) / packedBedLayout.beds.length),
+        );
         c.trickles(
           drainage.branches,
           0.007,
@@ -720,13 +769,22 @@ export function createProcessContents(
       }
       // A shallow sump collects the distributed drainage before the low outlet.
       // Its radius is inside the dished head at this elevation.
+      c.tint(outlet);
       c.surface([0, packedBedLayout.collector, 0], 0.59, 0.003, 0.025);
       c.bulk([0, 0.79, 0], 0.59, 0.06);
       break;
     }
     case "Distillation": {
       const layout = columnLayout(options);
+      const overhead = columnOverhead(options);
       const top = (y: number) => y + layout.topOffset;
+      const distillate = composition
+        ? (composition.ports.out ?? UNKNOWN_COMPOSITION_COLOR)
+        : flowColors.cool;
+      const bottoms = composition
+        ? (composition.ports.out2 ?? UNKNOWN_COMPOSITION_COLOR)
+        : color;
+      c.tint(inlet);
       c.stream(
         [
           [-1.3, layout.feedY, 0],
@@ -734,25 +792,15 @@ export function createProcessContents(
         ],
         0.054,
       );
-      c.stream(
-        [
-          [1.52, top(5.33), 0],
-          [1.52, top(5.06), 0],
-          [0.54, top(5.06), 0],
-        ],
-        0.039,
-        0.95,
-        flowColors.cool,
-      );
-      c.stream(
-        [
-          [1.52, top(5.06), 0],
-          [2.1, top(5.06), 0],
-        ],
-        0.039,
-        0.95,
-        flowColors.cool,
-      );
+      for (const branch of [
+        "condensate",
+        "inlet",
+        "reflux",
+        "distillate",
+      ] as const)
+        c.stream(overhead[branch], 0.039, 0.86, distillate).name =
+          `column-${branch}-flow`;
+      c.tint(bottoms);
       c.stream(
         [
           [0, 0.82, 0.1],
@@ -780,40 +828,62 @@ export function createProcessContents(
         0.043,
       );
       c.stream(
-        [
-          [0, top(5.45), 0],
-          [0, top(6.7), 0],
-          [1.52, top(6.7), 0],
-          [1.52, top(6.18), 0],
-        ],
+        overhead.vapor,
         0.048,
         0.42,
-        "#c1d9d6",
+        composition ? distillate : "#c1d9d6",
       );
       for (const [i, y] of layout.trays.entries()) {
+        // The solver provides endpoint compositions, not a tray profile. Blend
+        // through the feed elevation without inventing additional separation.
+        c.tint(
+          composition
+            ? y <= layout.feedY
+              ? between(
+                  bottoms,
+                  inlet,
+                  (y - layout.trays[0]) / (layout.feedY - layout.trays[0]),
+                )
+              : between(
+                  inlet,
+                  distillate,
+                  (y - layout.feedY) / (layout.trays.at(-1)! - layout.feedY),
+                )
+            : color,
+        );
         const x = i % 2 === 0 ? -0.46 : 0.46;
         c.bulk([0, y + 0.035, 0], 0.54, 0.05);
-        c.surface([0, y + 0.07, 0], 0.54, 0.035, 0.82);
+        c.surface([0, y + 0.07, 0], 0.54, 0.007, 0.28);
         c.aerate(
           [0, y + 0.055, 0],
           0.47,
           Math.min(120, Math.max(24, Math.floor(1600 / layout.trayCount))),
-          0.15,
+          0.09,
         );
-        c.fall([x, y - 0.15, 0], 0.43, 0.43);
-        c.vapor([0, y + 0.26, 0], 0.89, 0.3, 0.08);
+        c.fall([x, y - 0.15, 0], 0.43, 0.43, Math.PI / 2, {
+          amplitude: 0.004,
+          froth: 0.14,
+        });
+        c.vapor([0, y + 0.26, 0], 0.89, 0.3, 0.035);
       }
+      c.tint(bottoms);
       c.bulk([0, 1.1, 0], 0.54, 0.16);
-      c.surface([0, 1.18, 0], 0.54, 0.035, 0.45);
+      c.surface([0, 1.18, 0], 0.54, 0.009, 0.12);
       // Reboiler liquid boils around the heated bundle; condenser films descend.
       c.bulk([1.25, 0.74, -0.12], 0.24, 0.48);
-      c.surface([1.25, 0.98, -0.12], 0.24, 0.038, 0.9);
+      c.surface([1.25, 0.98, -0.12], 0.24, 0.012, 0.5);
       c.aerate([1.25, 0.93, -0.12], 0.19, 120, 0.16);
       c.vapor([1.25, 1.04, -0.12], 0.39, 0.15, 0.12);
-      c.bulk([1.52, top(5.51), 0], 0.175, 0.16);
-      c.surface([1.52, top(5.59), 0], 0.175, 0.005, 0.05);
+      c.tint(distillate);
+      c.bulk([1.52, top(5.96), 0], 0.21, 0.08);
+      c.surface([1.52, top(6), 0], 0.21, 0.003, 0.04);
       for (const x of [-0.09, 0.09])
-        c.fall([1.52 + x, top(5.85), 0.08], 0.07, 0.51, 0);
+        c.fall([1.52 + x, top(6.17), 0.08], 0.07, 0.3, 0, {
+          amplitude: 0.002,
+          froth: 0.08,
+        });
+      c.bulk([1.52, top(5.47), 0], 0.203, 0.13);
+      c.surface([1.52, top(5.535), 0], 0.203, 0.002, 0.015);
       break;
     }
   }
@@ -821,11 +891,20 @@ export function createProcessContents(
 }
 
 /** Pipe walls and contents share exactly the same centerline and bend radii. */
-export function createSystemFlow(system: SystemExample, clock: OperationClock) {
+export function createSystemFlow(
+  system: SystemExample,
+  clock: OperationClock,
+  colors?: Record<string, string>,
+) {
   const c = new Contents(clock);
   c.group.name = `system-flow-${system.id}`;
   for (const stream of system.streams) {
-    c.stream(stream.points, stream.radius * 0.76, 0.96, stream.color);
+    c.stream(
+      stream.points,
+      stream.radius * 0.76,
+      0.96,
+      colors?.[stream.id] ?? stream.color,
+    ).name = `stream-${stream.id}`;
   }
   return c.group;
 }

@@ -805,11 +805,11 @@ export default function EquipmentEditor({
                     </p>
                   )}
                 </Section>
-                <Section title="3D schematic">
-                  {field("trayCount", "Visible trays (3D)", 2, 80, "1")}
+                <Section title="Column appearance">
+                  {field("trayCount", "Visible trays (2D & 3D)", 2, 80, "1")}
                   <p className="equipment-help">
-                    Visible trays resize the 3D column. They do not change the
-                    equilibrium calculation.
+                    Visible trays resize both column views. They do not change
+                    the equilibrium calculation.
                   </p>
                 </Section>
               </>

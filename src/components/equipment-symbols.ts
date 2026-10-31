@@ -1,9 +1,11 @@
 import type { Kind } from "@/domain/schema";
+import { columnSymbol } from "./column-symbol";
 
 const stroke = 'vector-effect="non-scaling-stroke"';
 const body = `class="pfd-body" fill="var(--pfd-fill,none)" ${stroke}`;
 const accent = `class="pfd-accent" stroke="var(--pfd-accent,currentColor)" ${stroke}`;
 const boundary = `<path d="M28 48h44V36l32 28-32 28V80H28Z" ${body}/>`;
+const defaultColumn = columnSymbol();
 
 // Process equipment symbols. Keep the connector stubs separate
 // so each drawing uses this editor's material ports and also works in the library.
@@ -15,7 +17,7 @@ export const equipmentSymbols: Record<Kind, string> = {
   Heater: `<circle cx="64" cy="64" r="32" ${body}/><path d="M32 64h10l9-16 13 32 13-32 9 16h10" ${accent}/><path d="M64 120V96m-5 7 5-7 5 7" ${accent}/>`,
   Cooler: `<circle cx="64" cy="64" r="32" ${body}/><path d="M32 64h10l9-16 13 32 13-32 9 16h10" ${accent}/><path d="M64 96v24m-5-7 5 7 5-7" ${accent}/>`,
   PBR: `<rect x="32" y="20" width="64" height="88" rx="23" ${body}/><path d="M34 35h60M34 59h60M34 70h60M34 94h60" ${stroke}/>${[42, 52, 77, 87].map((y) => [44, 57, 70, 83].map((x) => `<circle cx="${x}" cy="${y}" r="2.8" ${stroke}/>`).join("")).join("")}<path d="M43 65h42" ${stroke}/>`,
-  Distillation: `<rect x="44" y="16" width="40" height="96" rx="20" ${body}/><path d="M45 34h29v7M83 50H54v7M45 66h29v7M83 82H54v7M45 98h29" ${stroke}/>`,
+  Distillation: defaultColumn.body,
 };
 
 export const equipmentConnectors: Record<Kind, string> = {
@@ -26,7 +28,7 @@ export const equipmentConnectors: Record<Kind, string> = {
   Heater: "M8 64H32M96 64H120",
   Cooler: "M8 64H32M96 64H120",
   PBR: "M64 8V20M64 108V120",
-  Distillation: "M8 64H44M64 8V16M64 112V120",
+  Distillation: `M8 ${defaultColumn.feedY}H34M96 ${defaultColumn.distillateY}H120M78 ${defaultColumn.height - 32}V${defaultColumn.bottomsY}H120`,
 };
 
 // The 32px palette drawings keep pellets and trays distinct at small sizes.

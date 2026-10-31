@@ -52,6 +52,7 @@ import { PlantInfrastructure } from "./PlantInfrastructure";
 import type { EquipmentInstance, SystemExample } from "./system-geometry";
 import { equipmentEnvelope } from "./plant-routing";
 import { rackMembers } from "./system-geometry";
+import type { PlantCompositionColors } from "./composition-colors";
 
 export type SceneMode = "inspect" | "collection" | "process";
 export type CameraView = "perspective" | "front" | "top";
@@ -59,6 +60,7 @@ export type SceneProps = {
   kind: Kind;
   mode: SceneMode;
   system?: SystemExample;
+  compositionColors?: PlantCompositionColors;
   trayCount: number;
   section: boolean;
   transparent: boolean;
@@ -551,6 +553,7 @@ function Studio({
   kind,
   mode,
   system,
+  compositionColors,
   trayCount,
   section,
   transparent,
@@ -672,7 +675,10 @@ function Studio({
                 rotation={[0, ((item.turn ?? 0) * Math.PI) / 2, 0]}
                 section={section}
                 trayCount={item.trayCount ?? trayCount}
-                liquidColor={item.color}
+                liquidColor={
+                  compositionColors?.equipment[item.id]?.color ?? item.color
+                }
+                compositionColors={compositionColors?.equipment[item.id]}
                 {...motion}
                 onClick={(event) => {
                   if (event.delta > 4 || event.button !== 0) return;
@@ -681,7 +687,12 @@ function Studio({
                 }}
               />
             ))}
-            <SystemConnections system={system} section={section} {...motion} />
+            <SystemConnections
+              system={system}
+              streamColors={compositionColors?.streams}
+              section={section}
+              {...motion}
+            />
             <PlantInfrastructure system={system} />
           </>
         ) : null}

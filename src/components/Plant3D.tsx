@@ -3,11 +3,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { Eye, Focus, Pause, Play, Scan } from "lucide-react";
 import type { Project } from "@/domain/schema";
+import type { Result } from "@/domain/solver";
 import EquipmentScene, { type CameraView } from "./equipment-3d/EquipmentScene";
 import { buildProjectPlant } from "./equipment-3d/project-plant";
+import { projectCompositionColors } from "./equipment-3d/composition-colors";
 
 export default function Plant3D({
   project,
+  result = null,
   selected,
   onSelect,
   dark = false,
@@ -16,6 +19,7 @@ export default function Plant3D({
   graphicsSettingsContainer,
 }: {
   project: Project;
+  result?: Result | null;
   selected: string | null;
   onSelect: (id: string) => void;
   dark?: boolean;
@@ -35,6 +39,10 @@ export default function Plant3D({
   const [reset, setReset] = useState(0);
   const [focus, setFocus] = useState(0);
   const [view, setView] = useState<CameraView>("perspective");
+  const compositionColors = useMemo(
+    () => projectCompositionColors(project, result),
+    [project, result],
+  );
   const layout = useMemo(() => {
     try {
       return buildProjectPlant(project);
@@ -54,6 +62,7 @@ export default function Plant3D({
           kind="Feed"
           mode="process"
           system={layout}
+          compositionColors={compositionColors}
           trayCount={8}
           section={false}
           transparent={transparent}
@@ -81,6 +90,27 @@ export default function Plant3D({
           continue editing in 2D.
         </div>
       )}
+      {layout &&
+      project.units.length > 0 &&
+      compositionColors.components.length > 0 ? (
+        <aside
+          className="plant-composition-legend"
+          aria-label="3D component colors"
+        >
+          <strong>Composition</strong>
+          <div className="plant-component-swatches">
+            {compositionColors.components.map(({ id, name, color }) => (
+              <span key={id} title={name}>
+                <i style={{ backgroundColor: color }} aria-hidden="true" />
+                {name}
+              </span>
+            ))}
+          </div>
+          <small>
+            Colors blend by mole fraction · gray = unknown or no flow
+          </small>
+        </aside>
+      ) : null}
       {layout && project.units.length > 0 ? (
         <div className="plant-controls" aria-label="3D display controls">
           <div className="tool-group">

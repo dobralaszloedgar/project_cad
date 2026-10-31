@@ -155,7 +155,7 @@ test("each equipment block uses its own limits and trays remain integers", async
         0.01,
         0.99,
       );
-      const trays = page.getByLabel("Visible trays (3D)", { exact: true });
+      const trays = page.getByLabel("Visible trays (2D & 3D)", { exact: true });
       await checkBounds(trays, 2, 80);
       await trays.fill("2.5");
       await page.getByRole("button", { name: "Apply conditions" }).click();

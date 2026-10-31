@@ -100,17 +100,20 @@ test("workspace defaults to transparent equipment and recovers 3D without losing
 test("column tray edits persist through 3D, Split, export and reload", async ({
   page,
 }) => {
+  // Multiple cold WebGL scenes plus a reload on machines without GPU acceleration.
+  test.setTimeout(120000);
   await start(page);
   await template(page, "Raoult’s law separation");
   const before = (await exportProject(page)).project;
   await view(page, "3D schematic");
   await ready(page);
   await page.locator(".plant-label").filter({ hasText: "D-201" }).click();
-  await expect(page.getByLabel("Visible trays (3D)")).toHaveValue("8");
+  await page.getByRole("button", { name: "Properties", exact: true }).click();
+  await expect(page.getByLabel("Visible trays (2D & 3D)")).toHaveValue("8");
   await expect(
     page.getByText(/The feed temperature and pressure determine/),
   ).toBeVisible();
-  await page.getByLabel("Visible trays (3D)").fill("12");
+  await page.getByLabel("Visible trays (2D & 3D)").fill("12");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await closeDialog(page);
   await view(page, "Split");
@@ -132,7 +135,8 @@ test("column tray edits persist through 3D, Split, export and reload", async ({
   await view(page, "3D schematic");
   await ready(page);
   await page.locator(".plant-label").filter({ hasText: "D-201" }).click();
-  await expect(page.getByLabel("Visible trays (3D)")).toHaveValue("12");
+  await page.getByRole("button", { name: "Properties", exact: true }).click();
+  await expect(page.getByLabel("Visible trays (2D & 3D)")).toHaveValue("12");
   await closeDialog(page);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
@@ -169,7 +173,7 @@ test("large plant templates are editable application projects", async ({
       );
     expect(column).toBeTruthy();
     await selector.selectOption(column!);
-    await expect(page.getByLabel("Visible trays (3D)")).toHaveValue(
+    await expect(page.getByLabel("Visible trays (2D & 3D)")).toHaveValue(
       String(trays),
     );
     await closeDialog(page);

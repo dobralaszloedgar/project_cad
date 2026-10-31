@@ -1,16 +1,11 @@
+import { normalizeTrayCount } from "../../domain/column-geometry";
+export { columnTrayLimits } from "../../domain/column-geometry";
 export type EquipmentModelOptions = { trayCount?: number };
-export const columnTrayLimits = { min: 2, max: 80, default: 8 } as const;
 
 /** Shared by geometry, fluid, fittings and camera. Spacing is preserved: adding
  * trays extends the shell instead of stretching valves, ladders or internals. */
 export function columnLayout(options: EquipmentModelOptions = {}) {
-  const input = options.trayCount ?? columnTrayLimits.default;
-  const trayCount = Number.isFinite(input)
-    ? Math.max(
-        columnTrayLimits.min,
-        Math.min(columnTrayLimits.max, Math.round(input)),
-      )
-    : columnTrayLimits.default;
+  const trayCount = normalizeTrayCount(options.trayCount);
   const traySpacing = 0.46;
   const trays = Array.from(
     { length: trayCount },
@@ -33,5 +28,27 @@ export function columnLayout(options: EquipmentModelOptions = {}) {
     feedY: trays[Math.floor((trayCount - 1) / 2)] + 0.14,
     distillateY: 5.06 + topOffset,
     totalHeight: 6.767 + topOffset,
+  };
+}
+
+/** Every branch terminates at the SAME tee center. Rounding an elbow through
+ * this point would pull the reflux off the product takeoff and leave a gap. */
+export function columnOverhead(options: EquipmentModelOptions = {}) {
+  const { topOffset } = columnLayout(options);
+  const point = (x: number, y: number, z = 0): [number, number, number] => [
+    x,
+    y + topOffset,
+    z,
+  ];
+  const split = point(1.52, 5.06);
+  return {
+    split,
+    condenser: point(1.52, 6.16),
+    receiver: point(1.52, 5.52),
+    vapor: [point(0, 5.45), point(0, 6.7), point(1.52, 6.7), point(1.52, 6.48)],
+    condensate: [point(1.52, 5.84), point(1.52, 5.7)],
+    inlet: [point(1.52, 5.34), split],
+    reflux: [split, point(0.54, 5.06)],
+    distillate: [split, point(2.1, 5.06)],
   };
 }

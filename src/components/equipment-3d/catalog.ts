@@ -130,13 +130,14 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     tag: "D-101",
     assembly: "Tray distillation system",
     description:
-      "A tray column with gravity reflux from an elevated condenser and a low-mounted reboiler.",
+      "A valve-tray column with an overhead condenser, reflux receiver, controlled reflux split and thermosiphon reboiler.",
     color: "#367f70",
     height: 6.95,
     features: [
       ["Column internals", "Eight trays with alternating downcomers"],
       ["Service access", "Two railed platforms and access ladder"],
       ["Thermal loop", "Overhead condenser and bottom reboiler"],
+      ["Reflux circuit", "Receiver, three-way tee and separate branch valves"],
     ],
     section: "Inspect the tray stack and the alternating liquid downcomers.",
   },

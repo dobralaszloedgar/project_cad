@@ -12,6 +12,7 @@ import {
 import { OperationClock } from "./operation";
 import { createProcessContents, createSystemFlow } from "./process-contents";
 import type { SystemExample } from "./system-geometry";
+import type { EquipmentCompositionColors } from "./composition-colors";
 
 export type MotionProps = {
   playing: boolean;
@@ -28,6 +29,7 @@ export function EquipmentModel({
   speed,
   motionVisible,
   liquidColor,
+  compositionColors,
   trayCount = 8,
   ...props
 }: ThreeElements["group"] &
@@ -35,6 +37,7 @@ export function EquipmentModel({
     kind: Kind;
     section?: boolean;
     liquidColor?: string;
+    compositionColors?: EquipmentCompositionColors;
     trayCount?: number;
   }) {
   const mount = useRef<Group>(null);
@@ -66,25 +69,44 @@ export function EquipmentModel({
       }
     });
     parent.add(model);
+    invalidate();
+    return () => {
+      parent.remove(model);
+      rotors.current = [];
+      disposeEquipmentModel(model);
+    };
+  }, [kind, section, transparent, invalidate, clock, trayCount]);
+  // Composition edits replace only the fluid, preserving equipment, camera,
+  // and animation time while the new material colors become visible.
+  useLayoutEffect(() => {
+    const parent = mount.current;
+    if (!parent) return;
     const fluid = createProcessContents(
       kind,
       section || transparent,
       clock,
       liquidColor,
       { trayCount },
+      compositionColors,
     );
     contents.current = fluid;
     parent.add(fluid.group);
     invalidate();
     return () => {
-      parent.remove(model);
       parent.remove(fluid.group);
       disposeEquipmentModel(fluid.group);
       contents.current = null;
-      rotors.current = [];
-      disposeEquipmentModel(model);
     };
-  }, [kind, section, transparent, invalidate, clock, liquidColor, trayCount]);
+  }, [
+    kind,
+    section,
+    transparent,
+    invalidate,
+    clock,
+    liquidColor,
+    trayCount,
+    compositionColors,
+  ]);
   useFrame((_, delta) => {
     clock.advance(delta, playing, speed);
     for (const rotor of rotors.current) {
@@ -106,11 +128,16 @@ export function EquipmentModel({
 
 export function SystemConnections({
   system,
+  streamColors,
   transparent,
   section,
   playing,
   speed,
-}: MotionProps & { system: SystemExample; section: boolean }) {
+}: MotionProps & {
+  system: SystemExample;
+  streamColors?: Record<string, string>;
+  section: boolean;
+}) {
   const mount = useRef<Group>(null);
   const clock = useMemo(() => new OperationClock(), []);
   const invalidate = useThree((state) => state.invalidate);
@@ -118,16 +145,25 @@ export function SystemConnections({
     const parent = mount.current;
     if (!parent) return;
     const model = createSystemConnections(system, transparent, section);
-    const fluid = createSystemFlow(system, clock);
-    fluid.visible = transparent || section;
-    parent.add(model, fluid);
+    parent.add(model);
     invalidate();
     return () => {
-      parent.remove(model, fluid);
+      parent.remove(model);
       disposeEquipmentModel(model);
+    };
+  }, [system, transparent, section, invalidate]);
+  useLayoutEffect(() => {
+    const parent = mount.current;
+    if (!parent) return;
+    const fluid = createSystemFlow(system, clock, streamColors);
+    fluid.visible = transparent || section;
+    parent.add(fluid);
+    invalidate();
+    return () => {
+      parent.remove(fluid);
       disposeEquipmentModel(fluid);
     };
-  }, [system, transparent, section, clock, invalidate]);
+  }, [system, streamColors, transparent, section, clock, invalidate]);
   useFrame((_, delta) => clock.advance(delta, playing, speed));
   return <group ref={mount} />;
 }

@@ -305,7 +305,7 @@ describe("configurable columns and connected systems", () => {
       const surfaces = contents.group.children.filter(
         (part) => part.name === "moving-liquid-surface",
       );
-      expect(surfaces).toHaveLength(trayCount + 3); // trays, sump, reboiler, condenser
+      expect(surfaces).toHaveLength(trayCount + 4); // trays, sump, reboiler, condenser, receiver
       for (let i = 0; i < trayCount; i++) {
         expect(surfaces[i].position.y).toBeCloseTo(layout.trays[i] + 0.07);
         if (i) expect(layout.trays[i] - layout.trays[i - 1]).toBeCloseTo(0.46);

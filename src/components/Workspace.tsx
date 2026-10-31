@@ -1735,6 +1735,7 @@ export default function Workspace({
                 dark={false}
                 canvasColor="#fafbf9"
                 project={project}
+                result={result}
                 selected={selected}
                 onSelect={setSelected}
                 graphicsSettingsContainer={graphicsSettingsContainer}

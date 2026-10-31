@@ -27,6 +27,7 @@ import {
   BaseEdge,
   useReactFlow,
   useNodesInitialized,
+  useUpdateNodeInternals,
   useStore,
   useStoreApi,
   SelectionMode,
@@ -54,7 +55,7 @@ import {
   ZOOM_STEP,
   useCanvasWheelNavigation,
 } from "./useCanvasWheelNavigation";
-import { equipmentPort, streamPath } from "./flow-geometry";
+import { equipmentPort, equipmentSize, streamPath } from "./flow-geometry";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
@@ -83,13 +84,18 @@ const flowFitOptions = {
   minZoom: 0.05,
   maxZoom: 1.25,
 } satisfies FitViewOptions;
-function portGeometry(kind: Kind, output: boolean, index: number) {
-  const { x, y, position } = equipmentPort(kind, output, index);
+function portGeometry(unit: Unit, output: boolean, index: number) {
+  const { x, y, position } = equipmentPort(
+    unit.kind,
+    output,
+    index,
+    unit.params.trayCount,
+  );
   return {
     position,
     style: {
-      left: `${(x / 128) * 100}%`,
-      top: `${(y / 128) * 100}%`,
+      left: x,
+      top: y,
       right: "auto",
       bottom: "auto",
       transform: "translate(-50%, -50%)",
@@ -102,6 +108,8 @@ const UnitNode = memo(function UnitNode({
 }: NodeProps<EquipmentNode>) {
   const n = data.unit,
     p = ports(n.kind);
+  const size = equipmentSize(n.kind, n.params.trayCount);
+  const updateNodeInternals = useUpdateNodeInternals();
   const nodeRef = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState({
     left: 0,
@@ -119,11 +127,13 @@ const UnitNode = memo(function UnitNode({
       width: bounds.width + padding * 2,
       height: bounds.height + padding * 2,
     });
-  }, [n.kind]);
+    updateNodeInternals(n.id);
+  }, [n.id, n.kind, n.params.trayCount, updateNodeInternals]);
   return (
     <div
       ref={nodeRef}
-      className={`equipment-node ${n.kind === "PBR" || n.kind === "Distillation" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
+      className={`equipment-node ${n.kind === "PBR" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
+      style={size}
     >
       <div
         className="equipment-selection-frame"
@@ -147,7 +157,7 @@ const UnitNode = memo(function UnitNode({
           title={`${n.id} · ${id === "in2" ? "Secondary inlet" : "Inlet"}`}
           isConnectable={n.kind === "Mixer" || !data.connected.includes(id)}
           isConnectableStart={false}
-          {...portGeometry(n.kind, false, i)}
+          {...portGeometry(n, false, i)}
           className="material-handle"
         />
       ))}
@@ -161,7 +171,7 @@ const UnitNode = memo(function UnitNode({
           aria-label={`${n.id} connect streams to mixer`}
         />
       )}
-      <EquipmentIcon kind={n.kind} size={128} />
+      <EquipmentIcon kind={n.kind} size={128} trayCount={n.params.trayCount} />
       {p.outputs.map((id, i) => (
         <Handle
           key={id}
@@ -171,7 +181,7 @@ const UnitNode = memo(function UnitNode({
           title={`${n.id} · ${id === "out2" ? "Secondary outlet" : "Outlet"}`}
           isConnectable={!data.connected.includes(id)}
           isConnectableEnd={false}
-          {...portGeometry(n.kind, true, i)}
+          {...portGeometry(n, true, i)}
           className="material-handle"
         />
       ))}
@@ -410,7 +420,7 @@ function Inner(props: Props) {
           selection.includes(unit.id),
         );
         void rf.fitView({
-          padding: 0.2,
+          ...flowFitOptions,
           ...(event.shiftKey && chosen.length ? { nodes: chosen } : {}),
         });
       } else if (key === "p") setPanMode(true);
@@ -607,8 +617,9 @@ function Inner(props: Props) {
         unit.kind,
         output,
         port.endsWith("2") ? 1 : 0,
+        unit.params.trayCount,
       );
-      // Edges attach to the outer edge of the eight-pixel connection handle.
+      // Edges attach to the outer edge of the nine-pixel connection handle.
       return {
         nodeId: id,
         side: geometry.position,
@@ -616,17 +627,17 @@ function Inner(props: Props) {
           position.x +
           geometry.x +
           (geometry.position === Position.Right
-            ? 4
+            ? 4.5
             : geometry.position === Position.Left
-              ? -4
+              ? -4.5
               : 0),
         y:
           position.y +
           geometry.y +
           (geometry.position === Position.Bottom
-            ? 4
+            ? 4.5
             : geometry.position === Position.Top
-              ? -4
+              ? -4.5
               : 0),
       };
     };
@@ -638,14 +649,13 @@ function Inner(props: Props) {
       }),
       project.units.map((unit) => {
         const position = positions[unit.id] ?? unit.position;
-        const verticalPorts =
-          unit.kind === "PBR" || unit.kind === "Distillation";
+        const verticalPorts = unit.kind === "PBR";
         return {
           id: unit.id,
           x: position.x - (verticalPorts ? 0 : 8),
           y: position.y - 58,
           width: verticalPorts ? 192 : 144,
-          height: 186,
+          height: equipmentSize(unit.kind, unit.params.trayCount).height + 58,
         };
       }),
     );
@@ -962,7 +972,7 @@ function Inner(props: Props) {
               title="Fit View"
               aria-label="Fit View"
               onClick={() =>
-                void rf.fitView({ padding: 0.2, duration: duration() })
+                void rf.fitView({ ...flowFitOptions, duration: duration() })
               }
             >
               <Maximize size={16} aria-hidden="true" />

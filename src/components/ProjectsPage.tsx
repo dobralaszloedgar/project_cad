@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Folder,
@@ -26,81 +26,135 @@ import {
   RotateCcw,
 } from "lucide-react";
 import type { SavedProject } from "@/lib/storage";
-import { ports, type Project } from "@/domain/schema";
+import { type Project } from "@/domain/schema";
+import { arrangeFlowsheet } from "@/domain/flowsheet-layout";
 import { EquipmentIcon } from "./EquipmentIcon";
-import { equipmentPort, streamPath } from "./flow-geometry";
+import { equipmentPort, equipmentSize } from "./flow-geometry";
+import { routeStreams, type StreamConnection } from "./stream-routing";
 import Dialog from "./Dialog";
 import BrandMark from "./BrandMark";
 import ThemePicker from "./ThemePicker";
 import ProjectStorageSettings from "./ProjectStorageSettings";
 import ProjectContextMenu from "./ProjectContextMenu";
 import folderStyles from "./CreateProjectDialog.module.css";
+
+function previewGeometry(project: Project) {
+  const boxes = (source: Project) =>
+    source.units.map((unit) => ({
+      id: unit.id,
+      ...unit.position,
+      ...equipmentSize(unit.kind, unit.params.trayCount),
+    }));
+  const original = boxes(project);
+  const overlapping = original.some((a, index) =>
+    original
+      .slice(index + 1)
+      .some(
+        (b) =>
+          a.x < b.x + b.width + 12 &&
+          a.x + a.width + 12 > b.x &&
+          a.y < b.y + b.height + 12 &&
+          a.y + a.height + 12 > b.y,
+      ),
+  );
+  // A thumbnail can tidy overlapping equipment without changing saved positions.
+  const preview = overlapping
+    ? arrangeFlowsheet(project, { width: 1440, height: 900 })
+    : project;
+  const units = new Map(preview.units.map((unit) => [unit.id, unit]));
+  const connections: StreamConnection[] = [];
+  for (const edge of preview.edges) {
+    const source = units.get(edge.source),
+      target = units.get(edge.target);
+    if (!source || !target) continue;
+    const from = equipmentPort(
+      source.kind,
+      true,
+      edge.sourcePort === "out2" ? 1 : 0,
+      source.params.trayCount,
+    );
+    const to = equipmentPort(
+      target.kind,
+      false,
+      edge.targetPort === "in2" ? 1 : 0,
+      target.params.trayCount,
+    );
+    connections.push({
+      id: edge.id,
+      source: {
+        nodeId: source.id,
+        side: from.position,
+        x: source.position.x + from.x,
+        y: source.position.y + from.y,
+      },
+      target: {
+        nodeId: target.id,
+        side: to.position,
+        x: target.position.x + to.x,
+        y: target.position.y + to.y,
+      },
+    });
+  }
+  const obstacles = boxes(preview);
+  const routes = routeStreams(connections, obstacles);
+  const points = [
+    ...obstacles.flatMap(({ x, y, width, height }) => [
+      { x, y },
+      { x: x + width, y: y + height },
+    ]),
+    ...[...routes.values()].flatMap((route) => route.points),
+  ];
+  if (!points.length) return null;
+  const left = Math.min(...points.map((point) => point.x)) - 24;
+  const top = Math.min(...points.map((point) => point.y)) - 24;
+  const right = Math.max(...points.map((point) => point.x)) + 24;
+  const bottom = Math.max(...points.map((point) => point.y)) + 24;
+  return {
+    units: preview.units,
+    routes,
+    viewBox: `${left} ${top} ${right - left} ${bottom - top}`,
+  };
+}
+
 function ProjectPreview({ project }: { project: Project }) {
-  if (!project.units.length)
+  const geometry = useMemo(() => previewGeometry(project), [project]);
+  if (!geometry)
     return (
       <div className="project-preview empty-preview">
         <FileBox size={26} />
         <span>No equipment yet</span>
       </div>
     );
-  const minX = Math.min(...project.units.map((unit) => unit.position.x)),
-    minY = Math.min(...project.units.map((unit) => unit.position.y));
-  const width =
-      Math.max(...project.units.map((unit) => unit.position.x)) - minX + 180,
-    height =
-      Math.max(...project.units.map((unit) => unit.position.y)) - minY + 210;
   return (
     <div className="project-preview">
       <svg
         className="project-preview-stage"
-        viewBox={`-24 -24 ${width + 48} ${height + 48}`}
+        viewBox={geometry.viewBox}
         preserveAspectRatio="xMidYMid meet"
         aria-hidden="true"
       >
         <g className="preview-pipes">
-          {project.edges.map((edge) => {
-            const source = project.units.find(
-                (unit) => unit.id === edge.source,
-              ),
-              target = project.units.find((unit) => unit.id === edge.target);
-            if (!source || !target) return null;
-            const output = equipmentPort(
-                source.kind,
-                true,
-                ports(source.kind).outputs.indexOf(edge.sourcePort),
-              ),
-              input = equipmentPort(
-                target.kind,
-                false,
-                ports(target.kind).inputs.indexOf(edge.targetPort),
-              );
-            return (
-              <path
-                key={edge.id}
-                d={streamPath({
-                  sourceX: source.position.x - minX + output.x,
-                  sourceY: source.position.y - minY + output.y,
-                  targetX: target.position.x - minX + input.x,
-                  targetY: target.position.y - minY + input.y,
-                  sourcePosition: output.position,
-                  targetPosition: input.position,
-                  sourceHandleId: edge.sourcePort,
-                  targetHandleId: edge.targetPort,
-                })}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              />
-            );
-          })}
+          {[...geometry.routes].map(([id, route]) => (
+            <path
+              key={id}
+              d={route.path}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            />
+          ))}
         </g>
-        {project.units.map((unit) => (
+        {geometry.units.map((unit) => (
           <g
             key={unit.id}
             className="preview-unit"
-            transform={`translate(${unit.position.x - minX},${unit.position.y - minY})`}
+            transform={`translate(${unit.position.x},${unit.position.y})`}
           >
-            <EquipmentIcon kind={unit.kind} size={128} />
+            <EquipmentIcon
+              kind={unit.kind}
+              size={128}
+              trayCount={unit.params.trayCount}
+            />
           </g>
         ))}
       </svg>

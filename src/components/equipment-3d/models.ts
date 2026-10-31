@@ -18,6 +18,7 @@ import {
   Shape,
   SphereGeometry,
   TorusGeometry,
+  type Texture,
   TubeGeometry,
   Vector2,
   Vector3,
@@ -27,9 +28,14 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import type { Kind } from "@/domain/schema";
 import { pipeCurve } from "./operation";
 import type { SystemExample } from "./system-geometry";
-import { columnLayout, type EquipmentModelOptions } from "./column-layout";
+import {
+  columnLayout,
+  columnOverhead,
+  type EquipmentModelOptions,
+} from "./column-layout";
 import { distributorBores, packedBedLayout } from "./packed-bed-layout";
 import { createCatalystPacking } from "./packed-bed-packing";
+import { finishColumnSteel, refluxTeeGeometry } from "./column-details";
 
 type Point = [number, number, number];
 type Axis = "x" | "y" | "z";
@@ -120,6 +126,14 @@ class Fabricator {
       );
     build();
     this.frame = previous;
+  }
+
+  assembly(name: string, build: (part: Fabricator) => void) {
+    const part = new Fabricator(this.transparent);
+    build(part);
+    const assembly = part.build(name);
+    assembly.applyMatrix4(this.frame);
+    this.assemblies.push(assembly);
   }
 
   box(
@@ -380,6 +394,7 @@ class Fabricator {
     axis: Axis = "x",
     finish: Finish = "steel",
     bolts = 8,
+    boreRadius?: number,
   ) {
     this.at(
       position,
@@ -390,7 +405,7 @@ class Fabricator {
           : [0, 0, 0],
       () => {
         const outer = radius > 0.4 ? radius * 1.1 : radius;
-        const bore = radius * (radius > 0.4 ? 0.89 : 0.48);
+        const bore = boreRadius ?? radius * (radius > 0.4 ? 0.89 : 0.48);
         const boltCircle = (outer + bore) / 2;
         const boltRadius = (outer - bore) * 0.22;
         this.annulus([0, -0.028, 0], outer, bore, 0.045, finish);
@@ -1299,8 +1314,19 @@ function reactor(f: Fabricator, section: boolean) {
 }
 
 function platform(f: Fabricator, y: number) {
-  // An annular platform leaves the vessel clear rather than intersecting it.
-  f.annulus([0, y, 0], 0.94, 0.64, 0.04, "dark");
+  // Open steel grating with actual daylight between bars, clipped to the annulus.
+  for (let z = -0.9; z <= 0.9; z += 0.055) {
+    const edge = Math.sqrt(0.92 ** 2 - z ** 2);
+    const inner = Math.abs(z) < 0.65 ? Math.sqrt(0.65 ** 2 - z ** 2) : 0;
+    for (const sign of [-1, 1])
+      f.box(
+        [(sign * (edge + inner)) / 2, y, z],
+        [edge - inner, 0.035, 0.012],
+        "dark",
+      );
+  }
+  for (const radius of [0.65, 0.79, 0.93])
+    f.ring([0, y - 0.014, 0], radius, 0.012, "steel");
   f.shell([0, y + 0.04, 0], 0.935, 0.08, false, "steel", "y", false);
   for (const height of [0.28, 0.53])
     f.ring([0, y + height, 0], 0.93, 0.018, "steel");
@@ -1321,6 +1347,94 @@ function platform(f: Fabricator, y: number) {
   }
 }
 
+/** Hollow 2:1 dished ends instead of a whole ellipsoid inside the vessel. */
+function columnHead(
+  f: Fabricator,
+  position: Point,
+  radius: number,
+  depth: number,
+  up: boolean,
+  section: boolean,
+) {
+  const profile: Vector2[] = [];
+  for (let i = 0; i <= 32; i++) {
+    const a = ((i / 32) * Math.PI) / 2;
+    profile.push(
+      new Vector2(Math.sin(a) * radius, Math.cos(a) * depth * (up ? 1 : -1)),
+    );
+  }
+  f.enclosure(() =>
+    f.part(
+      new LatheGeometry(
+        profile,
+        96,
+        section && !f.transparent ? Math.PI / 2 : 0,
+        section && !f.transparent ? Math.PI * 1.5 : TAU,
+      ),
+      "satin",
+      position,
+    ),
+  );
+  f.ring(position, radius + 0.002, 0.007, "steel");
+}
+
+/** Compact flanged globe valve. Its bore stays open in clear/section views;
+ * bonnet, stem, yoke and operator retain their solid metal silhouettes. */
+function columnValve(f: Fabricator, position: Point, automatic = false) {
+  f.at(position, [0, 0, 0], () => {
+    f.turned(
+      [0, 0, 0],
+      [
+        [0.058, -0.13],
+        [0.061, -0.09],
+        [0.09, -0.05],
+        [0.095, 0.03],
+        [0.061, 0.09],
+        [0.058, 0.13],
+        [0.043, 0.13],
+        [0.043, -0.13],
+        [0.058, -0.13],
+      ],
+      false,
+      "steel",
+    );
+    for (const x of [-0.145, 0.145])
+      f.flange([x, 0, 0], 0.105, "x", "steel", 6);
+    f.cylinder([0, 0.09, 0], 0.055, 0.065, "steel");
+    f.cylinder([0, 0.19, 0], 0.012, 0.17, "steel", "y", 0.012, 16);
+    for (const x of [-0.046, 0.046])
+      f.box([x, 0.19, 0], [0.016, 0.16, 0.032], "dark");
+    if (automatic) {
+      f.cylinder([0, 0.285, 0], 0.09, 0.085, "teal");
+      f.ring([0, 0.285, 0], 0.092, 0.008, "steel");
+      f.box([0.09, 0.19, 0], [0.055, 0.09, 0.065], "dark");
+      f.pipe(
+        [
+          [0.09, 0.19, 0.03],
+          [0.13, 0.19, 0.03],
+          [0.13, 0.28, 0.03],
+          [0.06, 0.28, 0.03],
+        ],
+        0.006,
+        "copper",
+        false,
+        false,
+      );
+    } else {
+      f.ring([0, 0.29, 0], 0.085, 0.012, "teal");
+      for (let i = 0; i < 3; i++) {
+        const a = (i * TAU) / 3;
+        f.rod(
+          [0, 0.29, 0],
+          [Math.cos(a) * 0.085, 0.29, Math.sin(a) * 0.085],
+          0.007,
+          "steel",
+        );
+      }
+    }
+  });
+}
+
 function distillation(
   f: Fabricator,
   section: boolean,
@@ -1331,6 +1445,11 @@ function distillation(
   f.shell([0, 0.55, 0], 0.55, 0.88, false, "teal", "y", false);
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * TAU;
+    const x = Math.cos(a),
+      z = Math.sin(a);
+    f.annulus([x * 0.75, 0.21, z * 0.75], 0.05, 0.023, 0.015, "steel");
+    f.cylinder([x * 0.75, 0.3, z * 0.75], 0.019, 0.14, "steel", "y", 0.019, 16);
+    f.box([x * 0.62, 0.3, z * 0.62], [0.19, 0.22, 0.025], "dark", [0, -a, 0]);
     f.cylinder(
       [Math.cos(a) * 0.75, 0.24, Math.sin(a) * 0.75],
       0.03,
@@ -1341,7 +1460,7 @@ function distillation(
       6,
     );
   }
-  f.sphere([0, 1, 0], [0.6, 0.3, 0.6]);
+  columnHead(f, [0, 1.01, 0], 0.6, 0.3, false, section);
   f.shell(
     [0, (layout.shellBottom + layout.shellTop) / 2, 0],
     0.6,
@@ -1349,76 +1468,144 @@ function distillation(
     section,
     "satin",
   );
-  f.sphere([0, layout.shellTop, 0], [0.6, 0.3, 0.6]);
+  columnHead(f, [0, layout.shellTop, 0], 0.6, 0.3, true, section);
   for (let y = 1.12; y < layout.shellTop; y += 1.05)
-    f.ring([0, y, 0], 0.605, 0.025, "steel");
+    f.ring([0, y, 0], 0.602, 0.008, "steel");
+  f.plate([0.18, 1.29, 0.575], 0.24);
   f.flange([0, 5.14 + layout.topOffset, 0], 0.64, "y", "steel", 16);
   for (const y of layout.platforms) platform(f, y);
   f.ladder(-0.54, 0.8, 0.2, 5.15 + layout.topOffset, 0.28);
+  // Safety cage follows the ladder at fixed spacing as the tower grows.
+  const cageTop = layout.shellTop - 0.1;
+  for (let y = 1.85; y < cageTop; y += 0.72) {
+    const hoop: Point[] = Array.from({ length: 25 }, (_, i) => {
+      const a = (i / 24) * Math.PI;
+      return [-0.54 + Math.cos(a) * 0.27, y, 0.8 + Math.sin(a) * 0.27];
+    });
+    f.pipe(hoop, 0.012, "steel", false, false);
+  }
+  if (cageTop > 1.85)
+    for (const a of [0, Math.PI / 4, Math.PI / 2, (Math.PI * 3) / 4, Math.PI])
+      f.rod(
+        [-0.54 + Math.cos(a) * 0.27, 1.85, 0.8 + Math.sin(a) * 0.27],
+        [-0.54 + Math.cos(a) * 0.27, cageTop, 0.8 + Math.sin(a) * 0.27],
+        0.008,
+        "steel",
+      );
   for (let y = 1.5; y < layout.shellTop - 0.3; y += 1.15) {
     if (Math.abs(y - layout.feedY) < 0.34) continue;
     f.nozzle([-0.66, y, -0.04], "x", 0.24, 0.13, "steel", -1);
+    f.flange([-0.79, y, -0.04], 0.205, "x", "steel", 8, 0.125);
     f.cylinder([-0.8, y, -0.04], 0.205, 0.04, "dark", "x");
+    f.rod([-0.84, y - 0.06, -0.06], [-0.88, y - 0.06, -0.06], 0.012, "steel");
+    f.rod([-0.88, y - 0.06, -0.06], [-0.88, y + 0.06, -0.06], 0.012, "steel");
+    f.rod([-0.88, y + 0.06, -0.06], [-0.84, y + 0.06, -0.06], 0.012, "steel");
   }
   // The entire overhead assembly follows the top tray without deformation.
+  const overhead = columnOverhead(options);
+  f.assembly("overhead-piping", (part) => {
+    part.pipe(overhead.vapor, 0.067, "steel", section);
+    part.pipe(overhead.condensate, 0.055, "steel", section);
+  });
+  f.assembly("reflux-splitter", (part) => {
+    const [x, y, z] = overhead.split;
+    // Join pipes to the fitting mouths, leaving the tee's bore unobstructed.
+    part.pipe([overhead.inlet[0], [x, y + 0.17, z]], 0.055, "steel", section);
+    part.pipe([[x - 0.13, y, z], overhead.reflux[1]], 0.055, "steel", section);
+    part.pipe(
+      [[x + 0.13, y, z], overhead.distillate[1]],
+      0.055,
+      "steel",
+      section,
+    );
+    part.enclosure(() =>
+      part.part(refluxTeeGeometry(), "steel", overhead.split),
+    );
+    // Forged socket collars identify the fitting even in transparent mode.
+    for (const dx of [-0.105, 0.105])
+      part.annulus([x + dx, y, z], 0.069, 0.053, 0.055, "steel", "x");
+    part.annulus([x, y + 0.115, z], 0.069, 0.053, 0.055, "steel", "y");
+    part.ring([x, y + 0.14, z], 0.061, 0.008, "satin");
+  });
   f.at([0, layout.topOffset, 0], [0, 0, 0], () => {
-    f.pipe(
-      [
-        [0, 5.45, 0],
-        [0, 6.7, 0],
-        [1.52, 6.7, 0],
-        [1.52, 6.18, 0],
-      ],
-      0.067,
-    );
-    f.shell([1.52, 5.8, 0], 0.2, 0.82, section, "steel");
-    if (section) {
-      const coil: Point[] = [
-        [1.94, 5.62, 0],
-        [1.64, 5.62, 0],
-      ];
-      for (let i = 0; i <= 120; i++) {
-        const angle = (i / 120) * TAU * 6;
-        coil.push([
-          1.52 + Math.cos(angle) * 0.12,
-          5.62 + (i / 120) * 0.4,
-          Math.sin(angle) * 0.12,
-        ]);
+    f.assembly("overhead-condenser", (part) => {
+      part.shell([1.52, 6.16, 0], 0.235, 0.5, section, "satin");
+      columnHead(part, [1.52, 6.41, 0], 0.235, 0.09, true, section);
+      columnHead(part, [1.52, 5.91, 0], 0.235, 0.09, false, section);
+      for (const y of [5.93, 6.39])
+        part.flange([1.52, y, 0], 0.28, "y", "steel", 12, 0.224);
+      if (section) {
+        // A continuous coolant coil, including both utility tails.
+        const coil: Point[] = [
+          [1.97, 6.02, 0],
+          [1.66, 6.02, 0],
+        ];
+        for (let i = 0; i <= 192; i++) {
+          const a = (i / 192) * TAU * 6;
+          coil.push([
+            1.52 + Math.cos(a) * 0.14,
+            6.02 + (i / 192) * 0.27,
+            Math.sin(a) * 0.14,
+          ]);
+        }
+        coil.push([1.97, 6.29, 0]);
+        part.pipe(coil, 0.018, "steel", false, false);
       }
-      coil.push([1.94, 6.02, 0]);
-      f.pipe(coil, 0.016, "steel", false, false);
-    }
-    for (const y of [5.4, 5.57, 6.02, 6.2])
-      f.ring([1.52, y, 0], 0.21, 0.025, "blue");
-    f.sphere([1.52, 6.22, 0], [0.2, 0.1, 0.2]);
-    f.sphere([1.52, 5.39, 0], [0.2, 0.1, 0.2]);
-    f.pipe(
-      [
-        [1.52, 5.33, 0],
-        [1.52, 5.06, 0],
-        [0.54, 5.06, 0],
-      ],
-      0.055,
+      for (const y of [6.02, 6.29]) {
+        part.pipe(
+          [
+            [1.73, y, 0],
+            [1.97, y, 0],
+          ],
+          0.035,
+          "steel",
+          section,
+        );
+        part.flange([1.93, y, 0], 0.065, "x", "steel", 6, 0.027);
+        part.ring([1.85, y, 0], 0.036, 0.005, "blue", "x");
+      }
+    });
+    f.assembly("reflux-receiver", (part) => {
+      part.shell([1.52, 5.52, 0], 0.225, 0.24, section, "satin");
+      columnHead(part, [1.52, 5.64, 0], 0.225, 0.08, true, section);
+      columnHead(part, [1.52, 5.4, 0], 0.225, 0.08, false, section);
+      part.flange([1.52, 5.64, 0], 0.26, "y", "steel", 10, 0.214);
+      // Local level glass, with a protective backplate and two isolation fittings.
+      part.box([1.52, 5.52, 0.232], [0.065, 0.2, 0.016], "dark");
+      part.pipe(
+        [
+          [1.52, 5.43, 0.255],
+          [1.52, 5.61, 0.255],
+        ],
+        0.019,
+        "steel",
+      );
+      for (const y of [5.43, 5.61])
+        part.rod([1.52, y, 0.19], [1.52, y, 0.264], 0.025, "steel");
+      part.plate([1.65, 5.52, 0.19], 0.12);
+    });
+    f.assembly("reflux-control-valve", (part) =>
+      columnValve(part, [0.97, 5.06, 0], true),
     );
-    f.pipe(
-      [
-        [1.52, 5.06, 0],
-        [2, 5.06, 0],
-      ],
-      0.055,
+    f.assembly("distillate-control-valve", (part) =>
+      columnValve(part, [1.83, 5.06, 0]),
     );
     f.nozzle([2, 5.06, 0], "x", 0.2, 0.055);
-    for (const y of [5.62, 6.02])
-      f.pipe(
-        [
-          [1.68, y, 0],
-          [1.94, y, 0],
-        ],
-        0.037,
-        "blue",
-      );
-    f.rod([0.57, 5.12, -0.15], [1.52, 5.36, -0.15], 0.035, "dark");
-    f.rod([0.57, 4.65, -0.15], [1.52, 5.36, -0.15], 0.035, "dark");
+    f.flange([0.66, 5.06, 0], 0.1, "x", "steel", 6, 0.044);
+    f.flange([0, 5.64, 0], 0.13, "y", "steel", 8, 0.058);
+    // Braced shelf with saddles; supports stay behind the liquid split.
+    for (const z of [-0.23, -0.35]) {
+      f.box([1.05, 5.29, z], [1.08, 0.055, 0.045], "dark");
+      f.rod([0.48, 4.75, z], [1.58, 5.29, z], 0.022, "dark");
+    }
+    for (const x of [1.35, 1.69])
+      f.box([x, 5.29, -0.08], [0.045, 0.055, 0.58], "dark");
+    for (const z of [-0.16, 0.16])
+      f.box([1.52, 5.33, z], [0.2, 0.09, 0.045], "steel");
+    for (const y of [5.97, 6.33]) {
+      f.rod([0.62, 5.29, -0.23], [1.52, y, -0.24], 0.022, "dark");
+      f.ring([1.52, y, 0], 0.239, 0.008, "steel");
+    }
   });
   // The thermosiphon returns two-phase fluid BELOW the lowest tray (y=1.45).
   // Both utility connections join a separate coil inside the process shell.
@@ -1500,6 +1687,7 @@ function distillation(
         for (let dz = -0.27; dz <= 0.3; dz += 0.18)
           holes.push({ x: dx, y: dz, r: 0.028 });
       // Open tray ports and a chordal downcomer, alternating at every tray.
+      f.annulus([0, y - 0.022, 0], 0.575, 0.52, 0.024, "steel");
       f.part(
         perforatedPlate(0.55, holes, 0.03, i % 2 ? -0.44 : 0.44),
         "satin",
@@ -1509,6 +1697,22 @@ function distillation(
       const x = i % 2 === 0 ? -0.39 : 0.39;
       f.box([x, y - 0.16, 0], [0.04, 0.3, 0.5], "steel");
       f.box([x, y + 0.045, 0], [0.025, 0.09, 0.5], "steel");
+      for (const z of [-0.27, 0.27])
+        f.box([0, y - 0.04, z], [0.88, 0.04, 0.018], "dark");
+      for (let bolt = 0; bolt < 10; bolt++) {
+        const a = (bolt / 10) * TAU;
+        const bx = Math.cos(a) * 0.51;
+        if (Math.sign(bx) === Math.sign(x) && Math.abs(bx) > 0.36) continue;
+        f.cylinder(
+          [bx, y + 0.023, Math.sin(a) * 0.51],
+          0.012,
+          0.014,
+          "dark",
+          "y",
+          0.012,
+          6,
+        );
+      }
       for (const hole of holes) {
         f.cylinder(
           [hole.x, y + 0.055, hole.y],
@@ -1553,25 +1757,36 @@ export function createEquipmentModel(
   const model = f.build(kind);
   if (kind === "PBR" && (section || transparent))
     model.add(createCatalystPacking());
-  if (kind === "Distillation") model.userData.column = columnLayout(options);
+  if (kind === "Distillation") {
+    model.userData.column = columnLayout(options);
+    finishColumnSteel(model);
+  }
   return model;
 }
 
 export function disposeEquipmentModel(group: Group) {
   const geometries = new Set<BufferGeometry>();
   const finishes = new Set<Material>();
+  const textures = new Set<Texture>();
   group.traverse((object) => {
     if (object instanceof Mesh) {
       geometries.add(object.geometry);
       const materials = Array.isArray(object.material)
         ? object.material
         : [object.material];
-      materials.forEach((material) => finishes.add(material));
+      materials.forEach((material) => {
+        finishes.add(material);
+        if (material instanceof MeshStandardMaterial) {
+          if (material.roughnessMap) textures.add(material.roughnessMap);
+          if (material.bumpMap) textures.add(material.bumpMap);
+        }
+      });
       if (object instanceof InstancedMesh) object.dispose();
     }
   });
   geometries.forEach((geometry) => geometry.dispose());
   finishes.forEach((material) => material.dispose());
+  textures.forEach((texture) => texture.dispose());
 }
 
 /** Use the same route for the pipe wall and the liquid core. */
