@@ -51,22 +51,42 @@ const presentation = {
 export default function CadWorkbench({
   progress,
   construction,
+  simulation,
   bridge,
+  fallback,
 }: {
   progress: MotionValue<number>;
   construction: MotionValue<number>;
+  simulation: MotionValue<number>;
   bridge: CadBridge;
+  fallback: boolean;
 }) {
   const project = useMemo(() => makeLandingProject(), []);
   const refresh = useRef<() => void>(() => {});
   const root = useRef<HTMLDivElement>(null);
   const unitFocus = useRef<SVGGElement>(null);
   const streamFocus = useRef<SVGGElement>(null);
+  useEffect(() => {
+    if (!fallback) return;
+    const resize = () =>
+      bridge.viewport.current?.style.setProperty(
+        "--fallback-scale",
+        String(
+          Math.min(
+            (window.innerWidth - 48) / CAD_WIDTH,
+            (window.innerHeight - 300) / CAD_HEIGHT,
+          ),
+        ),
+      );
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [bridge, fallback]);
   const elements = useRef<{
     nodes: {
       id: string;
       element: HTMLElement;
-      strokes: SVGGeometryElement[];
+      symbol: HTMLElement | null;
     }[];
     edges: {
       id: string;
@@ -85,15 +105,8 @@ export default function CadWorkbench({
       ).map((element) => ({
         id: element.dataset.id!,
         element,
-        strokes: Array.from(
-          element.querySelectorAll<SVGGeometryElement>(
-            ".equipment-symbol path, .equipment-symbol circle, .equipment-symbol rect",
-          ),
-        ),
+        symbol: element.querySelector<HTMLElement>(".equipment-node"),
       }));
-      for (const node of elements.current.nodes)
-        for (const stroke of node.strokes)
-          stroke.setAttribute("pathLength", "1");
       elements.current.edges = Array.from(
         host.querySelectorAll<SVGGElement>(".react-flow__edge"),
       ).flatMap((wrapper) => {
@@ -148,6 +161,7 @@ export default function CadWorkbench({
       if (!root.current) return;
       const p = progress.get();
       const built = construction.get();
+      const simulated = simulation.get();
       const opacity = reveal(p, 0.18, 0.3) * (1 - reveal(p, 0.79, 0.84));
       const paper = 1 - reveal(p, 0.55, 0.65);
       unitFocus.current?.setAttribute("opacity", "0");
@@ -171,6 +185,17 @@ export default function CadWorkbench({
       root.current.style.opacity = String(opacity);
       root.current.style.visibility = opacity > 0.001 ? "visible" : "hidden";
       root.current.setAttribute("aria-hidden", String(opacity < 0.01));
+      root.current.dataset.simulation =
+        simulated === 1 ? "complete" : built === 1 ? "running" : "idle";
+      const status =
+        root.current.querySelector<HTMLElement>("[data-cad-status]");
+      if (status)
+        status.textContent =
+          simulated === 1
+            ? "✓ Simulated"
+            : built === 1
+              ? "Simulating…"
+              : "Building";
       root.current.dataset.builtUnits = String(
         elements.current.nodes.filter(
           (node) => stepProgress(built, "unit", node.id) >= 1,
@@ -194,10 +219,12 @@ export default function CadWorkbench({
           );
           unitFocus.current.setAttribute("opacity", String(paper));
         }
-        for (const stroke of node.strokes) {
-          stroke.style.setProperty("stroke-dasharray", "1");
-          stroke.style.setProperty("stroke-dashoffset", String(1 - drawn));
-        }
+        // React Flow owns the outer transform; pop the complete inner symbol.
+        const pop =
+          drawn === 0
+            ? 0.68
+            : 1 - Math.pow(1 - drawn, 3) + Math.sin(drawn * Math.PI) * 0.14;
+        node.symbol?.style.setProperty("scale", String(pop));
       }
       for (const edge of elements.current.edges) {
         const drawn = stepProgress(built, "stream", edge.id);
@@ -215,6 +242,17 @@ export default function CadWorkbench({
           "data-constructing",
           String(drawn > 0 && drawn < 1),
         );
+        edge.path.classList.toggle(
+          styles.simulatingStream,
+          built === 1 && simulated < 1 && simulated > 0,
+        );
+        if (built === 1 && simulated > 0 && simulated < 1) {
+          edge.path.style.setProperty("stroke-dasharray", "12 7");
+          edge.path.style.setProperty(
+            "stroke-dashoffset",
+            String(-simulated * 240),
+          );
+        }
         if (drawn > 0 && drawn < 1 && streamFocus.current) {
           const point = edge.path.getPointAtLength(edge.length * drawn);
           streamFocus.current.setAttribute(
@@ -229,18 +267,21 @@ export default function CadWorkbench({
     update();
     const stopProgress = progress.on("change", update);
     const stopConstruction = construction.on("change", update);
+    const stopSimulation = simulation.on("change", update);
     return () => {
       stopProgress();
       stopConstruction();
+      stopSimulation();
       refresh.current = () => {};
     };
-  }, [progress, construction, project]);
+  }, [progress, construction, simulation, project]);
   // These are forwarded ref objects, never reads of their current values.
   /* eslint-disable react-hooks/refs */
   return (
     <div
       ref={bridge.viewport}
       className={styles.cadProjection}
+      data-fallback={fallback}
       aria-label="Live application canvas"
     >
       <div ref={bridge.camera} className={styles.cadCamera}>
@@ -256,7 +297,9 @@ export default function CadWorkbench({
                 <Workflow size={16} /> Process canvas
               </span>
               <span>{project.name}</span>
-              <span className={styles.cadMode}>2D</span>
+              <span className={styles.cadMode} data-cad-status>
+                Building
+              </span>
             </div>
             <div
               className={styles.cadCanvas}

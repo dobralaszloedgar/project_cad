@@ -13,7 +13,7 @@ describe("landing story playback", () => {
     for (let frame = 0; frame < 2400; frame++) {
       state = advancePlayback(state, STORY_END, 1 / 60);
       visited.add(Math.floor(state.construction * 18));
-      if (state.construction < 1)
+      if (state.simulation < 1)
         expect(state.progress).toBeLessThanOrEqual(0.53);
       else if (!firstFinished) firstFinished = frame / 60;
     }
@@ -22,7 +22,7 @@ describe("landing story playback", () => {
     expect(state.progress).toBe(STORY_END);
   });
   it("accelerates on scroll without skipping steps during a stalled frame", () => {
-    const atWorkbench = { ...initialPlayback(), progress: 0.4 };
+    const atWorkbench = { ...initialPlayback(), progress: 0.4, design: 1 };
     const normal = advancePlayback(atWorkbench, 0.53, 1 / 60);
     const fast = advancePlayback(atWorkbench, STORY_END, 1 / 60);
     expect(fast.construction).toBeGreaterThan(normal.construction * 3);
@@ -38,7 +38,26 @@ describe("landing story playback", () => {
     expect(advancePlayback(state, 0.53, 1 / 60, true)).toMatchObject({
       progress: 0.53,
       construction: 1,
+      simulation: 1,
+      design: 1,
       velocity: 0,
     });
+  });
+  it("finishes the chat before building, then simulates only the connected flowsheet", () => {
+    let state = initialPlayback();
+    let sawSimulation = false;
+    for (let frame = 0; frame < 1800; frame++) {
+      state = advancePlayback(state, STORY_END, 1 / 60);
+      if (state.design < 1) expect(state.progress).toBe(0);
+      if (state.construction < 1) expect(state.simulation).toBe(0);
+      if (state.simulation > 0 && state.simulation < 1) {
+        sawSimulation = true;
+        expect(state.construction).toBe(1);
+        expect(state.progress).toBeLessThanOrEqual(0.53);
+      }
+    }
+    expect(sawSimulation).toBe(true);
+    expect(state.simulation).toBe(1);
+    expect(state.progress).toBe(STORY_END);
   });
 });

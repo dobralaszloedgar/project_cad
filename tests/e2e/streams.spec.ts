@@ -13,7 +13,7 @@ async function openStream(page: Page, id: string) {
       );
       return { x: screen.x, y: screen.y };
     });
-  await page.mouse.click(point.x, point.y);
+  await page.mouse.dblclick(point.x, point.y);
   await expect(
     page.getByRole("textbox", { name: "Stream name" }),
   ).toBeVisible();
@@ -81,7 +81,15 @@ test("stream names, individual palette choices, themes and auto reset persist", 
     .getByRole("button", { name: "Color streams by composition" })
     .click();
   await expect.poll(() => stroke(first)).toBe("rgb(118, 70, 167)");
-  await expect.poll(() => stroke(second)).toBe("rgb(127, 142, 135)");
+  const neutral = await page.locator("main.workspace").evaluate((workspace) => {
+    const sample = document.createElement("span");
+    sample.style.color = "var(--stream-stroke)";
+    workspace.append(sample);
+    const color = getComputedStyle(sample).color;
+    sample.remove();
+    return color;
+  });
+  await expect.poll(() => stroke(second)).toBe(neutral);
   await page
     .getByRole("button", { name: "Color streams by composition" })
     .click();
@@ -126,7 +134,7 @@ test("label anchors stay on their routes through zoom and selection and move wit
   const first = edgeFor(page, "s1");
   await expect(first.locator(".stream-label text")).toHaveText("Stream 1");
   const before = await anchor(first);
-  await page.getByRole("button", { name: "Zoom In", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom Out", exact: true }).click();
   await expect.poll(() => anchor(first)).toEqual(before);
   await openStream(page, "s1");
   expect(await anchor(first)).toEqual(before);
@@ -134,9 +142,13 @@ test("label anchors stay on their routes through zoom and selection and move wit
   const path = await first.locator(".react-flow__edge-path").getAttribute("d");
   const unit = page.locator('.react-flow__node[data-id="F-101"]');
   const box = await unit.boundingBox();
-  await page.mouse.move(box!.x + 64, box!.y + 64);
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box!.x + 64, box!.y + 145, { steps: 12 });
+  await page.mouse.move(
+    box!.x + box!.width / 2,
+    box!.y + box!.height / 2 + 81,
+    { steps: 12 },
+  );
   await page.mouse.up();
   await expect(first.locator(".react-flow__edge-path")).not.toHaveAttribute(
     "d",

@@ -23,9 +23,10 @@ import {
 } from "lucide-react";
 import type { SavedProject } from "@/lib/storage";
 import { ports, type Project } from "@/domain/schema";
-import { EquipmentIcon, EquipmentPanelIcon } from "./EquipmentIcon";
+import { EquipmentIcon } from "./EquipmentIcon";
 import { equipmentPort, streamPath } from "./flow-geometry";
 import Dialog from "./Dialog";
+import BrandMark from "./BrandMark";
 import folderStyles from "./CreateProjectDialog.module.css";
 function ProjectPreview({ project }: { project: Project }) {
   if (!project.units.length)
@@ -156,7 +157,7 @@ export default function ProjectsPage({
     <section className="projects-page">
       <header className="projects-header">
         <button className="brand" onClick={onBack} aria-label="Project CAD">
-          <EquipmentPanelIcon size={29} />
+          <BrandMark size={29} />
           <span>Project CAD</span>
         </button>
         <span className="header-divider" />

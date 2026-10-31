@@ -11,21 +11,12 @@ import {
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer } from "@react-three/drei";
-import {
-  CatmullRomCurve3,
-  Group,
-  MathUtils,
-  PerspectiveCamera,
-  Vector3,
-} from "three";
+import { CatmullRomCurve3, MathUtils, PerspectiveCamera, Vector3 } from "three";
 import type { MotionValue } from "motion/react";
-import { EquipmentModel } from "@/components/equipment-3d/EquipmentModel";
 import { equipmentEnvelope } from "@/components/equipment-3d/plant-routing";
 import type { SystemExample } from "@/components/equipment-3d/system-geometry";
 import SceneBoundary from "./SceneBoundary";
-import ThinkingCore from "./AiOrb";
 import MorphingProcess from "./MorphingProcess";
-import IndustrialBackdrop from "./IndustrialBackdrop";
 import CadProjection from "./CadProjection";
 import type { CadBridge } from "./CadWorkbench";
 import {
@@ -43,6 +34,7 @@ export type ExperienceProps = {
   progress: MotionValue<number>;
   cadBridge: CadBridge;
   construction: MotionValue<number>;
+  simulation: MotionValue<number>;
   pointerX: MotionValue<number>;
   pointerY: MotionValue<number>;
   playing: boolean;
@@ -50,7 +42,11 @@ export type ExperienceProps = {
   reduced: boolean;
 };
 
-function PlaybackTelemetry({ progress, construction }: ExperienceProps) {
+function PlaybackTelemetry({
+  progress,
+  construction,
+  simulation,
+}: ExperienceProps) {
   const gl = useThree((state) => state.gl);
   useFrame(() => {
     gl.domElement.setAttribute(
@@ -61,6 +57,7 @@ function PlaybackTelemetry({ progress, construction }: ExperienceProps) {
       "data-story-progress",
       progress.get().toFixed(4),
     );
+    gl.domElement.setAttribute("data-simulation", simulation.get().toFixed(4));
   }, -2);
   return null;
 }
@@ -68,6 +65,7 @@ function PlaybackTelemetry({ progress, construction }: ExperienceProps) {
 function CameraRig({
   progress,
   construction,
+  simulation,
   pointerX,
   pointerY,
   reduced,
@@ -117,11 +115,11 @@ function CameraRig({
     return points;
   }, [system]);
   useEffect(() => {
-    const unsub = [progress, construction, pointerX, pointerY].map((value) =>
-      value.on("change", invalidate),
+    const unsub = [progress, construction, simulation, pointerX, pointerY].map(
+      (value) => value.on("change", invalidate),
     );
     return () => unsub.forEach((fn) => fn());
-  }, [progress, construction, pointerX, pointerY, invalidate]);
+  }, [progress, construction, simulation, pointerX, pointerY, invalidate]);
   useFrame(() => {
     if (!(camera instanceof PerspectiveCamera)) return;
     const p = progress.get();
@@ -213,7 +211,7 @@ function CameraRig({
     gl.domElement.setAttribute(
       "data-process-phase",
       p < 0.25
-        ? "imagine"
+        ? "design"
         : p < 0.55
           ? "blueprint"
           : p < 0.87
@@ -222,72 +220,6 @@ function CameraRig({
     );
   }, -1);
   return null;
-}
-
-/** Real catalog models frame the opening, including live liquid and internal parts. */
-function LiveWorkshop({ progress, playing, transparent }: ExperienceProps) {
-  const left = useRef<Group>(null);
-  const right = useRef<Group>(null);
-  const heater = useRef<Group>(null);
-  const { size } = useThree();
-  useFrame(() => {
-    const exit = reveal(progress.get(), 0.1, 0.32);
-    const mobile = size.width / size.height < 0.85;
-    if (left.current) {
-      left.current.visible = exit < 0.999;
-      left.current.position.x = (mobile ? -4.6 : -11.5) - exit * 25;
-      left.current.position.z = 3 + exit * 6;
-    }
-    if (right.current) {
-      right.current.visible = exit < 0.999;
-      right.current.position.x = (mobile ? 4.8 : 11.2) + exit * 25;
-      right.current.position.z = -1 + exit * 6;
-    }
-    if (heater.current) {
-      heater.current.visible = exit < 0.999 && !mobile;
-      heater.current.position.x = -6 - exit * 25;
-    }
-  });
-  const props = {
-    transparent,
-    section: false,
-    playing,
-    speed: 1.5,
-    motionVisible: true,
-  };
-  return (
-    <>
-      <group
-        ref={left}
-        position={[-11.5, 0, 3]}
-        scale={3.8}
-        rotation={[0, 0.45, 0]}
-      >
-        <EquipmentModel kind="Feed" liquidColor="#3cd9c4" {...props} />
-      </group>
-      <group
-        ref={right}
-        position={[11.2, 0, -1]}
-        scale={2.3}
-        rotation={[0, -0.7, 0]}
-      >
-        <EquipmentModel
-          kind="Distillation"
-          trayCount={8}
-          liquidColor="#50c7d8"
-          {...props}
-        />
-      </group>
-      <group
-        ref={heater}
-        position={[-6, -0.1, 5.5]}
-        scale={2.3}
-        rotation={[0, -0.3, 0]}
-      >
-        <EquipmentModel kind="Heater" liquidColor="#e8a66c" {...props} />
-      </group>
-    </>
-  );
 }
 
 function Experience(props: ExperienceProps) {
@@ -338,9 +270,6 @@ function Experience(props: ExperienceProps) {
           target={[0, 2, 0]}
         />
       </Environment>
-      <IndustrialBackdrop progress={props.progress} playing={props.playing} />
-      <LiveWorkshop {...props} />
-      <ThinkingCore progress={props.progress} playing={props.playing} />
       <MorphingProcess
         system={system}
         progress={props.progress}

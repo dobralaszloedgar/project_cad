@@ -1,0 +1,264 @@
+.workspace[data-palette] {
+  color-scheme: light;
+  --step: 1;
+  --bg: #ffffff;
+  --page: #fafbf9;
+  --ink: #263730;
+  --brand: #286e5c;
+  --on-brand: #ffffff;
+  --ok: #3f7a52;
+  --warn: #8b6720;
+  --err: #ab4036;
+  --surface: var(--bg);
+  --canvas: var(--page);
+  --muted: color-mix(in oklab, var(--ink) 70%, var(--bg));
+  --subtle: color-mix(in oklab, var(--ink) 55%, var(--bg));
+  --border: color-mix(in oklab, var(--ink) calc(13% * var(--step)), var(--bg));
+  --field-border: color-mix(
+    in oklab,
+    var(--ink) calc(24% * var(--step)),
+    var(--bg)
+  );
+  --field-surface: color-mix(
+    in oklab,
+    var(--ink) calc(2% * var(--step)),
+    var(--bg)
+  );
+  --hover: color-mix(in oklab, var(--ink) calc(8% * var(--step)), var(--bg));
+  --active: color-mix(in oklab, var(--brand) 12%, var(--bg));
+  --accent: var(--brand);
+  --symbol-fill: var(--bg);
+  --symbol-stroke: color-mix(in oklab, var(--ink) 62%, var(--bg));
+  --stream-stroke: color-mix(in oklab, var(--ink) 55%, var(--bg));
+  --grid: color-mix(in oklab, var(--ink) calc(15% * var(--step)), var(--page));
+  --color-primary: var(--brand);
+  --color-primary-content: var(--on-brand);
+  --color-base-100: var(--bg);
+  --color-base-200: var(--field-surface);
+  --color-base-300: var(--border);
+  --color-base-content: var(--ink);
+  --color-secondary: var(--active);
+  --color-secondary-content: var(--ink);
+  --color-accent: var(--brand);
+  --color-accent-content: var(--on-brand);
+  --color-neutral: var(--ink);
+  --color-neutral-content: var(--bg);
+  --color-info: var(--active);
+  --color-info-content: var(--ink);
+  --color-success: color-mix(in oklab, var(--ok) 12%, var(--bg));
+  --color-success-content: color-mix(in oklab, var(--ok) 86%, var(--ink));
+  --color-warning: color-mix(in oklab, var(--warn) 12%, var(--bg));
+  --color-warning-content: color-mix(in oklab, var(--warn) 86%, var(--ink));
+  --color-error: color-mix(in oklab, var(--err) 12%, var(--bg));
+  --color-error-content: color-mix(in oklab, var(--err) 86%, var(--ink));
+}
+.workspace[data-theme="dark"] {
+  color-scheme: dark;
+  --step: 1.7;
+  --ok: #9ebf86;
+  --warn: #e3c183;
+  --err: #f2aaa1;
+}
+
+.workspace[data-palette="dark"] {
+  --step: 1.6;
+  --bg: #000000;
+  --page: #000000;
+  --ink: #e8e8e8;
+  --brand: #c4cbd4;
+  --on-brand: #16181c;
+}
+.workspace[data-palette="graphite"] {
+  --bg: #1d2022;
+  --page: #16181a;
+  --ink: #e6e8e9;
+  --brand: #8fcbb0;
+  --on-brand: #14291e;
+}
+.workspace[data-palette="forest"] {
+  --bg: #0d1f17;
+  --page: #08150f;
+  --ink: #dfeade;
+  --brand: #6fd3a4;
+  --on-brand: #052115;
+}
+.workspace[data-palette="midnight"] {
+  --bg: #101a2e;
+  --page: #0a1020;
+  --ink: #dce6f5;
+  --brand: #6fa8ff;
+  --on-brand: #08152c;
+}
+.workspace[data-palette="plum"] {
+  --bg: #1d1430;
+  --page: #140d1f;
+  --ink: #e6dcf5;
+  --brand: #c08cff;
+  --on-brand: #1b0f2e;
+}
+.workspace[data-palette="ocean"] {
+  --bg: #102b38;
+  --page: #071d29;
+  --ink: #dceef3;
+  --brand: #5ac8dd;
+  --on-brand: #08232d;
+}
+.workspace[data-palette="ember"] {
+  --bg: #30221c;
+  --page: #241915;
+  --ink: #f1e5da;
+  --brand: #ef9b68;
+  --on-brand: #28170f;
+}
+.workspace[data-palette="solarized-dark"] {
+  --bg: #073642;
+  --page: #002b36;
+  --ink: #eee8d5;
+  --brand: #2aa198;
+  --on-brand: #002b36;
+}
+.workspace[data-palette="nord"] {
+  --step: 2;
+  --bg: #3b4252;
+  --page: #2e3440;
+  --ink: #e5e9f0;
+  --brand: #88c0d0;
+  --on-brand: #2e3440;
+  --ok: #a3be8c;
+  --warn: #ebcb8b;
+  --err: #bf616a;
+}
+.workspace[data-palette="dracula"] {
+  --step: 2;
+  --bg: #343746;
+  --page: #282a36;
+  --ink: #f8f8f2;
+  --brand: #bd93f9;
+  --on-brand: #21222c;
+  --ok: #50fa7b;
+  --warn: #f1fa8c;
+  --err: #ff5555;
+}
+.workspace[data-palette="monokai"] {
+  --bg: #1e1f1c;
+  --page: #272822;
+  --ink: #f8f8f2;
+  --brand: #a6e22e;
+  --on-brand: #272822;
+  --ok: #a6e22e;
+  --warn: #e6db74;
+  --err: #f92672;
+}
+.workspace[data-palette="everforest-oled"] {
+  --bg: #000000;
+  --page: #000000;
+  --ink: #d3d9c6;
+  --brand: #3d956b;
+  --on-brand: #07120c;
+  --ok: #83b67a;
+  --warn: #e5c07b;
+  --err: #e06c75;
+}
+/* OLED variants retain the editor accents on pure-black panels and canvas. */
+.workspace[data-palette="github-dark"] {
+  --bg: #000000;
+  --page: #000000;
+  --ink: #c9d1d9;
+  --brand: #58a6ff;
+  --on-brand: #0d1117;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --err: #f85149;
+}
+.workspace[data-palette="ayu-dark"] {
+  --bg: #000000;
+  --page: #000000;
+  --ink: #bfbdb6;
+  --brand: #e6b450;
+  --on-brand: #0b0e14;
+  --ok: #7fd962;
+  --warn: #ffb454;
+  --err: #f26d78;
+}
+.workspace[data-palette="tokyo-night"] {
+  --bg: #000000;
+  --page: #000000;
+  --ink: #c0caf5;
+  --brand: #7aa2f7;
+  --on-brand: #16161e;
+  --ok: #9ece6a;
+  --warn: #e0af68;
+  --err: #f7768e;
+}
+
+/* Monochrome interface; semantic status and stream colors keep their meaning. */
+.workspace[data-palette="white"] {
+  --bg: #ffffff;
+  --page: #ffffff;
+  --ink: #000000;
+  --brand: #000000;
+  --on-brand: #ffffff;
+}
+.workspace[data-palette="paper"] {
+  --step: 1.2;
+  --bg: #fbf9f4;
+  --page: #f4f1ea;
+  --ink: #33302a;
+  --brand: #7a5c2e;
+  --on-brand: #ffffff;
+  --ok: #4d7a3f;
+  --warn: #8a6414;
+  --err: #a83c2c;
+}
+.workspace[data-palette="linen"] {
+  --bg: #faf4e8;
+  --page: #f2e9d8;
+  --ink: #342a23;
+  --brand: #74543b;
+  --on-brand: #ffffff;
+}
+.workspace[data-palette="sky"] {
+  --bg: #f8fcff;
+  --page: #edf7fd;
+  --ink: #1d3040;
+  --brand: #236692;
+  --on-brand: #ffffff;
+}
+.workspace[data-palette="rose"] {
+  --bg: #fffafa;
+  --page: #fcf2f2;
+  --ink: #382831;
+  --brand: #a24c68;
+  --on-brand: #ffffff;
+}
+.workspace[data-palette="catppuccin-latte"] {
+  --bg: #e6e9ef;
+  --page: #eff1f5;
+  --ink: #4c4f69;
+  --brand: #8839ef;
+  --on-brand: #ffffff;
+  --ok: #40a02b;
+  --warn: #df8e1d;
+  --err: #d20f39;
+}
+.workspace[data-palette="github-light"] {
+  --bg: #f6f8fa;
+  --page: #ffffff;
+  --ink: #24292f;
+  --brand: #0969da;
+  --on-brand: #ffffff;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --err: #cf222e;
+}
+.workspace[data-palette="solarized-light"] {
+  --step: 1.3;
+  --bg: #fdf6e3;
+  --page: #f3ecd8;
+  --ink: #073642;
+  --brand: #268bd2;
+  --on-brand: #ffffff;
+  --ok: #6f7f00;
+  --warn: #b58900;
+  --err: #dc322f;
+}
