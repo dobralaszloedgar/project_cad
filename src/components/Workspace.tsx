@@ -1823,7 +1823,7 @@ export default function Workspace({
               : (project.edges.find((edge) => edge.id === selected)?.name ??
                 "Stream properties")
           }
-          className="properties-dialog"
+          className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
           onClose={() => setPropertiesOpen(false)}
         >
           <Inspector

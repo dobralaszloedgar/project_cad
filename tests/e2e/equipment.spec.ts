@@ -37,6 +37,7 @@ test("duty setup calculates temperature and persists the active specification", 
   );
   await page.getByLabel("Heat duty (W)", { exact: true }).fill("45000");
   await page.getByRole("button", { name: "Apply conditions" }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(page.locator(".equipment-result")).toContainText("45.000 kW");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Run simulation" }).click();
@@ -75,18 +76,24 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
   await expect(page.getByLabel("Reaction basis")).toHaveValue(
     "catalyst-weight",
   );
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(
     page.getByRole("img", { name: /kilograms of catalyst/ }),
   ).toBeVisible();
   await expect(page.locator(".equipment-result")).toContainText("16.52%");
+  await page.getByRole("tab", { name: "Setup", exact: true }).click();
   await page.getByLabel("Catalyst mass (kg)", { exact: true }).fill("20");
   await page.getByRole("button", { name: "Apply conditions" }).click();
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(page.locator(".equipment-result")).toContainText("30.31%");
   await page.screenshot({
     path: "test-results/equipment-catalyst.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Model", exact: true }).click();
+  await page.getByRole("tab", { name: "Setup", exact: true }).click();
+  await page
+    .getByText("Model equations and assumptions", { exact: true })
+    .click();
   await expect(page.locator(".model-notes")).toContainText("dFₐ/dW");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "3D schematic", exact: true }).click();
