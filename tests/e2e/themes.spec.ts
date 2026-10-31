@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { THEMES, THEME_STORAGE_KEY } from "../../src/lib/theme";
 
 async function projects(page: Page) {

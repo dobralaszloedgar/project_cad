@@ -1,5 +1,5 @@
 import { loadProject } from "./project-fixture";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { solutionExample } from "../../src/domain/examples";
 import { simulate } from "../../src/domain/solver";
 import { catalogSnapshotSchema } from "../../src/domain/thermo/data";

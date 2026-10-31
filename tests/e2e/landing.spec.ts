@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./test";
 import { STORY_END } from "../../src/components/landing/landing-playback";
 
 // Software WebGL compiles the same live equipment shaders as the application;

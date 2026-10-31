@@ -13,7 +13,7 @@ Project CAD is a local process-flowsheet demonstration with 2D/3D views and a Ru
 
 Three thermodynamic models are available: ideal gas, ideal solution (Raoult’s law), and Modified UNIFAC 2.0. A six-record sample catalog is included; the full chemical database is future work.
 
-Eight equipment types have simple setup controls and distinct 2D/3D schematics. Packed-bed reactors support a synthetic catalyst-mass model with a calculated conversion profile, plus the legacy residence-time model. Heaters and coolers accept an outlet temperature or, for ideal gas, a specified duty. The new templates exercise two-feed mixing, heating/cooling and catalyst-bed balances. Equations and limits are in [docs/EQUIPMENT.txt](docs/EQUIPMENT.txt).
+Eight equipment types have setup controls and distinct 2D/3D schematics. Packed-bed reactors support configurable gas reaction sets with reactant/product tables, stoichiometry, per-reaction power laws or general expressions, reversible and inhibition terms, Arrhenius scaling, prescribed pressure drop, and catalyst-mass or target-conversion sizing. Projects support 2–40 catalog components through feeds, reactions, streams, recycling and saved files. Results include species balances, reaction extents and an exportable bed profile. Existing synthetic catalyst-mass and residence-time models remain available. Heaters and coolers accept an outlet temperature or, for ideal gas, a specified duty. The new templates exercise two-feed mixing, heating/cooling and catalyst-bed balances. Equations and limits are in [docs/EQUIPMENT.txt](docs/EQUIPMENT.txt).
 
 ## Getting started
 
@@ -61,7 +61,9 @@ Assistant checks: `npx vitest run tests/assistant.test.ts tests/assistant-config
 
 ## Local project folders
 
-Open **Projects → Create project**, enter a name, and choose a parent folder on your laptop. Project CAD creates a new folder with that name and a `project.json` file. Equipment, connections, parameters, layout, thermodynamic settings, and revision history autosave into this file. Existing folders are never replaced during creation.
+On first opening the app, choose a project folder on your laptop. The app remembers it across visits and uses it for new projects, templates, and duplicates. Change it in **Storage settings**. If browser permission expires, reconnect the remembered folder when prompted.
+
+Open **Projects → Create project** and enter a name. Each project has one self-contained `project.json` in its own named subfolder: equipment, connections, parameters, layout, thermodynamic settings, and revision history all autosave into that single file. Existing folders are never replaced during creation. Browser recovery copies protect unfinished saves; they are not additional project files.
 
 Use **Open project folder** to reopen a folder containing `project.json`, including after clearing browser data. The file uses a versioned `project-cad` JSON envelope. **Templates** and **Duplicate** also let you choose where to create the new project. Renaming a project changes its title inside the file; its folder keeps its original name.
 
@@ -74,3 +76,15 @@ Checks: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and `n
 Folder checks: `npx playwright test tests/e2e/project-folders.spec.ts tests/e2e/projects.spec.ts`. Storage unit tests write actual temporary disk files through a handle adapter. Browser tests replace the native picker with origin-private file-system handles; they verify native streams, persisted handles, and the UI, but do not automate the operating system's picker.
 
 The prebuilt numerical kernel is included. To rebuild Rust with Docker, run `npm run thermo:build`. Model equations, data sources, limits, and the future catalog interface are documented in [docs/THERMODYNAMICS.txt](docs/THERMODYNAMICS.txt).
+
+## 3D graphics and device compatibility
+
+The equipment studio, workspace 3D view, and landing scene prefer WebGPU and automatically fall back to WebGL 2 if WebGPU is unavailable or adapter/device initialization fails. Integrated GPUs are supported; a dedicated NVIDIA/AMD GPU is optional. Public deployments need HTTPS to use WebGPU (localhost also works). Browsers still need either WebGPU or WebGL 2 to display 3D; the 2D workspace remains available without them.
+
+Open **Graphics settings** at the upper right of a 3D equipment view to see the actual backend and browser-reported GPU, or select **WebGL 2 compatibility**. The preference is saved in that browser. Resolution adapts to sustained rendering load and is capped by both pixel density and render-pixel count. Hidden scenes stop continuous animation, stationary equipment reuses its shadows, and liquid effects share shader programs across equipment.
+
+Software/fallback rendering shows a prompt to enable graphics acceleration. If neither API starts, the preview shows the same setup instructions and a retry button without discarding the project. In Chrome/Edge, enable **Settings → System → Use graphics acceleration when available**, then restart the browser. A missing WebGPU adapter alone does not imply acceleration is disabled, so a working hardware WebGL fallback does not show this prompt.
+
+The app requests high-performance graphics, but the browser and OS choose the adapter. On Windows laptops, set the browser to **High performance** in **Settings → System → Display → Graphics**, then fully restart it. Chrome can ignore the website's power preference on Windows; see [Chrome's GPU selection limitations](https://developer.chrome.com/docs/web-platform/webgpu/troubleshooting-tips#windows-specific_limitations). The app cannot force NVIDIA or combine integrated and dedicated GPUs.
+
+Graphics checks: `npx vitest run tests/graphics.test.ts tests/equipment-models.test.ts tests/project-plant.test.ts` and `npx playwright test tests/e2e/graphics.spec.ts tests/e2e/equipment-sandbox.spec.ts tests/e2e/plant-workspace.spec.ts tests/e2e/landing.spec.ts`. On Windows, setting `GRAPHICS_CHANNEL=chrome` runs the graphics tests against installed Chrome and requires native WebGPU; `GRAPHICS_NVIDIA=1` additionally requests NVIDIA in that isolated test browser. These test flags do not change the user's browser settings.

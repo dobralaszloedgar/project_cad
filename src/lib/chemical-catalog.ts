@@ -11,10 +11,7 @@ export interface ChemicalChoice {
   name: string;
   formula?: string;
 }
-export type ComponentChoices = [
-  ChemicalChoice | undefined,
-  ChemicalChoice | undefined,
-];
+export type ComponentChoices = (ChemicalChoice | undefined)[];
 
 // Identity mapping only. Older real-mixture projects get their property data
 // from Supabase when applied; synthetic A/B has no real-chemical equivalent.
@@ -41,11 +38,17 @@ export async function resolveCatalogSettings(
   signal?: AbortSignal,
 ): Promise<ThermoSettings> {
   signal?.throwIfAborted();
-  if (!choices[0] || !choices[1] || choices[0].id === choices[1].id)
-    throw new Error("Select two different components.");
+  if (
+    choices.length < 2 ||
+    choices.length > 40 ||
+    choices.some((c) => !c) ||
+    new Set(choices.map((c) => c!.id)).size !== choices.length
+  )
+    throw new Error("Select 2–40 different components.");
   let snapshot = settings.catalog;
   if (
     !snapshot ||
+    snapshot.chemicals.length !== choices.length ||
     snapshot.chemicals.some((c, i) => c.id !== choices[i]!.id) ||
     (release && snapshot.release !== release) ||
     (settings.modelId === "modified-unifac-2.0" && !snapshot.parameters)
@@ -73,6 +76,7 @@ export async function resolveCatalogSettings(
     snapshot = catalogSnapshotSchema.parse(data);
     if (
       snapshot.release !== release ||
+      snapshot.chemicals.length !== choices.length ||
       snapshot.chemicals.some((c, i) => c.id !== choices[i]!.id)
     )
       throw new Error(

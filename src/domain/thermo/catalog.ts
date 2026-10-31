@@ -159,13 +159,15 @@ export function mixtureName(settings: ThermoSettings) {
 }
 
 /** Display real identities while retaining legacy labels for teaching projects. */
-export function componentNames(settings: ThermoSettings): [string, string] {
+export function componentNames(settings: ThermoSettings): string[] {
   if (settings.mixture === "demo") return ["A", "B"];
   if (settings.mixture === "catalog")
-    return [
-      settings.catalog?.chemicals[0].name ?? "Component 1",
-      settings.catalog?.chemicals[1].name ?? "Component 2",
-    ];
+    return (
+      settings.catalog?.chemicals.map((c) => c.name) ?? [
+        "Component 1",
+        "Component 2",
+      ]
+    );
   const { catalog, ids } = thermoContext(settings);
-  return [catalog.get(ids[0]).name, catalog.get(ids[1]).name];
+  return ids.map((id) => catalog.get(id).name);
 }

@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "./test";
 async function move(page: Page, element: Locator, dx: number, dy: number) {
   const rect = (await element.boundingBox())!;
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);

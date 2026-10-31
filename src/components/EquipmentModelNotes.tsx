@@ -58,7 +58,7 @@ export function EquipmentModelNotes({
           </li>
         ) : (
           <li>
-            Constant heat capacities; vapor-pressure correlations have
+            Component heat-capacity and vapor-pressure correlations have
             temperature limits.
           </li>
         )}
@@ -71,7 +71,7 @@ export function EquipmentModelNotes({
       </ul>
       {unit.kind === "Feed" && (
         <>
-          <Equation>{String.raw`F_A = Fz_A,\qquad F_B = F(1-z_A)`}</Equation>
+          <Equation>{String.raw`F_i = F z_i,\qquad \sum_i z_i = 1`}</Equation>
           <ul>
             <li>Specified flow, composition, temperature and pressure.</li>
           </ul>
@@ -85,7 +85,39 @@ export function EquipmentModelNotes({
           </ul>
         </>
       )}
-      {unit.kind === "PBR" && (
+      {unit.kind === "PBR" && unit.params.packedBed && (
+        <>
+          <Equation>{String.raw`\frac{dF_i}{dW} = \sum_j \nu_{ij}\frac{r_j}{|\nu_{b,j}|},\qquad Q = \dot H_{\mathrm{out}} - \dot H_{\mathrm{in}}`}</Equation>
+          <ul>
+            <li>
+              Enabled reactions are solved together in stoichiometric extent
+              coordinates. Rates specify net disappearance of each reaction’s
+              basis reactant, per kg of catalyst.
+            </li>
+            <li>
+              Isothermal gas model. Pressure follows the specified linear drop;
+              volume flow is calculated from local ideal-gas conditions or held
+              at the entered value.
+            </li>
+            <li>
+              Power-law or general kinetics, including explicit reverse and
+              inhibition terms. Reference-temperature Arrhenius scaling uses
+              user-specified activation energies.
+            </li>
+            <li>
+              Conversion sizing finds the first resolved target crossing.
+              Unreachable targets, nonphysical depletion and unresolved stiff
+              kinetics are reported as calculation errors.
+            </li>
+            <li>
+              Atom and mass balance, component availability and formation
+              enthalpy are checked. No phase equilibrium, transport resistance,
+              catalyst deactivation or mechanical bed design is modeled.
+            </li>
+          </ul>
+        </>
+      )}
+      {unit.kind === "PBR" && !unit.params.packedBed && (
         <>
           {catalystWeight ? (
             <Equation>{String.raw`\frac{dF_A}{dW} = -k(T)C_A,\qquad C_A = \frac{F_AP}{FRT}`}</Equation>
@@ -219,7 +251,11 @@ export function EquipmentModelNotes({
         </>
       )}
       <ul>
-        <li>No pressure-drop model or mechanical certification.</li>
+        <li>
+          {unit.params.packedBed
+            ? "Prescribed pressure drop; no hydraulic bed sizing or mechanical certification."
+            : "No pressure-drop model or mechanical certification."}
+        </li>
       </ul>
     </div>
   );
@@ -233,10 +269,20 @@ export function CatalystProfile({
   if (!profile.length) return null;
   const last = profile[profile.length - 1];
   const maxMass = last.catalystMass || 1;
+  const minConversion = Math.min(
+    0,
+    ...profile.map((point) => point.conversion),
+  );
+  const maxConversion = Math.max(
+    1,
+    ...profile.map((point) => point.conversion),
+  );
+  const conversionRange = maxConversion - minConversion;
+  const label = (value: number) => Number((100 * value).toPrecision(4));
   const points = profile
     .map(
       (p) =>
-        `${42 + (p.catalystMass / maxMass) * 204},${130 - p.conversion * 104}`,
+        `${42 + (p.catalystMass / maxMass) * 204},${130 - ((p.conversion - minConversion) / conversionRange) * 104}`,
     )
     .join(" ");
   return (
@@ -251,20 +297,20 @@ export function CatalystProfile({
         <path d="M42 26V130H246" className="profile-axis" />
         <polyline points={points} className="profile-line" />
         <text x="34" y="30" textAnchor="end">
-          100
+          {label(maxConversion)}
         </text>
         <text x="34" y="82" textAnchor="end">
-          50
+          {label((minConversion + maxConversion) / 2)}
         </text>
         <text x="34" y="134" textAnchor="end">
-          0
+          {label(minConversion)}
         </text>
         <text x="42" y="149" textAnchor="middle">
           0
         </text>
         {last.catalystMass > 0 && (
           <text x="246" y="149" textAnchor="middle">
-            {last.catalystMass}
+            {Number(last.catalystMass.toPrecision(5))}
           </text>
         )}
         <text x="42" y="14">

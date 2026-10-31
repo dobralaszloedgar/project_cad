@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 
 const node = (page: Page, id: string) =>
   page.locator(`.react-flow__node[data-id="${id}"]`);

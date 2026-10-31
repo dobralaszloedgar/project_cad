@@ -192,7 +192,14 @@ export default function ProjectsPage({
     )
     .sort((a, b) =>
       sort === "name"
-        ? a.workspace.project.name.localeCompare(b.workspace.project.name)
+        ? a.workspace.project.name.localeCompare(
+            b.workspace.project.name,
+            undefined,
+            {
+              numeric: true,
+              sensitivity: "base",
+            },
+          )
         : (inTrash ? b.trashedAt! : b.updatedAt).localeCompare(
             inTrash ? a.trashedAt! : a.updatedAt,
           ),
@@ -364,7 +371,7 @@ export default function ProjectsPage({
               ) : null}
             </label>
             <label className="project-sort">
-              <ArrowDownWideNarrow size={15} />
+              <ArrowDownWideNarrow size={15} aria-hidden="true" />
               <select
                 aria-label="Sort projects"
                 value={sort}
@@ -373,7 +380,7 @@ export default function ProjectsPage({
                 <option value="modified">Last modified</option>
                 <option value="name">Name</option>
               </select>
-              <ChevronDown size={12} />
+              <ChevronDown size={12} aria-hidden="true" />
             </label>
             <div className="project-view-toggle">
               <button
@@ -472,13 +479,7 @@ export default function ProjectsPage({
                   <X size={16} />
                 </button>
               </div>
-            ) : (
-              <span className="project-open-hint">
-                {inTrash
-                  ? "Restore a project or delete it permanently"
-                  : "Select a project · Double-click to open"}
-              </span>
-            )}
+            ) : null}
           </div>
           <div className="project-count">
             {inTrash ? "Trashed projects" : "Projects"}{" "}
@@ -624,17 +625,8 @@ export default function ProjectsPage({
                     ? "Trash is empty"
                     : filter === "Starred"
                       ? "No starred projects yet"
-                      : "Your projects start here"}
+                      : "No projects yet"}
               </h2>
-              <p>
-                {search
-                  ? "Try a different name."
-                  : inTrash
-                    ? "Projects moved to Trash stay here until you restore or permanently delete them."
-                    : filter === "Starred"
-                      ? "Use the star on a project to keep it here."
-                      : "Create a project in a local folder or open an existing project folder."}
-              </p>
               {!search && filter === "Home" ? (
                 <button
                   className="btn btn-primary"

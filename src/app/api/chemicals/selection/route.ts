@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const schema = z
   .object({
     release: hashSchema,
-    ids: z.tuple([z.string().min(1).max(80), z.string().min(1).max(80)]),
+    ids: z.array(z.string().min(1).max(80)).min(2).max(40),
     model: z.enum(modelIds),
   })
   .strict();
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       const item = await reader.read();
       if (item.done) break;
       size += item.value.length;
-      if (size > 2048) {
+      if (size > 8192) {
         await reader.cancel();
         return NextResponse.json(
           { error: "Selection request is too large." },

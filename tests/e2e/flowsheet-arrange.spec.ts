@@ -1,5 +1,5 @@
 import { loadProject } from "./project-fixture";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./test";
 import { readFile } from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
 import type { Workspace } from "../../src/lib/revisions";

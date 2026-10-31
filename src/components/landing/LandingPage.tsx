@@ -30,6 +30,8 @@ import DesignChat from "./DesignChat";
 import BrandMark from "@/components/BrandMark";
 import { useStoryPlayback } from "./use-story-playback";
 import { STORY_END, STORY_STOPS } from "./landing-playback";
+import { AccelerationNotice } from "../graphics/AccelerationHelp";
+import type { GraphicsInfo } from "../graphics/renderer";
 
 const LandingExperience = dynamic(() => import("./LandingExperience"), {
   ssr: false,
@@ -86,6 +88,7 @@ export default function LandingPage() {
   const [transparent, setTransparent] = useState(true);
   const [sceneReady, setSceneReady] = useState(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
+  const [graphicsInfo, setGraphicsInfo] = useState<GraphicsInfo | null>(null);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
   const onSceneUnavailable = useCallback(() => setSceneUnavailable(true), []);
   const {
@@ -240,6 +243,10 @@ export default function LandingPage() {
             </a>
           </header>
 
+          {graphicsInfo?.software && !sceneUnavailable ? (
+            <AccelerationNotice className={styles.graphicsNotice} />
+          ) : null}
+
           <motion.div
             className={styles.experienceStage}
             style={{ opacity: sceneOpacity }}
@@ -248,6 +255,7 @@ export default function LandingPage() {
             <LandingExperience
               onReady={onSceneReady}
               onUnavailable={onSceneUnavailable}
+              onGraphicsInfo={setGraphicsInfo}
               progress={progress}
               cadBridge={cadBridge}
               construction={construction}

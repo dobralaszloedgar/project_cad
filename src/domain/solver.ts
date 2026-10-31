@@ -15,6 +15,12 @@ import {
 import { defaultThermo, type ThermoSettings } from "./thermo/registry";
 import { thermoContext } from "./thermo/catalog";
 import { integratePackedBed, type BedPoint } from "./equipment/packed-bed";
+import { solvePackedBed, type PackedBedResult } from "./reactions/packed-bed";
+import {
+  componentFlows,
+  feedComposition,
+  withComponentFlows,
+} from "./stream-composition";
 // Original synthetic teaching parameters; no claim to fit a real chemical system.
 export const MODEL = {
   cp: 30,
@@ -29,6 +35,7 @@ export const MODEL = {
 export interface Stream {
   a: number;
   b: number;
+  components?: Record<string, number>;
   temperature: number;
   pressure: number;
   // Preserves a PH-resolved phase amount, including pure-component saturation.
@@ -39,6 +46,7 @@ export interface EquipmentResult {
   conversion?: number;
   extent: number;
   profile?: BedPoint[];
+  packedBed?: PackedBedResult;
 }
 export interface Result {
   properties: Record<string, Properties>;
@@ -56,11 +64,16 @@ export interface Result {
   warnings: string[];
   tearId?: string;
 }
-export const flow = (s: Stream) => s.a + s.b;
+export const flow = (s: Stream) =>
+  s.components
+    ? Object.values(s.components).reduce((sum, n) => sum + n, 0)
+    : s.a + s.b;
 function validateStream(s: Stream) {
   if (
     !s ||
     ![s.a, s.b, s.temperature, s.pressure].every(Number.isFinite) ||
+    (s.components &&
+      Object.values(s.components).some((n) => !Number.isFinite(n) || n < 0)) ||
     s.a < 0 ||
     s.b < 0 ||
     s.temperature < 250 ||
@@ -99,7 +112,9 @@ export function streamProperties(
   return evaluateProperties(
     s.temperature,
     s.pressure,
-    [s.a / flow(s), s.b / flow(s)],
+    Object.values(componentFlows(s, thermoContext(settings).ids)).map(
+      (n) => n / flow(s),
+    ),
     settings,
     undefined,
     undefined,
@@ -132,6 +147,13 @@ const scale = (s: Stream, f: number): Stream => ({
   ...s,
   a: s.a * f,
   b: s.b * f,
+  ...(s.components
+    ? {
+        components: Object.fromEntries(
+          Object.entries(s.components).map(([id, n]) => [id, n * f]),
+        ),
+      }
+    : {}),
 });
 export function operate(
   unit: Unit,
@@ -140,21 +162,33 @@ export function operate(
 ): { outputs: Stream[]; result: EquipmentResult } {
   unit = unitSchema.parse(unit);
   const p = unit.params;
+  const context = thermoContext(settings);
+  const ids = context.ids;
+  const fractions = (stream: Stream) =>
+    Object.values(componentFlows(stream, ids)).map((n) => n / flow(stream));
   const result: EquipmentResult = { duty: 0, extent: 0 };
   const maxInlets =
-    unit.kind === "Feed" ? 0 : unit.kind === "Mixer" ? Infinity : 1;
+    unit.kind === "Feed"
+      ? 0
+      : unit.kind === "Mixer" || (unit.kind === "PBR" && p.packedBed)
+        ? Infinity
+        : 1;
   if (inputs.length > maxInlets)
     throw new Error(`${unit.name}: too many material inlets.`);
   // The exported evaluator uses the same selected-model validity checks as
   // a complete flowsheet, including for pass-through units and splitters.
   inputs.forEach((input) => streamProperties(input, settings));
   if (unit.kind === "Feed") {
-    const stream = {
-      a: p.flow * p.fractionA,
-      b: p.flow * (1 - p.fractionA),
-      temperature: p.temperature,
-      pressure: p.pressure,
-    };
+    const stream = withComponentFlows(
+      { temperature: p.temperature, pressure: p.pressure },
+      Object.fromEntries(
+        Object.entries(feedComposition(p, ids)).map(([id, fraction]) => [
+          id,
+          fraction * p.flow,
+        ]),
+      ),
+      ids,
+    );
     streamProperties(stream, settings);
     return {
       outputs: [stream],
@@ -166,21 +200,32 @@ export function operate(
   const flowing = inputs.filter((s) => flow(s) > 0);
   if (flowing.length) inputs = flowing;
   const total = inputs.reduce((s, n) => s + flow(n), 0);
-  const mixed: Stream = {
-    ...(inputs.length === 1 ? inputs[0] : {}),
-    a: inputs.reduce((s, n) => s + n.a, 0),
-    b: inputs.reduce((s, n) => s + n.b, 0),
-    temperature: total
-      ? inputs.reduce((s, n) => s + flow(n) * n.temperature, 0) / total
-      : inputs[0].temperature,
-    pressure: Math.min(...inputs.map((s) => s.pressure)),
-  };
+  const inletFlows = inputs.map((stream) => componentFlows(stream, ids));
+  const mixed = withComponentFlows(
+    {
+      ...(inputs.length === 1 ? inputs[0] : {}),
+      temperature: total
+        ? inputs.reduce(
+            (sum, stream) => sum + flow(stream) * stream.temperature,
+            0,
+          ) / total
+        : inputs[0].temperature,
+      pressure: Math.min(...inputs.map((stream) => stream.pressure)),
+    },
+    Object.fromEntries(
+      ids.map((id) => [
+        id,
+        inletFlows.reduce((sum, values) => sum + values[id], 0),
+      ]),
+    ),
+    ids,
+  );
   if (inputs.length > 1 && total > 0) {
     const target = inputs.reduce((sum, s) => sum + enthalpy(s, settings), 0);
     const state = flashPressureEnthalpy(
       mixed.pressure,
       target / total,
-      [mixed.a / total, mixed.b / total],
+      fractions(mixed),
       settings,
     );
     mixed.temperature = state.temperature;
@@ -215,7 +260,7 @@ export function operate(
           target = flashPressureEnthalpy(
             mixed.pressure,
             (enthalpy(mixed, settings) + p.heatDuty) / total,
-            [mixed.a / total, mixed.b / total],
+            fractions(mixed),
             settings,
           ).temperature;
         } else {
@@ -231,12 +276,11 @@ export function operate(
           `${unit.name}: cooler target is above inlet temperature.`,
         );
       outputs = [
-        {
-          a: mixed.a,
-          b: mixed.b,
-          pressure: mixed.pressure,
-          temperature: target,
-        },
+        withComponentFlows(
+          { pressure: mixed.pressure, temperature: target },
+          componentFlows(mixed, ids),
+          ids,
+        ),
       ];
       validateStream(outputs[0]);
       result.duty = enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
@@ -250,6 +294,36 @@ export function operate(
       break;
     }
     case "PBR": {
+      if (p.packedBed) {
+        if (settings.modelId !== "ideal-gas")
+          throw new Error(
+            "The reaction-set PBR requires the ideal-gas model. Vapor is assumed; phase equilibrium is not calculated.",
+          );
+        const bed = solvePackedBed(
+          p.packedBed,
+          ids.map((id) => context.catalog.get(id)),
+          componentFlows(mixed, ids),
+          p.temperature,
+          mixed.pressure,
+        );
+        outputs = [
+          withComponentFlows(
+            { temperature: p.temperature, pressure: bed.pressure },
+            bed.flows,
+            ids,
+          ),
+        ];
+        result.packedBed = bed;
+        result.profile = bed.profile;
+        result.conversion = bed.conversion;
+        result.extent = Object.values(bed.extents).reduce(
+          (sum, n) => sum + n,
+          0,
+        );
+        result.duty =
+          enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
+        break;
+      }
       if (settings.mixture !== "demo" || settings.modelId !== "ideal-gas")
         throw new Error(
           "The sample PBR reaction supports synthetic A/B with the ideal-gas model only.",
@@ -307,16 +381,22 @@ export function operate(
           throw new Error(
             "TP alone does not determine the saturated phase split.",
           );
-        const vaporA = total * beta * (props.vaporComposition?.[0] ?? 0);
-        const vaporB = total * beta * (props.vaporComposition?.[1] ?? 0);
+        const values = componentFlows(mixed, ids);
+        const vapor = Object.fromEntries(
+          ids.map((id, i) => [
+            id,
+            total * beta * (props.vaporComposition?.[i] ?? 0),
+          ]),
+        );
         outputs = [
-          { ...mixed, a: vaporA, b: vaporB, vaporFraction: 1 },
-          {
-            ...mixed,
-            a: Math.max(0, mixed.a - vaporA),
-            b: Math.max(0, mixed.b - vaporB),
-            vaporFraction: 0,
-          },
+          withComponentFlows({ ...mixed, vaporFraction: 1 }, vapor, ids),
+          withComponentFlows(
+            { ...mixed, vaporFraction: 0 },
+            Object.fromEntries(
+              ids.map((id) => [id, Math.max(0, values[id] - vapor[id])]),
+            ),
+            ids,
+          ),
         ];
         for (const [index, output] of outputs.entries()) {
           if (
@@ -348,7 +428,7 @@ export function operate(
       const z = total ? mixed.a / total : 0;
       const d = p.distillateFraction,
         alpha = p.relativeVolatility;
-      if (mixed.a === 0 || mixed.b === 0) {
+      if (mixed.a === 0 || total === mixed.a) {
         // Pure-component endpoints are exact; numerical bisection must not
         // manufacture a trace of an absent component.
         outputs = [scale(mixed, d), scale(mixed, 1 - d)];
@@ -365,9 +445,24 @@ export function operate(
       const x = (low + high) / 2;
       const bottomA = total * (1 - d) * x;
       const topA = mixed.a - bottomA;
+      const values = componentFlows(mixed, ids);
+      const heavy = total - mixed.a;
+      const topHeavy = total * d - topA;
+      const top = Object.fromEntries(
+        ids.map((id, i) => [
+          id,
+          Math.max(0, i === 0 ? topA : (values[id] * topHeavy) / heavy),
+        ]),
+      );
       outputs = [
-        { ...mixed, a: Math.max(0, topA), b: Math.max(0, total * d - topA) },
-        { ...mixed, a: bottomA, b: Math.max(0, total * (1 - d) - bottomA) },
+        withComponentFlows(mixed, top, ids),
+        withComponentFlows(
+          mixed,
+          Object.fromEntries(
+            ids.map((id) => [id, Math.max(0, values[id] - top[id])]),
+          ),
+          ids,
+        ),
       ];
       break;
     }
@@ -450,6 +545,10 @@ export function simulate(
     const residual = Math.max(
       Math.abs(actual.a - guess.a) / Math.max(1, actual.a),
       Math.abs(actual.b - guess.b) / Math.max(1, actual.b),
+      ...Object.entries(actual.components ?? {}).map(
+        ([id, n]) =>
+          Math.abs(n - (guess.components?.[id] ?? 0)) / Math.max(1, n),
+      ),
       Math.abs(actual.temperature - guess.temperature) /
         Math.max(1, actual.temperature),
       Math.abs(actual.pressure - guess.pressure) / Math.max(1, actual.pressure),
@@ -481,11 +580,11 @@ export function simulate(
     ]),
   );
   const context = thermoContext(settings);
-  const [chemicalA, chemicalB] = context.ids.map((id) =>
-    context.catalog.get(id),
-  );
-  const mass = (s: Stream) =>
-    s.a * chemicalA.molecularWeight + s.b * chemicalB.molecularWeight;
+  const mass = (stream: Stream) =>
+    Object.entries(componentFlows(stream, context.ids)).reduce(
+      (sum, [id, n]) => sum + n * context.catalog.get(id).molecularWeight,
+      0,
+    );
   const h = (s: Stream) => enthalpy(s, settings);
   const result: Result = {
     properties,
@@ -508,18 +607,22 @@ export function simulate(
         : [...new Set(Object.values(properties).flatMap((p) => p.warnings))],
     tearId: tear?.id,
   };
-  if (project.units.some((n) => n.kind === "PBR"))
+  if (project.units.some((n) => n.kind === "PBR" && !n.params.packedBed))
     result.warnings.push(
       "Isothermal first-order synthetic A → B; no catalyst transport, pressure drop, reversible kinetics or mechanical design. Catalyst-weight and residence-time modes use distinct rate-constant units.",
     );
+  if (project.units.some((n) => n.kind === "PBR" && n.params.packedBed))
+    result.warnings.push(
+      "Coupled isothermal gas reactions with user-specified kinetics and prescribed pressure drop. No transport resistance, phase equilibrium, catalyst deactivation or mechanical design. Constant-flow mode neglects gas expansion.",
+    );
   if (project.units.some((n) => n.kind === "Splitter"))
     result.warnings.push(
-      "A splitter divides both components in the same proportions; it does not selectively separate chemicals.",
+      "A splitter divides all components in the same proportions; it does not selectively separate chemicals.",
     );
   if (project.units.some((n) => n.kind === "Distillation"))
     result.warnings.push(
       settings.modelId === "ideal-gas"
-        ? "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility. No stage count, latent heat or reboiler/condenser duties."
+        ? "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility of the first component to the remaining components (equal volatility). No stage count, latent heat or reboiler/condenser duties."
         : "Distillation is a single TP equilibrium flash at feed temperature and pressure. No stage count, reflux or column design; outlet phase amounts come from the selected model.",
     );
   if (!converged)

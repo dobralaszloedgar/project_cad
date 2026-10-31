@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import {
   folderControls,
   folderText,
@@ -94,7 +94,7 @@ test("last project can be trashed, restored, and permanently deleted without rea
   await page.reload();
   await expect(page.locator(".project-card")).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "Your projects start here" }),
+    page.getByRole("heading", { name: "No projects yet" }),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Project navigation" })
@@ -249,7 +249,7 @@ test("a stale editor in another tab cannot recreate a trashed or deleted project
   );
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Your projects start here" }),
+    page.getByRole("heading", { name: "No projects yet" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Trash", exact: true }).click();
   await expect(page.locator(".project-card")).toHaveCount(0);

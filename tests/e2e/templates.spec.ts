@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { templates, templateSpecification } from "../../src/domain/templates";
 import { componentNames, mixtureName } from "../../src/domain/thermo/catalog";
 import { simulate } from "../../src/domain/solver";

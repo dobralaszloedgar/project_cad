@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import { reactorExample } from "../../src/domain/examples";
 import { checkpoint } from "../../src/lib/revisions";
 import { folderText, installFolderPicker } from "./folder-fixture";

@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Trash2, Info } from "lucide-react";
 import { type Project, type Connection, unitSchema } from "@/domain/schema";
 import { type Result, flow } from "@/domain/solver";
+import { componentFlows } from "@/domain/stream-composition";
 import { componentNames } from "@/domain/thermo/catalog";
 import { defaultThermo } from "@/domain/thermo/registry";
 import EquipmentEditor from "./EquipmentEditor";
@@ -20,9 +21,9 @@ function StreamInspector({
   result,
   onChange,
 }: Pick<Props, "project" | "result" | "onChange"> & { edge: Connection }) {
-  const [firstComponent, secondComponent] = componentNames(
-    project.thermo ?? defaultThermo,
-  );
+  const names = componentNames(project.thermo ?? defaultThermo);
+  const [firstComponent, secondComponent] = names;
+  const ids = result?.provenance.chemicalIds ?? [];
   const [name, setName] = useState(edge.name ?? "");
   const [tab, setTab] = useState<"Setup" | "Results">("Setup");
   const update = (
@@ -156,12 +157,23 @@ function StreamInspector({
             <dd>{s.temperature.toFixed(2)} K</dd>
             <dt>Pressure</dt>
             <dd>{(s.pressure / 1000).toFixed(3)} kPa</dd>
-            <dt>
-              {firstComponent} / {secondComponent} flow
-            </dt>
-            <dd>
-              {s.a.toFixed(3)} / {s.b.toFixed(3)} mol/s
-            </dd>
+            {names.length === 2 ? (
+              <>
+                <dt>
+                  {firstComponent} / {secondComponent} flow
+                </dt>
+                <dd>
+                  {s.a.toFixed(3)} / {s.b.toFixed(3)} mol/s
+                </dd>
+              </>
+            ) : (
+              names.map((name, i) => (
+                <Fragment key={name}>
+                  <dt>{name} flow</dt>
+                  <dd>{componentFlows(s, ids)[ids[i]].toFixed(5)} mol/s</dd>
+                </Fragment>
+              ))
+            )}
             <dt>Ideal gas volume*</dt>
             <dd>
               {properties?.gasMolarVolume != null
@@ -176,17 +188,21 @@ function StreamInspector({
                 ? properties.vaporFraction.toFixed(5)
                 : "Undefined"}
             </dd>
-            {properties?.liquidComposition && (
-              <>
-                <dt>Liquid {firstComponent} fraction</dt>
-                <dd>{properties.liquidComposition[0].toFixed(5)}</dd>
-              </>
-            )}
-            {properties?.vaporComposition && (
-              <>
-                <dt>Vapor {firstComponent} fraction</dt>
-                <dd>{properties.vaporComposition[0].toFixed(5)}</dd>
-              </>
+            {(["liquid", "vapor"] as const).flatMap((phase) =>
+              names.map((name, i) => {
+                const values =
+                  phase === "liquid"
+                    ? properties?.liquidComposition
+                    : properties?.vaporComposition;
+                return values ? (
+                  <Fragment key={`${phase}-${name}`}>
+                    <dt>
+                      {phase === "liquid" ? "Liquid" : "Vapor"} {name} fraction
+                    </dt>
+                    <dd>{values[i].toFixed(5)}</dd>
+                  </Fragment>
+                ) : null;
+              }),
             )}
           </dl>
         ) : (

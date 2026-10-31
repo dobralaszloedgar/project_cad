@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, dismissProjectFolderSetup, type Page } from "./test";
 import fs from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
 import { loadTemplate } from "../../src/domain/templates";
@@ -201,6 +201,7 @@ test("play links animate on request and respect reduced-motion preferences", asy
   const context = await browser.newContext({ reducedMotion: "reduce" });
   try {
     const reduced = await context.newPage();
+    await dismissProjectFolderSetup(reduced);
     await reduced.goto(
       `http://127.0.0.1:3000${exampleUrl("parallel-complex", true)}`,
     );

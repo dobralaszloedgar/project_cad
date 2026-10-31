@@ -1,5 +1,5 @@
 import { loadProject } from "./project-fixture";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 import { solutionExample } from "../../src/domain/examples";
 import { catalogFixture } from "./catalog-fixture";
 

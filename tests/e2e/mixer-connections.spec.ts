@@ -1,5 +1,5 @@
 import { loadProject } from "./project-fixture";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "./test";
 import { newUnit, type Project } from "../../src/domain/schema";
 
 async function wireToCenter(page: Page, source: Locator, target: Locator) {

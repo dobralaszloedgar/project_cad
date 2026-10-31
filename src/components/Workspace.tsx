@@ -1,4 +1,5 @@
 "use client";
+import { defaultPackedBed } from "@/domain/reactions/schema";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -59,7 +60,7 @@ import {
   modelInfo,
   type ThermoSettings,
 } from "@/domain/thermo/registry";
-import { mixtureName } from "@/domain/thermo/catalog";
+import { mixtureName, thermoContext } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions } from "@/domain/actions";
 import type { Proposal } from "@/assistant/protocol";
@@ -98,6 +99,7 @@ import Results from "./Results";
 import AssistantPanel from "./AssistantPanel";
 import KeyboardHelp from "./KeyboardHelp";
 import ProjectStorageSettings from "./ProjectStorageSettings";
+import ProjectFolderSetup from "./ProjectFolderSetup";
 import { useTheme } from "./useTheme";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
 import {
@@ -144,6 +146,8 @@ export default function Workspace({
     revisions: [],
   }));
   const [ready, setReady] = useState(false);
+  const [folderSetupDone, setFolderSetupDone] = useState(false);
+  const finishFolderSetup = useCallback(() => setFolderSetupDone(true), []);
   const [storage, setStorage] = useState("Loading local project");
   const [selection, setSelection] = useState<string[]>([]);
   const selected = selection.at(-1) ?? null;
@@ -519,6 +523,17 @@ export default function Workspace({
       position?.x ?? 200 + (project.units.length % 4) * 180,
       position?.y ?? 350 + Math.floor(project.units.length / 4) * 100,
     );
+    if (kind === "PBR") {
+      const settings = project.thermo ?? defaultThermo;
+      const ids =
+        settings.mixture === "catalog" && !settings.catalog
+          ? []
+          : thermoContext(settings).ids;
+      unit.params.packedBed = defaultPackedBed(
+        ids,
+        settings.mixture === "demo",
+      );
+    }
     change({ ...project, units: [...project.units, unit] }, `Add ${kind}`);
     setSelected(id);
   }
@@ -1213,6 +1228,14 @@ export default function Workspace({
   ) : null;
   const projectDialogs = (
     <>
+      {ready && !folderSetupDone ? (
+        <ProjectFolderSetup
+          onComplete={finishFolderSetup}
+          onConnected={() => {
+            if (folderName) void retrySave();
+          }}
+        />
+      ) : null}
       {saveFolderDraft ? (
         <CreateProjectDialog
           seed={saveFolderDraft.workspace.project}

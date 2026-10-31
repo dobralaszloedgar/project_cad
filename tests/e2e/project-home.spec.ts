@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { THEMES } from "../../src/lib/theme";
 import {
   folderControls,
@@ -116,9 +116,10 @@ test("home themes and default save folder persist and apply when creating a proj
   await settings
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
-  await expect(settings.getByRole("status")).toHaveText(
-    "Default folder saved.",
-  );
+  await expect(settings).toContainText("Laptop projects");
+  await expect(
+    settings.getByRole("button", { name: "Change folder" }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () =>
@@ -170,10 +171,10 @@ test("home themes and default save folder persist and apply when creating a proj
   await page
     .getByRole("button", { name: "Storage settings", exact: true })
     .click();
-  await settings
-    .getByRole("button", { name: "Ask every time", exact: true })
-    .click();
-  await expect(settings).toContainText("Ask for each project");
+  await expect(
+    settings.getByRole("button", { name: "Ask every time" }),
+  ).toHaveCount(0);
+  await expect(settings.locator("p")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page
     .getByRole("navigation", { name: "Project navigation" })
@@ -181,7 +182,7 @@ test("home themes and default save folder persist and apply when creating a proj
     .click();
   await expect(
     create.getByRole("button", { name: "Create project", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
 });
 
 test("every home palette applies and theme changes sync between tabs", async ({
@@ -338,4 +339,96 @@ test("home menus stay within the screen and respect reduced motion on mobile", a
     page.getByRole("radio", { name: "Paper", exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: info.outputPath("home-mobile-themes.png") });
+});
+
+test("sort changes reorder the current grid and list, including filtered projects, and persist", async ({
+  page,
+}) => {
+  // Fixed names and dates make a real order change observable in both modes.
+  await page.goto("/api/ai");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("project-cad", 3);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction(
+            ["projects", "workspace"],
+            "readwrite",
+          );
+          const projects = transaction.objectStore("projects");
+          projects.clear();
+          transaction.objectStore("workspace").delete("current");
+          transaction.objectStore("workspace").put("", "activeProject");
+          for (const [name, day, starred, trashed] of [
+            ["Study 10", "01", true, false],
+            ["Study 2", "03", true, false],
+            ["Alpha", "02", false, false],
+            ["Archived A", "01", false, true],
+            ["Archived B", "02", false, true],
+          ] as const) {
+            const time = `2026-10-${day}T12:00:00.000Z`;
+            projects.put({
+              id: crypto.randomUUID(),
+              workspace: {
+                version: 1,
+                project: { version: 1, name, units: [], edges: [] },
+                revisions: [],
+              },
+              createdAt: time,
+              updatedAt: time,
+              starred,
+              ...(trashed ? { trashedAt: time } : {}),
+            });
+          }
+          transaction.oncomplete = () => {
+            database.close();
+            resolve();
+          };
+          transaction.onabort = () => {
+            database.close();
+            reject(transaction.error);
+          };
+        };
+      }),
+  );
+  await page.goto("/");
+  const names = page.locator(".project-card-title strong");
+  const sort = page.getByRole("combobox", { name: "Sort projects" });
+  await expect(names).toHaveText(["Study 2", "Alpha", "Study 10"]);
+  const chevron = await page.locator(".project-sort svg").last().boundingBox();
+  const point = {
+    x: chevron!.x + chevron!.width / 2,
+    y: chevron!.y + chevron!.height / 2,
+  };
+  expect(
+    await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.tagName,
+      point,
+    ),
+  ).toBe("SELECT");
+  // Exercise the visible arrow rather than only setting the select value.
+  await page.mouse.click(point.x, point.y);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(sort).toHaveValue("name");
+  await expect(names).toHaveText(["Alpha", "Study 2", "Study 10"]);
+  await page.getByRole("button", { name: "List view", exact: true }).click();
+  await sort.selectOption("modified");
+  await expect(names).toHaveText(["Study 2", "Alpha", "Study 10"]);
+  await page.getByLabel("Search projects").fill("Study");
+  await sort.selectOption("name");
+  await expect(names).toHaveText(["Study 2", "Study 10"]);
+  await page.getByRole("button", { name: "Starred", exact: true }).click();
+  await expect(names).toHaveText(["Study 2", "Study 10"]);
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await expect(names).toHaveText(["Archived A", "Archived B"]);
+  await sort.selectOption("modified");
+  await expect(names).toHaveText(["Archived B", "Archived A"]);
+  await sort.selectOption("name");
+  await page.reload();
+  await expect(sort).toHaveValue("name");
+  await expect(page.locator(".project-list")).toBeVisible();
+  await expect(names).toHaveText(["Alpha", "Study 2", "Study 10"]);
 });

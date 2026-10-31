@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { mkdir, readFile } from "node:fs/promises";
 import { newUnit } from "../../src/domain/schema";
 import { checkpoint } from "../../src/lib/revisions";

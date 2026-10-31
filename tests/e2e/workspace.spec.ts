@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./test";
 import fs from "node:fs/promises";
 const output = "/tmp/project-cad-qa";
 test.beforeAll(async () => {

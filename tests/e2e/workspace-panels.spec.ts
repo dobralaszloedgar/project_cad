@@ -1,5 +1,5 @@
 import { loadProject } from "./project-fixture";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./test";
 import { distillationExample, reactorExample } from "../../src/domain/examples";
 import { ports } from "../../src/domain/schema";
 

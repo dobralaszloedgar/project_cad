@@ -231,14 +231,17 @@ async function parameters(hash: string) {
 }
 export async function loadCatalogSelection(
   hash: string,
-  ids: [string, string],
+  ids: string[],
   model: ModelId,
 ): Promise<CatalogSnapshot> {
   hashSchema.parse(hash);
-  z.tuple([z.string().min(1).max(80), z.string().min(1).max(80)]).parse(ids);
+  z.array(z.string().min(1).max(80)).min(2).max(40).parse(ids);
   z.enum(modelIds).parse(model);
-  if (ids[0] === ids[1])
-    throw new CatalogError("Select two different chemicals.", 422);
+  if (new Set(ids).size !== ids.length)
+    throw new CatalogError(
+      "Select different chemicals for every component.",
+      422,
+    );
   const release = await catalogRelease(hash);
   const [records, data] = await Promise.all([
     read("compounds", [hash, ids]).then((value) => recordsSchema.parse(value)),
@@ -267,10 +270,7 @@ export async function loadCatalogSelection(
       );
     return record;
   });
-  const chemicals: CatalogSnapshot["chemicals"] = [
-    selected[0].chemical,
-    selected[1].chemical,
-  ];
+  const chemicals = selected.map((record) => record.chemical);
   const ranges = chemicals.map((c) => propertyRange(c, model)!);
   if (
     Math.max(...ranges.map((r) => r[0])) >= Math.min(...ranges.map((r) => r[1]))
@@ -282,7 +282,7 @@ export async function loadCatalogSelection(
   const snapshot: CatalogSnapshot = {
     release: hash,
     chemicals,
-    recordHashes: [selected[0].hash, selected[1].hash],
+    recordHashes: selected.map((record) => record.hash),
   };
   if (model === "modified-unifac-2.0") {
     try {

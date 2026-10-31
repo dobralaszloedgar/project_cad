@@ -131,7 +131,7 @@ export default function ProjectComponents({
       className="project-components"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (saving || selectedCount !== 2 || hasSynthetic) return;
+        if (saving || selectedCount < 2 || hasSynthetic) return;
         setSaving(true);
         setError("");
         const controller = new AbortController();
@@ -139,7 +139,7 @@ export default function ProjectComponents({
         try {
           const settings = await resolveCatalogSettings(
             current,
-            choices,
+            choices.filter((choice) => choice !== undefined),
             release ?? data?.release,
             controller.signal,
           );
@@ -303,20 +303,25 @@ export default function ProjectComponents({
                                 : `Add ${chemical.name} to project`
                             }
                             title={
-                              !added && selectedCount === 2
-                                ? "Remove a component to replace it"
+                              !added && selectedCount >= 40
+                                ? "Maximum 40 components"
                                 : undefined
                             }
-                            disabled={saving || added || selectedCount === 2}
+                            disabled={saving || added || selectedCount >= 40}
                             onClick={() => {
                               setRelease(
                                 (previous) => previous ?? data.release,
                               );
-                              setChoices((previous) =>
-                                !previous[0]
-                                  ? [chemical, previous[1]]
-                                  : [previous[0], chemical],
-                              );
+                              setChoices((previous) => {
+                                const empty = previous.findIndex(
+                                  (choice) => !choice,
+                                );
+                                return empty < 0
+                                  ? [...previous, chemical]
+                                  : previous.map((choice, i) =>
+                                      i === empty ? chemical : choice,
+                                    );
+                              });
                               setError("");
                             }}
                           >
@@ -373,18 +378,18 @@ export default function ProjectComponents({
               <FlaskConical size={17} />
               <h3>Selected components</h3>
             </div>
-            <span className="component-badge">{selectedCount} / 2</span>
+            <span className="component-badge">{selectedCount} / 40</span>
           </header>
           <p className="component-model">{modelInfo(current.modelId).label}</p>
           <div className="component-slots">
-            {([0, 1] as const).map((i) => (
+            {choices.map((_, i) => (
               <div
                 key={i}
                 className="component-slot"
-                aria-label={`Component ${i === 0 ? "A" : "B"}`}
+                aria-label={`Component ${i < 2 ? (i === 0 ? "A" : "B") : String(i + 1)}`}
               >
                 <span className="component-slot-label">
-                  {i === 0 ? "A" : "B"}
+                  {i < 2 ? (i === 0 ? "A" : "B") : String(i + 1)}
                 </span>
                 {choices[i] ? (
                   <>
@@ -399,13 +404,13 @@ export default function ProjectComponents({
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label={`Remove component ${i === 0 ? "A" : "B"}`}
+                      aria-label={`Remove component ${i < 2 ? (i === 0 ? "A" : "B") : String(i + 1)}`}
                       disabled={saving}
                       onClick={() => {
                         setChoices((previous) =>
-                          i === 0
-                            ? [undefined, previous[1]]
-                            : [previous[0], undefined],
+                          previous.map((choice, index) =>
+                            index === i ? undefined : choice,
+                          ),
                         );
                         setError("");
                       }}
@@ -427,7 +432,9 @@ export default function ProjectComponents({
           )}
           {project.units.some((unit) => unit.kind === "PBR") && (
             <p className="components-notice">
-              The sample reactor requires synthetic A/B.
+              Configure reactants and products in each PBR reaction set.
+              Existing reactions keep their component identities; review them
+              after removing components.
             </p>
           )}
         </section>
@@ -443,7 +450,7 @@ export default function ProjectComponents({
         </button>
         <button
           className="btn btn-primary"
-          disabled={saving || selectedCount !== 2 || hasSynthetic}
+          disabled={saving || selectedCount < 2 || hasSynthetic}
         >
           {saving ? "Saving…" : "Apply components"}
         </button>

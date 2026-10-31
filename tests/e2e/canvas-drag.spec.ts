@@ -1,4 +1,4 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "./test";
 async function drag(page: Page, node: Locator) {
   const before = await node.boundingBox();
   expect(before).toBeTruthy();

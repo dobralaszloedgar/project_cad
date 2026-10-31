@@ -1,5 +1,5 @@
 import { loadProject } from "./project-fixture";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./test";
 import { kinds, newUnit } from "../../src/domain/schema";
 import { catalystExample, solutionExample } from "../../src/domain/examples";
 

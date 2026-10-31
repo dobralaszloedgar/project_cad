@@ -1,8 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test";
 
 test("equipment gallery survives graphics recovery and remains selectable", async ({
   page,
 }) => {
+  // The WebGPU renderer's software WebGL fallback compiles multiple cold
+  // contexts plus every equipment/material variant during this recovery tour.
+  test.setTimeout(180000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {

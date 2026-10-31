@@ -16,6 +16,8 @@ const updateParamsSchema = z
     pressure: paramsSchema.shape.pressure.removeDefault().optional(),
     flow: paramsSchema.shape.flow.removeDefault().optional(),
     fractionA: paramsSchema.shape.fractionA.removeDefault().optional(),
+    composition: paramsSchema.shape.composition,
+    packedBed: paramsSchema.shape.packedBed,
     residenceTime: paramsSchema.shape.residenceTime.removeDefault().optional(),
     reactorMode: paramsSchema.shape.reactorMode.removeDefault().optional(),
     catalystMass: paramsSchema.shape.catalystMass.removeDefault().optional(),

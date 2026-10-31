@@ -65,7 +65,7 @@ export async function executeProjectTool(
         catalystMass: "kg",
       },
       limits:
-        "Use only the app's supported models and sample mixtures. PBR chemistry is synthetic A to B. Visible tray count changes the 3D illustration, not the equilibrium calculation. Calculation failures and nonconvergence must be reported.",
+        "Use the app's supported thermodynamic models and saved catalog components (2–40). PBR params.packedBed supports balanced gas reaction sets, power-law or bounded expression kinetics, pressure drop and catalyst sizing. Kinetic constants must be supplied; never invent them. Legacy PBR modes without packedBed remain synthetic A to B. Feed composition maps component IDs to normalized mole fractions. Visible tray count changes the 3D illustration, not the equilibrium calculation. Calculation failures and nonconvergence must be reported.",
       mode: context.mode,
     };
   const request = args as {
