@@ -1,5 +1,14 @@
-.workspace[data-palette] {
+:is(.workspace, [data-landing-page])[data-palette] {
   color-scheme: light;
+  --stream-rainbow-0: #b43f44;
+  --stream-rainbow-1: #985500;
+  --stream-rainbow-2: #8f6f00;
+  --stream-rainbow-3: #167848;
+  --stream-rainbow-4: #087b89;
+  --stream-rainbow-5: #345fb4;
+  --stream-rainbow-6: #7646a7;
+  --stream-rainbow-7: #a13c7d;
+
   --step: 1;
   --bg: #ffffff;
   --page: #fafbf9;
@@ -52,8 +61,17 @@
   --color-error: color-mix(in oklab, var(--err) 12%, var(--bg));
   --color-error-content: color-mix(in oklab, var(--err) 86%, var(--ink));
 }
-.workspace[data-theme="dark"] {
+:is(.workspace, [data-landing-page])[data-theme="dark"] {
   color-scheme: dark;
+  --stream-rainbow-0: #ff8582;
+  --stream-rainbow-1: #ffc07b;
+  --stream-rainbow-2: #e3d76e;
+  --stream-rainbow-3: #79dfa2;
+  --stream-rainbow-4: #6ddbe2;
+  --stream-rainbow-5: #8dbaff;
+  --stream-rainbow-6: #c3a1f4;
+  --stream-rainbow-7: #f69cda;
+
   --step: 1.7;
   --ok: #9ebf86;
   --warn: #e3c183;

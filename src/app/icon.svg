@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 8 112 112" fill="#286e5c" role="img" aria-label="Project CAD"><title>Project CAD</title><defs><mask id="project-cad-flask" maskUnits="userSpaceOnUse" x="8" y="8" width="112" height="112" style="mask-type:luminance"><rect x="8" y="8" width="112" height="112" fill="white"/><path d="M57 0 L71 0 L71 35.0192 Q71 42.0192 79 47.0192 A30 30 0 1 1 49 47.0192 Q57 42.0192 57 35.0192 Z" transform="translate(64 64) scale(0.9) translate(-64 -64)" fill="black" stroke="black" stroke-width="6" stroke-linejoin="round"/></mask></defs><circle cx="64" cy="64" r="50" mask="url(#project-cad-flask)"/><path d="M38 73 C53.6 63 74.4 83 90 73 A26 26 0 0 1 38 73 Z" transform="translate(64 64) scale(0.9) translate(-64 -64)"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="Project CAD">
+  <title>Project CAD</title>
+  <rect width="32" height="32" rx="8" fill="#286e5c"/>
+  <g transform="translate(4 4)" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="7" y="4" width="10" height="15" rx="4"/>
+    <path d="M12 1V4M2 9H7M17 14H22M9 19V22M15 19V22M7 9H17M7 14H17"/>
+  </g>
+</svg>

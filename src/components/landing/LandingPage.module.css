@@ -1,17 +1,20 @@
 :global(html):has(.story),
 :global(body):has(.story) {
-  background: #06151f;
+  background: #fafbf9;
   overscroll-behavior: none;
+  scrollbar-width: none;
+}
+
+:global(html):has(.story)::-webkit-scrollbar,
+:global(body):has(.story)::-webkit-scrollbar {
+  display: none;
 }
 
 .story {
-  --ink: #f3f2e9;
-  --muted: #b6c9cc;
-  --accent: #79f1df;
   position: relative;
   height: 780svh;
   color: var(--ink);
-  background: #06151f;
+  background: #fafbf9;
   font:
     400 15px/1.5 "Figtree Variable",
     sans-serif;
@@ -42,7 +45,7 @@
   height: 100dvh;
   overflow: hidden;
   isolation: isolate;
-  background: #06151f;
+  background: #fafbf9;
 }
 .world {
   position: absolute;
@@ -62,16 +65,13 @@
 .worldShade {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(2, 11, 19, 0.72),
-      transparent 20%,
-      transparent 53%,
-      rgba(2, 12, 20, 0.7) 88%,
-      #04131de6
-    ),
-    radial-gradient(ellipse at 50% 45%, transparent 25%, #00121f3b 80%);
+  background: linear-gradient(
+    180deg,
+    #fafbf944,
+    transparent 30%,
+    transparent 65%,
+    #fafbf966
+  );
 }
 .grain {
   position: absolute;
@@ -149,7 +149,7 @@
   justify-content: space-between;
   height: 92px;
   padding: 0 3.5%;
-  background: linear-gradient(#03121e60, transparent);
+  background: linear-gradient(#fafbf9, #fafbf900);
 }
 .brand {
   display: inline-flex;
@@ -163,7 +163,7 @@
 .brand svg {
   width: 24px;
   height: 24px;
-  color: #b7f7e8;
+  color: var(--accent);
 }
 .chapters {
   display: flex;
@@ -176,10 +176,10 @@
   position: relative;
   font-size: 14px;
   padding: 11px 0;
-  color: #bdcdd1;
+  color: var(--muted);
 }
 .chapters button[aria-current] {
-  color: #fff;
+  color: var(--ink);
 }
 .chapters button i {
   position: absolute;
@@ -194,11 +194,11 @@
   align-items: center;
   justify-content: center;
   gap: 18px;
-  border: 1px solid #c7e2df65;
+  border: 1px solid var(--field-border);
   border-radius: 24px;
   padding: 10px 19px;
   font-size: 13px;
-  background: #071a224d;
+  background: var(--field-surface);
   backdrop-filter: blur(10px);
 }
 .workspaceLink:hover {
@@ -227,19 +227,19 @@
   font-weight: 400;
   line-height: 1.08;
   letter-spacing: -0.045em;
-  text-shadow: 0 2px 30px #00101b;
+  text-shadow: none;
 }
 .sceneCaption h1 span,
 .sceneCaption h2 span {
-  color: #c9f6eb;
+  color: var(--ink);
 }
 .sceneCaption p {
   font-size: 15px;
-  color: #c4d1d3;
+  color: var(--muted);
   margin-top: 15px;
   max-width: 460px;
   letter-spacing: -0.15px;
-  text-shadow: 0 2px 10px #03121d;
+  text-shadow: none;
 }
 .sceneActions {
   position: absolute;
@@ -259,9 +259,9 @@
   min-height: 48px;
   padding: 12px 23px;
   font-size: 14px;
-  color: #07302e;
+  color: var(--on-brand);
   background: var(--accent);
-  border: 1px solid #b5fff0a6;
+  border: 1px solid var(--accent);
   border-radius: 7px;
   box-shadow: 0 0 28px #62ebcd15;
 }
@@ -272,7 +272,7 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(0 0 7px #70ffe29c);
+  filter: drop-shadow(0 0 7px #286e5c40);
 }
 .unitScan {
   animation: unitScan 1.5s linear infinite alternate;
@@ -288,27 +288,17 @@
   }
 }
 .cadWorkbench {
-  --surface: #0b202a;
-  --canvas: #091b24;
-  --ink: #dfefec;
-  --muted: #a5bdb9;
-  --subtle: #6d8c91;
-  --border: #25434c;
-  --accent: #78d2c1;
-  --symbol-fill: #091b24;
-  --symbol-stroke: #a4c3bd;
-  --stream-stroke: #9ec6b8;
-  --pfd-stroke-width: 2.8;
+  --pfd-stroke-width: 2.5;
   color: var(--ink);
   background: var(--canvas);
-  border: 1px solid #31565f80;
-  border-radius: 5px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
   overflow: hidden;
   font:
     400 14px/1.5 "Figtree Variable",
     sans-serif;
   pointer-events: none;
-  box-shadow: 0 24px 70px #00101826;
+  box-shadow: 0 24px 70px #26373012;
 }
 .cadProjection {
   position: absolute;
@@ -345,7 +335,7 @@
   color: var(--accent);
 }
 .cadMode {
-  background: #1b383d;
+  background: var(--active);
   color: var(--accent);
   padding: 2px 9px;
   border-radius: 3px;
@@ -353,6 +343,56 @@
 .cadCanvas {
   position: relative;
   width: 100%;
+}
+.cadProjectName {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cadViewBar {
+  position: absolute;
+  z-index: 4;
+  top: 24px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 18px;
+}
+.cadViewBar > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.cadViewBar > span:nth-child(2) {
+  color: var(--accent);
+  background: var(--active);
+}
+.cadRainbow i {
+  width: 5px;
+  height: 16px;
+  border-radius: 3px;
+  background: var(--stream-rainbow-0);
+}
+.cadRainbow i:nth-child(2) {
+  background: var(--stream-rainbow-1);
+}
+.cadRainbow i:nth-child(3) {
+  background: var(--stream-rainbow-3);
+}
+.cadRainbow i:nth-child(4) {
+  background: var(--stream-rainbow-4);
+}
+.cadRainbow i:nth-child(5) {
+  background: var(--stream-rainbow-5);
+}
+.cadRainbow i:nth-child(6) {
+  background: var(--stream-rainbow-6);
 }
 .cadCanvas :global(.unit-tag),
 .cadCanvas :global(.unit-name) {
@@ -371,13 +411,11 @@
   font-size: 13px;
 }
 .cadCanvas :global([data-constructing="true"] .equipment-node) {
-  --symbol-stroke: #a7ffec;
-  background: #53ad8a0c;
-  filter: drop-shadow(0 0 7px #75ffd74d);
+  --symbol-stroke: var(--accent);
+  filter: drop-shadow(0 0 7px #286e5c20);
 }
 .cadCanvas :global([data-constructing="true"] .react-flow__edge-path) {
-  stroke: #a1ffe7;
-  filter: drop-shadow(0 0 6px #66ffd779);
+  filter: brightness(1.3);
 }
 .story .textLink {
   display: flex;
@@ -386,7 +424,7 @@
   padding: 12px 0;
   font-size: 15px;
   color: var(--accent);
-  border-bottom: 1px solid #89dcc94d;
+  border-bottom: 1px solid var(--field-border);
 }
 .plantFallback {
   position: absolute;
@@ -396,7 +434,7 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  color: #cae7e4;
+  color: var(--ink);
   font-size: 14px;
 }
 .plantFallback a {
@@ -417,10 +455,10 @@
   width: 37px;
   height: 21px;
   padding: 3px;
-  background: #3f6165;
+  background: var(--hover);
 }
 .switch[data-on="true"] {
-  background: #53cdbb;
+  background: var(--accent);
 }
 .switch i {
   display: block;
@@ -449,22 +487,22 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #c7f6ed5e;
+  background: var(--subtle);
   outline: 1px solid transparent;
   outline-offset: 4px;
 }
 .sceneRail button[aria-current] > span:first-child {
   background: var(--accent);
-  outline-color: #99e7d65c;
-  box-shadow: 0 0 15px #54dec273;
+  outline-color: var(--accent);
+  box-shadow: 0 0 15px #286e5c20;
 }
 .railLabel {
   font-size: 9px;
   letter-spacing: 1px;
-  color: #bad2d799;
+  color: var(--subtle);
 }
 .sceneRail button[aria-current] .railLabel {
-  color: #cff8ee;
+  color: var(--ink);
 }
 .footer {
   position: absolute;
@@ -481,20 +519,20 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #9ab4bc;
+  color: var(--muted);
   font:
     10px ui-monospace,
     monospace;
   letter-spacing: 0.04em;
 }
 .positionLabel span {
-  color: #def9ee;
+  color: var(--ink);
 }
 .positionLabel i {
   display: block;
   width: 38px;
   height: 1px;
-  background: #b4d9d14d;
+  background: var(--border);
 }
 .story .scrollCue {
   position: absolute;
@@ -503,7 +541,7 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  color: #d3e6df;
+  color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -530,7 +568,7 @@
   align-items: center;
   gap: 9px;
   font-size: 11px;
-  color: #c0d6d9;
+  color: var(--muted);
   padding: 12px 0 12px 12px;
 }
 .pause:disabled {
@@ -563,7 +601,7 @@
   left: 12px;
   z-index: 100;
   padding: 12px 18px;
-  background: #0a2831;
+  background: var(--surface);
   transform: translateY(-150%);
 }
 .skipLink:focus {
@@ -788,8 +826,8 @@
   background: linear-gradient(
     180deg,
     transparent 62%,
-    #04131b94 82%,
-    #04131be0
+    #fafbf994 82%,
+    #fafbf9e0
   );
 }
 
@@ -818,7 +856,7 @@
   font-size: 17px;
 }
 .eyebrow {
-  color: #8ca6aa;
+  color: var(--subtle);
   font-size: 10px;
   letter-spacing: 0.16em;
 }
@@ -833,13 +871,11 @@
   height: 420px;
   display: flex;
   flex-direction: column;
-  border: 1px solid #ffffff18;
+  border: 1px solid var(--field-border);
   border-radius: 20px;
-  background: #202626;
-  color: #f1f3ed;
-  box-shadow:
-    0 30px 100px #0005,
-    0 0 100px #76efd008;
+  background: var(--field-surface);
+  color: var(--ink);
+  box-shadow: 0 24px 80px #26373012;
   overflow: hidden;
   text-align: left;
 }
@@ -849,10 +885,10 @@
   gap: 10px;
   padding: 16px 20px;
   font-size: 12px;
-  color: #b5bfba;
+  color: var(--muted);
 }
 .chatHeader > svg {
-  color: #a0cabb;
+  color: var(--accent);
 }
 .demoLabel {
   margin-left: auto;
@@ -893,7 +929,7 @@
   letter-spacing: -0.02em;
 }
 .chatWelcome svg {
-  color: #cfdfd5;
+  color: var(--ink);
 }
 .chatMessage {
   width: fit-content;
@@ -901,7 +937,7 @@
   margin: 0 0 16px auto;
   padding: 12px 16px;
   border-radius: 17px 17px 4px 17px;
-  background: #303938;
+  background: var(--hover);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -910,7 +946,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #b6bfbb;
+  color: var(--muted);
   padding: 5px 0 10px;
 }
 .chatTools {
@@ -935,18 +971,18 @@
   flex: 1;
 }
 .chatTool summary > svg {
-  color: #a0cabb;
+  color: var(--accent);
   flex-shrink: 0;
 }
 .chatTool summary > svg:last-child {
-  color: #8c9791;
+  color: var(--subtle);
 }
 .chatTool summary:hover {
   background: #ffffff05;
 }
 .chatTool code {
   display: block;
-  color: #9aada4;
+  color: var(--muted);
   font-size: 10px;
   padding: 2px 10px 10px 34px;
 }
@@ -965,20 +1001,20 @@
   min-height: 46px;
   border-radius: 24px;
   padding: 12px 15px;
-  background: #303938;
+  background: var(--hover);
   font-size: 13px;
   line-height: 22px;
 }
 .chatField > svg {
   flex-shrink: 0;
-  color: #9eaaa4;
+  color: var(--muted);
   margin-bottom: 3px;
 }
 .chatField > span {
   min-height: 22px;
 }
 .chatPlaceholder {
-  color: #9ca6a1;
+  color: var(--muted);
 }
 .story .chatSend {
   display: grid;
@@ -986,8 +1022,8 @@
   flex: 0 0 36px;
   height: 36px;
   margin-bottom: 5px;
-  background: #e6eee7;
-  color: #202626;
+  background: var(--accent);
+  color: var(--on-brand);
   border-radius: 50%;
 }
 .chatSend:disabled {
@@ -1004,7 +1040,7 @@
   display: inline-block;
   width: 1px;
   height: 14px;
-  background: #ceecdd;
+  background: var(--accent);
   vertical-align: -2px;
   margin-left: 2px;
   animation: caret 0.8s step-end infinite;
@@ -1034,10 +1070,10 @@
   align-items: center;
   gap: 10px;
   padding: 17px 18px;
-  border: 1px solid #8bc9b92e;
-  border-radius: 10px;
-  background: #10252cef;
-  color: #d4e8e0;
+  border: 1px solid var(--border);
+  border-radius: 40px;
+  background: var(--surface);
+  color: var(--ink);
   overflow: hidden;
   font-size: 12px;
 }
@@ -1046,7 +1082,7 @@
 }
 .buildCount {
   margin-left: auto;
-  color: #a3bcb6;
+  color: var(--muted);
   font-size: 10px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -1058,14 +1094,13 @@
   width: 100%;
   height: 2px;
   transform-origin: left;
-  background: #79debd;
+  background: var(--accent);
 }
 .simulatingStream {
-  stroke: #9cf6d3 !important;
-  filter: drop-shadow(0 0 5px #66eabb55);
+  filter: brightness(1.2);
 }
 .cadWorkbench[data-simulation="complete"] .cadMode {
-  color: #a4edc5;
+  color: var(--ok);
 }
 .cadProjection[data-fallback="true"] {
   perspective: none !important;
@@ -1214,5 +1249,138 @@
   }
   .designCaption h1 {
     font-size: 60px;
+  }
+}
+
+/* The same floating assistant pattern as the workspace, opening from a pill. */
+.assistantDemo {
+  position: relative;
+  height: 470px;
+  min-width: 0;
+  width: 100%;
+}
+.assistantDemo .designChat {
+  position: absolute;
+  inset: 0 0 64px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  transform-origin: bottom right;
+  background: var(--surface);
+}
+.pillWelcome {
+  position: absolute;
+  inset: 0 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: var(--muted);
+  font-size: 17px;
+}
+.pillWelcome svg {
+  color: var(--accent);
+}
+.story .assistantPill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 18px;
+  border: 1px solid var(--field-border);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 4px 20px #2637300a;
+  font-size: 13px;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+.story .assistantPill:hover {
+  background: var(--active);
+  box-shadow: 0 6px 24px #26373014;
+}
+.pillIndicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.story .chatBuild {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: calc(100% - 32px);
+  flex-shrink: 0;
+  margin: 6px 16px 17px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--active);
+  color: var(--accent);
+  font-size: 12px;
+  text-align: left;
+}
+.chatBuild small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.chatTool {
+  border-color: var(--border);
+}
+.demoLabel {
+  border-color: var(--border);
+}
+.chatHeader button:hover,
+.chatTool summary:hover {
+  background: var(--hover);
+}
+.chatTool[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.chatSend:disabled {
+  opacity: 0.45;
+}
+.cadCanvas :global(.stream-label) {
+  font-size: 17px;
+}
+@media (max-width: 600px) {
+  .assistantDemo {
+    height: min(430px, calc(100dvh - 335px));
+    min-height: 315px;
+  }
+  .assistantDemo .designChat {
+    inset-block-end: 58px;
+  }
+  .story .assistantPill {
+    min-height: 42px;
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+  .cadViewBar {
+    top: 16px;
+    left: 16px;
+  }
+  .cadViewBar > span {
+    padding: 8px;
+  }
+  .cadToolbar {
+    font-size: 24px;
+  }
+  .cadCanvas :global(.unit-name) {
+    font-size: 26px;
+  }
+}
+@media (max-height: 600px) and (min-width: 601px) {
+  .assistantDemo {
+    height: calc(100dvh - 150px);
   }
 }

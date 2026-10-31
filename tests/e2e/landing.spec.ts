@@ -73,7 +73,7 @@ async function expectViewportFilled(page: Page) {
 
 test("the chat is visible before JavaScript and types, sends, and calls tools", async ({
   page,
-}) => {
+}, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -87,6 +87,14 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
   });
   await page.goto("/landing", { waitUntil: "commit" });
   try {
+    await expect(page.locator("[data-landing-page]")).toHaveAttribute(
+      "data-palette",
+      "light",
+    );
+    await expect(page.locator("html")).toHaveCSS("scrollbar-width", "none");
+    await expect(
+      page.getByRole("button", { name: "Open assistant demo", exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Design.", exact: true }),
     ).toBeVisible();
@@ -104,6 +112,15 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
   await expect(chat.getByText("Create the flowsheet")).toBeVisible();
   await chat.getByText("Create the flowsheet").click();
   await expect(chat.getByText("propose_actions()")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("design-desktop.png") });
+  await page
+    .getByRole("button", { name: "Minimize assistant demo", exact: true })
+    .click();
+  await expect(chat).toHaveAttribute("data-expanded", "false");
+  await page
+    .getByRole("button", { name: "Open assistant demo", exact: true })
+    .click();
+  await expect(chat).toHaveAttribute("data-expanded", "true");
   await page.getByRole("button", { name: "Replay chat demo" }).click();
   await expect(chat).toHaveAttribute("data-phase", "typing");
   await page.getByRole("button", { name: "Pause motion", exact: true }).click();
@@ -122,7 +139,7 @@ test("the chat is visible before JavaScript and types, sends, and calls tools", 
 
 test("one WebGL scene continuously unfolds the drawing and keeps operating equipment live", async ({
   page,
-}) => {
+}, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -171,7 +188,11 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
   await expect(actualCanvas.locator(".equipment-symbol")).toHaveCount(9);
   await expect(
     actualCanvas.locator(".react-flow__edge-path").first(),
-  ).toHaveCSS("stroke", "rgb(158, 198, 184)");
+  ).toHaveCSS("stroke", "rgb(180, 63, 68)");
+  const streamColors = await actualCanvas
+    .locator(".react-flow__edge-path")
+    .evaluateAll((edges) => edges.map((edge) => getComputedStyle(edge).stroke));
+  expect(new Set(streamColors).size).toBe(8);
   await expect(canvas).toHaveAttribute("data-simulation", "1.0000");
   await expect(page.locator("[data-live-cad]")).toHaveAttribute(
     "data-built-units",
@@ -182,6 +203,7 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
   expect(bounds!.y).toBeGreaterThan(70);
   expect(bounds!.x + bounds!.width).toBeLessThan(1280);
   expect(bounds!.y + bounds!.height).toBeLessThan(704);
+  await page.screenshot({ path: info.outputPath("build-desktop.png") });
   let previous = 0;
   for (const progress of [0.6, 0.7, 0.8]) {
     await scrollTo(page, progress);
@@ -204,6 +226,7 @@ test("one WebGL scene continuously unfolds the drawing and keeps operating equip
   }
   await chapter(page, "03 Explore", 2);
   await expect(canvas).toHaveAttribute("data-unfold", "1.0000");
+  await page.screenshot({ path: info.outputPath("explore-desktop.png") });
   const overview = await canvas.getAttribute("data-camera-pose");
   await scrollTo(page, 1.25);
   await expect(canvas).toHaveAttribute("data-focus", "heater", {
@@ -271,7 +294,7 @@ test("pause, shell controls and reverse navigation preserve the scene", async ({
 
 test("mobile scenes fit, have readable controls and open the real equipment sandbox", async ({
   page,
-}) => {
+}, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/landing");
   for (const [index, name] of [
@@ -301,6 +324,9 @@ test("mobile scenes fit, have readable controls and open the real equipment sand
     expect(heading!.x).toBeGreaterThanOrEqual(0);
     expect(heading!.x + heading!.width).toBeLessThanOrEqual(390);
     expect(heading!.y + heading!.height).toBeLessThan(844);
+    await page.screenshot({
+      path: info.outputPath(`chapter-${index}-mobile.png`),
+    });
   }
   await expect(page.locator("canvas")).toHaveCount(1);
   // Mobile browser chrome changes the visible height at either endpoint.

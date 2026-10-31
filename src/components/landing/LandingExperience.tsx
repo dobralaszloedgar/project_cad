@@ -87,15 +87,15 @@ function CameraRig({
     () => ({
       camera: new CatmullRomCurve3([
         new Vector3(),
-        new Vector3(-0.7, 3.8, 10.2),
-        new Vector3(-11, 4.5, -10.5),
-        new Vector3(10.2, 6.4, -14.8),
+        new Vector3(-0.7, 3.8, 4.5),
+        new Vector3(-7.6, 4.5, -6.5),
+        new Vector3(13.6, 6.4, -10.8),
       ]),
       target: new CatmullRomCurve3([
         new Vector3(),
-        new Vector3(-4, 1.2, 3.7),
-        new Vector3(-3.9, 1.8, -6),
-        new Vector3(3.1, 3.9, -6),
+        new Vector3(-4, 1.2, -2),
+        new Vector3(-0.5, 1.8, -2),
+        new Vector3(6.5, 3.9, -2),
       ]),
     }),
     [],
@@ -229,8 +229,8 @@ function Experience(props: ExperienceProps) {
       <PlaybackTelemetry {...props} />
       <CameraRig {...props} system={system} />
       <CadProjection bridge={props.cadBridge} />
-      <color attach="background" args={["#05131f"]} />
-      <fog attach="fog" args={["#0a2433", 32, 100]} />
+      <color attach="background" args={["#fafbf9"]} />
+      <fog attach="fog" args={["#e9efea", 32, 100]} />
       <ambientLight intensity={0.32} />
       <directionalLight
         position={[2, 15, 12]}

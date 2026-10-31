@@ -8,7 +8,8 @@ import {
   useRef,
   type RefObject,
 } from "react";
-import { Workflow } from "lucide-react";
+import { ChevronRight, GitBranch, Settings2, Workflow } from "lucide-react";
+import BrandMark from "@/components/BrandMark";
 import type { MotionValue } from "motion/react";
 import { Vector3 } from "three";
 import ProcessCanvas from "@/components/ProcessCanvas";
@@ -43,7 +44,7 @@ export function createCadBridge(): CadBridge {
 const noop = () => {};
 const presentation = {
   viewport: { x: 0, y: 0, zoom: 1 },
-  colorMode: "dark" as const,
+  colorMode: "light" as const,
 };
 
 /** The application's actual React Flow canvas, placed on the 3D workbench.
@@ -166,19 +167,26 @@ export default function CadWorkbench({
       const paper = 1 - reveal(p, 0.55, 0.65);
       unitFocus.current?.setAttribute("opacity", "0");
       streamFocus.current?.setAttribute("opacity", "0");
-      root.current.style.setProperty("--canvas", `rgba(9,27,36,${paper})`);
-      root.current.style.setProperty("--symbol-fill", `rgba(9,27,36,${paper})`);
+      root.current.style.setProperty("--canvas", `rgb(250 251 249 / ${paper})`);
+      root.current.style.setProperty(
+        "--symbol-fill",
+        `rgb(255 255 255 / ${paper})`,
+      );
       root.current.style.setProperty(
         "border-color",
-        `rgba(49,86,95,${paper * 0.5})`,
+        `rgb(38 55 48 / ${paper * 0.16})`,
       );
       root.current.style.setProperty(
         "box-shadow",
-        `0 24px 70px rgba(0,16,24,${paper * 0.15})`,
+        `0 24px 70px rgb(38 55 48 / ${paper * 0.08})`,
       );
       root.current
-        .querySelector<HTMLElement>(`.${styles.cadToolbar}`)
-        ?.style.setProperty("opacity", String(paper));
+        .querySelectorAll<HTMLElement>(
+          `.${styles.cadToolbar}, .${styles.cadViewBar}`,
+        )
+        .forEach((element) =>
+          element.style.setProperty("opacity", String(paper)),
+        );
       root.current
         .querySelector<SVGElement>(".react-flow__background")
         ?.style.setProperty("opacity", String(paper));
@@ -294,9 +302,12 @@ export default function CadWorkbench({
           >
             <div className={styles.cadToolbar} style={{ height: CAD_HEADER }}>
               <span>
-                <Workflow size={16} /> Process canvas
+                <BrandMark size={26} /> Project CAD
               </span>
-              <span>{project.name}</span>
+              <span className={styles.cadProjectName}>
+                {project.name} <ChevronRight size={18} />
+                <GitBranch size={17} /> v1
+              </span>
               <span className={styles.cadMode} data-cad-status>
                 Building
               </span>
@@ -305,6 +316,22 @@ export default function CadWorkbench({
               className={styles.cadCanvas}
               style={{ height: CAD_HEIGHT - CAD_HEADER }}
             >
+              <div className={styles.cadViewBar} aria-hidden="true">
+                <span>
+                  <Settings2 size={20} />
+                </span>
+                <span>
+                  <Workflow size={18} /> Flowsheet
+                </span>
+                <span className={styles.cadRainbow}>
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </div>
               <ProcessCanvas
                 project={project}
                 selected={null}
@@ -315,7 +342,7 @@ export default function CadWorkbench({
                 onAdd={noop}
                 onError={noop}
                 result={null}
-                compositionColors={false}
+                compositionColors
                 presentation={presentation}
               />
               <svg
@@ -327,25 +354,25 @@ export default function CadWorkbench({
                   <path
                     d="M-82-50v-32h32 M50-82h32v32 M82 50v32h-32 M-50 82h-32v-32"
                     fill="none"
-                    stroke="#99ffed"
+                    stroke="#286e5c"
                     strokeWidth="3"
                   />
                   <path
                     className={styles.unitScan}
                     d="M-78 0H78"
-                    stroke="#99ffed"
+                    stroke="#286e5c"
                     strokeWidth="2"
                   />
                 </g>
                 <g ref={streamFocus} opacity="0">
                   <circle
                     r="16"
-                    fill="#72f8df"
+                    fill="#286e5c"
                     fillOpacity=".08"
-                    stroke="#72f8df"
+                    stroke="#286e5c"
                     strokeWidth="2"
                   />
-                  <circle r="5" fill="#effffc" />
+                  <circle r="5" fill="#286e5c" />
                 </g>
               </svg>
             </div>
