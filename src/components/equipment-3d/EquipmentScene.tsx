@@ -47,6 +47,7 @@ export type SceneProps = {
   onSelect: (kind: Kind, instanceId?: string) => void;
   selectedId?: string | null;
   dark?: boolean;
+  canvasColor?: string;
   workspace?: boolean;
 };
 
@@ -429,6 +430,7 @@ function Studio({
   selectedId,
   onSelect,
   dark = false,
+  canvasColor,
 }: SceneProps) {
   const subject = useRef<Group>(null);
   const get = useThree((state) => state.get);
@@ -446,7 +448,10 @@ function Studio({
   const motion = { playing, speed, motionVisible, transparent };
   return (
     <>
-      <color attach="background" args={[dark ? "#000000" : "#f4f6f4"]} />
+      <color
+        attach="background"
+        args={[canvasColor ?? (dark ? "#000000" : "#f4f6f4")]}
+      />
       <ambientLight intensity={0.65} />
       <directionalLight
         position={[5, 10, 6]}

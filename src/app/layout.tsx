@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/figtree";
 import "./globals.css";
+import "./themes.css";
 export const metadata: Metadata = {
   title: "Project CAD — Process workspace",
   description:

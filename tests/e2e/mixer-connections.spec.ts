@@ -79,7 +79,7 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
         .matrixTransform(path.getScreenCTM()!);
       return { x: point.x, y: point.y };
     });
-  await page.mouse.click(streamPoint.x, streamPoint.y);
+  await page.mouse.dblclick(streamPoint.x, streamPoint.y);
   await page
     .getByRole("button", { name: "Remove stream", exact: true })
     .click();

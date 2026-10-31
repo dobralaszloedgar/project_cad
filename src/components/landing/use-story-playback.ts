@@ -19,7 +19,9 @@ export function useStoryPlayback(
   reduced: boolean,
 ) {
   const progress = useMotionValue(0);
+  const design = useMotionValue(0);
   const construction = useMotionValue(0);
+  const simulation = useMotionValue(0);
   const speed = useMotionValue(1);
   const state = useRef(initialPlayback());
   const previousTarget = useRef(0);
@@ -43,10 +45,28 @@ export function useStoryPlayback(
     if (!enabled && !manualJourney.current && !reduced) return;
     state.current = advancePlayback(state.current, target, seconds, reduced);
     progress.set(state.current.progress);
+    design.set(state.current.design);
     construction.set(state.current.construction);
+    simulation.set(state.current.simulation);
     speed.set(state.current.speed);
     if (Math.abs(target - state.current.progress) < 0.00001)
       manualJourney.current = false;
   });
-  return { progress, construction, speed };
+  const replayDesign = () => {
+    state.current.design = 0;
+    design.set(0);
+  };
+  const sendDesign = () => {
+    state.current.design = Math.max(0.5, state.current.design);
+    design.set(state.current.design);
+  };
+  return {
+    progress,
+    design,
+    construction,
+    simulation,
+    speed,
+    replayDesign,
+    sendDesign,
+  };
 }

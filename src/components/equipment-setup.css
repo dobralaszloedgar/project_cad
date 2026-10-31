@@ -1,4 +1,3 @@
-/* Equipment editor proportions follow lazj_cad's shared engineering editor. */
 .equipment-editor-dialog {
   height: min(820px, calc(100dvh - 48px));
   max-height: calc(100dvh - 48px);

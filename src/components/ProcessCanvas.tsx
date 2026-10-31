@@ -7,6 +7,7 @@ import {
   useRef,
   useEffect,
   useLayoutEffect,
+  useSyncExternalStore,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -25,6 +26,8 @@ import {
   useReactFlow,
   useNodesInitialized,
   useStore,
+  useStoreApi,
+  SelectionMode,
   type NodeProps,
   type Node,
   type EdgeProps,
@@ -43,6 +46,12 @@ import {
   validateGraph,
 } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
+import {
+  CANVAS_MIN_ZOOM,
+  CANVAS_MAX_ZOOM,
+  ZOOM_STEP,
+  useCanvasWheelNavigation,
+} from "./useCanvasWheelNavigation";
 import { equipmentPort, streamPath } from "./flow-geometry";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
@@ -56,6 +65,12 @@ import {
   type RouteEndpoint,
 } from "./stream-routing";
 const mixerDropHandle = "mixer-center";
+const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
+const subscribePointer = (onChange: () => void) => {
+  const query = window.matchMedia("(pointer: coarse)");
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+};
 type EquipmentNode = Node<
   { unit: Unit; connected: string[]; change?: string },
   "equipment"
@@ -85,10 +100,34 @@ const UnitNode = memo(function UnitNode({
 }: NodeProps<EquipmentNode>) {
   const n = data.unit,
     p = ports(n.kind);
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState({
+    left: 0,
+    top: 0,
+    width: 128,
+    height: 128,
+  });
+  useLayoutEffect(() => {
+    const bounds = nodeRef.current?.querySelector("svg")?.getBBox();
+    if (!bounds?.width || !bounds.height) return;
+    const padding = 3 + Math.min(bounds.width, bounds.height) * 0.1;
+    setFrame({
+      left: bounds.x - padding,
+      top: bounds.y - padding,
+      width: bounds.width + padding * 2,
+      height: bounds.height + padding * 2,
+    });
+  }, [n.kind]);
   return (
     <div
+      ref={nodeRef}
       className={`equipment-node ${n.kind === "PBR" || n.kind === "Distillation" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
     >
+      <div
+        className="equipment-selection-frame"
+        style={frame}
+        aria-hidden="true"
+      />
       <span className="unit-tag">{n.id}</span>
       {p.inputs.map((id, i) => (
         <Handle
@@ -295,9 +334,20 @@ function Inner(props: Props) {
     presentation,
   } = props;
   const rf = useReactFlow();
+  const flowStore = useStoreApi();
+  const zoom = useStore((state) => state.transform[2]);
   const nodesInitialized = useNodesInitialized();
   const containerRef = useRef<HTMLDivElement>(null);
   const [panMode, setPanMode] = useState(false);
+  const [spacePan, setSpacePan] = useState(false);
+  const touch = useSyncExternalStore(
+    subscribePointer,
+    coarsePointer,
+    () => false,
+  );
+  const panning = panMode || spacePan;
+  const marqueeActive = useRef(false);
+  useCanvasWheelNavigation(containerRef, !presentation);
   const [showGrid, setShowGrid] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   useEffect(() => {
@@ -313,11 +363,18 @@ function Inner(props: Props) {
       if (
         event.target instanceof Element &&
         event.target.closest(
-          ".plant-viewport, .plant-view, aside, .assistant-panel",
+          ".plant-viewport, .plant-view, aside, .assistant-panel, .workspace-utilities",
         )
       )
         return;
       const key = event.key.toLowerCase();
+      if (key === " ") {
+        if (event.target instanceof Element && event.target.closest("button"))
+          return;
+        event.preventDefault();
+        setSpacePan(true);
+        return;
+      }
       const viewport = rf.getViewport();
       const step = event.shiftKey ? 256 : 64;
       let handled = true;
@@ -338,8 +395,11 @@ function Inner(props: Props) {
       } else if (["+", "=", "-"].includes(key))
         void rf.zoomTo(
           Math.max(
-            0.1,
-            Math.min(3, viewport.zoom * (key === "-" ? 1 / 1.2 : 1.2)),
+            CANVAS_MIN_ZOOM,
+            Math.min(
+              CANVAS_MAX_ZOOM,
+              viewport.zoom * (key === "-" ? 1 / ZOOM_STEP : ZOOM_STEP),
+            ),
           ),
         );
       else if (key === "f") {
@@ -357,9 +417,58 @@ function Inner(props: Props) {
       else handled = false;
       if (handled) event.preventDefault();
     }
+    const releaseSpace = (event: KeyboardEvent) => {
+      if (event.code === "Space") setSpacePan(false);
+    };
+    const resetSpace = () => setSpacePan(false);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", releaseSpace);
+    window.addEventListener("blur", resetSpace);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", releaseSpace);
+      window.removeEventListener("blur", resetSpace);
+    };
   }, [rf, project.units, selection, presentation]);
+  useEffect(() => {
+    if (presentation) return;
+    return flowStore.subscribe((current, previous) => {
+      const rect = current.userSelectionRect;
+      if (
+        !marqueeActive.current ||
+        !current.userSelectionActive ||
+        !rect ||
+        rect === previous.userSelectionRect
+      )
+        return;
+      const canvas = current.domNode?.getBoundingClientRect();
+      if (!canvas || !containerRef.current) return;
+      const left = canvas.left + rect.x;
+      const top = canvas.top + rect.y;
+      const enclosed = new Set<string>();
+      for (const node of containerRef.current.querySelectorAll<HTMLElement>(
+        ".react-flow__node",
+      )) {
+        const frame = node
+          .querySelector(".equipment-selection-frame")
+          ?.getBoundingClientRect();
+        if (
+          node.dataset.id &&
+          frame &&
+          frame.left >= left &&
+          frame.top >= top &&
+          frame.right <= left + rect.width &&
+          frame.bottom <= top + rect.height
+        )
+          enclosed.add(node.dataset.id);
+      }
+      // A marquee encloses visible equipment frames, not labels or connected pipes.
+      onSelection((previous) => {
+        const remaining = new Set(enclosed);
+        return [...previous.filter((id) => remaining.delete(id)), ...remaining];
+      });
+    });
+  }, [flowStore, onSelection, presentation]);
   const initiallyFramed = useRef(false);
   useEffect(() => {
     if (presentation || !nodesInitialized || initiallyFramed.current) return;
@@ -455,6 +564,7 @@ function Inner(props: Props) {
     return project.units.map((unit) => ({
       id: unit.id,
       type: "equipment",
+      style: { pointerEvents: "none" },
       position: unit.position,
       data: {
         unit,
@@ -594,6 +704,7 @@ function Inner(props: Props) {
   }
   const updateSelection = useCallback(
     (changes: (NodeChange<EquipmentNode> | EdgeChange)[]) => {
+      if (marqueeActive.current) return;
       const selectedChanges = changes.filter(
         (change) => change.type === "select",
       );
@@ -641,7 +752,7 @@ function Inner(props: Props) {
   return (
     <div
       ref={containerRef}
-      className={`flow-wrapper ${showLabels ? "" : "hide-flow-labels"}`}
+      className={`flow-wrapper ${panning ? "pan-mode" : ""} ${showLabels ? "" : "hide-flow-labels"}`}
       tabIndex={0}
       aria-label="2D process canvas"
       data-canvas-mode={presentation ? "presentation" : "editor"}
@@ -675,24 +786,32 @@ function Inner(props: Props) {
         edgeTypes={edgeTypes}
         fitView={!presentation}
         fitViewOptions={flowFitOptions}
-        minZoom={0.05}
-        maxZoom={3}
-        panOnScroll={!presentation}
-        panOnScrollSpeed={1}
-        panOnDrag={presentation ? false : panMode ? [0, 1, 2] : [1, 2]}
-        selectionOnDrag={!presentation && !panMode}
-        nodesDraggable={!presentation && !panMode}
+        minZoom={CANVAS_MIN_ZOOM}
+        maxZoom={CANVAS_MAX_ZOOM}
+        panOnScroll={false}
+        panOnDrag={presentation ? false : panning || touch ? true : [1, 2]}
+        selectionOnDrag={!presentation && !panning && !touch}
+        selectionKeyCode={presentation || panning ? null : "Shift"}
+        selectionMode={SelectionMode.Partial}
+        onSelectionStart={() => {
+          marqueeActive.current = true;
+          onSelection([]);
+        }}
+        onSelectionEnd={() => {
+          marqueeActive.current = false;
+        }}
+        nodesDraggable={!presentation && !panning}
         multiSelectionKeyCode={["Shift", "Control", "Meta"]}
         disableKeyboardA11y
-        panActivationKeyCode={presentation ? null : "Space"}
+        panActivationKeyCode={null}
         zoomOnScroll={false}
         zoomOnPinch={!presentation}
-        zoomActivationKeyCode={presentation ? null : ["Control", "Meta"]}
+        zoomActivationKeyCode={null}
         viewport={presentation?.viewport}
-        nodesConnectable={!presentation}
+        nodesConnectable={!presentation && !panning}
         nodesFocusable={!presentation}
         edgesFocusable={!presentation}
-        elementsSelectable={!presentation}
+        elementsSelectable={!presentation && !panning}
         preventScrolling={!presentation}
         zoomOnDoubleClick={false}
         onNodesChange={nodeChanges}
@@ -721,19 +840,26 @@ function Inner(props: Props) {
           );
           setPositions({});
         }}
-        onNodeClick={() => !presentation && containerRef.current?.focus()}
+        onNodeClick={(event, node) => {
+          if (presentation || panning) return;
+          if (!event.ctrlKey && !event.metaKey && !event.shiftKey)
+            onSelection([node.id]);
+          containerRef.current?.focus();
+        }}
         onPaneClick={() => {
-          if (presentation) return;
+          if (presentation || panning) return;
           onSelection([]);
           containerRef.current?.focus();
         }}
-        onNodeDoubleClick={(_, node) => !presentation && onInspect(node.id)}
-        onEdgeClick={(event, edge) => {
-          if (presentation) return;
-          if (!event.shiftKey && !event.ctrlKey && !event.metaKey)
-            onInspect(edge.id);
-          else containerRef.current?.focus();
-        }}
+        onNodeDoubleClick={(_, node) =>
+          !presentation && !panning && onInspect(node.id)
+        }
+        onEdgeClick={() =>
+          !presentation && !panning && containerRef.current?.focus()
+        }
+        onEdgeDoubleClick={(_, edge) =>
+          !presentation && !panning && onInspect(edge.id)
+        }
         onEdgeMouseEnter={(_, edge) => {
           const s = result?.streams[edge.id];
           const name =
@@ -806,7 +932,13 @@ function Inner(props: Props) {
       >
         {showGrid ? (
           <Background
-            color={presentation?.colorMode === "dark" ? "#31505a" : "#bfcac4"}
+            color={
+              presentation
+                ? presentation.colorMode === "dark"
+                  ? "#31505a"
+                  : "#bfcac4"
+                : "var(--grid)"
+            }
             gap={24}
             size={1}
           />
@@ -818,26 +950,20 @@ function Inner(props: Props) {
             showFitView={false}
           >
             <ControlButton
-              title="Pan canvas"
-              aria-label="Pan canvas"
-              aria-pressed={panMode}
-              onClick={() => setPanMode(!panMode)}
-            >
-              <Hand />
-            </ControlButton>
-            <ControlButton
-              title="Zoom In"
+              title="Zoom in (+)"
               aria-label="Zoom In"
-              onClick={() => void rf.zoomIn({ duration: duration() })}
+              disabled={zoom >= CANVAS_MAX_ZOOM}
+              onClick={() => void rf.zoomTo(rf.getZoom() * ZOOM_STEP)}
             >
-              <Plus />
+              <Plus size={16} aria-hidden="true" />
             </ControlButton>
             <ControlButton
-              title="Zoom Out"
+              title="Zoom out (−)"
               aria-label="Zoom Out"
-              onClick={() => void rf.zoomOut({ duration: duration() })}
+              disabled={zoom <= CANVAS_MIN_ZOOM}
+              onClick={() => void rf.zoomTo(rf.getZoom() / ZOOM_STEP)}
             >
-              <Minus />
+              <Minus size={16} aria-hidden="true" />
             </ControlButton>
             <ControlButton
               title="Fit View"
@@ -846,14 +972,29 @@ function Inner(props: Props) {
                 void rf.fitView({ padding: 0.2, duration: duration() })
               }
             >
-              <Maximize />
+              <Maximize size={16} aria-hidden="true" />
             </ControlButton>
+            {!touch && (
+              <ControlButton
+                className="react-flow__controls-pan"
+                title="Pan canvas (P) · Select (V)"
+                aria-label="Pan canvas"
+                aria-pressed={panning}
+                onClick={() => setPanMode((value) => !value)}
+              >
+                <Hand size={16} aria-hidden="true" />
+              </ControlButton>
+            )}
           </Controls>
         )}
       </ReactFlow>
       {!presentation && (
         <div className="navigation-hint">
-          Drag to select · Space + drag / scroll to pan · Pinch to zoom
+          {touch
+            ? "Drag to pan · Pinch to zoom"
+            : panning
+              ? "Drag to pan · V to select · Pinch to zoom"
+              : "Drag to select · Space + drag / scroll to pan · Pinch to zoom"}
         </div>
       )}
       {!presentation && hover ? (

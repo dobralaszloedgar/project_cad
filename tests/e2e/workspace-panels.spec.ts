@@ -21,6 +21,11 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(tabs.getByRole("button")).toHaveCount(2);
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
   const canvas = (await page.locator(".canvas-panel").boundingBox())!;
+  // Wait for the initial fit before comparing panel actions with this camera.
+  await expect(page.locator(".react-flow__viewport")).not.toHaveCSS(
+    "transform",
+    "matrix(1, 0, 0, 1, 0, 0)",
+  );
   const viewport = await page
     .locator(".react-flow__viewport")
     .getAttribute("style");
@@ -51,7 +56,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(page.getByLabel("Property model")).toBeVisible();
   await expect(page.locator(".workspace-drawer")).toHaveCount(1);
   await expect(page.locator("dialog[open]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.getByRole("radio", { name: "Obsidian", exact: true }).check();
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-theme",
     "dark",
@@ -79,7 +84,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(
     page.getByRole("complementary", { name: "Themes" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await page.getByRole("radio", { name: "Light", exact: true }).check();
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-theme",
     "light",
@@ -180,7 +185,7 @@ test("material handles match equipment roles and cursors use the shared drag han
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await expect(reactor).toHaveCSS(
       "cursor",
-      /url\(.*\/cursors\/grab\.svg.*\) 16 16, grab$/,
+      /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
     );
     await page.mouse.down();
     await page.mouse.move(
@@ -190,18 +195,18 @@ test("material handles match equipment roles and cursors use the shared drag han
     );
     await expect(reactor).toHaveCSS(
       "cursor",
-      /url\(.*\/cursors\/grabbing\.svg.*\) 16 16, grabbing$/,
+      /url\(.*\/cursors\/grabbing\.svg.*\) 8 8, grabbing$/,
     );
     await page.mouse.up();
     await expect(reactor).toHaveCSS(
       "cursor",
-      /url\(.*\/cursors\/grab\.svg.*\) 16 16, grab$/,
+      /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
     );
-    await expect(pane).toHaveCSS("cursor", "crosshair");
+    await expect(pane).toHaveCSS("cursor", "default");
     await page.keyboard.press("p");
     await expect(pane).toHaveCSS(
       "cursor",
-      /url\(.*\/cursors\/grab\.svg.*\) 16 16, grab$/,
+      /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
     );
     await page.keyboard.press("v");
     await page.getByRole("button", { name: "Equipment", exact: true }).click();
@@ -246,7 +251,7 @@ test("phone pull tab and panels remain reachable without page overflow", async (
   }
   await pullTab.click();
   await menu.getByRole("button", { name: "Themes" }).click();
-  await page.getByRole("button", { name: "Dark", exact: true }).click();
+  await page.getByRole("radio", { name: "Obsidian", exact: true }).check();
   await pullTab.click();
   await page.screenshot({ path: "test-results/pull-tabs-mobile.png" });
 });
