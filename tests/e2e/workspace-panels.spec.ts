@@ -19,7 +19,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     exact: true,
   });
   const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
-  await expect(tabs.getByRole("button")).toHaveCount(2);
+  await expect(tabs.getByRole("button")).toHaveText(["Equipment", "Results"]);
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
   const canvas = (await page.locator(".canvas-panel").boundingBox())!;
   // Wait for the initial fit before comparing panel actions with this camera.
@@ -27,9 +27,23 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     "transform",
     "matrix(1, 0, 0, 1, 0, 0)",
   );
-  const viewport = await page
-    .locator(".react-flow__viewport")
-    .getAttribute("style");
+  const viewport = await page.locator(".react-flow__viewport").evaluate(
+    (element) =>
+      new Promise<string | null>((resolve) => {
+        let previous = element.getAttribute("style");
+        let stableSince = performance.now();
+        function sample(now: number) {
+          const current = element.getAttribute("style");
+          if (current !== previous) {
+            previous = current;
+            stableSince = now;
+          }
+          if (now - stableSince >= 300) resolve(current);
+          else requestAnimationFrame(sample);
+        }
+        requestAnimationFrame(sample);
+      }),
+  );
   const tabBox = (await pullTab.boundingBox())!;
   expect(tabBox.x).toBe(canvas.x);
   expect(tabBox.y + tabBox.height / 2).toBeCloseTo(
@@ -41,6 +55,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(menu.getByRole("button")).toHaveText([
     "Equipment",
     "Results",
+    "Themes",
     "Components",
     "Thermodynamics",
     "Toggle chat",
@@ -55,6 +70,19 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   );
   await menu.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(menu).toHaveCount(0);
+  const workspaceTab = page.getByRole("tab", {
+    name: "Workspace",
+    exact: true,
+  });
+  const storageTab = page.getByRole("tab", { name: "Storage", exact: true });
+  await expect(workspaceTab).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("switch", { name: "Color streams by composition" }),
+  ).toBeChecked();
+  await workspaceTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(storageTab).toBeFocused();
+  await expect(storageTab).toHaveAttribute("aria-selected", "true");
   await expect(
     page.getByRole("button", { name: "Export project", exact: true }),
   ).toBeVisible();
@@ -160,7 +188,7 @@ test("solid stream and arrow colors follow composition before and after simulati
   expect(new Set(Object.values(await colors())).size).toBe(3);
 });
 
-test("material handles match equipment roles and cursors use the shared drag hands", async ({
+test("material handles match equipment roles and cursor transitions stay native", async ({
   page,
 }) => {
   for (const unit of reactorExample().units) {
@@ -180,31 +208,19 @@ test("material handles match equipment roles and cursors use the shared drag han
   const reactor = page.locator('.react-flow__node[data-id="R-101"]');
   const box = (await reactor.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(reactor).toHaveCSS(
-    "cursor",
-    /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
-  );
+  await expect(reactor).toHaveCSS("cursor", "grab");
   await page.mouse.down();
   await page.mouse.move(
     box.x + box.width / 2 + 30,
     box.y + box.height / 2 + 30,
     { steps: 8 },
   );
-  await expect(reactor).toHaveCSS(
-    "cursor",
-    /url\(.*\/cursors\/grabbing\.svg.*\) 8 8, grabbing$/,
-  );
+  await expect(reactor).toHaveCSS("cursor", "grabbing");
   await page.mouse.up();
-  await expect(reactor).toHaveCSS(
-    "cursor",
-    /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
-  );
+  await expect(reactor).toHaveCSS("cursor", "grab");
   await expect(pane).toHaveCSS("cursor", "default");
   await page.keyboard.press("p");
-  await expect(pane).toHaveCSS(
-    "cursor",
-    /url\(.*\/cursors\/grab\.svg.*\) 8 8, grab$/,
-  );
+  await expect(pane).toHaveCSS("cursor", "grab");
   await page.keyboard.press("v");
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await expect(page.getByLabel("Search equipment")).toHaveCSS("cursor", "text");
@@ -229,7 +245,7 @@ test("phone pull tab and panels remain reachable without page overflow", async (
   });
   const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
-  for (const name of ["Equipment", "Settings", "Results"]) {
+  for (const name of ["Equipment", "Themes", "Settings", "Results"]) {
     await pullTab.click();
     await menu.getByRole("button", { name, exact: true }).click();
     const panel = page.getByRole("complementary", { name });

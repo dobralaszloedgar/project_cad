@@ -1,10 +1,10 @@
 import type { Unit } from "../schema";
 import type { Stream } from "../solver";
 import { componentFlows, withComponentFlows } from "../stream-composition";
-import { executeKernel } from "../thermo";
+import { evaluateProperties, executeKernel } from "../thermo";
 import { thermoContext } from "../thermo/catalog";
 import type { ThermoSettings } from "../thermo/registry";
-import { distillationSchema } from "./distillation-schema";
+import { distillationSchema, type CondenserType } from "./distillation-schema";
 import {
   rateTrayHydraulics,
   type TrayHydraulicsResult,
@@ -16,6 +16,7 @@ function requireColumn(ok: boolean, message: string): asserts ok {
 }
 export interface FugResult {
   method: "fug";
+  condenserType: CondenserType;
   solverVersion: "project-column-fug-v1";
   minimumStages: number;
   theoreticalStages: number;
@@ -49,6 +50,7 @@ export interface ColumnStage {
 }
 export interface MeshResult {
   method: "mesh";
+  condenserType: CondenserType;
   solverVersion: string;
   componentIds: string[];
   iterations: number;
@@ -181,8 +183,26 @@ export function solveFug(unit: Unit, feed: Stream, settings: ThermoSettings) {
     unit.params.pressure <= feed.pressure,
     "Column pressure exceeds feed pressure.",
   );
+  if (d.condenserType === "partial") {
+    try {
+      evaluateProperties(
+        d.distillateTemperature,
+        unit.params.pressure,
+        ids.map((id) => top[id] / D),
+        settings,
+        undefined,
+        ids,
+        1,
+      );
+    } catch (error) {
+      throw new Error(
+        `Equilibrium condenser requires vapor distillate at the specified distillate temperature and top pressure. ${error instanceof Error ? error.message : "Check the product state."}`,
+      );
+    }
+  }
   const result: FugResult = {
     method: "fug",
+    condenserType: d.condenserType,
     solverVersion: "project-column-fug-v1",
     minimumStages,
     theoreticalStages,
@@ -194,7 +214,7 @@ export function solveFug(unit: Unit, feed: Stream, settings: ThermoSettings) {
     rectifyingVaporMolS,
     strippingVaporMolS,
     warnings: [
-      "FUG preliminary design: supplied constant relative volatilities, adjacent keys, constant molar overflow and declared feed q. Stages include an equilibrium reboiler and exclude the total condenser. Actual trays require efficiencies; no azeotrope prediction or hydraulics.",
+      `FUG preliminary design: supplied constant relative volatilities, adjacent keys, constant molar overflow and declared feed q. Stages include an equilibrium reboiler and ${d.condenserType === "partial" ? "the equilibrium partial condenser" : "exclude the total condenser"}. Actual trays require efficiencies; no azeotrope prediction or hydraulics.`,
       "FUG product temperatures are specified. Net duty is only the selected-model outlet-minus-feed enthalpy balance at those temperatures; condenser and reboiler duties and stage profiles are unavailable.",
     ],
   };
@@ -209,6 +229,7 @@ export function solveFug(unit: Unit, feed: Stream, settings: ThermoSettings) {
         {
           temperature: d.distillateTemperature,
           pressure: unit.params.pressure,
+          ...(d.condenserType === "partial" ? { vaporFraction: 1 } : {}),
         },
         top,
         ids,
@@ -246,6 +267,7 @@ export function solveMesh(unit: Unit, feed: Stream, settings: ThermoSettings) {
     activityParameters: catalog.activityParameters,
     vaporFraction: feed.vaporFraction,
     column: {
+      condenserType: d.condenserType,
       trayCount: unit.params.trayCount,
       feedTray: d.feedTray,
       pressurePa: unit.params.pressure,
@@ -269,19 +291,27 @@ export function solveMesh(unit: Unit, feed: Stream, settings: ThermoSettings) {
     result.warnings.push(...result.hydraulics.warnings);
   }
   result.warnings.push(
-    "MESH equilibrium stages: one feed, adiabatic trays, saturated total condenser and kettle reboiler. Tray count excludes both end units. Low-pressure VLE only; no tray efficiencies, hydraulic feedback, side draws or liquid–liquid stability search.",
+    `MESH equilibrium stages: one feed, adiabatic trays, ${d.condenserType === "partial" ? "equilibrium partial condenser with vapor distillate" : "saturated total condenser with liquid distillate"} and kettle reboiler. Tray count excludes both end units. Low-pressure VLE only; no tray efficiencies, hydraulic feedback, side draws or liquid–liquid stability search.`,
   );
-  const product = (stage: ColumnStage, rate: number) =>
+  const product = (stage: ColumnStage, rate: number, vapor = false) =>
     withComponentFlows(
       {
         temperature: stage.temperatureK,
         pressure: stage.pressurePa,
-        vaporFraction: 0,
+        vaporFraction: vapor ? 1 : 0,
       },
       Object.fromEntries(
         ids.map((id) => {
           const i = result.componentIds.indexOf(id);
-          return [id, i < 0 ? 0 : rate * stage.liquidComposition[i]];
+          return [
+            id,
+            i < 0
+              ? 0
+              : rate *
+                (vapor
+                  ? stage.vaporComposition[i]
+                  : stage.liquidComposition[i]),
+          ];
         }),
       ),
       ids,
@@ -289,7 +319,11 @@ export function solveMesh(unit: Unit, feed: Stream, settings: ThermoSettings) {
   return {
     result,
     outputs: [
-      product(result.stages[0], result.distillateMolS),
+      product(
+        result.stages[0],
+        result.distillateMolS,
+        d.condenserType === "partial",
+      ),
       product(result.stages.at(-1)!, result.bottomsMolS),
     ],
   };

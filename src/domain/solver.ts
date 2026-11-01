@@ -179,6 +179,8 @@ export function operate(
   settings: ThermoSettings = defaultThermo,
 ): { outputs: Stream[]; result: EquipmentResult } {
   unit = unitSchema.parse(unit);
+  if (unit.missingInputs?.length)
+    throw new Error(`Specify ${unit.missingInputs[0]} before calculating.`);
   const p = unit.params;
   const context = thermoContext(settings);
   const ids = context.ids;

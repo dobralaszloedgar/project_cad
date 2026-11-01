@@ -1,6 +1,30 @@
 import type { Stream } from "./solver";
 import type { Unit } from "./schema";
 
+/** Accept fractions, percentages or mole ratios and retain their proportions. */
+export function normalizeComposition(
+  values: Record<string, number>,
+): Record<string, number> {
+  const entries = Object.entries(values);
+  if (entries.some(([, value]) => !Number.isFinite(value) || value < 0))
+    throw new Error("Composition values must be finite and nonnegative.");
+  const largest = Math.max(0, ...entries.map(([, value]) => value));
+  if (largest === 0)
+    throw new Error(
+      "Specify composition: enter a positive amount for at least one component.",
+    );
+  const sum = entries.reduce((total, [, value]) => total + value, 0);
+  // Avoid perturbing already normalized saved inputs by a rounding-only change.
+  if (Math.abs(sum - 1) <= 4 * Number.EPSILON) return { ...values };
+  if (Number.isFinite(sum))
+    return Object.fromEntries(entries.map(([id, value]) => [id, value / sum]));
+  // Scaling first also handles large, finite ratios without overflowing the sum.
+  const total = entries.reduce((sum, [, value]) => sum + value / largest, 0);
+  return Object.fromEntries(
+    entries.map(([id, value]) => [id, value / largest / total]),
+  );
+}
+
 export function componentFlows(
   stream: Stream,
   ids: readonly string[],
@@ -46,12 +70,8 @@ export function feedComposition(
       throw new Error(
         "Feed composition refers to a removed component. Review the feed setup.",
       );
-    const sum = Object.values(params.composition).reduce((s, n) => s + n, 0);
-    if (Math.abs(sum - 1) > 1e-8)
-      throw new Error("Feed mole fractions must sum to 1.");
-    return Object.fromEntries(
-      ids.map((id) => [id, params.composition![id] ?? 0]),
-    );
+    const fractions = normalizeComposition(params.composition);
+    return Object.fromEntries(ids.map((id) => [id, fractions[id] ?? 0]));
   }
   return Object.fromEntries(
     ids.map((id, i) => [

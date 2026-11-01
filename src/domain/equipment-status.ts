@@ -64,7 +64,12 @@ export function simulationKey(project: Project): string {
   return JSON.stringify(
     canonical({
       units: project.units
-        .map(({ id, kind, params }) => ({ id, kind, params }))
+        .map(({ id, kind, params, missingInputs }) => ({
+          id,
+          kind,
+          params,
+          ...(missingInputs?.length ? { missingInputs } : {}),
+        }))
         .sort((a, b) => a.id.localeCompare(b.id)),
       edges: project.edges
         .map(({ id, source, target, sourcePort, targetPort }) => ({
@@ -94,6 +99,8 @@ export function equipmentIssueTarget(message: string): EquipmentTarget {
     return { section: "settings", field: "distillation.feedTray" };
   if (/distillate flow/i.test(message))
     return { section: "settings", field: "distillation.distillateFlow" };
+  if (/distillate temperature/i.test(message))
+    return { section: "settings", field: "distillation.distillateTemperature" };
   if (/relative volatility|volatilities|key volatility/i.test(message))
     return { section: "settings", field: "distillation.relativeVolatilities" };
   if (/light.*heavy.*key/i.test(message))
@@ -133,14 +140,72 @@ export function equipmentSetupIssues(
     kind: EquipmentIssue["kind"] = "error",
     target = equipmentIssueTarget(message),
   ) => issues.push({ kind, message, target });
+  for (const field of new Set(unit.missingInputs ?? []))
+    add(
+      `Specify ${field}.`,
+      "missing",
+      field === "composition"
+        ? { section: "composition" }
+        : { section: "settings", field },
+    );
   const parsed = unitSchema.safeParse(unit);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const path = issue.path.filter((part) => part !== "params").join(".");
-      add(`${path}: ${issue.message}`, "error", {
-        section: "settings",
-        field: path,
-      });
+      const value = issue.path.reduce<unknown>(
+        (current, key) =>
+          current && typeof current === "object"
+            ? (current as Record<PropertyKey, unknown>)[key]
+            : undefined,
+        unit,
+      );
+      const missing =
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        (typeof value === "number" && Number.isNaN(value));
+      const composition =
+        path === "fractionA" || path.startsWith("composition");
+      if (composition) {
+        if (!issues.some((entry) => entry.target.section === "composition"))
+          add(
+            missing
+              ? "Specify composition."
+              : "Composition values must be finite and nonnegative.",
+            missing ? "missing" : "error",
+            {
+              section: "composition",
+              field: path,
+            },
+          );
+      } else {
+        const label =
+          (
+            {
+              name: "equipment name",
+              flow: "flow",
+              temperature: "temperature",
+              pressure: "pressure",
+              heatDuty: "heat duty",
+              trayCount: "tray count",
+            } as Record<string, string>
+          )[path] ??
+          path
+            .split(".")
+            .at(-1)!
+            .replace(/([a-z])([A-Z])/g, "$1 $2")
+            .toLowerCase();
+        add(
+          missing
+            ? `Specify ${label}.`
+            : `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${issue.message}`,
+          missing ? "missing" : "error",
+          {
+            section: "settings",
+            field: path,
+          },
+        );
+      }
     }
     return issues;
   }
@@ -151,7 +216,7 @@ export function equipmentSetupIssues(
     });
   const settings = project.thermo ?? defaultThermo;
   if (settings.mixture === "catalog" && !settings.catalog) {
-    add("Select project components and load their property data.", "missing", {
+    add("Select components and load property data.", "missing", {
       section: "thermodynamics",
       field: "components",
     });
@@ -159,7 +224,7 @@ export function equipmentSetupIssues(
   }
   if (settings.modelId !== "ideal-gas" && settings.mixture === "demo")
     add(
-      "Choose a real sample mixture for the liquid-solution models; synthetic A/B has no vapor-pressure or group data.",
+      "Liquid thermodynamics requires real components; synthetic A/B lacks property data.",
     );
   try {
     const { ids, catalog } = thermoContext(settings);
@@ -196,14 +261,12 @@ export function equipmentSetupIssues(
             );
         }
         if (settings.modelId !== "ideal-gas")
-          add("The reaction-set PBR requires the ideal-gas model.");
+          add("PBR requires the ideal-gas model.");
       } else if (
         settings.mixture !== "demo" ||
         settings.modelId !== "ideal-gas"
       )
-        add(
-          "The sample PBR reaction supports synthetic A/B with the ideal-gas model only.",
-        );
+        add("Sample PBR requires synthetic A/B and the ideal-gas model.");
     }
     const d = unit.params.distillation;
     if (unit.kind === "Distillation" && d) {
@@ -211,7 +274,7 @@ export function equipmentSetupIssues(
         for (const key of ["lightKey", "heavyKey"] as const)
           if (!d[key] || !new Set<string>(ids).has(d[key]!))
             add(
-              `Select a ${key === "lightKey" ? "light" : "heavy"} key from the project components.`,
+              `Select a ${key === "lightKey" ? "light" : "heavy"} key.`,
               "missing",
               { section: "settings", field: `distillation.${key}` },
             );
@@ -242,7 +305,7 @@ export function equipmentSetupIssues(
         for (const id of active)
           if (!(d.relativeVolatilities[id] > 0))
             add(
-              `Supply a positive relative volatility for ${catalog.get(id).name}.`,
+              `Enter relative volatility > 0 for ${catalog.get(id).name}.`,
               "missing",
               {
                 section: "settings",
@@ -251,11 +314,9 @@ export function equipmentSetupIssues(
             );
       } else {
         if (d.feedTray > unit.params.trayCount)
-          add("Feed tray must be within the installed equilibrium trays.");
+          add("Feed tray must be within the tray count.");
         if (settings.modelId === "ideal-gas")
-          add(
-            "MESH requires liquid thermodynamics. Select a liquid model and real project components.",
-          );
+          add("MESH requires liquid thermodynamics and real components.");
       }
     }
     if (
@@ -264,7 +325,7 @@ export function equipmentSetupIssues(
     ) {
       if (settings.modelId !== "ideal-gas")
         add(
-          "Specified duty supports the ideal-gas model only; select an outlet temperature for liquid models.",
+          "Specified duty requires the ideal-gas model. Otherwise, set outlet temperature.",
           "error",
           { section: "settings", field: "thermalMode" },
         );
@@ -275,8 +336,11 @@ export function equipmentSetupIssues(
         add("Heater duty must be nonnegative and cooler duty nonpositive.");
     }
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Review the equipment settings.";
     add(
-      error instanceof Error ? error.message : "Review the equipment settings.",
+      message,
+      message.startsWith("Specify composition") ? "missing" : "error",
     );
   }
   return issues;
@@ -309,7 +373,7 @@ export function equipmentStatuses(
         ),
       ].sort((a, b) => Number(b.kind === "error") - Number(a.kind === "error"));
       let state: EquipmentStatus["state"];
-      if (failure?.unitId === unit.id) {
+      if (failure?.unitId === unit.id && !issues.length) {
         issues.unshift({
           kind: "error",
           message: failure.message,

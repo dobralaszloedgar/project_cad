@@ -1,7 +1,15 @@
 import { it, expect } from "vitest";
 import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtemp, mkdir, readFile, rm, stat, symlink } from "node:fs/promises";
+import {
+  copyFile,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildAssistant } from "../scripts/assistant/build.mjs";
@@ -278,14 +286,15 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     const settingsBefore = await readFile(join(data, "settings.json"), "utf8");
     const installed = join(temporary, "installed");
     await mkdir(join(bundle, "runtime"));
-    await symlink(
-      process.execPath,
-      join(
-        bundle,
-        "runtime",
-        process.platform === "win32" ? "node.exe" : "node",
-      ),
+    const bundledRuntime = join(
+      bundle,
+      "runtime",
+      process.platform === "win32" ? "node.exe" : "node",
     );
+    // Windows symlinks require privileges that ordinary test runs may not have.
+    if (process.platform === "win32")
+      await copyFile(process.execPath, bundledRuntime);
+    else await symlink(process.execPath, bundledRuntime);
     await promisify(execFile)(
       process.execPath,
       [

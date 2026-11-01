@@ -1,0 +1,2243 @@
+{
+  "source": "DWSIM 9.0.5, Calculator.PTFlash using RaoultPropertyPackage; real .NET execution",
+  "release": "https://github.com/DanWBR/dwsim/releases/tag/v9.0.5",
+  "releaseAssetSha256": "f2a3da3ca25b1908d56cdbacdb8dc52e9fba45cb9b978c411736da2a67af45f4",
+  "assemblyVersion": "9.0.5.0",
+  "assemblySha256": "c5a038c86cdfd3304be5e283527ab377df7579ca306eac69950ab4b8c495c544",
+  "settings": {
+    "propertyPackage": "Raoult's Law",
+    "poyntingCorrection": false,
+    "vaporFugacity": "Ideal",
+    "parallelProcessing": false,
+    "ptFlashInternalTolerance": 1e-12,
+    "ptFlashExternalTolerance": 1e-12,
+    "defaultTolerance": 0.0001,
+    "note": "DWSIM 9.0.5 Raoult fugacity uses Psat/P directly; the Poynting flag has no effect in this package.",
+    "data": "DWSIM built-in ChemSep records; no coefficients overridden"
+  },
+  "units": {
+    "temperature": "K",
+    "pressure": "Pa",
+    "composition": "mole fraction",
+    "vaporFraction": "molar"
+  },
+  "timing": {
+    "count": 162,
+    "medianMs": 0.5614999972749501,
+    "note": "Descriptive Python/.NET API wall time; first flash excluded, no startup. Not a controlled speed comparison."
+  },
+  "rows": [
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 8995.887905304702,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 11934.56091129399,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 0.2867214091611516,
+      "liquidComposition": [0.06766789815050475, 0.9323321018494952],
+      "vaporComposition": [0.18043276612491377, 0.8195672338750861]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 15149.11432914852,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 12623.973095156562,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 18468.4685841988,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 0.46607605799366614,
+      "liquidComposition": [0.3739672355009956, 0.6260327644990045],
+      "vaporComposition": [0.6443796764265004, 0.3556203235734996]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 25388.364959342278,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 21156.486723456313,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 28067.644031133546,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 0.6897598763347277,
+      "liquidComposition": [0.8239615154477782, 0.17603848455222176],
+      "vaporComposition": [0.9342005814779422, 0.06579941852205783]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 35627.615589536035,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [31822.8568725704, 10491.0847263334],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 29265.202013236118,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 38292.356629556285,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 0.30893735183217425,
+      "liquidComposition": [0.07001989164004312, 0.9299801083599568],
+      "vaporComposition": [0.16706257094753893, 0.8329374290524612]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 48003.85289108091,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 39897.47394301842,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 56350.78828885929,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 0.4728187721971615,
+      "liquidComposition": [0.3864663576709903, 0.6135336423290098],
+      "vaporComposition": [0.6265872010153132, 0.37341279898468677]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 75395.68097873464,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 62663.66210417451,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 81992.9175927709,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 0.6720944239101196,
+      "liquidComposition": [0.8358055557153931, 0.1641944442846069],
+      "vaporComposition": [0.9313195817225369, 0.06868041827746312]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 102787.5090663884,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [91362.8884069182, 34296.5798909729],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 48710.312412917876,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 63363.175731866926,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 0.31991278525255445,
+      "liquidComposition": [0.07124364037640507, 0.9287563596235949],
+      "vaporComposition": [0.161131762856078, 0.838868237143922]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 79006.15313710381,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 65436.731933583775,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 91032.75518849856,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 0.4758580063484414,
+      "liquidComposition": [0.39269200213813826, 0.6073079978618617],
+      "vaporComposition": [0.6181962417018603, 0.3818037582981398]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 120323.51455202088,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 99657.776697263,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 129636.47542201352,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 0.663187198469789,
+      "liquidComposition": [0.8411665677341361, 0.15883343226586397],
+      "vaporComposition": [0.9298797280629449, 0.07012027193705511]
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 161640.87596693795,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [143308.513600556, 57230.6773194788],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 9165.141059480415,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 12892.448037601946,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 0.22478191038062245,
+      "liquidComposition": [0.061876936266644464, 0.9381230637333555],
+      "vaporComposition": [0.231477166413287, 0.768522833586713]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 17194.163701024045,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 13862.877673464549,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 23362.144692961567,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 0.4428184707173293,
+      "liquidComposition": [0.33982322995983866, 0.6601767700401614],
+      "vaporComposition": [0.7015442976937303, 0.2984557023062698]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 35274.83075291094,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 28440.502962679446,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 40006.77177034042,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 0.7362950941284653,
+      "liquidComposition": [0.7816996814322453, 0.21830031856775453],
+      "vaporComposition": [0.9423693905083107, 0.057630609491689376]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 53355.49780479784,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [48229.7204731413, 10561.6641150436],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 36035.00428928815,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 49336.415682424864,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 0.2487413947647572,
+      "liquidComposition": [0.06399481685121787, 0.9360051831487821],
+      "vaporComposition": [0.2087442791706417, 0.7912557208293584]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 64354.89120388746,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 52996.24405180073,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 83781.87035732134,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 0.45262956158514367,
+      "liquidComposition": [0.35291003760583, 0.6470899623941699],
+      "vaporComposition": [0.6778776819617347, 0.32212231803826535]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 121582.12277987011,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 100122.86138071776,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 137080.68601122056,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 0.718792182231477,
+      "liquidComposition": [0.7999599963287788, 0.20004000367122124],
+      "vaporComposition": [0.939137920274263, 0.06086207972573688]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 178809.35435585273,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [160930.135208207, 41706.7360915765],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 64892.46731897807,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 87950.17177877328,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 0.2594968241615737,
+      "liquidComposition": [0.06499366618644828, 0.9350063338135517],
+      "vaporComposition": [0.19989448405447466, 0.8001055159455254]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 113741.71129058875,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 94206.4420570887,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 145319.12613383908,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 0.45669212451885005,
+      "liquidComposition": [0.3588338911413132, 0.6411661088586869],
+      "vaporComposition": [0.6679395255058491, 0.3320604744941508]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 171825.39278559232,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 232878.69048290054,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 0.7107252595913784,
+      "liquidComposition": [0.8073085474169043, 0.19269145258309575],
+      "vaporComposition": [0.937726667966591, 0.062273332033409075]
+    },
+    {
+      "ids": ["67-56-1", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [270499.500055684, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 8970.592400592433,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 11619.94460672557,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 0.32855822403577756,
+      "liquidComposition": [0.07223833570450688, 0.9277616642954931],
+      "vaporComposition": [0.15673375315133992, 0.84326624684866]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 14431.978455252722,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 11909.505145178393,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 16386.734267425796,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 0.478119237123871,
+      "liquidComposition": [0.3976198904514939, 0.6023801095485062],
+      "vaporComposition": [0.6117508050835813, 0.3882491949164186]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 21463.904524054324,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 17712.365782517125,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 22943.4913610965,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 0.6560880600613057,
+      "liquidComposition": [0.8451848071147695, 0.15481519288523052],
+      "vaporComposition": [0.9287333369875864, 0.07126666301241356]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 28495.83059285592,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [25211.5100917136, 10561.6641150436],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 35337.6082897994,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 45573.14374573701,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 0.3383614621559471,
+      "liquidComposition": [0.0734006176036692, 0.9265993823963309],
+      "vaporComposition": [0.15201294604925158, 0.8479870539507485]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 56369.13255506973,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 46280.004073366115,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 62947.22318576275,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 0.48054373110478665,
+      "liquidComposition": [0.40323344312581255, 0.5967665568741876],
+      "vaporComposition": [0.6046023313469272, 0.3953976686530729]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 81653.32953578142,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 67038.75423004007,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 86456.5241089805,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 0.6479502731504576,
+      "liquidComposition": [0.8495384791037698, 0.15046152089623022],
+      "vaporComposition": [0.9274171728666054, 0.07258282713339455]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 106937.5265164931,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [94382.1464680592, 41706.7360915765],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 63690.03346750414,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 81973.33776832427,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 0.343137801893515,
+      "liquidComposition": [0.0739806574051671, 0.9260193425948329],
+      "vaporComposition": [0.1498083349482768, 0.8501916650517232]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 101200.96044272203,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 82852.38549384644,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 112096.27651542367,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 0.4816718117610083,
+      "liquidComposition": [0.40597846033010704, 0.5940215396698929],
+      "vaporComposition": [0.6011768036297762, 0.3988231963702238]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 144752.48539624715,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 118507.65712871001,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 152527.2900178489,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 0.6439515883265562,
+      "liquidComposition": [0.8515859678026958, 0.14841403219730423],
+      "vaporComposition": [0.9267686881732105, 0.0732313118267896]
+    },
+    {
+      "ids": ["64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 188304.01034977232,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [165993.242990128, 75260.8993369506],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 21581.470922485463,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 28480.95753617588,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 0.29466748581595414,
+      "liquidComposition": [0.06849066756665559, 0.9315093324333444],
+      "vaporComposition": [0.17542249394747317, 0.8245775060525268]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 35982.091703093916,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 29977.719059817202,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 43275.74527707088,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 0.46857998492332703,
+      "liquidComposition": [0.37842220985120967, 0.6215777901487903],
+      "vaporComposition": [0.6378822680282227, 0.3621177319717773]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 58895.2100752443,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 49067.29926022558,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 64753.86555738877,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 0.6834978753872268,
+      "liquidComposition": [0.8283608680078502, 0.17163913199214972],
+      "vaporComposition": [0.933173383996383, 0.06682661600361697]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 320.0,
+      "pressure": 81808.32844739468,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [72947.1733670269, 25211.5100917136],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 79641.121308818,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 102063.90236621948,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 0.3541495499813524,
+      "liquidComposition": [0.07535376220363145, 0.9246462377963686],
+      "vaporComposition": [0.14494650289090974, 0.8550534971090903]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 125491.68371569978,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 101983.40882061484,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 136416.34531780708,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 0.48414115869214197,
+      "liquidComposition": [0.4123321629241301, 0.5876678370758699],
+      "vaporComposition": [0.5934112459599485, 0.4065887540400514]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 174424.11553181472,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.5, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 141749.3602425049,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 181658.5782132029,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 0.6346484185198663,
+      "liquidComposition": [0.8561333594679892, 0.1438666405320108],
+      "vaporComposition": [0.9252529526977604, 0.07474704730223952]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 350.0,
+      "pressure": 200000.0,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [196324.712751632, 94382.1464680592],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.9, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 139023.44759403667,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.1, 0.9]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 176623.41496987356,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 0.3807481507828542,
+      "liquidComposition": [0.07889233403134932, 0.9211076659686508],
+      "vaporComposition": [0.1343296773913928, 0.8656703226086073]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.1, 0.9],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.1, 0.9],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 171131.83529117005,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 223639.71219472855,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 0.48936014696470964,
+      "liquidComposition": [0.42782605143950553, 0.5721739485604945],
+      "vaporComposition": [0.5753124150270563, 0.4246875849729437]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.5, 0.5],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.5, 0.5]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 222525.59890267043,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 282709.36936606286,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 0.611690838718281,
+      "liquidComposition": [0.8662143610132099, 0.13378563898679005],
+      "vaporComposition": [0.9214475553791472, 0.07855244462085272]
+    },
+    {
+      "ids": ["67-64-1", "64-17-5"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.9, 0.1],
+      "saturationPressures": [300736.017560861, 165993.242990128],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.9, 0.1]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 13057.309005844201,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.2, 0.3, 0.5]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 20339.799860028223,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 0.43370386369582375,
+      "liquidComposition": [
+        0.12609348464757325, 0.24099245100651662, 0.6329140643459101
+      ],
+      "vaporComposition": [
+        0.2965012710173546, 0.3770473814160552, 0.32645134756659044
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 29229.556155301438,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.2, 0.3, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 26270.397941582833,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.7, 0.2, 0.1]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 36865.57570323639,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 0.6949035271917418,
+      "liquidComposition": [
+        0.5801259285809971, 0.22100754752483293, 0.1988665238941699
+      ],
+      "vaporComposition": [
+        0.7526305522133503, 0.1907766640959783, 0.05659278369067148
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 49071.78477539309,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.7, 0.2, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 12626.068216274723,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.001, 0.499, 0.5]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 18477.7805165559,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 0.46575178865847555,
+      "liquidComposition": [
+        0.0005747792206786957, 0.37339773535484866, 0.6260274854244727
+      ],
+      "vaporComposition": [
+        0.001487756453779798, 0.6430741331780945, 0.3554381103681258
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 320.0,
+      "pressure": 25407.570915322078,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        47827.8201890669, 31822.8568725704, 10491.0847263334
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.001, 0.499, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 41236.70095870413,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.2, 0.3, 0.5]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 61056.500499863934,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 0.44536327092066097,
+      "liquidComposition": [
+        0.13304446568729145, 0.24568750673455708, 0.6212680275781515
+      ],
+      "vaporComposition": [
+        0.2833836128160997, 0.36763850002856485, 0.34897788715533534
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 84680.54976161724,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.2, 0.3, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 76282.2546118694,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.7, 0.2, 0.1]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 104044.971551784,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 0.6787415445057462,
+      "liquidComposition": [
+        0.5984727933065132, 0.21803880327852748, 0.18348840341495942
+      ],
+      "vaporComposition": [
+        0.7480543350808871, 0.1914619664478549, 0.060483698471257945
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 135284.54980647747,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.7, 0.2, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 39903.95366272627,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.001, 0.499, 0.5]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 56374.18159030769,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 0.47254496013224795,
+      "liquidComposition": [
+        0.0006182108707194786, 0.3858389751256558, 0.6135428140036248
+      ],
+      "vaporComposition": [
+        0.0014261533132199182, 0.6253104210652646, 0.3732634256215155
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 350.0,
+      "pressure": 75442.10532264906,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        130049.841668929, 91362.8884069182, 34296.5798909729
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.001, 0.499, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 67612.39140067076,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.2, 0.3, 0.5]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 98017.95249106923,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 0.45027988056917667,
+      "liquidComposition": [
+        0.13638089526108543, 0.24833242813567033, 0.6152866766032443
+      ],
+      "vaporComposition": [
+        0.27766880858845155, 0.3630778877796127, 0.35925330363193586
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 133824.49887756,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.2, 0.3, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 120290.33008388344,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.7, 0.2, 0.1]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 162220.75676339582,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 0.6702420676151817,
+      "liquidComposition": [
+        0.6064364891301717, 0.21695246649733013, 0.17661104437249817
+      ],
+      "vaporComposition": [
+        0.7460330847344178, 0.19165941594672867, 0.06230749931885372
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.7, 0.2, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 65447.26187875742,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.001, 0.499, 0.5]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 91067.46345491029,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 0.47560198900196715,
+      "liquidComposition": [
+        0.0006383174958219672, 0.39203974713339407, 0.607321935370784
+      ],
+      "vaporComposition": [
+        0.001398790564778239, 0.6169342079220421, 0.38166700151317967
+      ]
+    },
+    {
+      "ids": ["110-54-3", "71-43-2", "108-88-3"],
+      "temperature": 365.0,
+      "pressure": 120391.01947364857,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        199562.614956969, 143308.513600556, 57230.6773194788
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.001, 0.499, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 12620.85015009009,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.2, 0.3, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 19133.145933638374,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 0.40220507272326694,
+      "liquidComposition": [
+        0.12409641821869564, 0.26601036963125313, 0.6098932121500513
+      ],
+      "vaporComposition": [
+        0.31281502703029823, 0.3505185786864211, 0.33666639428328077
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 26988.275015596966,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.2, 0.3, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 25066.61317885126,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.7, 0.2, 0.1]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 35596.269617305035,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 0.6512417245293939,
+      "liquidComposition": [
+        0.5685824968352019, 0.24691098957620325, 0.1845065135885948
+      ],
+      "vaporComposition": [
+        0.7703777722527477, 0.17487784457139646, 0.054744383175855796
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 47831.12731325519,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.7, 0.2, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 11912.8623497351,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.001, 0.499, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 16400.34162546445,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 0.4769639655181637,
+      "liquidComposition": [
+        0.0005192971038201224, 0.3972135002043418, 0.6022672026918381
+      ],
+      "vaporComposition": [
+        0.0015271361250712393, 0.6106185101301534, 0.3878543537447753
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 320.0,
+      "pressure": 21491.526376512033,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        48229.7204731413, 25211.5100917136, 10561.6641150436
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.001, 0.499, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 48751.31530463147,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.2, 0.3, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 71146.59157931837,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 0.4224495475063637,
+      "liquidComposition": [
+        0.13045371418675022, 0.2636281360841976, 0.6059181497290521
+      ],
+      "vaporComposition": [
+        0.29507996653749796, 0.34972566922275605, 0.355194364239746
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 97624.84683341689,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.2, 0.3, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 90227.74157817979,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.7, 0.2, 0.1]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 124241.43726061957,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 0.6476622940948507,
+      "liquidComposition": [
+        0.5876152237791405, 0.23686985498977536, 0.17551492123108403
+      ],
+      "vaporComposition": [
+        0.7611389524963226, 0.17994226274619055, 0.05891878475748688
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 162837.8370582173,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.7, 0.2, 0.1],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 46291.73722245119,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.001, 0.499, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 62987.830398310994,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 0.47973959376112013,
+      "liquidComposition": [
+        0.0005727487266720162, 0.40270800179986044, 0.5967192494734676
+      ],
+      "vaporComposition": [
+        0.0014633387027429257, 0.6034252230848873, 0.3951114382123698
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 350.0,
+      "pressure": 81733.18712226959,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        160930.135208207, 94382.1464680592, 41706.7360915765
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.001, 0.499, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 87048.95077890693,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.2, 0.3, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 125169.75552514207,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 0.4302862958501396,
+      "liquidComposition": [
+        0.13336990193353393, 0.2630804208909594, 0.6035496771755067
+      ],
+      "vaporComposition": [
+        0.28822051816061844, 0.34888277961143727, 0.36289670222794435
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 169833.9870919806,
+      "composition": [0.2, 0.3, 0.5],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.2, 0.3, 0.5],
+      "vaporComposition": null
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 156207.75448637098,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.7, 0.2, 0.1]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 212667.04083933157,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 0.6452510889668147,
+      "liquidComposition": [
+        0.5955070222767542, 0.23299501482826804, 0.17149796289497782
+      ],
+      "vaporComposition": [
+        0.7574485974402514, 0.18185985923930073, 0.060691543320447856
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 200000.0,
+      "composition": [0.7, 0.2, 0.1],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 0.9187928573847496,
+      "liquidComposition": [
+        0.5287519502758311, 0.23703024630447023, 0.23421780341969853
+      ],
+      "vaporComposition": [
+        0.7151356910154022, 0.1967270963541397, 0.08813721263045814
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 82872.36156894782,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 1.0,
+      "liquidComposition": null,
+      "vaporComposition": [0.001, 0.499, 0.5]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 112161.01469089481,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 0.48098598372115103,
+      "liquidComposition": [
+        0.0005955886196659797, 0.40541037500190547, 0.5939940363784285
+      ],
+      "vaporComposition": [
+        0.001436385220858574, 0.5999890699444022, 0.39857454483473925
+      ]
+    },
+    {
+      "ids": ["67-56-1", "64-17-5", "7732-18-5"],
+      "temperature": 365.0,
+      "pressure": 144877.89290472583,
+      "composition": [0.001, 0.499, 0.5],
+      "saturationPressures": [
+        270499.500055684, 165993.242990128, 75260.8993369506
+      ],
+      "vaporFraction": 0.0,
+      "liquidComposition": [0.001, 0.499, 0.5],
+      "vaporComposition": null
+    }
+  ],
+  "withDefaultFlashTolerance": [
+    {
+      "case": 1,
+      "vaporFraction": 0.2867207371406848,
+      "liquidComposition": [0.06766795127165075, 0.9323320487283492],
+      "vaporComposition": [0.18043289063773216, 0.8195671093622678]
+    },
+    {
+      "case": 4,
+      "vaporFraction": 0.46607605802873503,
+      "liquidComposition": [0.3739672354921151, 0.6260327645078849],
+      "vaporComposition": [0.6443796764178081, 0.3556203235821919]
+    },
+    {
+      "case": 7,
+      "vaporFraction": 0.6898599320852815,
+      "liquidComposition": [0.823943737232794, 0.176056262767206],
+      "vaporComposition": [0.9341930471995779, 0.06580695280042217]
+    },
+    {
+      "case": 10,
+      "vaporFraction": 0.3095443056237364,
+      "liquidComposition": [0.06997729894156889, 0.9300227010584311],
+      "vaporComposition": [0.16697154626594826, 0.8330284537340517]
+    },
+    {
+      "case": 13,
+      "vaporFraction": 0.4730924249472256,
+      "liquidComposition": [0.3864040377657337, 0.6135959622342665],
+      "vaporComposition": [0.6265257010547199, 0.37347429894528]
+    },
+    {
+      "case": 16,
+      "vaporFraction": 0.671278967934992,
+      "liquidComposition": [0.8359242452458531, 0.16407575475414699],
+      "vaporComposition": [0.9313748969231297, 0.06862510307687043]
+    },
+    {
+      "case": 19,
+      "vaporFraction": 0.3198339145986382,
+      "liquidComposition": [0.07124885294157612, 0.9287511470584239],
+      "vaporComposition": [0.16114241103716545, 0.8388575889628346]
+    },
+    {
+      "case": 22,
+      "vaporFraction": 0.4760819817649829,
+      "liquidComposition": [0.39264382214907695, 0.6073561778509231],
+      "vaporComposition": [0.6181485555820391, 0.38185144441796093]
+    },
+    {
+      "case": 25,
+      "vaporFraction": 0.6632839507325801,
+      "liquidComposition": [0.8411538250389329, 0.15884617496106707],
+      "vaporComposition": [0.929873509193818, 0.07012649080618197]
+    },
+    {
+      "case": 28,
+      "vaporFraction": 0.22472137959694924,
+      "liquidComposition": [0.06188355828471206, 0.938116441715288],
+      "vaporComposition": [0.23149745997498392, 0.7685025400250161]
+    },
+    {
+      "case": 31,
+      "vaporFraction": 0.44281847082650205,
+      "liquidComposition": [0.3398232299244013, 0.6601767700755987],
+      "vaporComposition": [0.7015442976606566, 0.2984557023393435]
+    },
+    {
+      "case": 34,
+      "vaporFraction": 0.7363268569047944,
+      "liquidComposition": [0.781690004871071, 0.21830999512892904],
+      "vaporComposition": [0.9423663108319267, 0.057633689168073314]
+    },
+    {
+      "case": 37,
+      "vaporFraction": 0.24866362351998822,
+      "liquidComposition": [0.06400230995883552, 0.9359976900411645],
+      "vaporComposition": [0.20876494070154494, 0.791235059298455]
+    },
+    {
+      "case": 40,
+      "vaporFraction": 0.45262956178536623,
+      "liquidComposition": [0.352910037546395, 0.6470899624536048],
+      "vaporComposition": [0.6778776819049036, 0.32212231809509634]
+    },
+    {
+      "case": 43,
+      "vaporFraction": 0.7188593312925114,
+      "liquidComposition": [0.7999433781097032, 0.20005662189029688],
+      "vaporComposition": [0.9391319844395568, 0.06086801556044317]
+    },
+    {
+      "case": 46,
+      "vaporFraction": 0.25941340304657345,
+      "liquidComposition": [0.06500126558109325, 0.9349987344189067],
+      "vaporComposition": [0.19991448424618052, 0.8000855157538194]
+    },
+    {
+      "case": 49,
+      "vaporFraction": 0.45669212465371295,
+      "liquidComposition": [0.3588338911029493, 0.6411661088970507],
+      "vaporComposition": [0.6679395254688651, 0.3320604745311348]
+    },
+    {
+      "case": 52,
+      "vaporFraction": 0.7108061629088314,
+      "liquidComposition": [0.8072903084693913, 0.19270969153060874],
+      "vaporComposition": [0.9377198212431758, 0.06228017875682421]
+    },
+    {
+      "case": 55,
+      "vaporFraction": 0.32848287121392017,
+      "liquidComposition": [0.072243077248177, 0.9277569227518231],
+      "vaporComposition": [0.1567431037680304, 0.8432568962319695]
+    },
+    {
+      "case": 58,
+      "vaporFraction": 0.47830821482074404,
+      "liquidComposition": [0.39758112173325544, 0.6024188782667446],
+      "vaporComposition": [0.6117123598163199, 0.38828764018368006]
+    },
+    {
+      "case": 61,
+      "vaporFraction": 0.6561749325303263,
+      "liquidComposition": [0.8451742542632484, 0.15482574573675156],
+      "vaporComposition": [0.9287279989091253, 0.0712720010908747]
+    },
+    {
+      "case": 64,
+      "vaporFraction": 0.33829285727756386,
+      "liquidComposition": [0.07340469343668088, 0.9265953065633191],
+      "vaporComposition": [0.15202067094120658, 0.8479793290587934]
+    },
+    {
+      "case": 67,
+      "vaporFraction": 0.4806974177500171,
+      "liquidComposition": [0.40320365492223775, 0.5967963450777622],
+      "vaporComposition": [0.6045727377305543, 0.3954272622694457]
+    },
+    {
+      "case": 70,
+      "vaporFraction": 0.6480252216990618,
+      "liquidComposition": [0.8495301888277522, 0.15046981117224778],
+      "vaporComposition": [0.9274128069876028, 0.07258719301239724]
+    },
+    {
+      "case": 73,
+      "vaporFraction": 0.34307322857555406,
+      "liquidComposition": [0.07398438472027227, 0.9260156152797278],
+      "vaporComposition": [0.14981526455987346, 0.8501847354401265]
+    },
+    {
+      "case": 76,
+      "vaporFraction": 0.48180996650007407,
+      "liquidComposition": [0.40595244659663604, 0.5940475534033639],
+      "vaporComposition": [0.6011509400121833, 0.3988490599878166]
+    },
+    {
+      "case": 79,
+      "vaporFraction": 0.6440206500230524,
+      "liquidComposition": [0.851578675997435, 0.14842132400256502],
+      "vaporComposition": [0.9267647725431803, 0.07323522745681971]
+    },
+    {
+      "case": 82,
+      "vaporFraction": 0.2954213010565956,
+      "liquidComposition": [0.06843356906809037, 0.9315664309319096],
+      "vaporComposition": [0.17529302536073846, 0.8247069746392616]
+    },
+    {
+      "case": 85,
+      "vaporFraction": 0.4689267494507509,
+      "liquidComposition": [0.3783375615453038, 0.6216624384546963],
+      "vaporComposition": [0.6377991343417191, 0.3622008656582809]
+    },
+    {
+      "case": 88,
+      "vaporFraction": 0.6834987935461638,
+      "liquidComposition": [0.8283607159794503, 0.1716392840205497],
+      "vaporComposition": [0.9331733173155983, 0.06682668268440176]
+    },
+    {
+      "case": 91,
+      "vaporFraction": 0.3540953239737301,
+      "liquidComposition": [0.0753566838296663, 0.9246433161703337],
+      "vaporComposition": [0.14495169978469222, 0.8550483002153076]
+    },
+    {
+      "case": 94,
+      "vaporFraction": 0.4842475180965635,
+      "liquidComposition": [0.4123134956727329, 0.5876865043272671],
+      "vaporComposition": [0.5933926585689507, 0.40660734143104926]
+    },
+    {
+      "case": 97,
+      "vaporFraction": 0.6347041813021729,
+      "liquidComposition": [0.8561280845138913, 0.14387191548610864],
+      "vaporComposition": [0.9252499907801799, 0.07475000921982014]
+    },
+    {
+      "case": 100,
+      "vaporFraction": 0.380719014033913,
+      "liquidComposition": [0.07889363825657007, 0.92110636174343],
+      "vaporComposition": [0.13433176443470138, 0.8656682355652986]
+    },
+    {
+      "case": 103,
+      "vaporFraction": 0.48936035656714877,
+      "liquidComposition": [0.4278260211701277, 0.5721739788298722],
+      "vaporComposition": [0.5753123848149151, 0.4246876151850849]
+    },
+    {
+      "case": 106,
+      "vaporFraction": 0.611719183470866,
+      "liquidComposition": [0.8662123451039141, 0.1337876548960858],
+      "vaporComposition": [0.9214462962599217, 0.07855370374007825]
+    },
+    {
+      "case": 109,
+      "vaporFraction": 0.43370356069054833,
+      "liquidComposition": [
+        0.12609352374240387, 0.24099249662444144, 0.6329139796331547
+      ],
+      "vaporComposition": [
+        0.2965013274828407, 0.3770474076905316, 0.3264512648266277
+      ]
+    },
+    {
+      "case": 112,
+      "vaporFraction": 0.6949040938032348,
+      "liquidComposition": [
+        0.5801257905859294, 0.22100754474188697, 0.19886666467218378
+      ],
+      "vaporComposition": [
+        0.7526304795830925, 0.19077668866361674, 0.056592831753290815
+      ]
+    },
+    {
+      "case": 115,
+      "vaporFraction": 0.4657517885440721,
+      "liquidComposition": [
+        0.0005747792207477037, 0.37339773538376464, 0.6260274853954876
+      ],
+      "vaporComposition": [
+        0.0014877564539085468, 0.6430741332063374, 0.35543811033975414
+      ]
+    },
+    {
+      "case": 118,
+      "vaporFraction": 0.4453631185808451,
+      "liquidComposition": [
+        0.1330444837287103, 0.24568752713101022, 0.6212679891402795
+      ],
+      "vaporComposition": [
+        0.2833836378238703, 0.3676385131387382, 0.34897784903739126
+      ]
+    },
+    {
+      "case": 121,
+      "vaporFraction": 0.67874220852573,
+      "liquidComposition": [
+        0.5984726580024904, 0.21803880416128107, 0.18348853783622857
+      ],
+      "vaporComposition": [
+        0.7480542587455514, 0.19146199097138006, 0.06048375028306856
+      ]
+    },
+    {
+      "case": 124,
+      "vaporFraction": 0.47282690817154926,
+      "liquidComposition": [
+        0.0006180510390767534, 0.3857748929455336, 0.6136070560153896
+      ],
+      "vaporComposition": [
+        0.0014258774791745213, 0.6252472950706923, 0.37332682745013307
+      ]
+    },
+    {
+      "case": 127,
+      "vaporFraction": 0.45027977079497056,
+      "liquidComposition": [
+        0.13638090768978486, 0.24833244193559953, 0.6152866503746156
+      ],
+      "vaporComposition": [
+        0.2776688255167121, 0.36307789700316373, 0.35925327748012414
+      ]
+    },
+    {
+      "case": 130,
+      "vaporFraction": 0.6702427249661506,
+      "liquidComposition": [
+        0.6064363664300174, 0.21695246907768254, 0.17661116449230024
+      ],
+      "vaporComposition": [
+        0.7460330130837043, 0.19165943859725845, 0.0623075483190372
+      ]
+    },
+    {
+      "case": 133,
+      "vaporFraction": 0.47583314986783204,
+      "liquidComposition": [
+        0.0006381910001573116, 0.3919901217835286, 0.6073716872163142
+      ],
+      "vaporComposition": [
+        0.001398579244582542, 0.6168851726765662, 0.3817162480788514
+      ]
+    },
+    {
+      "case": 136,
+      "vaporFraction": 0.40223342573655513,
+      "liquidComposition": [
+        0.12409260126916968, 0.26600717968005344, 0.609900219050777
+      ],
+      "vaporComposition": [
+        0.31280852013085636, 0.35051786544504243, 0.33667361442410115
+      ]
+    },
+    {
+      "case": 139,
+      "vaporFraction": 0.6512426623864035,
+      "liquidComposition": [
+        0.5685822554241354, 0.24691103490024177, 0.18450670967562274
+      ],
+      "vaporComposition": [
+        0.7703776275945129, 0.17487791808528155, 0.054744454320205575
+      ]
+    },
+    {
+      "case": 142,
+      "vaporFraction": 0.4771835663569172,
+      "liquidComposition": [
+        0.0005191721745234016, 0.3971685317337745, 0.602312296091702
+      ],
+      "vaporComposition": [
+        0.0015268305050442, 0.6105740833070799, 0.38789908618787594
+      ]
+    },
+    {
+      "case": 145,
+      "vaporFraction": 0.42244765431789094,
+      "liquidComposition": [
+        0.13045394731212195, 0.2636283396103083, 0.6059177130775698
+      ],
+      "vaporComposition": [
+        0.295080334115633, 0.34972574989572336, 0.3551939159886437
+      ]
+    },
+    {
+      "case": 148,
+      "vaporFraction": 0.6476630288917946,
+      "liquidComposition": [
+        0.5876150621679663, 0.23686988253104743, 0.17551505530098627
+      ],
+      "vaporComposition": [
+        0.7611388523137086, 0.17994230947336992, 0.058918838212921446
+      ]
+    },
+    {
+      "case": 151,
+      "vaporFraction": 0.4799130154474573,
+      "liquidComposition": [
+        0.000572652520563977, 0.4026744553795803, 0.5967528920998558
+      ],
+      "vaporComposition": [
+        0.0014631342153521246, 0.6033919940396485, 0.39514487174499946
+      ]
+    },
+    {
+      "case": 154,
+      "vaporFraction": 0.4302851166760589,
+      "liquidComposition": [
+        0.13337004130933328, 0.26308054435591033, 0.6035494143347564
+      ],
+      "vaporComposition": [
+        0.28822073090714256, 0.3488828362739428, 0.3628964328189147
+      ]
+    },
+    {
+      "case": 157,
+      "vaporFraction": 0.6452517447851616,
+      "liquidComposition": [
+        0.5955068882499062, 0.23299503680757128, 0.17149807494252256
+      ],
+      "vaporComposition": [
+        0.7574485130623096, 0.18185989706609115, 0.06069158987159923
+      ]
+    },
+    {
+      "case": 158,
+      "vaporFraction": 0.9187949076970257,
+      "liquidComposition": [
+        0.5287513915397828, 0.23703022316641637, 0.23421838529380098
+      ],
+      "vaporComposition": [
+        0.7151353328922445, 0.1967271865170921, 0.08813748059066331
+      ]
+    },
+    {
+      "case": 160,
+      "vaporFraction": 0.4811402520417834,
+      "liquidComposition": [
+        0.0005955046159933353, 0.40538138662243084, 0.5940231087615758
+      ],
+      "vaporComposition": [
+        0.0014362165180047367, 0.5999603252909358, 0.3986034581910594
+      ]
+    }
+  ]
+}

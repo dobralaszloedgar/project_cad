@@ -5,6 +5,7 @@ import { UNIT_DEFINITIONS, type Dimension } from "@/domain/unit-definitions";
 import { inputNumber } from "@/domain/units";
 import { useUnitSystem } from "./useUnitSystem";
 import NumberInput, { type NumberInputProps } from "./NumberInput";
+import UnitSelect from "./UnitSelect";
 
 const increments: Partial<Record<Dimension, number>> = {
   temperature: 1,
@@ -24,6 +25,7 @@ export default function EngineeringInput({
   max,
   step,
   onValueChange,
+  selectUnit = false,
   ...props
 }: Omit<NumberInputProps, "value" | "onValueChange"> & {
   dimension: Dimension;
@@ -31,6 +33,7 @@ export default function EngineeringInput({
   min?: number;
   max?: number;
   onValueChange: (value: number) => void;
+  selectUnit?: boolean;
 }) {
   const display = useUnitSystem();
   const unitKey = `${display.units[dimension]}:${dimension === "pressure" ? display.atmosphere : ""}`;
@@ -49,7 +52,7 @@ export default function EngineeringInput({
     (increments[dimension] ?? 1) /
     UNIT_DEFINITIONS[display.units[dimension]].scale;
   const displayStep = step ?? 10 ** Math.floor(Math.log10(convertedStep));
-  return (
+  const input = (
     <NumberInput
       {...props}
       key={unitKey}
@@ -69,5 +72,16 @@ export default function EngineeringInput({
         onValueChange(next);
       }}
     />
+  );
+  return selectUnit ? (
+    <span className="equipment-quantity">
+      {input}
+      <UnitSelect
+        dimension={dimension}
+        label={props["aria-label"] ?? "Display"}
+      />
+    </span>
+  ) : (
+    input
   );
 }

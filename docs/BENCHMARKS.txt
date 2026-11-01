@@ -1,0 +1,162 @@
+NUMERICAL BENCHMARKS — 2026-10-31
+
+Result: all 588 benchmark cases pass with the existing Project CAD solver.
+No application physics, kernel, or numerical tolerance was changed for this work.
+These checks establish agreement for the stated equations and cases, not
+experimental accuracy or qualification of every supported operating condition.
+
+Validation of the current working tree:
+  PASS: full Vitest suite, 1,234 tests across 50 files (including 588 benchmarks).
+  PASS: TypeScript checking, repository-wide lint, and benchmark format checks.
+  PASS: all three Python reference generators executed successfully.
+  PASS: fresh reactor references numerically reproduce the existing fixtures.
+  No browser/UI change was made; browser tests were not run for this work.
+
+Observed maximum absolute errors
+  DWSIM Raoult TP flashes: 157 supported states
+    Vapor phase fraction:                4.57e-12
+    Liquid/vapor component mole fraction: 9.83e-13
+    Saturation pressure:                 4.95e-10 Pa
+  Out-of-domain pressure guards: 5 states correctly rejected above 200 kPa
+  Independent ideal-gas enthalpy: 60 states, error 4.37e-11 J/mol
+  Independent Raoult TP flash: 162 states, vapor-fraction error 1.21e-14
+  Independent Modified UNIFAC 2.0 TP flash: 162 states
+    Vapor-fraction error:                9.03e-10
+    Activity-coefficient error:           1.30e-10
+    Mixture-enthalpy error:               3.53e-5 J/mol
+  Independent PH flash: 36 states, temperature error 5.07e-10 K
+  Independent MESH: three binary Raoult columns, 2/6/10 equilibrium trays
+    Maximum stage-temperature error:     2.17e-12 K
+    Maximum condenser/reboiler duty error: 4.55e-9 W
+  Independent reactor integration/sizing: three cases
+    Maximum conversion error:            2.79e-12
+    Maximum catalyst-mass error:          2.21e-12 kg
+
+DWSIM comparison
+The actual Windows DWSIM 9.0.5 .NET thermodynamics engine was executed through
+pythonnet and Calculator.PTFlash, not reproduced from its source equations.
+The official release installer was downloaded, its published SHA-256 checked,
+and its assemblies extracted into the ignored local test-results directory.
+No DWSIM installation, COM registration, or application dependency was added.
+
+Release: https://github.com/DanWBR/dwsim/releases/tag/v9.0.5
+Asset: DWSIM_v905_win64_setup.exe
+Asset SHA-256:
+  f2a3da3ca25b1908d56cdbacdb8dc52e9fba45cb9b978c411736da2a67af45f4
+The saved fixture records the loaded assembly version and SHA-256 as well.
+DWSIM source: https://github.com/DanWBR/dwsim
+
+Six mixtures cover benzene/toluene, methanol/water, ethanol/water,
+acetone/ethanol, hexane/benzene/toluene, and methanol/ethanol/water.
+Temperatures are 320, 350 and 365 K, with three compositions per mixture,
+including a ternary trace component. Pressures are generated from dew/bubble
+estimates to exercise vapor, liquid and two-phase states. Five generated cases
+exceed the application's documented pressure limit: their DWSIM results are
+retained, and tests verify explicit rejection instead of claiming agreement.
+All quantities use K, Pa and mole fractions. Absent-phase compositions are
+excluded because they are not determined by a single-phase flash.
+
+Both engines use Raoult's law with ideal vapor fugacity and the same published
+ChemSep vapor-pressure records, obtained independently through their normal
+catalog paths. No DWSIM component coefficient was replaced. This separates
+flash-solver correctness from differences between component databases.
+Project CAD's bundled teaching samples use other correlations and are not
+interchangeable with the catalog chemicals selected for this benchmark.
+
+DWSIM's default internal/external PT tolerances are 1e-4. With those defaults,
+the largest vapor-fraction difference is 8.15e-4, or 0.0815 percentage points.
+Setting both DWSIM PT loop tolerances to 1e-12 and iteration limits to 1000
+reduces that difference to 4.57e-12. The reference fixture also retains 55
+default-tolerance outputs. This was a reference-solver convergence difference,
+not an application defect. DWSIM's Raoult fugacity implementation uses Psat/P
+directly; its exposed Poynting flag does not affect this package.
+
+Independent references
+scripts/benchmarks/independent-reference.py uses Python thermo's Dortmund
+equations with the published Modified UNIFAC 2.0 DOUF2IP parameters, chemicals
+DIPPR/TRCCp/Shomate functions, and SciPy adaptive quadrature. These programs
+read component data but never import or execute application calculations.
+Versions and the input catalog file hash are embedded in the fixtures.
+
+The 324 two-phase references prescribe liquid composition and vapor amount,
+calculate bubble pressure and vapor composition independently, then form the
+overall feed by the lever rule. Project CAD must recover that known state by
+TP inversion. The grid uses six mixtures, 310/330/350 K, three liquid
+compositions, and vapor fractions 0.1/0.5/0.9, under both liquid models.
+PH targets are Python enthalpies, not application-generated round trips.
+Sixty gas states cover ten chemicals and 280–750 K.
+
+scripts/benchmarks/column-reference.py solves binary MESH equations using
+SciPy bounded least squares in direct composition/temperature/flow variables.
+This differs from the application's log-variable sparse Newton solver. It
+uses independent property functions/quadrature and no application-generated
+initial guesses. The 2-, 6- and 10-tray columns have a saturated total
+condenser and equilibrium reboiler, 10 mol/s equimolar benzene/toluene feed
+at 320 K/80 kPa, 5 mol/s distillate, top pressure 55 kPa, and reflux ratios
+1.5/2.5/3. The last column has a 5 kPa pressure drop. Comparisons cover all
+stage compositions, temperatures, pressures, flows, and both end duties.
+Independent scaled residuals were below 7.4e-14.
+
+scripts/reaction-template-reference.py was rerun. Its numerical results exactly
+reproduced the existing fixtures. Water-gas-shift conversion and catalyst sizing
+use SciPy quadrature/Brent roots; methanol synthesis integrates species with
+implicit Radau, independently of the application's explicit extent integrator.
+The benchmark runner now includes those three complete reactor cases.
+
+References:
+  https://thermo.readthedocs.io/thermo.unifac.html
+  https://chemicals.readthedocs.io/chemicals.dippr.html
+  https://chemicals.readthedocs.io/chemicals.heat_capacity.html
+  https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html
+  https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html
+  Existing kinetics citations: docs/REACTION_TEMPLATES.txt
+
+Repeatable checks (no external engine, Python, network, or database required)
+  npm run test:benchmarks
+  npm run benchmark:numerical
+
+The second command writes test-results/benchmarks/comparison.json, including
+individual expected/actual values, errors, tolerances, case times, source
+revision, working-tree status, runtime, kernel/reference hashes, and grouped maxima.
+It exits nonzero for failed comparisons or unexpected exceptions. Normal
+npm test also runs the new fixture-backed regression tests.
+
+Acceptance limits are declared in tests/helpers/numerical-benchmarks.ts:
+  DWSIM phase amounts/compositions: absolute 3e-6
+  DWSIM Psat: absolute 1e-6 Pa + relative 1e-9
+  Independent TP fractions: absolute 2e-7
+  Independent TP enthalpy: 1e-4 J/mol + relative 1e-9
+  Independent PH temperature: 2e-5 K; fractions: 2e-6
+  Columns: 2e-4 K, 2e-6 composition, 2e-5 mol/s and 0.1 W
+  Reactor conversion/mass: 5e-8; species flow: 5e-11 mol/s
+Limits were specified before comparison; application tolerances were not
+relaxed and failing cases were not silently removed. Domain cases are labeled.
+
+Regenerate external references (optional, Windows for DWSIM)
+  python -m venv test-results/benchmarks/python
+  test-results/benchmarks/python/Scripts/python.exe -m pip install -r scripts/benchmarks/requirements.txt
+  test-results/benchmarks/python/Scripts/python.exe scripts/benchmarks/independent-reference.py --output tests/fixtures/independent-flash-reference.json
+  test-results/benchmarks/python/Scripts/python.exe scripts/benchmarks/column-reference.py --output tests/fixtures/independent-column-reference.json
+
+For DWSIM, use a local 9.0.5 distribution, or download the release asset above,
+verify its SHA-256, and extract it with 7-Zip into test-results/benchmarks/dwsim.
+Pass the directory containing DWSIM.Thermodynamics.dll:
+  test-results/benchmarks/python/Scripts/python.exe scripts/benchmarks/dwsim-reference.py --dwsim-dir test-results/benchmarks/dwsim --output tests/fixtures/dwsim-reference.json
+For fresh reactor references:
+  test-results/benchmarks/python/Scripts/python.exe scripts/reaction-template-reference.py
+Then rerun npm run benchmark:numerical and npm run test:benchmarks.
+Reference generation never runs automatically during ordinary tests.
+
+Scope and remaining limits
+DWSIM validation here covers the Raoult thermodynamics engine, not complete
+DWSIM flowsheets or DWSIM columns/reactors. The independent column cases use
+Raoult thermodynamics; nonideal MESH columns are not externally qualified by
+this suite. DWSIM's standard Modified UNIFAC Dortmund/NIST parameter sets are
+not Modified UNIFAC 2.0 and are not used as interchangeable references.
+
+Sharing published property data deliberately tests equation implementation,
+not the experimental accuracy of that data. No high-pressure EOS, LLE/VLLE,
+azeotrope stability, industrial catalyst validation, tray efficiencies,
+hydraulic/mechanical validation, or general convergence guarantee is added.
+Timing fields are diagnostic wall times with different language/API overheads;
+they are not a controlled DWSIM-versus-WebAssembly speed ranking.

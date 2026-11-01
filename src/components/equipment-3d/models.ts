@@ -1507,26 +1507,40 @@ function distillation(
     part.pipe(overhead.vapor, 0.067, "steel", section);
     part.pipe(overhead.condensate, 0.055, "steel", section);
   });
-  f.assembly("reflux-splitter", (part) => {
-    const [x, y, z] = overhead.split;
-    // Join pipes to the fitting mouths, leaving the tee's bore unobstructed.
-    part.pipe([overhead.inlet[0], [x, y + 0.17, z]], 0.055, "steel", section);
-    part.pipe([[x - 0.13, y, z], overhead.reflux[1]], 0.055, "steel", section);
-    part.pipe(
-      [[x + 0.13, y, z], overhead.distillate[1]],
-      0.055,
-      "steel",
-      section,
+  if (layout.condenserType === "partial") {
+    f.assembly("liquid-reflux-return", (part) => {
+      part.pipe(overhead.inlet, 0.055, "steel", section);
+      part.pipe(overhead.reflux, 0.055, "steel", section);
+    });
+    f.assembly("vapor-distillate-outlet", (part) =>
+      part.pipe(overhead.distillate, 0.055, "steel", section),
     );
-    part.enclosure(() =>
-      part.part(refluxTeeGeometry(), "steel", overhead.split),
-    );
-    // Forged socket collars identify the fitting even in transparent mode.
-    for (const dx of [-0.105, 0.105])
-      part.annulus([x + dx, y, z], 0.069, 0.053, 0.055, "steel", "x");
-    part.annulus([x, y + 0.115, z], 0.069, 0.053, 0.055, "steel", "y");
-    part.ring([x, y + 0.14, z], 0.061, 0.008, "satin");
-  });
+  } else
+    f.assembly("reflux-splitter", (part) => {
+      const [x, y, z] = overhead.split;
+      // Join pipes to the fitting mouths, leaving the tee's bore unobstructed.
+      part.pipe([overhead.inlet[0], [x, y + 0.17, z]], 0.055, "steel", section);
+      part.pipe(
+        [[x - 0.13, y, z], overhead.reflux[1]],
+        0.055,
+        "steel",
+        section,
+      );
+      part.pipe(
+        [[x + 0.13, y, z], overhead.distillate[1]],
+        0.055,
+        "steel",
+        section,
+      );
+      part.enclosure(() =>
+        part.part(refluxTeeGeometry(), "steel", overhead.split),
+      );
+      // Forged socket collars identify the fitting even in transparent mode.
+      for (const dx of [-0.105, 0.105])
+        part.annulus([x + dx, y, z], 0.069, 0.053, 0.055, "steel", "x");
+      part.annulus([x, y + 0.115, z], 0.069, 0.053, 0.055, "steel", "y");
+      part.ring([x, y + 0.14, z], 0.061, 0.008, "satin");
+    });
   f.at([0, layout.topOffset, 0], [0, 0, 0], () => {
     f.assembly("overhead-condenser", (part) => {
       part.shell([1.52, 6.16, 0], 0.235, 0.5, section, "satin");
@@ -1584,12 +1598,10 @@ function distillation(
         part.rod([1.52, y, 0.19], [1.52, y, 0.264], 0.025, "steel");
       part.plate([1.65, 5.52, 0.19], 0.12);
     });
-    f.assembly("reflux-control-valve", (part) =>
-      columnValve(part, [0.97, 5.06, 0], true),
-    );
-    f.assembly("distillate-control-valve", (part) =>
-      columnValve(part, [1.83, 5.06, 0]),
-    );
+    if (layout.condenserType === "total")
+      f.assembly("distillate-control-valve", (part) =>
+        columnValve(part, [1.83, 5.06, 0]),
+      );
     f.nozzle([2, 5.06, 0], "x", 0.2, 0.055);
     f.flange([0.66, 5.06, 0], 0.1, "x", "steel", 6, 0.044);
     f.flange([0, 5.64, 0], 0.13, "y", "steel", 8, 0.058);

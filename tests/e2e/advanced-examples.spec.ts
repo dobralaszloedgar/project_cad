@@ -110,7 +110,9 @@ for (const example of examples) {
     await expect(
       page.getByRole("switch", { name: "Transparent shell" }),
     ).toHaveAttribute("aria-checked", "true");
-    await page.getByRole("button", { name: "Play flow", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Pause flow", exact: true }),
+    ).toBeVisible();
     await page.getByRole("combobox", { name: "Flow speed" }).selectOption("2");
     await expect(
       page.getByRole("button", { name: "Pause flow", exact: true }),

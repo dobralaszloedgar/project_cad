@@ -74,7 +74,7 @@ describe("flowsheet equipment status", () => {
     const project = fixture();
     project.units[1].kind = "PBR";
     project.units[1].params.packedBed = defaultPackedBed(["A", "B"]);
-    project.units[0].params.composition = { A: 0.2, B: 0.3 };
+    project.units[0].params.composition = { A: -0.2, B: 0.3 };
     const status = equipmentStatuses(project, null);
     expect(status.H1.state).toBe("unresolved");
     expect(status.H1.issues).toContainEqual(

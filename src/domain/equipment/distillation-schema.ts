@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { trayHydraulicsSchema } from "./tray-hydraulics-schema";
 
+export type CondenserType = "total" | "partial";
+
 /** Omitted configuration retains the original single-contact/TP-flash behavior. */
 export const distillationSchema = z
   .object({
     method: z.enum(["fug", "mesh"]).default("fug"),
+    condenserType: z.enum(["total", "partial"]).default("total"),
     lightKey: z.string().min(1).max(100).optional(),
     heavyKey: z.string().min(1).max(100).optional(),
     relativeVolatilities: z

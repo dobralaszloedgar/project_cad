@@ -35,7 +35,7 @@ export default function ThermodynamicSelector({
         ref={trigger}
         className="model-button"
         aria-label="Project thermodynamics"
-        title="Thermodynamic model"
+        title="Thermodynamics"
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => onOpenChange(true)}

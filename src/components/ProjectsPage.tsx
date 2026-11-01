@@ -162,6 +162,7 @@ function ProjectPreview({ project }: { project: Project }) {
               kind={unit.kind}
               size={128}
               trayCount={unit.params.trayCount}
+              condenserType={unit.params.distillation?.condenserType}
             />
           </g>
         ))}

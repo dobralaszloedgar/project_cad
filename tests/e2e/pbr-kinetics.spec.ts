@@ -106,9 +106,7 @@ test("PBR live equations, custom definitions, nested editing and saved calculati
     "kf*methanol/(1+Kads*methanol)^2",
   );
   // Independent sample errors must not prevent applying valid engineering data.
-  await page
-    .getByText("Test the rate with sample values", { exact: true })
-    .click();
+  await page.getByText("Test sample values", { exact: true }).click();
   await page.getByLabel("Sample T", { exact: true }).fill("0");
   await page.getByRole("button", { name: "Calculate", exact: true }).click();
   await expect(
@@ -187,9 +185,9 @@ test("PBR mixed species bases, added constants and compact desktop layout", asyn
   await expect(page.locator(".rate-errors")).toContainText(
     "Unknown symbol “Km”",
   );
-  await page
-    .getByRole("button", { name: "Apply conditions", exact: true })
-    .click();
+  await expect(
+    page.getByRole("button", { name: "Apply conditions", exact: true }),
+  ).toBeDisabled();
   await expect(page.locator(".equipment-save-state")).toHaveText(
     "Unsaved changes",
   );

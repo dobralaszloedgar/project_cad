@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import styles from "../AssistantPanel.module.css";
+import { isSelectPickerOpen } from "@/lib/keyboard";
 
 export default function AssistantPopover({
   label,
@@ -28,7 +29,7 @@ export default function AssistantPopover({
         setOpen(false);
     };
     const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !isSelectPickerOpen(event)) {
         event.preventDefault();
         event.stopPropagation();
         setOpen(false);

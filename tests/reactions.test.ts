@@ -350,10 +350,10 @@ describe("multicomponent flowsheet integration", () => {
     expect(Math.abs(result.massResidual)).toBeLessThan(1e-6);
     expect(Math.abs(result.energyResidual)).toBeLessThan(0.01);
   });
-  it("requires normalized feed fractions and rejects references to removed components", () => {
+  it("normalizes feed ratios and rejects references to removed components", () => {
     const project = reactionProject();
     project.units[0].params.composition!["67-56-1"] = 0.1;
-    expect(() => simulate(project)).toThrow(/sum to 1/);
+    expect(simulate(project).converged).toBe(true);
     project.units[0].params.composition = { removed: 1 };
     expect(() => simulate(project)).toThrow(/removed component/);
   });

@@ -1,22 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Info,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
-import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import {
-  componentNames,
-  mixtureName,
-  thermoContext,
-} from "@/domain/thermo/catalog";
+import { defaultThermo, type ThermoSettings } from "@/domain/thermo/registry";
+import { componentNames, thermoContext } from "@/domain/thermo/catalog";
+import { catalogChoices } from "@/lib/chemical-catalog";
 import { EquipmentModelNotes, CatalystProfile } from "./EquipmentModelNotes";
 import "./equipment-setup.css";
 import { PackedBedSetup } from "./reactions/PackedBedSetup";
 import { PackedBedResults } from "./reactions/PackedBedResults";
 import { defaultPackedBed } from "@/domain/reactions/schema";
-import { packedBedIssues } from "@/domain/reactions/validation";
-import { componentFlows } from "@/domain/stream-composition";
+import {
+  componentFlows,
+  normalizeComposition,
+} from "@/domain/stream-composition";
 import type { Dimension } from "@/domain/unit-definitions";
 import EngineeringInput from "./EngineeringInput";
 import NumberInput from "./NumberInput";
@@ -29,6 +35,9 @@ import {
   type EquipmentTarget,
 } from "@/domain/equipment-status";
 import { revealEquipmentIssue } from "./equipment-issue-navigation";
+import UnitSelect from "./UnitSelect";
+import EquipmentSetupIssues from "./EquipmentSetupIssues";
+import ProjectComponents from "./ProjectComponents";
 import "./equipment-status.css";
 
 type NumericParam = {
@@ -40,12 +49,25 @@ const parameterDimensions: Partial<Record<NumericParam, Dimension>> = {
   pressure: "pressure",
   flow: "molarFlow",
   heatDuty: "power",
+  residenceTime: "time",
+  catalystMass: "mass",
 };
 
 function setupParams(
   unit: Unit,
   componentIds: readonly string[],
 ): Unit["params"] {
+  if (unit.kind === "Feed" && unit.missingInputs?.length) {
+    const params = { ...unit.params };
+    for (const field of unit.missingInputs) {
+      if (field === "composition")
+        params.composition = Object.fromEntries(
+          componentIds.map((id) => [id, NaN]),
+        );
+      else params[field] = NaN;
+    }
+    return params;
+  }
   if (unit.kind !== "PBR" || unit.params.packedBed) return unit.params;
   return {
     ...unit.params,
@@ -90,13 +112,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section
       className="equipment-section"
-      data-setup-section={
-        title === "Composition"
-          ? "composition"
-          : title === "Thermodynamics"
-            ? "thermodynamics"
-            : undefined
-      }
+      data-setup-section={title === "Composition" ? "composition" : undefined}
     >
       <h3>{title}</h3>
       {children}
@@ -105,7 +121,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Connections({ unit, project }: { unit: Unit; project: Project }) {
-  const settings = project.thermo ?? defaultThermo;
   const unitPorts = ports(unit.kind);
   const missing = [
     ...(unit.kind === "Mixer"
@@ -166,7 +181,6 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
             );
           }),
         )}
-        <p className="equipment-help">Connect streams on the flowsheet.</p>
         {missing.length ? (
           <p className="equipment-help">
             Connect{" "}
@@ -177,22 +191,14 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
                     port
                   ] ?? port,
               )
-              .join(", ")}{" "}
-            before calculating.
+              .join(", ")}
+            .
           </p>
         ) : (
           <p className="equipment-connected">
-            <CheckCircle2 size={14} /> All required ports connected
+            <CheckCircle2 size={14} /> Connected
           </p>
         )}
-      </Section>
-      <Section title="Thermodynamics">
-        <dl className="equipment-context">
-          <dt>Property model</dt>
-          <dd>{modelInfo(settings.modelId).name}</dd>
-          <dt>Components</dt>
-          <dd>{mixtureName(settings)}</dd>
-        </dl>
       </Section>
     </aside>
   );
@@ -346,6 +352,9 @@ export default function EquipmentEditor({
   issueTarget,
   status,
   onNavigateIssue,
+  onComponentsChange,
+  editingComponents,
+  onEditingComponentsChange,
 }: {
   unit: Unit;
   project: Project;
@@ -356,6 +365,9 @@ export default function EquipmentEditor({
   issueTarget?: EquipmentTarget;
   status?: EquipmentStatus;
   onNavigateIssue?: (target: EquipmentTarget) => void;
+  onComponentsChange: (settings: ThermoSettings) => void;
+  editingComponents: boolean;
+  onEditingComponentsChange: (open: boolean) => void;
 }) {
   const settings = project.thermo ?? defaultThermo;
   const context = thermoContext(settings);
@@ -367,7 +379,14 @@ export default function EquipmentEditor({
   );
   const [lastTarget, setLastTarget] = useState(issueTarget);
   const root = useRef<HTMLElement>(null);
+  const componentsButton = useRef<HTMLButtonElement>(null);
+  const wasEditingComponents = useRef(false);
   const clearNavigation = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => {
+    if (wasEditingComponents.current && !editingComponents)
+      componentsButton.current?.focus();
+    wasEditingComponents.current = editingComponents;
+  }, [editingComponents]);
   if (lastTarget !== issueTarget) {
     setLastTarget(issueTarget);
     if (issueTarget)
@@ -392,18 +411,18 @@ export default function EquipmentEditor({
   // Refresh the draft after an applied edit without losing the selected tab.
   if (appliedUnit !== unit) {
     setAppliedUnit(unit);
-    setParams(setupParams(unit, context.ids));
-    setName(unit.name);
+    if (JSON.stringify(appliedUnit) !== JSON.stringify(unit)) {
+      setParams(setupParams(unit, context.ids));
+      setName(unit.name);
+    }
   }
   const thermal = unit.kind === "Heater" || unit.kind === "Cooler";
   const dirty =
     name !== unit.name ||
     JSON.stringify(params) !== JSON.stringify(unit.params);
   const formId = `equipment-form-${unit.id}`;
-  const components = context.ids.map((id) => context.catalog.get(id).name);
-  const labels = componentNames(settings);
   const chemicals = context.ids.map((id) => context.catalog.get(id));
-  const multiComposition = context.ids.length > 2 || !!params.composition;
+  const labels = componentNames(settings);
   const composition = Object.fromEntries(
     context.ids.map((id, i) => [
       id,
@@ -417,13 +436,14 @@ export default function EquipmentEditor({
               : 0),
     ]),
   );
-  const compositionTotal = Object.values(composition).reduce(
-    (sum, n) => sum + n,
-    0,
-  );
-  const [validationError, setValidationError] = useState("");
+  const draftIssues = equipmentSetupIssues(project, {
+    ...unit,
+    name,
+    params,
+    missingInputs: undefined,
+  });
   const setupIssues = [
-    ...equipmentSetupIssues(project, { ...unit, name, params }),
+    ...draftIssues,
     ...(status?.issues.filter(
       (issue) =>
         issue.target.section === "connections" ||
@@ -479,10 +499,14 @@ export default function EquipmentEditor({
               onValueChange={(value) => setParams({ ...params, [key]: value })}
             />
           )}
-          {displayedSuffix && (
-            <span className="equipment-unit" aria-hidden="true">
-              {displayedSuffix}
-            </span>
+          {dimension ? (
+            <UnitSelect dimension={dimension} label={title} />
+          ) : (
+            displayedSuffix && (
+              <span className="equipment-unit" aria-hidden="true">
+                {displayedSuffix}
+              </span>
+            )
           )}
         </span>
       </label>
@@ -496,6 +520,30 @@ export default function EquipmentEditor({
     "1",
     "K",
   );
+  if (editingComponents)
+    return (
+      <ProjectComponents
+        project={project}
+        onApply={(next) => {
+          const nextIds = thermoContext(next).ids;
+          const choices = catalogChoices(settings);
+          // Built-in mixtures use names as IDs; catalog records use CAS IDs.
+          const catalogComposition = Object.fromEntries(
+            context.ids.map((id, index) => [
+              choices[index]?.id ?? id,
+              composition[id],
+            ]),
+          );
+          setParams((current) => ({
+            ...current,
+            composition: Object.fromEntries(
+              nextIds.map((id) => [id, catalogComposition[id] ?? 0]),
+            ),
+          }));
+          onComponentsChange(next);
+        }}
+      />
+    );
   return (
     <aside className="panel inspector equipment-editor" ref={root}>
       <div className="equipment-editor-top">
@@ -563,39 +611,42 @@ export default function EquipmentEditor({
             className="equipment-form"
             data-setup-section="settings"
             onInvalid={(event) => {
+              // Keep field-specific HTML limits without browser error balloons.
+              // The footer checklist owns validation feedback.
+              event.preventDefault();
               setTab("setup");
               const input = event.target as HTMLElement;
-              requestAnimationFrame(() => input.focus());
+              requestAnimationFrame(() => {
+                input.scrollIntoView({ block: "center" });
+                input.focus({ preventScroll: true });
+              });
             }}
             onSubmit={(event) => {
               event.preventDefault();
-              const issues =
-                params.packedBed && unit.kind === "PBR"
-                  ? packedBedIssues(params.packedBed, chemicals)
-                  : [];
-              if (
-                unit.kind === "Feed" &&
-                multiComposition &&
-                Math.abs(compositionTotal - 1) > 1e-8
-              )
-                issues.push("Feed mole fractions must sum to 1.");
-              if (issues.length) {
-                setValidationError(issues[0]);
-                setTab("setup");
+              if (draftIssues.length) {
+                navigate(draftIssues[0].target);
                 return;
               }
-              setValidationError("");
+              const normalized =
+                unit.kind === "Feed"
+                  ? normalizeComposition(composition)
+                  : undefined;
+              const nextParams = normalized
+                ? {
+                    ...params,
+                    composition: normalized,
+                    fractionA: normalized[context.ids[0]],
+                  }
+                : params;
+              // Equivalent ratios may produce exactly the previously saved unit.
+              // Still replace the draft with the applied fractions in that case.
+              setParams(nextParams);
+              setName(name.trim());
               onApply({
                 ...unit,
+                missingInputs: undefined,
                 name: name.trim(),
-                params:
-                  unit.kind === "Feed" && multiComposition
-                    ? {
-                        ...params,
-                        composition,
-                        fractionA: composition[context.ids[0]],
-                      }
-                    : params,
+                params: nextParams,
               });
               const submitter = (event.nativeEvent as SubmitEvent).submitter;
               if (submitter?.dataset.editorAction === "calculate")
@@ -624,35 +675,6 @@ export default function EquipmentEditor({
                 />
               </label>
             </div>
-            {validationError && (
-              <p className="reaction-issues" role="alert">
-                {validationError}
-              </p>
-            )}
-            {setupIssues.length > 0 && (
-              <section
-                className="equipment-setup-issues"
-                aria-label="Equipment issues"
-              >
-                <h3>
-                  {setupIssues.some((issue) => issue.kind === "error")
-                    ? "Review equipment errors"
-                    : "Complete setup"}
-                </h3>
-                <ul className="equipment-issue-list">
-                  {setupIssues.map((issue, index) => (
-                    <li key={`${issue.message}-${index}`}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(issue.target)}
-                      >
-                        {issue.message}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
             {unit.kind === "Feed" && (
               <>
                 <Section title="Feed conditions">
@@ -680,113 +702,58 @@ export default function EquipmentEditor({
                   )}
                 </Section>
                 <Section title="Composition">
-                  {multiComposition ? (
-                    <>
-                      <div className="equipment-composition-heading">
-                        <span>Component</span>
-                        <span>Mole fraction</span>
-                      </div>
-                      {chemicals.map((chemical) => (
-                        <div
-                          className="equipment-composition-row"
-                          key={chemical.id}
-                        >
-                          <span>{chemical.name}</span>
-                          <NumberInput
-                            className="input"
-                            required
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            aria-label={`Mole fraction ${chemical.name}`}
-                            value={composition[chemical.id]}
-                            onValueChange={(value) =>
-                              setParams({
-                                ...params,
-                                composition: {
-                                  ...composition,
-                                  [chemical.id]: value,
-                                },
-                              })
-                            }
-                          />
-                        </div>
-                      ))}
-                      <div className="reaction-actions">
-                        <output aria-label="Total mole fraction">
-                          Total:{" "}
-                          {Number.isFinite(compositionTotal)
-                            ? Number(compositionTotal.toFixed(8))
-                            : "—"}
-                        </output>
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          disabled={
-                            !Number.isFinite(compositionTotal) ||
-                            compositionTotal <= 0
-                          }
-                          onClick={() =>
+                  <>
+                    <div className="equipment-composition-heading">
+                      <span>Component</span>
+                      <span>Mole fraction / ratio</span>
+                    </div>
+                    {chemicals.map((chemical, index) => (
+                      <div
+                        className="equipment-composition-row"
+                        key={chemical.id}
+                        data-setup-field={`composition.${chemical.id}`}
+                      >
+                        <span>{chemical.name}</span>
+                        <NumberInput
+                          className="input"
+                          required
+                          min={0}
+                          step={0.01}
+                          aria-label={`Mole fraction ${labels[index]}`}
+                          value={composition[chemical.id]}
+                          onValueChange={(value) =>
                             setParams({
                               ...params,
-                              composition: Object.fromEntries(
-                                Object.entries(composition).map(([id, n]) => [
-                                  id,
-                                  n / compositionTotal,
-                                ]),
-                              ),
+                              composition: {
+                                ...composition,
+                                [chemical.id]: value,
+                              },
                             })
                           }
-                        >
-                          Normalize composition
-                        </button>
+                        />
                       </div>
-                      <p className="equipment-help">
-                        Specify every feed component. Fractions must sum to 1;
-                        products may enter with zero flow.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="equipment-composition-heading">
-                        <span>Component</span>
-                        <span>Mole fraction</span>
-                      </div>
-                      <div className="equipment-composition-row">
-                        <span>{components[0]}</span>
-                        {field(
-                          "fractionA",
-                          `Mole fraction ${labels[0]}`,
-                          0,
-                          1,
-                          "0.01",
-                        )}
-                      </div>
-                      <div className="equipment-composition-row">
-                        <span>{components[1]}</span>
-                        <output aria-label={`Mole fraction ${labels[1]}`}>
-                          {Number.isFinite(params.fractionA)
-                            ? Number((1 - params.fractionA).toFixed(8))
-                            : "—"}
-                        </output>
-                      </div>
-                      <p className="equipment-help">
-                        {components[1]} is the balance to a total mole fraction
-                        of 1.
-                      </p>
-                    </>
-                  )}
+                    ))}
+                    <p className="equipment-help">
+                      If values add up to more than 1, they are treated as
+                      ratios.
+                    </p>
+                    <div className="equipment-composition-actions">
+                      <span>{chemicals.length} project components</span>
+                      <button
+                        ref={componentsButton}
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => onEditingComponentsChange(true)}
+                      >
+                        <Plus size={14} /> Add components
+                      </button>
+                    </div>
+                  </>
                 </Section>
               </>
             )}
             {thermal && (
-              <Section
-                title={
-                  unit.kind === "Heater"
-                    ? "Heating specification"
-                    : "Cooling specification"
-                }
-              >
+              <Section title={unit.kind === "Heater" ? "Heating" : "Cooling"}>
                 <label
                   className="equipment-field"
                   data-setup-field="thermalMode"
@@ -808,7 +775,7 @@ export default function EquipmentEditor({
                       value="duty"
                       disabled={settings.modelId !== "ideal-gas"}
                     >
-                      Specified heat duty
+                      Heat duty
                     </option>
                   </select>
                 </label>
@@ -824,10 +791,10 @@ export default function EquipmentEditor({
                     )}
                 <p className="equipment-help">
                   {params.thermalMode === "duty"
-                    ? "Positive duty adds heat; negative duty removes heat. Outlet temperature is calculated."
-                    : "Heat duty is calculated from the inlet and outlet enthalpy."}
+                    ? "Positive duty heats; negative duty cools."
+                    : "Heat duty is calculated."}
                   {settings.modelId !== "ideal-gas" &&
-                    " Specified duty requires the ideal-gas model. Use outlet temperature with this model."}
+                    " Specified duty requires ideal gas."}
                 </p>
               </Section>
             )}
@@ -836,8 +803,7 @@ export default function EquipmentEditor({
                 <Section title="Operating conditions">
                   <div className="equipment-field-grid">{temperature}</div>
                   <p className="equipment-help">
-                    Isothermal operation. Inlet pressure comes from the
-                    connected stream.
+                    Isothermal. Inlet pressure comes from the feed.
                   </p>
                 </Section>
                 {params.packedBed && (
@@ -847,7 +813,6 @@ export default function EquipmentEditor({
                     temperature={params.temperature}
                     onChange={(packedBed) => {
                       setParams({ ...params, packedBed });
-                      setValidationError("");
                     }}
                   />
                 )}
@@ -856,7 +821,7 @@ export default function EquipmentEditor({
             {unit.kind === "Splitter" && (
               <Section title="Outlet split">
                 <p className="equipment-help">
-                  Both outlets retain the inlet composition, temperature and
+                  Both outlets keep the inlet composition, temperature and
                   pressure.
                 </p>
                 <div className="equipment-field-grid">
@@ -914,8 +879,8 @@ export default function EquipmentEditor({
                       </div>
                     ) : (
                       <p className="equipment-help">
-                        The feed temperature and pressure determine the phase
-                        split. Vapor leaves outlet 1; liquid leaves outlet 2.
+                        Flash at feed conditions. Outlet 1: vapor; outlet 2:
+                        liquid.
                       </p>
                     )}
                   </Section>
@@ -938,8 +903,8 @@ export default function EquipmentEditor({
                   )}
                   <p className="equipment-help">
                     {params.distillation?.method === "mesh"
-                      ? "This count sets the solved equilibrium trays and resizes both views. Condenser and reboiler are additional stages."
-                      : "Visible trays resize both column views. They do not constrain the separation calculation."}
+                      ? "Excludes the condenser and reboiler."
+                      : "Appearance only; does not affect separation."}
                   </p>
                 </Section>
               </>
@@ -947,28 +912,23 @@ export default function EquipmentEditor({
             {unit.kind === "Mixer" && (
               <Section title="Mixing conditions">
                 <p className="equipment-help">
-                  The outlet conserves component flows and enthalpy at the
-                  lowest flowing inlet pressure. Temperature and composition are
-                  calculated from the connected feeds.
-                </p>
-                <p className="equipment-help">
-                  Connect one or more feeds to the mixer’s center on the
-                  flowsheet.
+                  Connect feeds at the center. Outlet temperature and
+                  composition are calculated at the lowest flowing inlet
+                  pressure.
                 </p>
               </Section>
             )}
             {unit.kind === "Product" && (
               <Section title="Product stream">
                 <p className="equipment-help">
-                  Flow, composition, temperature and pressure come from the
-                  connected inlet. View the calculated state in Results.
+                  Uses the inlet state. See Results.
                 </p>
               </Section>
             )}
             <details className="equipment-model-details">
               <summary>
                 <Info size={15} />
-                Model equations and assumptions
+                Model details
                 <ChevronDown size={15} />
               </summary>
               <EquipmentModelNotes
@@ -1012,6 +972,7 @@ export default function EquipmentEditor({
         </section>
       </div>
       <footer className="equipment-editor-footer">
+        <EquipmentSetupIssues issues={setupIssues} onNavigate={navigate} />
         <button className="btn btn-sm" type="button" onClick={onDuplicate}>
           <Copy size={14} />
           Duplicate
@@ -1029,6 +990,7 @@ export default function EquipmentEditor({
           type="submit"
           form={formId}
           aria-keyshortcuts="Control+s Meta+s"
+          disabled={draftIssues.length > 0}
           onClick={() => setTab("setup")}
         >
           Apply conditions
@@ -1039,6 +1001,7 @@ export default function EquipmentEditor({
           form={formId}
           data-editor-action="calculate"
           aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
+          disabled={draftIssues.length > 0}
         >
           Calculate
         </button>

@@ -64,8 +64,8 @@ export const equipmentReferences: Record<
     name: "Sulzer · Tray technology",
     url: "https://www.sulzer.com/en/shared/products/shell-tray-technology",
     detail:
-      "Valve trays, alternating downcomers and an elevated condenser/receiver. A hollow tee splits condensate into separately valved reflux and distillate branches. Reflux enters above the top tray; reboiler return enters below the bottom tray.",
+      "Valve trays, alternating downcomers and an elevated condenser/receiver. Total condensation splits liquid reflux and distillate at a tee; partial condensation uses a separate vapor takeoff. Reflux enters above the top tray; reboiler return enters below the bottom tray.",
     operation:
-      "Vapor bubbles through the tray liquid while liquid spills down alternating downcomers. Condensate collects in the receiver, then divides between reflux and distillate; the reboiler supplies boil-up below the bottom tray.",
+      "Vapor bubbles through the tray liquid while liquid spills down alternating downcomers. The receiver returns liquid reflux and supplies liquid or vapor distillate according to condenser type; the reboiler supplies boil-up below the bottom tray.",
   },
 };

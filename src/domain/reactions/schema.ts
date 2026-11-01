@@ -10,7 +10,7 @@ export const componentIdSchema = z
     "Reserved component identifier",
   );
 export const compositionSchema = z
-  .record(componentIdSchema, z.number().finite().min(0).max(1))
+  .record(componentIdSchema, z.number().finite().min(0))
   .refine(
     (values) => Object.keys(values).length <= 40,
     "At most 40 components",

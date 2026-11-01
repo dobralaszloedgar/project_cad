@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { templates, templateSpecification } from "../../src/domain/templates";
-import { componentNames, mixtureName } from "../../src/domain/thermo/catalog";
+import { componentNames } from "../../src/domain/thermo/catalog";
 import { simulate } from "../../src/domain/solver";
 import { folderText, installFolderPicker } from "./folder-fixture";
 
@@ -66,7 +66,7 @@ test("every offered template loads its specifications and runs without a chemica
     await expect(page.locator(".project-heading h1")).toHaveText(project.name);
     await expect(
       page.getByRole("button", { name: "Project components", exact: true }),
-    ).toHaveAttribute("title", `Components: ${mixtureName(project.thermo!)}`);
+    ).toHaveAttribute("title", "Components");
     await page.getByRole("button", { name: "Run simulation" }).click();
     await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
     const names = componentNames(project.thermo!);
@@ -88,7 +88,7 @@ test("every offered template loads its specifications and runs without a chemica
         bed.reactions.length,
       );
       await page
-        .getByText("Published kinetics · source and limits", { exact: true })
+        .getByText("Kinetics source and limits", { exact: true })
         .click();
       const source = page.locator(".kinetics-source");
       await expect(source.getByRole("link")).toHaveAttribute(
@@ -124,12 +124,12 @@ test("every offered template loads its specifications and runs without a chemica
         name: "Project components",
         exact: true,
       });
-      await expect(
-        components.getByLabel("Component A", { exact: true }),
-      ).toContainText(names[0]);
-      await expect(
-        components.getByLabel("Component B", { exact: true }),
-      ).toContainText(names[1]);
+      await expect(components.locator(".component-slot").nth(0)).toContainText(
+        names[0],
+      );
+      await expect(components.locator(".component-slot").nth(1)).toContainText(
+        names[1],
+      );
       await expect(
         components.locator(".selected-components .component-badge"),
       ).toHaveText("2 / 40");
@@ -210,7 +210,7 @@ test("direct template links use the real-chemical recipe", async ({ page }) => {
   );
   await expect(
     page.getByRole("button", { name: "Project components", exact: true }),
-  ).toHaveAttribute("title", "Components: Benzene / toluene");
+  ).toHaveAttribute("title", "Components");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(
@@ -235,9 +235,7 @@ test("published reactor recipes reload offline with source limits on a narrow sc
     .filter({ hasText: "R-101" })
     .dblclick();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page
-    .getByText("Published kinetics · source and limits", { exact: true })
-    .click();
+  await page.getByText("Kinetics source and limits", { exact: true }).click();
   const source = page.locator(".kinetics-source");
   await expect(source).toContainText("Choi & Stenger");
   expect(await source.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(

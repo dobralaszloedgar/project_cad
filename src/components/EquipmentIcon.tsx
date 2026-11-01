@@ -1,5 +1,6 @@
 import { type CSSProperties } from "react";
 import type { Kind } from "@/domain/schema";
+import type { CondenserType } from "@/domain/equipment/distillation-schema";
 import { columnSymbol } from "./column-symbol";
 import {
   compactEquipmentSymbols,
@@ -38,14 +39,18 @@ export function EquipmentIcon({
   kind,
   size = 24,
   trayCount,
+  condenserType,
 }: {
   kind: Kind;
   size?: number;
   trayCount?: number;
+  condenserType?: CondenserType;
 }) {
   const compact = size <= 48 ? compactEquipmentSymbols[kind] : undefined;
   const column =
-    kind === "Distillation" && !compact ? columnSymbol(trayCount) : undefined;
+    kind === "Distillation" && !compact
+      ? columnSymbol(trayCount, condenserType)
+      : undefined;
   const geometry = column
     ? column.body + column.connectors
     : (compact ??
