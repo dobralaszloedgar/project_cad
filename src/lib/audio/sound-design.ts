@@ -1,4 +1,9 @@
-export type SoundStyle = "soft" | "digital" | "wood";
+import {
+  createMaterialSamples,
+  type MaterialSoundStyle,
+} from "./material-sounds";
+
+export type SoundStyle = "soft" | "digital" | "wood" | MaterialSoundStyle;
 export type SoundCue = "place" | "wire" | "connect" | "remove";
 
 export const soundStyles: {
@@ -6,26 +11,60 @@ export const soundStyles: {
   name: string;
   description: string;
   character: string;
+  collection: "original" | "new";
 }[] = [
   {
     id: "soft",
     name: "Soft tactile",
     description: "Cushioned taps. A gentle snap when things connect.",
     character: "Quiet & rounded",
+    collection: "original",
   },
   {
     id: "digital",
     name: "Clean digital",
     description: "Crisp clicks. A light, glassy finish to each connection.",
     character: "Precise & bright",
+    collection: "original",
   },
   {
     id: "wood",
     name: "Warm wood",
     description: "Small, dry knocks. Like pieces finding their place.",
     character: "Warm & natural",
+    collection: "original",
+  },
+  {
+    id: "felt",
+    name: "Felt keys",
+    description: "A muted key touch, with a warm, soft finish.",
+    character: "Mellow & soft",
+    collection: "new",
+  },
+  {
+    id: "porcelain",
+    name: "Porcelain",
+    description: "A delicate ceramic tap with a tiny, clear ring.",
+    character: "Light & delicate",
+    collection: "new",
+  },
+  {
+    id: "magnetic",
+    name: "Magnetic snap",
+    description: "A cushioned click that settles into place.",
+    character: "Solid & precise",
+    collection: "new",
+  },
+  {
+    id: "droplet",
+    name: "Water drop",
+    description: "A rounded little droplet. Smooth and playful.",
+    character: "Fluid & playful",
+    collection: "new",
   },
 ];
+
+export const workspaceSound = soundStyles.find((style) => style.id === "felt")!;
 
 export const soundCues: { id: SoundCue; name: string; description: string }[] =
   [
@@ -56,6 +95,13 @@ export function createSoundSamples(
   cue: SoundCue,
   sampleRate: number,
 ): Float32Array<ArrayBuffer> {
+  if (
+    style === "felt" ||
+    style === "porcelain" ||
+    style === "magnetic" ||
+    style === "droplet"
+  )
+    return createMaterialSamples(style, cue, sampleRate);
   const duration = cueDuration[cue];
   const samples = new Float32Array(Math.ceil(duration * sampleRate));
   const baseFrequency = { soft: 240, digital: 920, wood: 430 }[style];

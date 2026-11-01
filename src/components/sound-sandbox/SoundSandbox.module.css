@@ -214,6 +214,122 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
+.styleGrid.newStyles {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.newStyles .styleTitle {
+  gap: 8px;
+}
+.newStyles .styleTitle h2 {
+  font-size: 19px;
+}
+.newStyles .wave {
+  width: 55px;
+}
+.listenHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 15px;
+  color: #688568;
+  font-size: 10px;
+}
+.comparisonBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 16px;
+  margin-top: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f0f3ed;
+  font-size: 11px;
+}
+.comparisonBar > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.comparisonBar strong {
+  font-weight: 550;
+}
+.comparisonBar > div > span:last-child {
+  color: #7c8b79;
+}
+.referenceDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #69916e;
+}
+.comparisonBar button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  border: 0;
+  padding: 5px 2px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+}
+.comparisonBar button:disabled {
+  opacity: 0.45;
+}
+.earlierStyles {
+  margin-top: 14px;
+  font-size: 11px;
+  color: #7b897b;
+}
+.earlierStyles summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  width: fit-content;
+  cursor: pointer;
+}
+.earlierStyles summary::-webkit-details-marker {
+  display: none;
+}
+.earlierStyles summary > span {
+  color: #98a291;
+  font-size: 10px;
+}
+.earlierStyles[open] summary > svg {
+  transform: rotate(90deg);
+}
+.earlierStyles summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.originalOptions {
+  display: flex;
+  gap: 10px;
+  margin-top: 13px;
+}
+.originalOptions button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 13px;
+  font-size: 11px;
+  color: #648068;
+}
+.originalOptions button[aria-pressed="true"] {
+  background: #eaf2e4;
+  border-color: #86aa8a;
+}
+.originalOptions .wave {
+  width: 38px;
+  height: 23px;
+}
 .styleCard {
   display: flex;
   flex-direction: column;
@@ -696,6 +812,9 @@
   }
 }
 @media (max-width: 850px) {
+  .styleGrid.newStyles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .intro {
     gap: 24px;
   }
@@ -747,6 +866,68 @@
   }
 }
 @media (max-width: 600px) {
+  .styleGrid.newStyles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .newStyles .styleCard {
+    padding: 13px;
+  }
+  .newStyles .styleTitle {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+  .newStyles .styleTitle h2 {
+    font-size: 18px;
+  }
+  .newStyles .wave {
+    width: 64px;
+    height: 26px;
+  }
+  .newStyles .styleNumber {
+    display: none;
+  }
+  .newStyles .styleCharacter {
+    font-size: 9px;
+  }
+  .newStyles .styleCard p {
+    font-size: 11px;
+  }
+  .listenHint {
+    font-size: 9px;
+    padding-top: 12px;
+  }
+  .comparisonBar {
+    align-items: flex-start;
+    padding: 13px;
+  }
+  .comparisonBar > div {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .comparisonBar > div > span:last-child {
+    width: 100%;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .comparisonBar button {
+    font-size: 10px;
+    gap: 5px;
+  }
+  .earlierStyles summary > span {
+    display: none;
+  }
+  .originalOptions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .originalOptions button {
+    padding: 8px 10px;
+    gap: 7px;
+  }
+  .originalOptions .wave {
+    display: none;
+  }
   .header {
     height: 58px;
     padding: 0 17px;
