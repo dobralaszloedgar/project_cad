@@ -120,9 +120,6 @@ test("add a third component from the feed, retain drafts and normalize ratios on
     .getByRole("searchbox", { name: "Search chemical database" })
     .fill("110-54-3");
   await picker.getByRole("button", { name: /^Add .* to project$/ }).click();
-  await picker
-    .getByRole("button", { name: "Apply components", exact: true })
-    .click();
   await expect(picker).toHaveCount(0);
   await expect(editor.locator(".equipment-composition-row")).toHaveCount(3);
   await expect(

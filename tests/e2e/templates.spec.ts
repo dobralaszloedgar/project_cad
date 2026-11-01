@@ -124,12 +124,12 @@ test("every offered template loads its specifications and runs without a chemica
         name: "Project components",
         exact: true,
       });
-      await expect(
-        components.getByLabel("Component A", { exact: true }),
-      ).toContainText(names[0]);
-      await expect(
-        components.getByLabel("Component B", { exact: true }),
-      ).toContainText(names[1]);
+      await expect(components.locator(".component-slot").nth(0)).toContainText(
+        names[0],
+      );
+      await expect(components.locator(".component-slot").nth(1)).toContainText(
+        names[1],
+      );
       await expect(
         components.locator(".selected-components .component-badge"),
       ).toHaveText("2 / 40");

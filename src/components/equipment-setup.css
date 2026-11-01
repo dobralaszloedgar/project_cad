@@ -359,7 +359,7 @@
   color: var(--muted);
 }
 .model-notes li + li {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 .model-notes .model-equation {
   display: block;
@@ -370,6 +370,9 @@
 }
 .model-notes .katex-display {
   margin: 4px 0;
+}
+.model-notes .katex-display,
+.model-notes .katex-display > .katex {
   text-align: left;
 }
 .model-notes .katex {

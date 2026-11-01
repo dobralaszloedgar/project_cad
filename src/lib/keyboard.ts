@@ -7,9 +7,17 @@ export function isTypingTarget(target: EventTarget | null) {
   );
 }
 
+export function isSelectPickerOpen(event: { target: EventTarget | null }) {
+  return (
+    event.target instanceof Element &&
+    CSS.supports("selector(select:open)") &&
+    !!event.target.closest("select:open")
+  );
+}
+
 export function isCloseKey(event: KeyboardEvent) {
   return (
-    event.key === "Escape" ||
+    (event.key === "Escape" && !isSelectPickerOpen(event)) ||
     (!event.altKey &&
       !event.shiftKey &&
       ((event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "q") ||

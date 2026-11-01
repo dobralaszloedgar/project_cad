@@ -39,6 +39,9 @@ type SearchPage = {
   results: ChemicalChoice[];
 };
 
+// Reopening the picker and revisiting a search should not repeat the lookup.
+const searchCache = new Map<string, { data: SearchPage; expires: number }>();
+
 export default function ProjectComponents({
   project,
   onApply,
@@ -69,22 +72,28 @@ export default function ProjectComponents({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
-  const key = JSON.stringify([
+  const searchKey = JSON.stringify([
     query.trim(),
     field,
     sort,
     page,
     current.modelId,
     release,
-    retry,
   ]);
+  const key = JSON.stringify([searchKey, retry]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
     const controller = new AbortController();
-    const delay = debounce.current ? 250 : 0;
+    const cached = searchCache.get(searchKey);
+    const cacheHit = cached && cached.expires > Date.now();
+    const delay = cacheHit ? 0 : debounce.current ? 150 : 0;
     debounce.current = false;
     const timer = setTimeout(async () => {
       try {
+        if (cacheHit) {
+          setLookup({ key, data: cached.data });
+          return;
+        }
         const params = new URLSearchParams({
           query: query.trim(),
           field,
@@ -99,7 +108,12 @@ export default function ProjectComponents({
         const data = await response.json();
         if (!response.ok)
           throw new Error(data.error ?? "Could not connect to Supabase.");
-        if (!controller.signal.aborted) setLookup({ key, data });
+        if (!controller.signal.aborted) {
+          if (searchCache.size >= 64)
+            searchCache.delete(searchCache.keys().next().value!);
+          searchCache.set(searchKey, { data, expires: Date.now() + 60_000 });
+          setLookup({ key, data });
+        }
       } catch (reason) {
         if (!controller.signal.aborted)
           setLookup({
@@ -115,7 +129,17 @@ export default function ProjectComponents({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, field, sort, page, current.modelId, release, retry, key]);
+  }, [
+    query,
+    field,
+    sort,
+    page,
+    current.modelId,
+    release,
+    retry,
+    searchKey,
+    key,
+  ]);
   const loading = lookup?.key !== key;
   const data = !loading ? lookup?.data : undefined;
   const lookupError = !loading ? lookup?.error : undefined;
@@ -126,34 +150,77 @@ export default function ProjectComponents({
   const pages = data
     ? Math.max(1, Math.ceil(data.total / CHEMICAL_PAGE_SIZE))
     : page;
+
+  async function saveComponents(
+    nextChoices: ComponentChoices,
+    nextRelease = release ?? data?.release,
+  ) {
+    const selected = nextChoices.filter((choice) => choice !== undefined);
+    if (
+      request.current ||
+      selected.length < 2 ||
+      selected.some((choice) => ["A", "B"].includes(choice.id))
+    )
+      return;
+    const controller = new AbortController();
+    request.current = controller;
+    setSaving(true);
+    setError("");
+    try {
+      const settings = await resolveCatalogSettings(
+        current,
+        selected,
+        nextRelease,
+        controller.signal,
+      );
+      if (!controller.signal.aborted) onApply(settings);
+    } catch (reason) {
+      if (!controller.signal.aborted)
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Could not save components.",
+        );
+    } finally {
+      if (!controller.signal.aborted) setSaving(false);
+      if (request.current === controller) request.current = null;
+    }
+  }
+
+  function addChemical(chemical: ChemicalChoice) {
+    if (
+      request.current ||
+      saving ||
+      choices.some((choice) => choice?.id === chemical.id) ||
+      selectedCount >= 40 ||
+      !data
+    )
+      return;
+    const empty = choices.findIndex((choice) => !choice);
+    const next =
+      empty < 0
+        ? [...choices, chemical]
+        : choices.map((choice, i) => (i === empty ? chemical : choice));
+    const nextRelease = release ?? data.release;
+    if (
+      next.filter(Boolean).length >= 2 &&
+      !next.some((choice) => choice && ["A", "B"].includes(choice.id))
+    ) {
+      void saveComponents(next, nextRelease);
+    } else {
+      setChoices(next);
+      setRelease(nextRelease);
+      setError("");
+    }
+  }
+
   return (
     <form
       className="project-components"
-      onSubmit={async (event) => {
+      aria-busy={saving}
+      onSubmit={(event) => {
         event.preventDefault();
-        if (saving || selectedCount < 2 || hasSynthetic) return;
-        setSaving(true);
-        setError("");
-        const controller = new AbortController();
-        request.current = controller;
-        try {
-          const settings = await resolveCatalogSettings(
-            current,
-            choices.filter((choice) => choice !== undefined),
-            release ?? data?.release,
-            controller.signal,
-          );
-          if (!controller.signal.aborted) onApply(settings);
-        } catch (reason) {
-          if (!controller.signal.aborted)
-            setError(
-              reason instanceof Error
-                ? reason.message
-                : "Could not save components.",
-            );
-        } finally {
-          if (!controller.signal.aborted) setSaving(false);
-        }
+        void saveComponents(choices);
       }}
     >
       <div className="components-workbench">
@@ -285,7 +352,10 @@ export default function ProjectComponents({
                   {data.results.map((chemical) => {
                     const added = choices.some((c) => c?.id === chemical.id);
                     return (
-                      <tr key={chemical.id}>
+                      <tr
+                        key={chemical.id}
+                        onDoubleClick={() => addChemical(chemical)}
+                      >
                         <td>
                           <div className="chemical-name">
                             <strong>{chemical.name}</strong>
@@ -308,22 +378,8 @@ export default function ProjectComponents({
                                 : undefined
                             }
                             disabled={saving || added || selectedCount >= 40}
-                            onClick={() => {
-                              setRelease(
-                                (previous) => previous ?? data.release,
-                              );
-                              setChoices((previous) => {
-                                const empty = previous.findIndex(
-                                  (choice) => !choice,
-                                );
-                                return empty < 0
-                                  ? [...previous, chemical]
-                                  : previous.map((choice, i) =>
-                                      i === empty ? chemical : choice,
-                                    );
-                              });
-                              setError("");
-                            }}
+                            onClick={() => addChemical(chemical)}
+                            onDoubleClick={(event) => event.stopPropagation()}
                           >
                             {added ? <Check size={14} /> : <Plus size={14} />}
                             <span>{added ? "Added" : "Add"}</span>
@@ -383,14 +439,7 @@ export default function ProjectComponents({
           <p className="component-model">{modelInfo(current.modelId).label}</p>
           <div className="component-slots">
             {choices.map((_, i) => (
-              <div
-                key={i}
-                className="component-slot"
-                aria-label={`Component ${i < 2 ? (i === 0 ? "A" : "B") : String(i + 1)}`}
-              >
-                <span className="component-slot-label">
-                  {i < 2 ? (i === 0 ? "A" : "B") : String(i + 1)}
-                </span>
+              <div key={i} className="component-slot">
                 {choices[i] ? (
                   <>
                     <div className="selected-chemical">
@@ -404,7 +453,7 @@ export default function ProjectComponents({
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label={`Remove component ${i < 2 ? (i === 0 ? "A" : "B") : String(i + 1)}`}
+                      aria-label={`Remove ${choices[i]!.name} from project`}
                       disabled={saving}
                       onClick={() => {
                         setChoices((previous) =>

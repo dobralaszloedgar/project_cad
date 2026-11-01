@@ -75,21 +75,20 @@ for (const { theme, width, height, background } of [
     await components
       .getByRole("searchbox", { name: "Search chemical database" })
       .fill("acetone");
-    await components
-      .getByRole("button", { name: "Add acetone to project", exact: true })
-      .click();
-    await expect(
-      components.locator(".selected-components .component-badge"),
-    ).toHaveText("3 / 40");
+    await expect(components.locator(".component-slot-label")).toHaveCount(0);
     expect(
       await components.evaluate(
         (element) => element.scrollWidth <= element.clientWidth,
       ),
     ).toBe(true);
     await page.screenshot({ path: info.outputPath("project-components.png") });
-    await components
-      .getByRole("button", { name: "Apply components", exact: true })
-      .click();
+    if (theme === "light")
+      await components.getByRole("cell", { name: "acetone C3H6O" }).dblclick();
+    else
+      await components
+        .getByRole("button", { name: "Add acetone to project", exact: true })
+        .click();
+    await expect(components).toHaveCount(0);
     await expect(editor).toBeVisible();
     await expect(page.locator("dialog[open]")).toHaveCount(1);
     await expect(flow).toHaveValue("42");

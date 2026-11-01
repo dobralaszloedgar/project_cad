@@ -50,6 +50,12 @@ const recordsSchema = z
   .max(64);
 type Release = z.infer<typeof releaseSchema>;
 const releases = new Map<string, Release>();
+const releaseRequests = new Map<string, Promise<Release>>();
+let latestRelease: { value: Release; expires: number } | undefined;
+const searchPages = new Map<
+  string,
+  Promise<z.infer<typeof searchSchema> & { release: string }>
+>();
 const parameterCache = new Map<string, z.infer<typeof activityDatasetSchema>>();
 // RPC names are an allowlist, never user-provided SQL identifiers.
 const queries = {
@@ -135,7 +141,24 @@ export async function catalogRelease(hash?: string): Promise<Release> {
     hashSchema.parse(hash);
     const cached = releases.get(hash);
     if (cached) return cached;
+  } else if (latestRelease && latestRelease.expires > Date.now()) {
+    return latestRelease.value;
   }
+  const key = hash ?? "latest";
+  const pending = releaseRequests.get(key);
+  if (pending) return pending;
+  const request = readRelease(hash)
+    .then((release) => {
+      // Published releases are immutable; only the latest-release pointer expires.
+      if (!hash)
+        latestRelease = { value: release, expires: Date.now() + 60_000 };
+      return release;
+    })
+    .finally(() => releaseRequests.delete(key));
+  releaseRequests.set(key, request);
+  return request;
+}
+async function readRelease(hash?: string): Promise<Release> {
   const value = await read("release", [hash ?? null]);
   if (!value)
     throw new CatalogError(
@@ -177,18 +200,28 @@ export async function searchChemicals(
     .max(5000)
     .parse(options.page ?? 1);
   const release = await catalogRelease(hash);
-  const page = searchSchema.parse(
-    await read("search", [
-      release.hash,
-      query.trim(),
-      model,
-      CHEMICAL_PAGE_SIZE,
-      field,
-      sort,
-      (pageNumber - 1) * CHEMICAL_PAGE_SIZE,
-    ]),
-  );
-  return { ...page, release: release.hash };
+  const args = [
+    release.hash,
+    query.trim().toLowerCase(),
+    model,
+    CHEMICAL_PAGE_SIZE,
+    field,
+    sort,
+    (pageNumber - 1) * CHEMICAL_PAGE_SIZE,
+  ];
+  const key = JSON.stringify(args);
+  const cached = searchPages.get(key);
+  if (cached) return cached;
+  const pending = read("search", args)
+    .then((value) => ({ ...searchSchema.parse(value), release: release.hash }))
+    .catch((error: unknown) => {
+      if (searchPages.get(key) === pending) searchPages.delete(key);
+      throw error;
+    });
+  if (searchPages.size >= 128)
+    searchPages.delete(searchPages.keys().next().value!);
+  searchPages.set(key, pending);
+  return pending;
 }
 export async function catalogModels() {
   const [release, registered] = await Promise.all([
@@ -247,6 +280,9 @@ export async function loadCatalogSelection(
     read("compounds", [hash, ids]).then((value) => recordsSchema.parse(value)),
     parameters(release.parameterHash),
   ]);
+  const manifestRecords = z
+    .record(z.string(), hashSchema)
+    .parse(release.manifest.records);
   const selected = ids.map((id) => {
     const record = records.find((r) => r.chemical.id === id);
     if (!record)
@@ -256,9 +292,6 @@ export async function loadCatalogSelection(
       );
     if (contentHash(record.chemical) !== record.hash)
       throw new CatalogError("Chemical record failed its integrity check.");
-    const manifestRecords = z
-      .record(z.string(), hashSchema)
-      .parse(release.manifest.records);
     if (manifestRecords[id] !== record.hash)
       throw new CatalogError(
         "Chemical record is not part of the selected data release.",

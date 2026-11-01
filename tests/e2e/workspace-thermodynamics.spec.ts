@@ -104,7 +104,7 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   await page.keyboard.press("Escape");
   await loadProject(page, solutionExample());
   await header.getByRole("button", { name: "Project components" }).click();
-  await expect(dialog.getByLabel("Component A", { exact: true })).toContainText(
+  await expect(dialog.locator(".component-slot").first()).toContainText(
     "71-43-2",
   );
   await dialog

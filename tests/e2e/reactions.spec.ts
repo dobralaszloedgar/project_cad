@@ -25,14 +25,11 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
     0,
   );
   await expect(page.getByText("Define your first reaction")).toBeVisible();
-  await page.getByRole("button", { name: "Calculate", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Calculate", exact: true }),
+  ).toBeDisabled();
   await expect(
     page.getByRole("tabpanel", { name: "Setup", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole("alert")
-      .filter({ hasText: /^Add a reaction before calculating\.$/ }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Add reaction", exact: true }).click();
   await page
@@ -140,32 +137,33 @@ test("add catalog components and edit all feed fractions", async ({ page }) => {
   project.units[0].params.composition = undefined;
   await page.goto("/workspace");
   await loadProject(page, project);
-  await page
-    .getByRole("button", { name: "Project components", exact: true })
-    .click();
   for (const name of ["water", "nitrogen"]) {
+    await page
+      .getByRole("button", { name: "Project components", exact: true })
+      .click();
     await page
       .getByRole("searchbox", { name: "Search chemical database" })
       .fill(name);
     await page
       .getByRole("button", { name: `Add ${name} to project`, exact: true })
       .click();
+    await expect(
+      page.getByRole("dialog", { name: "Project components", exact: true }),
+    ).toHaveCount(0);
   }
-  await expect(
-    page.locator(".selected-components .component-badge"),
-  ).toHaveText("4 / 40");
-  await page
-    .getByRole("button", { name: "Apply components", exact: true })
-    .click();
   await inspect(page, "F-101");
   await page.getByLabel("Mole fraction methanol", { exact: true }).fill("0.6");
   await page.getByLabel("Mole fraction nitrogen", { exact: true }).fill("0.4");
-  await expect(
-    page.getByLabel("Total mole fraction", { exact: true }),
-  ).toHaveText("Total: 1");
+  await expect(page.locator(".equipment-composition-row")).toHaveCount(4);
   await page
     .getByRole("button", { name: "Apply conditions", exact: true })
     .click();
+  await expect(
+    page.getByLabel("Mole fraction methanol", { exact: true }),
+  ).toHaveValue("0.6");
+  await expect(
+    page.getByLabel("Mole fraction nitrogen", { exact: true }),
+  ).toHaveValue("0.4");
   await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "Run simulation", exact: true })

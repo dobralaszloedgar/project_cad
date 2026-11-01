@@ -50,7 +50,7 @@ test("three model choices, real flash, model change and saved settings", async (
   await page
     .getByRole("button", { name: "Project components", exact: true })
     .click();
-  await expect(page.getByLabel("Component A", { exact: true })).toContainText(
+  await expect(page.locator(".component-slot").first()).toContainText(
     "71-43-2",
   );
   await page.screenshot({

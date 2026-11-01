@@ -49,7 +49,7 @@ export function EquipmentModelNotes({
         <li>{modelInfo(settings.modelId).limitations}</li>
         {settings.mixture === "demo" ? (
           <li>
-            Synthetic species; equal{" "}
+            Synthetic species:{" "}
             <Equation inline>{String.raw`M = 28\,\mathrm{g/mol}`}</Equation>;
             constant{" "}
             <Equation
@@ -61,17 +61,19 @@ export function EquipmentModelNotes({
           <li>Property correlations have temperature limits.</li>
         )}
         <li>
-          Vapor-only volume flow:{" "}
-          <Equation inline>{String.raw`\dot V = FRT/P`}</Equation>; total molar
-          flow <Equation inline>{String.raw`F = \sum_i F_i`}</Equation> in
-          mol/s.
+          Vapor volume: <Equation inline>{String.raw`\dot V = FRT/P`}</Equation>
+          .
+        </li>
+        <li>
+          Molar flow: <Equation inline>{String.raw`F = \sum_i F_i`}</Equation>{" "}
+          (mol/s).
         </li>
       </ul>
       {unit.kind === "Feed" && (
         <>
           <Equation>{String.raw`F_i = F z_i,\qquad \sum_i z_i = 1`}</Equation>
           <ul>
-            <li>Specified flow, composition, temperature and pressure.</li>
+            <li>Fixed flow, composition, temperature and pressure.</li>
           </ul>
         </>
       )}
@@ -79,33 +81,34 @@ export function EquipmentModelNotes({
         <>
           <Equation>{String.raw`F_{i,\mathrm{product}} = F_{i,\mathrm{in}},\qquad Q = 0`}</Equation>
           <ul>
-            <li>Receives the inlet state unchanged.</li>
+            <li>Inlet state unchanged.</li>
           </ul>
         </>
       )}
       {unit.kind === "PBR" && unit.params.packedBed && (
         <>
-          <Equation>{String.raw`\frac{dF_i}{dW} = \sum_j \nu_{ij}\frac{r_j}{|\nu_{b,j}|},\qquad Q = \dot H_{\mathrm{out}} - \dot H_{\mathrm{in}}`}</Equation>
+          <Equation>{String.raw`\frac{dF_i}{dW} = \sum_j \nu_{ij}\frac{r_j}{|\nu_{b,j}|}`}</Equation>
+          <Equation>{String.raw`Q = \dot H_{\mathrm{out}} - \dot H_{\mathrm{in}}`}</Equation>
           <ul>
             <li>
-              Enabled reactions are coupled. Rates measure basis-reactant
-              consumption per kg of catalyst.
+              Coupled reactions; basis-reactant consumption rates per kg
+              catalyst.
             </li>
             <li>
-              Isothermal gas with linear pressure drop. Volume flow is ideal-gas
-              or fixed.
+              Isothermal gas; linear pressure drop; ideal-gas or fixed volume
+              flow.
             </li>
             <li>
-              Power-law or general kinetics, with reverse, inhibition and
-              Arrhenius terms.
+              Power-law/general kinetics with reverse, inhibition and Arrhenius
+              terms.
             </li>
+            <li>Sizing stops at the first target crossing.</li>
             <li>
-              Sizing uses the first target crossing. Unreachable targets,
-              depletion and unresolved stiff kinetics return errors.
+              Errors on unreachable targets, depletion or unresolved stiffness.
             </li>
+            <li>Checks atoms, mass, properties and formation enthalpy.</li>
             <li>
-              Checks atom and mass balance, component data and formation
-              enthalpy. No phase equilibrium, transport resistance or catalyst
+              No phase equilibrium, transport resistance or catalyst
               deactivation.
             </li>
           </ul>
@@ -114,15 +117,18 @@ export function EquipmentModelNotes({
       {unit.kind === "PBR" && !unit.params.packedBed && (
         <>
           {catalystWeight ? (
-            <Equation>{String.raw`\frac{dF_A}{dW} = -k(T)C_A,\qquad C_A = \frac{F_AP}{FRT}`}</Equation>
+            <>
+              <Equation>{String.raw`\frac{dF_A}{dW} = -k(T)C_A`}</Equation>
+              <Equation>{String.raw`C_A = \frac{F_AP}{FRT}`}</Equation>
+            </>
           ) : (
             <Equation>{String.raw`X = 1 - e^{-k(T)\tau}`}</Equation>
           )}
           <Equation>{String.raw`k(T) = k_{450}\exp\!\left[-\frac{E_a}{R}\left(\frac{1}{T}-\frac{1}{450\,\mathrm K}\right)\right]`}</Equation>
           <ul>
             <li>
-              Isothermal <Equation inline>{String.raw`A \to B`}</Equation> at
-              fixed pressure; synthetic A/B and ideal gas only.
+              Isothermal <Equation inline>{String.raw`A \to B`}</Equation>;
+              fixed pressure, synthetic A/B, ideal gas only.
             </li>
             <li>
               Teaching kinetics:{" "}
@@ -137,8 +143,7 @@ export function EquipmentModelNotes({
             </li>
             {catalystWeight ? (
               <li>
-                Integrates over catalyst mass <Equation inline>W</Equation>{" "}
-                (kg); specified{" "}
+                Catalyst mass <Equation inline>W</Equation> (kg); specified{" "}
                 <Equation inline>{String.raw`k_{450}`}</Equation> in{" "}
                 <Equation
                   inline
@@ -150,13 +155,12 @@ export function EquipmentModelNotes({
                 <Equation
                   inline
                 >{String.raw`k_{450} = 0.1\,\mathrm{s^{-1}}`}</Equation>
-                ; specified residence time{" "}
-                <Equation inline>{String.raw`\tau`}</Equation> is independent of
-                flow.
+                ; residence time <Equation inline>{String.raw`\tau`}</Equation>{" "}
+                independent of flow.
               </li>
             )}
             <li>
-              Duty includes reaction and sensible heat; no catalyst transport or
+              Duty: reaction and sensible heat. No catalyst transport or
               deactivation.
             </li>
           </ul>
@@ -169,26 +173,23 @@ export function EquipmentModelNotes({
             <Equation>{String.raw`T_{\mathrm{out}} = T_{\mathrm{in}} + \frac{Q}{\sum_i F_i C_{p,i}}`}</Equation>
           )}
           <ul>
-            <li>Duty in W; positive adds heat, negative removes heat.</li>
-            <li>Outlet-temperature mode uses the selected enthalpy model.</li>
+            <li>Duty (W): positive heats; negative cools.</li>
+            <li>Temperature mode: selected enthalpy model.</li>
             <li>
-              Specified duty: ideal gas only, constant heat capacities, no phase
-              change.
+              Duty mode: ideal gas, constant heat capacities, no phase change.
             </li>
           </ul>
         </>
       )}
       {unit.kind === "Mixer" && (
         <>
-          <Equation>{String.raw`\begin{aligned}F_{i,\mathrm{out}} &= \sum_j F_{i,j} \\ \dot H_{\mathrm{out}} &= \sum_j \dot H_j \\ P_{\mathrm{out}} &= \min_j P_j\end{aligned}`}</Equation>
+          <Equation>{String.raw`F_{i,\mathrm{out}} = \sum_j F_{i,j}`}</Equation>
+          <Equation>{String.raw`\dot H_{\mathrm{out}} = \sum_j \dot H_j`}</Equation>
+          <Equation>{String.raw`P_{\mathrm{out}} = \min_j P_j`}</Equation>
           <ul>
-            <li>
-              Conserves component flows and enthalpy; no heat transfer or shaft
-              work.
-            </li>
-            <li>
-              Pressure uses flowing inlets only; zero-flow inlets are ignored.
-            </li>
+            <li>Conserves component flows and enthalpy.</li>
+            <li>No heat transfer or shaft work.</li>
+            <li>Pressure: lowest flowing inlet; ignores zero-flow inlets.</li>
           </ul>
         </>
       )}
@@ -197,25 +198,31 @@ export function EquipmentModelNotes({
         (unit.params.distillation.method === "fug" ? (
           <>
             <Equation>{String.raw`N_{\min}=\frac{\ln\left[\frac{r_L r_H}{(1-r_L)(1-r_H)}\right]}{\ln(\alpha_L/\alpha_H)}`}</Equation>
-            <Equation>{String.raw`\sum_i\frac{\alpha_i z_i}{\alpha_i-\theta}=1-q,\qquad R_{\min}+1=\sum_i\frac{\alpha_i x_{D,i}}{\alpha_i-\theta}`}</Equation>
-            <p>
-              Constant relative volatilities and molar overflow.
-              Hengstebeck–Geddes recoveries and Gilliland stages. Feed q and
-              product temperatures are specified. No azeotrope prediction, stage
-              profiles or end duties.
-            </p>
+            <Equation>{String.raw`\sum_i\frac{\alpha_i z_i}{\alpha_i-\theta}=1-q`}</Equation>
+            <Equation>{String.raw`R_{\min}+1=\sum_i\frac{\alpha_i x_{D,i}}{\alpha_i-\theta}`}</Equation>
+            <ul>
+              <li>Constant relative volatilities and molar overflow.</li>
+              <li>Hengstebeck–Geddes recoveries; Gilliland stages.</li>
+              <li>Specified feed q and product temperatures.</li>
+              <li>No azeotrope prediction, stage profiles or end duties.</li>
+            </ul>
           </>
         ) : (
           <>
             <Equation>{String.raw`L_{j-1}x_{i,j-1}+V_{j+1}y_{i,j+1}+F_jz_i=L_jx_{i,j}+V_jy_{i,j}`}</Equation>
-            <Equation>{String.raw`y_{i,j}P_j=x_{i,j}\gamma_{i,j}P_i^{sat}(T_j),\qquad\sum_i x_{i,j}=\sum_i y_{i,j}=1`}</Equation>
+            <Equation>{String.raw`y_{i,j}P_j=x_{i,j}\gamma_{i,j}P_i^{sat}(T_j)`}</Equation>
+            <Equation>{String.raw`\sum_i x_{i,j}=\sum_i y_{i,j}=1`}</Equation>
             <Equation>{String.raw`L_{j-1}h_{j-1}+V_{j+1}H_{j+1}+F_jh_F+Q_j=L_jh_j+V_jH_j`}</Equation>
-            <p>
-              One feed, adiabatic trays, saturated total condenser and kettle
-              reboiler. Uses the selected equilibrium and enthalpy models.
-              Hydraulics are rated separately. No tray efficiencies, hydraulic
-              feedback, side draws or liquid–liquid stability check.
-            </p>
+            <ul>
+              <li>One feed; adiabatic equilibrium trays.</li>
+              <li>Saturated total condenser; kettle reboiler.</li>
+              <li>Selected equilibrium and enthalpy models.</li>
+              <li>Hydraulics rated separately; no hydraulic feedback.</li>
+              <li>
+                No tray efficiencies, side draws or liquid–liquid stability
+                check.
+              </li>
+            </ul>
           </>
         ))}
       {unit.kind === "Distillation" &&
@@ -243,11 +250,11 @@ export function EquipmentModelNotes({
                 ? String.raw`y_iP = x_iP_i^{\mathrm{sat}}(T)`
                 : String.raw`y_iP = x_i\gamma_iP_i^{\mathrm{sat}}(T)`}
             </Equation>
-            <Equation>{String.raw`\begin{aligned}F_{i,1} &= \beta F y_i \\ F_{i,2} &= (1-\beta)F x_i\end{aligned}`}</Equation>
+            <Equation>{String.raw`F_{i,1} = \beta F y_i`}</Equation>
+            <Equation>{String.raw`F_{i,2} = (1-\beta)F x_i`}</Equation>
             <ul>
               <li>
-                One TP flash at feed temperature and pressure; no stages or
-                reflux.
+                TP flash at feed temperature and pressure; no stages or reflux.
               </li>
               <li>
                 Outlet 1: vapor; outlet 2: liquid.{" "}
@@ -261,11 +268,12 @@ export function EquipmentModelNotes({
         ))}
       {unit.kind === "Splitter" && (
         <>
-          <Equation>{String.raw`\begin{aligned}F_{i,1} &= (1-f)F_{i,\mathrm{in}} \\ F_{i,2} &= fF_{i,\mathrm{in}}\end{aligned}`}</Equation>
+          <Equation>{String.raw`F_{i,1} = (1-f)F_{i,\mathrm{in}}`}</Equation>
+          <Equation>{String.raw`F_{i,2} = fF_{i,\mathrm{in}}`}</Equation>
           <ul>
             <li>
-              <Equation inline>f</Equation>: outlet 2 fraction, applied equally
-              to each component.
+              <Equation inline>f</Equation>: outlet 2 fraction for every
+              component.
             </li>
             <li>Temperature, pressure and phase preserved; zero duty.</li>
           </ul>
