@@ -84,9 +84,7 @@ test("feed composition and reactor sizing retain drafts and compact layouts fit 
   await loadProject(page, catalystExample());
   await inspect(page, "F-601");
   await page.getByLabel("Mole fraction A", { exact: true }).fill("0.35");
-  await expect(page.getByLabel("Mole fraction B", { exact: true })).toHaveText(
-    "0.65",
-  );
+  await page.getByLabel("Mole fraction B", { exact: true }).fill("0.65");
   await page.getByRole("tab", { name: "Results", exact: true }).click();
   await page.getByRole("tab", { name: "Setup", exact: true }).click();
   await expect(page.getByLabel("Mole fraction A", { exact: true })).toHaveValue(

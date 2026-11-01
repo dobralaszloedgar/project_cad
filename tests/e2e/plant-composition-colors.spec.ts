@@ -81,6 +81,7 @@ test("3D composition colors update after feed edits while preserving the view", 
   await labels.filter({ hasText: "F-201" }).click();
   await page.getByRole("button", { name: "Properties", exact: true }).click();
   await page.getByLabel("Mole fraction A", { exact: true }).fill("0.9");
+  await page.getByLabel("Mole fraction B", { exact: true }).fill("0.1");
   await page
     .getByRole("button", { name: "Apply conditions", exact: true })
     .click();

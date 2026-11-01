@@ -289,6 +289,9 @@ export default function Inspector({
       issueTarget={issueTarget}
       status={status}
       onNavigateIssue={onNavigateIssue}
+      onComponentsChange={(thermo) =>
+        onChange({ ...project, thermo }, "Change project components")
+      }
       onApply={(next) => {
         try {
           unitSchema.parse(next);

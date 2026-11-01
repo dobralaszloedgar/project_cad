@@ -20,8 +20,11 @@ Feed-to-Product path and all required ports must be connected before simulation.
 An incomplete but structurally valid graph may be previewed and saved.
 
 Projects support 2-40 components, 40 units and 80 streams. Feed composition maps
-component IDs to mole fractions summing to one. Legacy fractionA refers to the
-first two components. Stream components contains molar flows for all species;
+component IDs to nonnegative mole fractions or ratios, with a positive total.
+Ratios are normalized automatically for simulation. Legacy fractionA refers to
+the first two components. New feeds added in the UI track unspecified inputs in
+missingInputs; updating the corresponding params clears those entries. Simulation
+requires all missing inputs to be supplied. Stream components contains molar flows for all species;
 a and b are compatibility aliases for the first two, not additional flows.
 Use saved catalog component records and preserve their provenance. Model IDs:
 ideal-gas, ideal-solution (Raoult), modified-unifac-2.0. Synthetic demo A/B,

@@ -64,7 +64,12 @@ export function simulationKey(project: Project): string {
   return JSON.stringify(
     canonical({
       units: project.units
-        .map(({ id, kind, params }) => ({ id, kind, params }))
+        .map(({ id, kind, params, missingInputs }) => ({
+          id,
+          kind,
+          params,
+          ...(missingInputs?.length ? { missingInputs } : {}),
+        }))
         .sort((a, b) => a.id.localeCompare(b.id)),
       edges: project.edges
         .map(({ id, source, target, sourcePort, targetPort }) => ({
@@ -133,14 +138,72 @@ export function equipmentSetupIssues(
     kind: EquipmentIssue["kind"] = "error",
     target = equipmentIssueTarget(message),
   ) => issues.push({ kind, message, target });
+  for (const field of new Set(unit.missingInputs ?? []))
+    add(
+      `Specify ${field}.`,
+      "missing",
+      field === "composition"
+        ? { section: "composition" }
+        : { section: "settings", field },
+    );
   const parsed = unitSchema.safeParse(unit);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const path = issue.path.filter((part) => part !== "params").join(".");
-      add(`${path}: ${issue.message}`, "error", {
-        section: "settings",
-        field: path,
-      });
+      const value = issue.path.reduce<unknown>(
+        (current, key) =>
+          current && typeof current === "object"
+            ? (current as Record<PropertyKey, unknown>)[key]
+            : undefined,
+        unit,
+      );
+      const missing =
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        (typeof value === "number" && Number.isNaN(value));
+      const composition =
+        path === "fractionA" || path.startsWith("composition");
+      if (composition) {
+        if (!issues.some((entry) => entry.target.section === "composition"))
+          add(
+            missing
+              ? "Specify composition."
+              : "Composition values must be finite and nonnegative.",
+            missing ? "missing" : "error",
+            {
+              section: "composition",
+              field: path,
+            },
+          );
+      } else {
+        const label =
+          (
+            {
+              name: "equipment name",
+              flow: "flow",
+              temperature: "temperature",
+              pressure: "pressure",
+              heatDuty: "heat duty",
+              trayCount: "tray count",
+            } as Record<string, string>
+          )[path] ??
+          path
+            .split(".")
+            .at(-1)!
+            .replace(/([a-z])([A-Z])/g, "$1 $2")
+            .toLowerCase();
+        add(
+          missing
+            ? `Specify ${label}.`
+            : `${label.charAt(0).toUpperCase()}${label.slice(1)}: ${issue.message}`,
+          missing ? "missing" : "error",
+          {
+            section: "settings",
+            field: path,
+          },
+        );
+      }
     }
     return issues;
   }
@@ -275,8 +338,11 @@ export function equipmentSetupIssues(
         add("Heater duty must be nonnegative and cooler duty nonpositive.");
     }
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Review the equipment settings.";
     add(
-      error instanceof Error ? error.message : "Review the equipment settings.",
+      message,
+      message.startsWith("Specify composition") ? "missing" : "error",
     );
   }
   return issues;
@@ -309,7 +375,7 @@ export function equipmentStatuses(
         ),
       ].sort((a, b) => Number(b.kind === "error") - Number(a.kind === "error"));
       let state: EquipmentStatus["state"];
-      if (failure?.unitId === unit.id) {
+      if (failure?.unitId === unit.id && !issues.length) {
         issues.unshift({
           kind: "error",
           message: failure.message,

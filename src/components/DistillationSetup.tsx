@@ -87,6 +87,7 @@ export function DistillationSetup({
             <label>
               Column top pressure ({display.quantityLabel("pressure")})
               <EngineeringInput
+                selectUnit
                 aria-label="Column top pressure"
                 data-setup-field="pressure"
                 dimension="pressure"
@@ -177,6 +178,7 @@ export function DistillationSetup({
                         : "Bottoms temperature"}
                       {` (${display.quantityLabel("temperature")})`}
                       <EngineeringInput
+                        selectUnit
                         aria-label={
                           key === "distillateTemperature"
                             ? "Distillate temperature"
@@ -212,6 +214,7 @@ export function DistillationSetup({
                 <label>
                   Distillate molar flow ({display.quantityLabel("molarFlow")})
                   <EngineeringInput
+                    selectUnit
                     aria-label="Distillate molar flow"
                     dimension="molarFlow"
                     value={d.distillateFlow}
@@ -227,6 +230,7 @@ export function DistillationSetup({
                   Total column pressure drop (
                   {display.quantityLabel("pressureDifference")})
                   <EngineeringInput
+                    selectUnit
                     aria-label="Total column pressure drop"
                     dimension="pressureDifference"
                     value={d.pressureDrop}

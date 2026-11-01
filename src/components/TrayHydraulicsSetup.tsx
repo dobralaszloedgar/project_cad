@@ -30,6 +30,7 @@ export function TrayHydraulicsSetup({
     <label key={key}>
       {label} ({display.quantityLabel(dimension)})
       <EngineeringInput
+        selectUnit
         aria-label={label}
         dimension={dimension}
         value={(h[key] as number) ?? NaN}

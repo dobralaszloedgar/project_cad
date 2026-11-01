@@ -609,6 +609,8 @@ export default function Workspace({
       position?.x ?? 200 + (project.units.length % 4) * 180,
       position?.y ?? 350 + Math.floor(project.units.length / 4) * 100,
     );
+    if (kind === "Feed")
+      unit.missingInputs = ["flow", "temperature", "pressure", "composition"];
     if (kind === "PBR") {
       const settings = project.thermo ?? defaultThermo;
       const ids =

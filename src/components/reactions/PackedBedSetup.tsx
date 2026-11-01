@@ -21,6 +21,7 @@ import { KineticsSource } from "./KineticsSource";
 import { MathFormula } from "./RateMath";
 import type { Dimension } from "@/domain/unit-definitions";
 import EngineeringInput from "../EngineeringInput";
+import UnitSelect from "../UnitSelect";
 import NumberInput from "../NumberInput";
 import { useUnitSystem } from "../useUnitSystem";
 import "./reactions.css";
@@ -76,7 +77,11 @@ function NumberField({
             onValueChange={onChange}
           />
         )}
-        {suffix && <span className="equipment-unit">{suffix}</span>}
+        {dimension ? (
+          <UnitSelect dimension={dimension} label={title} />
+        ) : (
+          suffix && <span className="equipment-unit">{suffix}</span>
+        )}
       </span>
     </label>
   );

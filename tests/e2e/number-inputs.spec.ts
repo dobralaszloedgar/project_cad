@@ -65,7 +65,7 @@ test("feed arrows stay visible, respect fractions, preserve decimals, and valida
   await page.getByLabel("Equipment name").focus();
   await page.mouse.move(0, 0);
   const inputs = page.getByRole("dialog").getByRole("spinbutton");
-  await expect(inputs).toHaveCount(4);
+  await expect(inputs).toHaveCount(5);
   for (const input of await inputs.all()) {
     await expect(arrows(input).up).toBeVisible();
     await expect(arrows(input).down).toBeVisible();
@@ -76,19 +76,16 @@ test("feed arrows stay visible, respect fractions, preserve decimals, and valida
     ).toBeGreaterThan(0);
   }
   const fraction = page.getByLabel("Mole fraction A", { exact: true });
-  await checkBounds(fraction, 0, 1);
   await fraction.fill("0.995");
   await arrows(fraction).up.click();
-  await expect(fraction).toHaveValue("1");
+  await expect(fraction).toHaveValue("1.005");
   await fraction.fill("0.005");
   await fraction.press("ArrowDown");
   await expect(fraction).toHaveValue("0");
   await fraction.fill("1.2");
-  await page.getByRole("button", { name: "Apply conditions" }).click();
-  await expect(fraction).toBeFocused();
-  await expect(fraction).toHaveAttribute("aria-invalid", "true");
+  await expect(fraction).toHaveAttribute("aria-invalid", "false");
   await arrows(fraction).down.click();
-  await expect(fraction).toHaveValue("1");
+  await expect(fraction).toHaveValue("1.19");
   await fraction.fill("0.333333");
   await fraction.press("ArrowUp");
   await expect(fraction).toHaveValue("0.343333");
@@ -158,7 +155,11 @@ test("each equipment block uses its own limits and trays remain integers", async
       const trays = page.getByLabel("Visible trays (2D & 3D)", { exact: true });
       await checkBounds(trays, 2, 80);
       await trays.fill("2.5");
-      await page.getByRole("button", { name: "Apply conditions" }).click();
+      await expect(
+        page.getByRole("button", { name: "Apply conditions" }),
+      ).toBeDisabled();
+      await page.getByRole("button", { name: /items? to complete/ }).click();
+      await page.getByRole("button", { name: /^Tray count:/ }).click();
       await expect(trays).toBeFocused();
       await trays.press("ArrowUp");
       await expect(trays).toHaveValue("3");
@@ -236,7 +237,11 @@ test("reaction inputs respect their ranges and retain scientific notation", asyn
   for (const input of await page
     .getByRole("spinbutton", { name: /^Mole fraction / })
     .all()) {
-    await checkBounds(input, 0, 1);
+    await input.fill("0");
+    await expect(arrows(input).down).toBeDisabled();
+    await input.fill("2");
+    await expect(arrows(input).up).toBeEnabled();
+    await expect(input).toHaveAttribute("aria-invalid", "false");
   }
   await page.keyboard.press("Escape");
   await inspect(page, "R-101");

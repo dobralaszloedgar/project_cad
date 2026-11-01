@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Info,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
-import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
+import {
+  defaultThermo,
+  modelInfo,
+  type ThermoSettings,
+} from "@/domain/thermo/registry";
 import {
   componentNames,
   mixtureName,
@@ -15,8 +27,10 @@ import "./equipment-setup.css";
 import { PackedBedSetup } from "./reactions/PackedBedSetup";
 import { PackedBedResults } from "./reactions/PackedBedResults";
 import { defaultPackedBed } from "@/domain/reactions/schema";
-import { packedBedIssues } from "@/domain/reactions/validation";
-import { componentFlows } from "@/domain/stream-composition";
+import {
+  componentFlows,
+  normalizeComposition,
+} from "@/domain/stream-composition";
 import type { Dimension } from "@/domain/unit-definitions";
 import EngineeringInput from "./EngineeringInput";
 import NumberInput from "./NumberInput";
@@ -29,6 +43,10 @@ import {
   type EquipmentTarget,
 } from "@/domain/equipment-status";
 import { revealEquipmentIssue } from "./equipment-issue-navigation";
+import UnitSelect from "./UnitSelect";
+import EquipmentSetupIssues from "./EquipmentSetupIssues";
+import Dialog from "./Dialog";
+import ProjectComponents from "./ProjectComponents";
 import "./equipment-status.css";
 
 type NumericParam = {
@@ -40,12 +58,25 @@ const parameterDimensions: Partial<Record<NumericParam, Dimension>> = {
   pressure: "pressure",
   flow: "molarFlow",
   heatDuty: "power",
+  residenceTime: "time",
+  catalystMass: "mass",
 };
 
 function setupParams(
   unit: Unit,
   componentIds: readonly string[],
 ): Unit["params"] {
+  if (unit.kind === "Feed" && unit.missingInputs?.length) {
+    const params = { ...unit.params };
+    for (const field of unit.missingInputs) {
+      if (field === "composition")
+        params.composition = Object.fromEntries(
+          componentIds.map((id) => [id, NaN]),
+        );
+      else params[field] = NaN;
+    }
+    return params;
+  }
   if (unit.kind !== "PBR" || unit.params.packedBed) return unit.params;
   return {
     ...unit.params,
@@ -346,6 +377,7 @@ export default function EquipmentEditor({
   issueTarget,
   status,
   onNavigateIssue,
+  onComponentsChange,
 }: {
   unit: Unit;
   project: Project;
@@ -356,10 +388,12 @@ export default function EquipmentEditor({
   issueTarget?: EquipmentTarget;
   status?: EquipmentStatus;
   onNavigateIssue?: (target: EquipmentTarget) => void;
+  onComponentsChange: (settings: ThermoSettings) => void;
 }) {
   const settings = project.thermo ?? defaultThermo;
   const context = thermoContext(settings);
   const [params, setParams] = useState(() => setupParams(unit, context.ids));
+  const [componentsOpen, setComponentsOpen] = useState(false);
   const display = useUnitSystem();
   const [name, setName] = useState(unit.name);
   const [tab, setTab] = useState<"setup" | "results">(
@@ -392,18 +426,18 @@ export default function EquipmentEditor({
   // Refresh the draft after an applied edit without losing the selected tab.
   if (appliedUnit !== unit) {
     setAppliedUnit(unit);
-    setParams(setupParams(unit, context.ids));
-    setName(unit.name);
+    if (JSON.stringify(appliedUnit) !== JSON.stringify(unit)) {
+      setParams(setupParams(unit, context.ids));
+      setName(unit.name);
+    }
   }
   const thermal = unit.kind === "Heater" || unit.kind === "Cooler";
   const dirty =
     name !== unit.name ||
     JSON.stringify(params) !== JSON.stringify(unit.params);
   const formId = `equipment-form-${unit.id}`;
-  const components = context.ids.map((id) => context.catalog.get(id).name);
-  const labels = componentNames(settings);
   const chemicals = context.ids.map((id) => context.catalog.get(id));
-  const multiComposition = context.ids.length > 2 || !!params.composition;
+  const labels = componentNames(settings);
   const composition = Object.fromEntries(
     context.ids.map((id, i) => [
       id,
@@ -421,9 +455,14 @@ export default function EquipmentEditor({
     (sum, n) => sum + n,
     0,
   );
-  const [validationError, setValidationError] = useState("");
+  const draftIssues = equipmentSetupIssues(project, {
+    ...unit,
+    name,
+    params,
+    missingInputs: undefined,
+  });
   const setupIssues = [
-    ...equipmentSetupIssues(project, { ...unit, name, params }),
+    ...draftIssues,
     ...(status?.issues.filter(
       (issue) =>
         issue.target.section === "connections" ||
@@ -479,10 +518,14 @@ export default function EquipmentEditor({
               onValueChange={(value) => setParams({ ...params, [key]: value })}
             />
           )}
-          {displayedSuffix && (
-            <span className="equipment-unit" aria-hidden="true">
-              {displayedSuffix}
-            </span>
+          {dimension ? (
+            <UnitSelect dimension={dimension} label={title} />
+          ) : (
+            displayedSuffix && (
+              <span className="equipment-unit" aria-hidden="true">
+                {displayedSuffix}
+              </span>
+            )
           )}
         </span>
       </label>
@@ -563,39 +606,42 @@ export default function EquipmentEditor({
             className="equipment-form"
             data-setup-section="settings"
             onInvalid={(event) => {
+              // Keep field-specific HTML limits without browser error balloons.
+              // The footer checklist owns validation feedback.
+              event.preventDefault();
               setTab("setup");
               const input = event.target as HTMLElement;
-              requestAnimationFrame(() => input.focus());
+              requestAnimationFrame(() => {
+                input.scrollIntoView({ block: "center" });
+                input.focus({ preventScroll: true });
+              });
             }}
             onSubmit={(event) => {
               event.preventDefault();
-              const issues =
-                params.packedBed && unit.kind === "PBR"
-                  ? packedBedIssues(params.packedBed, chemicals)
-                  : [];
-              if (
-                unit.kind === "Feed" &&
-                multiComposition &&
-                Math.abs(compositionTotal - 1) > 1e-8
-              )
-                issues.push("Feed mole fractions must sum to 1.");
-              if (issues.length) {
-                setValidationError(issues[0]);
-                setTab("setup");
+              if (draftIssues.length) {
+                navigate(draftIssues[0].target);
                 return;
               }
-              setValidationError("");
+              const normalized =
+                unit.kind === "Feed"
+                  ? normalizeComposition(composition)
+                  : undefined;
+              const nextParams = normalized
+                ? {
+                    ...params,
+                    composition: normalized,
+                    fractionA: normalized[context.ids[0]],
+                  }
+                : params;
+              // Equivalent ratios may produce exactly the previously saved unit.
+              // Still replace the draft with the applied fractions in that case.
+              setParams(nextParams);
+              setName(name.trim());
               onApply({
                 ...unit,
+                missingInputs: undefined,
                 name: name.trim(),
-                params:
-                  unit.kind === "Feed" && multiComposition
-                    ? {
-                        ...params,
-                        composition,
-                        fractionA: composition[context.ids[0]],
-                      }
-                    : params,
+                params: nextParams,
               });
               const submitter = (event.nativeEvent as SubmitEvent).submitter;
               if (submitter?.dataset.editorAction === "calculate")
@@ -624,35 +670,6 @@ export default function EquipmentEditor({
                 />
               </label>
             </div>
-            {validationError && (
-              <p className="reaction-issues" role="alert">
-                {validationError}
-              </p>
-            )}
-            {setupIssues.length > 0 && (
-              <section
-                className="equipment-setup-issues"
-                aria-label="Equipment issues"
-              >
-                <h3>
-                  {setupIssues.some((issue) => issue.kind === "error")
-                    ? "Review equipment errors"
-                    : "Complete setup"}
-                </h3>
-                <ul className="equipment-issue-list">
-                  {setupIssues.map((issue, index) => (
-                    <li key={`${issue.message}-${index}`}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(issue.target)}
-                      >
-                        {issue.message}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
             {unit.kind === "Feed" && (
               <>
                 <Section title="Feed conditions">
@@ -680,102 +697,82 @@ export default function EquipmentEditor({
                   )}
                 </Section>
                 <Section title="Composition">
-                  {multiComposition ? (
-                    <>
-                      <div className="equipment-composition-heading">
-                        <span>Component</span>
-                        <span>Mole fraction</span>
-                      </div>
-                      {chemicals.map((chemical) => (
-                        <div
-                          className="equipment-composition-row"
-                          key={chemical.id}
-                        >
-                          <span>{chemical.name}</span>
-                          <NumberInput
-                            className="input"
-                            required
-                            min={0}
-                            max={1}
-                            step={0.01}
-                            aria-label={`Mole fraction ${chemical.name}`}
-                            value={composition[chemical.id]}
-                            onValueChange={(value) =>
-                              setParams({
-                                ...params,
-                                composition: {
-                                  ...composition,
-                                  [chemical.id]: value,
-                                },
-                              })
-                            }
-                          />
-                        </div>
-                      ))}
-                      <div className="reaction-actions">
-                        <output aria-label="Total mole fraction">
-                          Total:{" "}
-                          {Number.isFinite(compositionTotal)
-                            ? Number(compositionTotal.toFixed(8))
-                            : "—"}
-                        </output>
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          disabled={
-                            !Number.isFinite(compositionTotal) ||
-                            compositionTotal <= 0
-                          }
-                          onClick={() =>
+                  <>
+                    <div className="equipment-composition-actions">
+                      <span>{chemicals.length} project components</span>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => setComponentsOpen(true)}
+                      >
+                        <Plus size={14} /> Add components
+                      </button>
+                    </div>
+                    <div className="equipment-composition-heading">
+                      <span>Component</span>
+                      <span>Mole fraction / ratio</span>
+                    </div>
+                    {chemicals.map((chemical, index) => (
+                      <div
+                        className="equipment-composition-row"
+                        key={chemical.id}
+                        data-setup-field={`composition.${chemical.id}`}
+                      >
+                        <span>{chemical.name}</span>
+                        <NumberInput
+                          className="input"
+                          required
+                          min={0}
+                          step={0.01}
+                          aria-label={`Mole fraction ${labels[index]}`}
+                          value={composition[chemical.id]}
+                          onValueChange={(value) =>
                             setParams({
                               ...params,
-                              composition: Object.fromEntries(
-                                Object.entries(composition).map(([id, n]) => [
-                                  id,
-                                  n / compositionTotal,
-                                ]),
-                              ),
+                              composition: {
+                                ...composition,
+                                [chemical.id]: value,
+                              },
                             })
                           }
-                        >
-                          Normalize composition
-                        </button>
+                        />
                       </div>
-                      <p className="equipment-help">
-                        Specify every feed component. Fractions must sum to 1;
-                        products may enter with zero flow.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="equipment-composition-heading">
-                        <span>Component</span>
-                        <span>Mole fraction</span>
-                      </div>
-                      <div className="equipment-composition-row">
-                        <span>{components[0]}</span>
-                        {field(
-                          "fractionA",
-                          `Mole fraction ${labels[0]}`,
-                          0,
-                          1,
-                          "0.01",
-                        )}
-                      </div>
-                      <div className="equipment-composition-row">
-                        <span>{components[1]}</span>
-                        <output aria-label={`Mole fraction ${labels[1]}`}>
-                          {Number.isFinite(params.fractionA)
-                            ? Number((1 - params.fractionA).toFixed(8))
-                            : "—"}
-                        </output>
-                      </div>
-                      <p className="equipment-help">
-                        {components[1]} is the balance to a total mole fraction
-                        of 1.
-                      </p>
-                    </>
-                  )}
+                    ))}
+                    <div className="reaction-actions">
+                      <output aria-label="Total mole fraction">
+                        Total:{" "}
+                        {Number.isFinite(compositionTotal)
+                          ? Number(compositionTotal.toFixed(8))
+                          : "—"}
+                      </output>
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={
+                          !Object.values(composition).some(
+                            (value) => value > 0,
+                          ) ||
+                          Object.values(composition).some(
+                            (value) => !Number.isFinite(value) || value < 0,
+                          )
+                        }
+                        onClick={() =>
+                          setParams({
+                            ...params,
+                            composition: normalizeComposition(composition),
+                          })
+                        }
+                      >
+                        Normalize composition
+                      </button>
+                    </div>
+                    <p className="equipment-help">
+                      Enter mole fractions, percentages or ratios. Values are
+                      normalized automatically when applied (for example, 2:3
+                      becomes 0.4:0.6). Use zero for components absent from this
+                      feed.
+                    </p>
+                  </>
                 </Section>
               </>
             )}
@@ -847,7 +844,6 @@ export default function EquipmentEditor({
                     temperature={params.temperature}
                     onChange={(packedBed) => {
                       setParams({ ...params, packedBed });
-                      setValidationError("");
                     }}
                   />
                 )}
@@ -1012,6 +1008,7 @@ export default function EquipmentEditor({
         </section>
       </div>
       <footer className="equipment-editor-footer">
+        <EquipmentSetupIssues issues={setupIssues} onNavigate={navigate} />
         <button className="btn btn-sm" type="button" onClick={onDuplicate}>
           <Copy size={14} />
           Duplicate
@@ -1029,6 +1026,7 @@ export default function EquipmentEditor({
           type="submit"
           form={formId}
           aria-keyshortcuts="Control+s Meta+s"
+          disabled={draftIssues.length > 0}
           onClick={() => setTab("setup")}
         >
           Apply conditions
@@ -1039,10 +1037,36 @@ export default function EquipmentEditor({
           form={formId}
           data-editor-action="calculate"
           aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
+          disabled={draftIssues.length > 0}
         >
           Calculate
         </button>
       </footer>
+      {componentsOpen &&
+        createPortal(
+          <Dialog
+            title="Project components"
+            className="components-dialog"
+            onClose={() => setComponentsOpen(false)}
+          >
+            <ProjectComponents
+              project={project}
+              onCancel={() => setComponentsOpen(false)}
+              onApply={(next) => {
+                const nextIds = thermoContext(next).ids;
+                setParams((current) => ({
+                  ...current,
+                  composition: Object.fromEntries(
+                    nextIds.map((id) => [id, composition[id] ?? 0]),
+                  ),
+                }));
+                onComponentsChange(next);
+                setComponentsOpen(false);
+              }}
+            />
+          </Dialog>,
+          document.body,
+        )}
     </aside>
   );
 }
