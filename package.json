@@ -9,9 +9,9 @@
     "assistant:package": "node scripts/assistant/package-macos.mjs",
     "assistant:package-windows": "node scripts/assistant/package-portable.mjs win32",
     "assistant:package-linux": "node scripts/assistant/package-portable.mjs linux",
-    "assistant:publish": "node scripts/assistant/publish-github.mjs",
+    "assistant:publish": "node scripts/assistant/publish-vercel.mjs",
     "assistant:export-downloads": "node scripts/assistant/export-downloads.mjs",
-    "assistant:stage-downloads": "node scripts/assistant/publish-github.mjs --sync-only",
+    "assistant:stage-downloads": "node scripts/assistant/publish-vercel.mjs --sync-only",
     "assistant:verify": "node scripts/assistant/verify-macos.mjs",
     "assistant:verify-portable": "node scripts/assistant/verify-portable.mjs",
     "assistant:verify-downloads": "node scripts/assistant/verify-downloads.mjs",
@@ -30,7 +30,8 @@
     "test:e2e": "playwright test",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"*.{ts,mjs,json}\"",
     "thermo:build": "node scripts/build-thermo.mjs",
-    "catalog:import": "node --import tsx scripts/catalog/import.ts"
+    "catalog:import": "node --import tsx scripts/catalog/import.ts",
+    "assistant:publish:github": "node scripts/assistant/publish-github.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.312",
@@ -64,6 +65,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@types/three": "0.186.0",
+    "@vercel/blob": "2.8.2",
     "daisyui": "5.7.50",
     "esbuild": "0.28.2",
     "eslint": "9.39.5",

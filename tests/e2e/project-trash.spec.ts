@@ -28,7 +28,7 @@ test("last project can be trashed, restored, and permanently deleted without rea
   page,
 }, info) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await library(page);
   const name = await page.locator(".project-card-title strong").innerText();
   await page.locator(".project-open").click();
@@ -120,7 +120,7 @@ test("folder projects keep their file in Trash and delete it from disk only afte
   page,
 }, info) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await library(page);
   await page
     .getByRole("button", { name: "Create project", exact: true })
@@ -217,11 +217,11 @@ test("a stale editor in another tab cannot recreate a trashed or deleted project
   page,
   context,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await library(page);
   const name = await page.locator(".project-card-title strong").innerText();
   const other = await context.newPage();
-  await other.goto("/");
+  await other.goto("/workspace");
   await expect(
     other.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

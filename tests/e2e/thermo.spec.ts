@@ -8,7 +8,7 @@ test("three model choices, real flash, model change and saved settings", async (
   page,
 }) => {
   await catalogFixture(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -136,7 +136,7 @@ test("nonideal mixer energy balance agrees in the browser and simulation API", a
   expect(Math.abs(result.massResidual)).toBeLessThan(1e-10);
   expect(result.streams.mixed.temperature).toBeLessThan(350);
   expect(result.streams.mixed.temperature).toBeGreaterThan(340);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

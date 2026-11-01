@@ -37,7 +37,7 @@ test("stream names, individual palette choices, themes and auto reset persist", 
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -131,7 +131,7 @@ test("stream names, individual palette choices, themes and auto reset persist", 
 test("label anchors stay on their routes through zoom and selection and move with equipment", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -164,7 +164,7 @@ test("label anchors stay on their routes through zoom and selection and move wit
 test("manual connections get unique automatic names after a stream is deleted", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

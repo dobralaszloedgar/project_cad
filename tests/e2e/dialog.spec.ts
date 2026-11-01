@@ -21,7 +21,7 @@ async function openProjectDialog(
 
 test.beforeEach(async ({ page }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();

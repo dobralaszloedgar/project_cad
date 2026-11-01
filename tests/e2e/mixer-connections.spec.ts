@@ -43,7 +43,7 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
       },
     ],
   };
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

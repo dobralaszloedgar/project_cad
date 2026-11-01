@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import { loadTemplateProject as template } from "./project-fixture";
 
 async function start(page: Page) {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

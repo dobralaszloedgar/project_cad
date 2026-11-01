@@ -21,7 +21,7 @@ test("every offered template loads its specifications and runs without a chemica
   test.setTimeout(180000);
   await installFolderPicker(page);
   await page.route("**/api/chemicals**", (route) => route.abort());
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -164,7 +164,7 @@ test("creating a folder project preserves the template chemicals, model and sepa
 }) => {
   await installFolderPicker(page);
   await page.route("**/api/chemicals**", (route) => route.abort());
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

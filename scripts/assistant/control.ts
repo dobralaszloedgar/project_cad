@@ -113,14 +113,17 @@ async function status() {
     managed,
     websiteUrl: settings.websiteUrl,
     startAtLogin: settings.startAtLogin,
+    agents: settings.agents,
     codexAvailable: !!providerExecutable("codex"),
     claudeAvailable: !!providerExecutable("claude"),
     museConfigured: !!settings.museApiKey || !!process.env.MODEL_API_KEY,
-    message: running
-      ? managed
-        ? "Assistant is running."
-        : "Another Project CAD assistant is already running."
-      : "Assistant is stopped.",
+    message: !settings.agents
+      ? "Choose your agents to finish setup."
+      : running
+        ? managed
+          ? "Assistant is running."
+          : "Another Project CAD assistant is already running."
+        : "Assistant is stopped.",
   };
 }
 async function stop() {
@@ -140,6 +143,7 @@ async function start() {
   if (process.platform !== "darwin" || process.getuid?.() === 0)
     throw new Error("Open Project CAD Assistant from your macOS user account.");
   const settings = loadAssistantSettings(root);
+  if (!settings.agents) return status();
   if (await health()) return status();
   await access(join(resources, "app", "assistant.mjs"));
   if (await launchctl(["print", service], true)) await stop();
@@ -224,6 +228,10 @@ async function main() {
     command === "install-provider" &&
     (provider === "codex" || provider === "claude")
   ) {
+    if (!loadAssistantSettings(root).agents?.providers.includes(provider))
+      throw new Error(
+        "Choose this agent in Manage agents before setting it up.",
+      );
     console.log(
       JSON.stringify(await installProvider(provider, resources, root)),
     );

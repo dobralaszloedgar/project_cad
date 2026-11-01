@@ -16,12 +16,14 @@ async function move(page: Page, element: Locator, dx: number, dy: number) {
 test("assistant opens from each dock, remembers its corner and stays inside the canvas", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   const bubble = page.getByRole("button", {
     name: "Open assistant",
     exact: true,
   });
   await expect(bubble).toBeVisible();
+  // Allow the shared setup handler to dismiss a modal before keyboard-only work.
+  await bubble.click({ trial: true });
   const canvas = (await page.locator(".canvas-panel").boundingBox())!;
   for (const keys of [
     ["ArrowLeft", "ArrowUp"],
@@ -83,7 +85,10 @@ test("assistant opens from each dock, remembers its corner and stays inside the 
 test("drag-to-hide can be restored from workspace settings", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.route("http://127.0.0.1:43118/health", (route) =>
+    route.fulfill({ status: 503, json: {} }),
+  );
+  await page.goto("/workspace");
   const bubble = page.getByRole("button", {
     name: "Open assistant",
     exact: true,
@@ -109,13 +114,13 @@ test("drag-to-hide can be restored from workspace settings", async ({
     .getByRole("button", { name: "Show assistant", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Your agents, right here" }),
+    page.getByRole("heading", { name: "Choose your agents" }),
   ).toBeVisible();
 });
 test("composition colors animate, can be disabled, and the 3D switch remains visible", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

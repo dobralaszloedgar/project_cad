@@ -21,7 +21,7 @@ test.afterEach(async ({ page }) => {
   await dispose?.();
 });
 async function start(page: Page) {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -38,6 +38,9 @@ async function send(page: Page, prompt: string) {
 test("offers the packaged companion and keeps source setup optional", async ({
   page,
 }) => {
+  await page.route("http://127.0.0.1:43118/health", (route) =>
+    route.fulfill({ status: 503, json: {} }),
+  );
   await page.route("**/downloads/assistant/downloads.json", (route) =>
     route.fulfill({
       json: {
@@ -77,15 +80,15 @@ test("offers the packaged companion and keeps source setup optional", async ({
       },
     }),
   );
-  await page.goto("/");
+  await page.goto("/workspace");
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
   await expect(page.getByLabel("Process prompt")).not.toBeVisible();
-  await page
-    .getByRole("button", { name: "AI client setup", exact: true })
-    .click();
-  const installer = page.getByLabel("Assistant installer");
+  await page.getByRole("checkbox", { name: "Codex", exact: true }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByText("Other platforms", { exact: true }).click();
+  const installer = page.getByLabel("Choose your installer");
   await installer.selectOption("ProjectCAD-Assistant-macos-universal.pkg");
   const download = page.getByRole("link", { name: "Download for macOS" });
   await expect(download).toHaveAttribute(
@@ -117,8 +120,8 @@ test("offers the packaged companion and keeps source setup optional", async ({
     page.getByText("npm run assistant", { exact: true }),
   ).not.toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Connect local assistant" }),
-  ).toBeEnabled();
+    page.getByRole("button", { name: "Connect assistant", exact: true }),
+  ).toHaveCount(0);
   await page.screenshot({
     path: "/tmp/project-cad-assistant-qa/assistant-setup-desktop.png",
     fullPage: true,
@@ -131,15 +134,17 @@ test("offers the packaged companion and keeps source setup optional", async ({
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "AI client setup", exact: true })
-    .click();
   await expect(
-    page.getByText("Use your Project CAD Assistant installation to connect."),
+    page.getByText("We couldn’t load the installers. Try loading them again."),
   ).toBeVisible();
   await expect(download).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Connect local assistant" }),
+    page.getByRole("button", { name: "Connect assistant", exact: true }),
+  ).toHaveCount(0);
+  await page.unroute("http://127.0.0.1:43118/health");
+  await page.getByRole("button", { name: "Check for assistant" }).click();
+  await expect(
+    page.getByRole("button", { name: "Connect assistant", exact: true }),
   ).toBeEnabled();
 });
 
@@ -266,7 +271,7 @@ test("applies a proposal to the chosen project.json and preserves recovery when 
   page,
 }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

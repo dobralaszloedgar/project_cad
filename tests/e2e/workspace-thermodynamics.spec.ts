@@ -10,7 +10,7 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   await page.addInitScript(() =>
     localStorage.setItem("project-cad.theme", "nord"),
   );
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

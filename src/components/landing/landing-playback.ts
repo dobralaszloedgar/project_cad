@@ -46,7 +46,7 @@ export function advancePlayback(
   // for at least one frame. A stalled tab must not swallow the whole sequence.
   const dt = Math.min(Math.max(seconds, 0), 0.25);
   let { progress, velocity, construction, simulation, completedFor } = state;
-  let design = Math.min(1, state.design + dt / 6.2);
+  let design = Math.min(1, state.design + dt / 8);
   const speed = 1 + Math.min(2.2, Math.max(0, target - 0.53) * 6);
   if (progress < 0.18) {
     construction = 0;

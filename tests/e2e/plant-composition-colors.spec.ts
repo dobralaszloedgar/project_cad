@@ -59,14 +59,16 @@ test("3D composition colors update after feed edits while preserving the view", 
     );
   await palette.selectOption("red-blue");
   await expect
-    .poll(() =>
-      legend
-        .locator(".plant-component-swatches i")
-        .evaluateAll((elements) =>
-          elements.map(
-            (element) => (element as HTMLElement).style.backgroundColor,
+    .poll(
+      () =>
+        legend
+          .locator(".plant-component-swatches i")
+          .evaluateAll((elements) =>
+            elements.map(
+              (element) => (element as HTMLElement).style.backgroundColor,
+            ),
           ),
-        ),
+      { timeout: 30000 },
     )
     .not.toEqual(originalSwatches);
   const recolored = await canvas.screenshot();

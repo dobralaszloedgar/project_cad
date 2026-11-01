@@ -1,163 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeft, Download, LoaderCircle, Monitor, Plug } from "lucide-react";
-import { assistantDownloads } from "@/assistant/downloads";
+import { ArrowLeft } from "lucide-react";
+import type { AssistantClient } from "@/assistant/client";
+import AssistantConnectionFlow from "./assistant/AssistantConnectionFlow";
+import { useAssistantDiscovery } from "./assistant/useAssistantDiscovery";
 import styles from "./AssistantPanel.module.css";
 
 export default function AssistantSetup({
-  connect,
-  connecting,
-  cancel,
-  setup,
-  onSetup,
+  assistant,
+  open,
+  onBack,
 }: {
-  connect: () => void;
-  connecting: boolean;
-  cancel: () => void;
-  setup: boolean;
-  onSetup: (value: boolean) => void;
+  assistant: AssistantClient;
+  open: boolean;
+  onBack: () => void;
 }) {
-  const [downloads, setDownloads] =
-    useState<ReturnType<typeof assistantDownloads>>();
-  const [selected, setSelected] = useState("");
-  const download =
-    downloads?.installers.find((file) => file.filename === selected) ||
-    downloads?.installers[0];
-  useEffect(() => {
-    const abort = new AbortController();
-    void fetch("/downloads/assistant/downloads.json", {
-      signal: abort.signal,
-      cache: "no-cache",
-    })
-      .then(async (response) => {
-        if (!response.ok) return;
-        const available = assistantDownloads(await response.json());
-        if (available && !abort.signal.aborted) {
-          setDownloads(available);
-          const system = /Windows/i.test(navigator.userAgent)
-            ? "windows"
-            : /Linux/i.test(navigator.userAgent)
-              ? "linux"
-              : "macos";
-          setSelected(
-            (
-              available.installers.find((file) => file.platform === system) ||
-              available.installers[0]
-            ).filename,
-          );
-        }
-      })
-      .catch(() => {});
-    return () => abort.abort();
-  }, []);
-
-  if (!setup)
-    return (
-      <div className={styles.connect}>
-        <div className={styles.deviceIcon}>
-          <Monitor size={26} strokeWidth={1.5} />
-        </div>
-        <h2>
-          {connecting ? "Approve on your computer" : "Your agents, right here"}
-        </h2>
-        <p>
-          {connecting
-            ? "Approve the connection dialog on your computer."
-            : "Connect Project CAD Assistant to use Codex, Claude Code or Muse in this chat."}
-        </p>
-        <div className={styles.connectActions}>
-          <button
-            className={styles.primaryButton}
-            data-connect-primary
-            disabled={connecting}
-            onClick={connect}
-          >
-            {connecting ? (
-              <LoaderCircle size={16} className={styles.spinner} />
-            ) : (
-              <Plug size={16} />
-            )}
-            {connecting ? "Waiting for approval" : "Connect local assistant"}
-          </button>
-          {connecting ? (
-            <button className={styles.textButton} onClick={cancel}>
-              Cancel
-            </button>
-          ) : null}
-          <button
-            className={styles.secondaryButton}
-            onClick={() => onSetup(true)}
-          >
-            AI client setup
-          </button>
-        </div>
-      </div>
-    );
+  const discovery = useAssistantDiscovery(open && !assistant.connecting);
   return (
-    <div className={styles.setup}>
-      <button className={styles.textButton} onClick={() => onSetup(false)}>
-        <ArrowLeft size={14} /> Back to assistant
-      </button>
-      <h2>AI client setup</h2>
-      <p>
-        Use Codex, Claude Code, or Muse with this project. Conversations stay on
-        your laptop.
-      </p>
-      <ol className={styles.setupSteps}>
-        <li>Install and open Project CAD Assistant.</li>
-        <li>
-          Sign in to Codex or Claude Code, or add your Muse key in Settings.
-        </li>
-        <li>Connect below and approve this website.</li>
-      </ol>
-      {download ? (
-        <div className={styles.download}>
-          {downloads && downloads.installers.length > 1 ? (
-            <select
-              aria-label="Assistant installer"
-              value={download.filename}
-              onChange={(event) => setSelected(event.target.value)}
-            >
-              {downloads.installers.map((file) => (
-                <option key={file.filename} value={file.filename}>
-                  {file.name} · {file.architecture}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <a className="btn" href={download.url} download>
-            <Download size={15} /> Download for {download.name}
-          </a>
-          <span>
-            {download.architecture} · v{downloads?.version} ·{" "}
-            {Math.ceil(download.bytes / 1_000_000)} MB
-          </span>
-          {downloads?.releaseUrl ? (
-            <a
-              href={downloads.releaseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              All downloads and checksums
-            </a>
-          ) : null}
-        </div>
-      ) : (
-        <p>Use your Project CAD Assistant installation to connect.</p>
-      )}
-      <button
-        className={styles.primaryButton}
-        onClick={connect}
-        disabled={connecting}
-      >
-        {connecting ? "Waiting for approval…" : "Connect local assistant"}
-      </button>
-      <details className={styles.development}>
-        <summary>Run from source</summary>
-        <p>In the Project CAD source folder, run:</p>
-        <code>npm run assistant</code>
-      </details>
-    </div>
+    <>
+      {assistant.connected ? (
+        <button className={styles.textButton} onClick={onBack}>
+          <ArrowLeft size={14} /> Back to chat
+        </button>
+      ) : null}
+      <AssistantConnectionFlow
+        {...discovery}
+        embedded
+        initialAgents={assistant.agents}
+        manageAgents={assistant.connected}
+        connecting={assistant.connecting}
+        connected={false}
+        error={assistant.error}
+        onCheck={discovery.checkAgain}
+        onConnect={(agents) => {
+          assistant.connect(agents);
+          if (assistant.connected) onBack();
+        }}
+        onCancel={assistant.cancelConnect}
+      />
+    </>
   );
 }

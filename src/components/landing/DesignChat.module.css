@@ -1,0 +1,65 @@
+.demo {
+  position: relative;
+  width: 100%;
+  height: min(620px, 100%);
+  min-width: 0;
+  min-height: 0;
+  align-self: center;
+}
+.cursorLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+.cursor {
+  --cursor-glow: #43c481;
+  position: absolute;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+.cursor svg {
+  display: block;
+  transform: translate(-3px, -3px);
+  filter: drop-shadow(
+      0 0 6px color-mix(in srgb, var(--cursor-glow) 90%, transparent)
+    )
+    drop-shadow(
+      0 0 15px color-mix(in srgb, var(--cursor-glow) 48%, transparent)
+    );
+}
+.click {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+}
+.demoLabel {
+  color: var(--assistant-muted);
+  font-size: 10px;
+  padding: 4px 8px;
+}
+.build {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  color: #fff;
+  background: var(--assistant-brand);
+  border: 0;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.build:hover {
+  filter: brightness(1.08);
+}
+@media (max-width: 700px) {
+  .demo {
+    height: 100%;
+    align-self: stretch;
+  }
+}

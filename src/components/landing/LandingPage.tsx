@@ -87,6 +87,7 @@ export default function LandingPage() {
   const [visible, setVisible] = useState(true);
   const [transparent, setTransparent] = useState(true);
   const [sceneReady, setSceneReady] = useState(false);
+  const [sceneRequested, setSceneRequested] = useState(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
   const [graphicsInfo, setGraphicsInfo] = useState<GraphicsInfo | null>(null);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
@@ -99,6 +100,11 @@ export default function LandingPage() {
     replayDesign,
     sendDesign,
   } = useStoryPlayback(scrollYProgress, motionEnabled, visible, reduced);
+  useMotionValueEvent(design, "change", (value) => {
+    // Prepare the 3D scene after the prompt is sent, leaving the cursor and
+    // panel entrance free of geometry creation and shader compilation work.
+    if (!sceneRequested && value >= 0.64) setSceneRequested(true);
+  });
   const [tourStop, setTourStop] = useState(0);
   const normalizedProgress = useTransform(
     progress,
@@ -187,7 +193,7 @@ export default function LandingPage() {
           sceneUnavailable ? "unavailable" : sceneReady ? "live" : "preparing"
         }
       >
-        <Link className={styles.skipLink} href="/">
+        <Link className={styles.skipLink} href="/onboarding">
           Skip the story and open workspace
         </Link>
         <div
@@ -214,7 +220,7 @@ export default function LandingPage() {
         >
           <header className={styles.header}>
             <Link
-              href="/landing"
+              href="/"
               className={styles.brand}
               aria-label="Project CAD landing page"
             >
@@ -236,8 +242,8 @@ export default function LandingPage() {
                 </button>
               ))}
             </nav>
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Full navigation releases the landing WebGL context before opening the workspace. */}
-            <a href="/" className={styles.workspaceLink}>
+            {/* Full navigation releases the landing WebGL context before setup. */}
+            <a href="/onboarding" className={styles.workspaceLink}>
               Open workspace
               <ArrowUpRight size={16} />
             </a>
@@ -252,20 +258,22 @@ export default function LandingPage() {
             style={{ opacity: sceneOpacity }}
             data-shared-scene
           >
-            <LandingExperience
-              onReady={onSceneReady}
-              onUnavailable={onSceneUnavailable}
-              onGraphicsInfo={setGraphicsInfo}
-              progress={progress}
-              cadBridge={cadBridge}
-              construction={construction}
-              simulation={simulation}
-              playing={playing && sceneReady && chapter !== 0}
-              transparent={transparent}
-              reduced={reduced}
-              pointerX={pointerX}
-              pointerY={pointerY}
-            />
+            {sceneRequested ? (
+              <LandingExperience
+                onReady={onSceneReady}
+                onUnavailable={onSceneUnavailable}
+                onGraphicsInfo={setGraphicsInfo}
+                progress={progress}
+                cadBridge={cadBridge}
+                construction={construction}
+                simulation={simulation}
+                playing={playing && sceneReady && chapter !== 0}
+                transparent={transparent}
+                reduced={reduced}
+                pointerX={pointerX}
+                pointerY={pointerY}
+              />
+            ) : null}
           </motion.div>
           <WorldBackdrop />
           <div className={styles.sceneVeil} aria-hidden="true" />

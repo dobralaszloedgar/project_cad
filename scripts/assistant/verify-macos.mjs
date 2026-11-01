@@ -76,7 +76,7 @@ try {
     catch { if (Date.now() > until || child.exitCode !== null) throw new Error('Packaged server did not start: ' + logs); await new Promise(resolve => setTimeout(resolve, 100)); }
   }
   assert.equal((await fetch(address + '/providers')).status, 401);
-  const connect = await fetch(address + '/connect?origin=' + encodeURIComponent(origin) + '&nonce=' + randomUUID());
+  const connect = await fetch(address + '/connect?origin=' + encodeURIComponent(origin) + '&providers=muse&preferred=muse&nonce=' + randomUUID());
   const form = await connect.text();
   const csrf = form.match(/name="csrf" value="([^"]+)"/)?.[1];
   assert.ok(csrf, 'Pairing form should contain a one-use token');
@@ -86,14 +86,14 @@ try {
   const response = await fetch(address + '/providers', { headers: { Origin: origin, Authorization: 'Bearer ' + token, 'x-project-cad-client': randomUUID() } });
   assert.equal(response.status, 200);
   const providers = await response.json();
-  assert.deepEqual(providers.map(item => item.id).sort(), ['claude', 'codex', 'muse']);
+  assert.deepEqual(providers.map(item => item.id).sort(), ['muse']);
   child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve));
   const registered = await execute('/bin/launchctl', ['print', `gui/${process.getuid()}/com.projectcad.assistant`]).then(() => true, () => false);
   const persistent = await access(join(homedir(), 'Library', 'LaunchAgents', 'com.projectcad.assistant.plist')).then(() => true, () => false);
   let backgroundService = 'skipped: existing user service preserved';
   if (!registered && !persistent) {
     const data = join(temporary, 'service-data');
-    await mkdir(data); await writeFile(join(data, 'settings.json'), JSON.stringify({ startAtLogin: false }));
+    await mkdir(data); await writeFile(join(data, 'settings.json'), JSON.stringify({ startAtLogin: false, agents: { providers: ['muse'], preferred: 'muse' } }));
     serviceEnv = { ...env, PROJECT_CAD_ASSISTANT_DATA: data, PROJECT_CAD_ASSISTANT_PORT: String(port) };
     const started = JSON.parse((await execute(node(installed), [controller(installed), 'start'], { env: serviceEnv, cwd: temporary, timeout: 30000 })).stdout);
     assert.equal(started.running, true); assert.equal(started.managed, true);

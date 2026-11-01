@@ -50,6 +50,64 @@ afterEach(async () => {
 });
 
 describe("assistant download distribution", () => {
+  it("offers all five installers and checksums directly from a versioned public Blob store", async () => {
+    const value = {
+      ...manifest(),
+      release: undefined,
+      distribution: {
+        provider: "vercel-blob",
+        baseUrl:
+          "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.0",
+      },
+    };
+    expect(() => validateManifest(value, { published: true })).not.toThrow();
+    const parsed = assistantDownloads(value)!;
+    expect(parsed.installers).toHaveLength(5);
+    expect(parsed.releaseUrl).toBeUndefined();
+    expect(parsed.checksumsUrl).toBe(
+      `${value.distribution.baseUrl}/SHA256SUMS.txt`,
+    );
+    for (const file of parsed.installers)
+      expect(file.url).toBe(`${value.distribution.baseUrl}/${file.filename}`);
+    const directory = await temporary();
+    await stagePublishedDownloads(value, directory);
+    expect(
+      JSON.parse(await readFile(join(directory, "downloads.json"), "utf8")),
+    ).toEqual(JSON.parse(JSON.stringify(value)));
+  });
+  it.each([
+    "http://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.0",
+    "https://teststore.private.blob.vercel-storage.com/project-cad-assistant/v0.1.0",
+    "https://teststore.public.blob.vercel-storage.com.evil.example/project-cad-assistant/v0.1.0",
+    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/latest",
+    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.1",
+    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.0/",
+    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.0?token=secret",
+    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.0#fragment",
+    "https://user:secret@teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.0",
+    "https://teststore.public.blob.vercel-storage.com:443/project-cad-assistant/v0.1.0",
+    "https://teststore.public.blob.vercel-storage.com/other/../project-cad-assistant/v0.1.0",
+  ])(
+    "rejects invalid Blob location without falling back to GitHub: %s",
+    (baseUrl) => {
+      const value = {
+        ...manifest(),
+        distribution: { provider: "vercel-blob", baseUrl },
+      };
+      expect(assistantDownloads(value)).toBeUndefined();
+      expect(() => validateManifest(value, { published: true })).toThrow();
+    },
+  );
+  it.each([
+    null,
+    {},
+    { provider: "other" },
+    { provider: "vercel-blob", baseUrl: 42 },
+  ])("rejects malformed distribution metadata %j", (distribution) => {
+    const value = { ...manifest(), distribution };
+    expect(assistantDownloads(value)).toBeUndefined();
+    expect(() => validateManifest(value, { published: true })).toThrow();
+  });
   it("offers five installers with pinned direct GitHub URLs, plus the full release", () => {
     const parsed = assistantDownloads(manifest());
     expect(parsed?.installers).toHaveLength(5);

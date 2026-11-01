@@ -1,13 +1,13 @@
 {
   "name": "Project CAD Assistant",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "files": [
     {
       "platform": "macos",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-macos-universal.pkg",
-      "bytes": 82907141,
-      "sha256": "1b247f354cd0422fb9dce8373a4a2f0ad43e673f2f70121806401adc25f8e9b8",
+      "bytes": 82996767,
+      "sha256": "15697a279f09387ec74e1d3ab3fa4649fdb752c25933aa4d944e49d43ef9a636",
       "minimumMacOS": "13.5",
       "signed": false,
       "notarized": false
@@ -16,8 +16,8 @@
       "platform": "macos",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-macos-universal.zip",
-      "bytes": 82940598,
-      "sha256": "0b0f62f8215c1298e8625f9961f978f5f1c4b1164743c91554fc99902d852b4a",
+      "bytes": 83022447,
+      "sha256": "cf74bfc4f57f052925e2917d35ae269c1ce5f77a67f21b854df70aa7b5cccffd",
       "minimumMacOS": "13.5",
       "signed": false,
       "notarized": false
@@ -26,63 +26,63 @@
       "platform": "windows",
       "architecture": "x64",
       "filename": "ProjectCAD-Assistant-windows-x64-Setup.exe",
-      "bytes": 25824128,
-      "sha256": "7f6a53f1a44bd73491d29371fbf05b7524c429d912c8019d7371b2c960b8c7cf",
+      "bytes": 25826728,
+      "sha256": "0868ea5ebbe80416b74cf91ef214e1944ad268c8e3857bf2e8bd19f4520ea572",
       "signed": false
     },
     {
       "platform": "windows",
       "architecture": "x64",
       "filename": "ProjectCAD-Assistant-windows-x64.zip",
-      "bytes": 38687667,
-      "sha256": "907618791e98a0aa10e443b041e6e0b2a9be98526322f2133bcc78d66f7c40a4"
+      "bytes": 38700862,
+      "sha256": "24085cbce4d4acb92a68994f84367543c1ac2458b7069352a7eb01b7ec595d01"
     },
     {
       "platform": "windows",
       "architecture": "arm64",
       "filename": "ProjectCAD-Assistant-windows-arm64-Setup.exe",
-      "bytes": 22344991,
-      "sha256": "23d0ab0ec890d9d04b915342bf5c59649fbd9f6eb9b39fc8fd952062787f9302",
+      "bytes": 22349942,
+      "sha256": "679030d4a1fdb062b2daab9e4e5d3adcd27f643268d1cf5f96092241b7eeb05d",
       "signed": false
     },
     {
       "platform": "windows",
       "architecture": "arm64",
       "filename": "ProjectCAD-Assistant-windows-arm64.zip",
-      "bytes": 34516074,
-      "sha256": "00ac292c073787388ff664927499827f38da9b58fb180e2108e95bf5cf701495"
+      "bytes": 34529278,
+      "sha256": "8fc87105ab511a5125f2ecfb3ebb0b7702e8d62462426da10c5ce66382bc47b8"
     },
     {
       "platform": "linux",
       "architecture": "x64",
       "filename": "ProjectCAD-Assistant-linux-x64.tar.gz",
-      "bytes": 48223817,
-      "sha256": "857f170d129e90e5736e27647c130e73bd21b92457927b92c8749ce406a188e9"
+      "bytes": 48234577,
+      "sha256": "e2a715deddbeec4fa4e89085cd40951cfe2987696b7c8d2b02100405ebc1b7ce"
     },
     {
       "platform": "linux",
       "architecture": "x64",
       "filename": "ProjectCAD-Assistant-linux-x64.run",
-      "bytes": 48224191,
-      "sha256": "711453c8dec5246c31ba33951a9fd2b1c6dc515d77477be23f0f785dea930eea"
+      "bytes": 48234850,
+      "sha256": "7027ac7066ae1b259509608f829c5ecf17965f8fde483d68f8cd69a2d7b4bcc6"
     },
     {
       "platform": "linux",
       "architecture": "arm64",
       "filename": "ProjectCAD-Assistant-linux-arm64.tar.gz",
-      "bytes": 47834669,
-      "sha256": "d972cbc6f411344f47b48210f075035a019db93f0cdf2ca8ba0e92775ec44708"
+      "bytes": 47850465,
+      "sha256": "a7954e40e991ff4b7e02cc480f77dc3008d20556339d3897b04c0b36206bb23b"
     },
     {
       "platform": "linux",
       "architecture": "arm64",
       "filename": "ProjectCAD-Assistant-linux-arm64.run",
-      "bytes": 47835068,
-      "sha256": "555ff909a4a5ec595570d496fc0c495a5a82afda64411440ae06ca949e5a9fc6"
+      "bytes": 47850769,
+      "sha256": "8c548f76ec7b16aa554638b64afaa4c4687c28fb654e55bcb5100fc53d563f37"
     }
   ],
-  "release": {
-    "repository": "dobralaszloedgar/project_cad",
-    "tag": "v0.1.1"
+  "distribution": {
+    "provider": "vercel-blob",
+    "baseUrl": "https://jqpg7vfhhw3wuxy8.public.blob.vercel-storage.com/project-cad-assistant/v0.1.2"
   }
 }

@@ -32,7 +32,9 @@ import {
   loadAssistantSettings,
   providerExecutable,
   settingsSchema,
+  saveAssistantSettings,
 } from "../../src/server/assistant/config";
+import { agentSelectionSchema } from "../../src/assistant/protocol";
 import { installProvider } from "../../src/server/assistant/install-provider";
 
 const execute = promisify(execFile);
@@ -221,6 +223,8 @@ async function openTarget(target: string) {
     );
 }
 async function signIn(provider: "codex" | "claude") {
+  if (!loadAssistantSettings(root).agents?.providers.includes(provider))
+    throw new Error("Choose this agent in Manage agents before setting it up.");
   const installed = await installProvider(provider, resources, root);
   const args = provider === "codex" ? ["login"] : ["auth", "login"];
   if (process.platform === "win32") {
@@ -379,6 +383,7 @@ async function serve() {
     worker = undefined;
   }
   async function startWorker() {
+    if (!loadAssistantSettings(root).agents) return;
     if (await assistantHealth()) return;
     stoppingWorker = false;
     workerError = "";
@@ -433,6 +438,7 @@ async function serve() {
       managed: !!worker,
       websiteUrl: settings.websiteUrl,
       startAtLogin: settings.startAtLogin,
+      agents: settings.agents,
       museConfigured: !!settings.museApiKey,
       codexAvailable: !!providerExecutable("codex"),
       claudeAvailable: !!providerExecutable("claude"),
@@ -554,9 +560,31 @@ async function serve() {
       }
       const value = JSON.parse(body);
       if (cli) return json(200, await command(value.action));
+      if (value.action === "agents") {
+        const agents = agentSelectionSchema.safeParse(value.agents);
+        if (!agents.success)
+          return json(400, {
+            error:
+              "Choose at least one agent and a default from your selection.",
+          });
+        saveAssistantSettings(root, {
+          ...loadAssistantSettings(root),
+          agents: agents.data,
+        });
+        await exclusive(async () => {
+          await stopWorker();
+          retries = 0;
+          await startWorker();
+        });
+        return json(200, {
+          message:
+            "Agent selection saved. Set up your selected agents, then connect in Project CAD.",
+        });
+      }
       if (value.action === "settings") {
         const previous = loadAssistantSettings(root);
         const settings = settingsSchema.parse({
+          ...previous,
           websiteUrl: value.websiteUrl,
           startAtLogin: value.startAtLogin,
           museApiKey: value.clearMuseKey

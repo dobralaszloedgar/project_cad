@@ -10,7 +10,7 @@ import type { ModelId } from "../../src/domain/thermo/registry";
 const live = process.env.CATALOG_LIVE_TESTS === "1";
 async function setup(page: Page) {
   await catalogFixture(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(page).toHaveTitle(/Project CAD/);
   await expect(
     page.getByRole("button", { name: "Run simulation" }),

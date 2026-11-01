@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { validateManifest } from "./release-manifest.mjs";
+import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
 
 const manifest = validateManifest(
   JSON.parse(
@@ -14,7 +15,7 @@ const manifest = validateManifest(
   ),
   { published: true },
 );
-const base = `https://github.com/${manifest.release.repository}/releases/download/${manifest.release.tag}`;
+const { baseUrl: base } = assistantDownloadLocation(manifest);
 const metadata = await fetch(`${base}/downloads.json`, {
   signal: AbortSignal.timeout(60000),
 });

@@ -31,3 +31,21 @@ export async function setDefaultProjectDirectory(
     database.close();
   }
 }
+
+export async function hasCompletedOnboarding(): Promise<boolean> {
+  const database = await preferences();
+  try {
+    return (await database.get("preferences", "onboardingComplete")) === true;
+  } finally {
+    database.close();
+  }
+}
+
+export async function completeOnboarding() {
+  const database = await preferences();
+  try {
+    await database.put("preferences", true, "onboardingComplete");
+  } finally {
+    database.close();
+  }
+}

@@ -15,7 +15,7 @@ test("PBR live equations, custom definitions, nested editing and saved calculati
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await page.goto("/workspace");
   await loadProject(page, reactionProject());
   await openReactor(page);
   const equation = page.getByTestId("rate-preview");
@@ -134,7 +134,7 @@ test("PBR mixed species bases, added constants and compact desktop layout", asyn
   page,
 }) => {
   await page.setViewportSize({ width: 1180, height: 820 });
-  await page.goto("/");
+  await page.goto("/workspace");
   await loadProject(page, reactionProject());
   await openReactor(page);
   const shell = page.locator(".equipment-editor-dialog");

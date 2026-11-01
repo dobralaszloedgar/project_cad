@@ -69,7 +69,7 @@ export async function loadProject(page: Page, project: Project) {
       revisions: [checkpoint(project, "Test fixture")],
     },
   );
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

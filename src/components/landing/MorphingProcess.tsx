@@ -4,9 +4,9 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { FloorGrid } from "../graphics/FloorGrid";
 import { Group, Material, Mesh, MeshBasicMaterial } from "three";
-import { Line2 } from "three/addons/lines/Line2.js";
+import { Line2NodeMaterial } from "three/webgpu";
+import { Line2 } from "three/addons/lines/webgpu/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import type { MotionValue } from "motion/react";
 import {
   EquipmentModel,
@@ -45,7 +45,8 @@ function RisingRoutes({
       const geometry = new LineGeometry().setPositions(
         physical.flatMap((point) => point.toArray()),
       );
-      const material = new LineMaterial({
+      // The shared renderer uses node materials on both graphics backends.
+      const material = new Line2NodeMaterial({
         color: stream.color,
         linewidth: 1.8,
         transparent: true,

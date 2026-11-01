@@ -141,7 +141,7 @@ test("example links preserve the original project and reopen an edited example w
   page,
 }) => {
   test.setTimeout(150000);
-  await page.goto("/");
+  await page.goto("/workspace");
   await loaded(page);
   const original = await exported(page);
   // Opening the library flushes the original snapshot before following a link.

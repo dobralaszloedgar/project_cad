@@ -90,7 +90,7 @@ async function externalMove(page: Page, source: string, destination: string) {
 
 test.beforeEach(async ({ page }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

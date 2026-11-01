@@ -21,7 +21,7 @@ async function inspectFeed(page: Page) {
 test("unit presets, custom quantities and defaults persist and fit desktop and mobile", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -192,13 +192,13 @@ test("malformed preferences recover and selections synchronize between tabs", as
   await page.addInitScript((key) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, "malformed");
   }, storageKey);
-  await page.goto("/");
+  await page.goto("/workspace");
   const panel = await openUnits(page);
   await expect(panel.getByLabel("Unit system", { exact: true })).toHaveValue(
     "metric",
   );
   const second = await context.newPage();
-  await second.goto("/");
+  await second.goto("/workspace");
   const otherPanel = await openUnits(second);
   await panel.getByLabel("Unit system", { exact: true }).selectOption("si");
   await expect(otherPanel.getByLabel("Temperature display unit")).toHaveValue(

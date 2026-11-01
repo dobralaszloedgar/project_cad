@@ -4,7 +4,7 @@ import { distillationExample, reactorExample } from "../../src/domain/examples";
 import { ports } from "../../src/domain/schema";
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

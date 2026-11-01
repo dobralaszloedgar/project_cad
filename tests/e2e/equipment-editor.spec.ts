@@ -12,7 +12,7 @@ async function inspect(page: Page, id: string) {
 test("all supported equipment uses Setup and Results, preserves drafts and applies names", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -77,7 +77,7 @@ test("all supported equipment uses Setup and Results, preserves drafts and appli
 test("feed composition and reactor sizing retain drafts and compact layouts fit mobile in the fixed workspace appearance", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
@@ -168,7 +168,7 @@ test("feed composition and reactor sizing retain drafts and compact layouts fit 
 test("liquid separation only offers supported flash controls and reports both outlets", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

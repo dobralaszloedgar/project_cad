@@ -3,7 +3,7 @@ import { test, expect, type Locator, type Page } from "./test";
 async function start(page: Page) {
   // Keep a test's loaded scene stable while the shared dev workspace is edited.
   await page.routeWebSocket(/\/_next\/webpack-hmr/, () => {});
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();

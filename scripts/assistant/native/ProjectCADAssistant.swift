@@ -4,10 +4,26 @@ import SwiftUI
 private let accent = Color(red: 0.16, green: 0.43, blue: 0.35)
 private let dataDirectory = ProcessInfo.processInfo.environment["PROJECT_CAD_ASSISTANT_DATA"].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".project-cad/assistant", isDirectory: true)
 
+private let agentIDs = ["codex", "claude", "muse"]
+private let agentNames = ["codex": "Codex", "claude": "Claude Code", "muse": "Muse"]
+struct AgentSelection: Codable {
+    var providers: [String]
+    var preferred: String
+}
 struct CompanionSettings: Codable {
-    var websiteUrl = "http://127.0.0.1:3000"
+    var websiteUrl = "https://projectcad.vercel.app"
     var startAtLogin = true
     var museApiKey = ""
+    var agents: AgentSelection?
+    enum CodingKeys: String, CodingKey { case websiteUrl, startAtLogin, museApiKey, agents }
+    init() {}
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        websiteUrl = try values.decodeIfPresent(String.self, forKey: .websiteUrl) ?? websiteUrl
+        startAtLogin = try values.decodeIfPresent(Bool.self, forKey: .startAtLogin) ?? startAtLogin
+        museApiKey = try values.decodeIfPresent(String.self, forKey: .museApiKey) ?? museApiKey
+        agents = try values.decodeIfPresent(AgentSelection.self, forKey: .agents)
+    }
 }
 struct CompanionStatus: Decodable {
     var running: Bool
@@ -16,6 +32,7 @@ struct CompanionStatus: Decodable {
     var claudeAvailable: Bool
     var museConfigured: Bool
     var message: String
+    var agents: AgentSelection?
 }
 
 func privateNode() -> URL {
@@ -52,8 +69,27 @@ final class CompanionModel: ObservableObject {
     @Published var message = "Starting the local assistant…"
     @Published var failure = false
     @Published var showSettings = false
+    @Published var stage = 0
+    @Published var chosenAgents: [String] = []
+    @Published var preferred = ""
 
-    init() { loadSettings() }
+    init() { loadSettings(); stage = settings.agents == nil ? 0 : 1; chosenAgents = settings.agents?.providers ?? []; preferred = settings.agents?.preferred ?? "" }
+    func editAgents() {
+        loadSettings()
+        chosenAgents = settings.agents?.providers ?? []
+        preferred = settings.agents?.preferred ?? ""
+        stage = 0
+    }
+    func toggleAgent(_ id: String, selected: Bool) {
+        if selected { if !chosenAgents.contains(id) { chosenAgents.append(id) } }
+        else { chosenAgents.removeAll { $0 == id } }
+        if !chosenAgents.contains(preferred) { preferred = chosenAgents.first ?? "" }
+    }
+    func saveAgents() {
+        guard !chosenAgents.isEmpty, chosenAgents.contains(preferred) else { return }
+        settings.agents = AgentSelection(providers: chosenAgents, preferred: preferred)
+        if save() { stage = 1 }
+    }
     func loadSettings() {
         settings = CompanionSettings()
         let path = dataDirectory.appendingPathComponent("settings.json")
@@ -68,16 +104,16 @@ final class CompanionModel: ObservableObject {
                 let data = try control([action])
                 DispatchQueue.main.async {
                     self.busy = false
-                    if let status = try? JSONDecoder().decode(CompanionStatus.self, from: data) { self.status = status; self.message = status.message }
+                    if let status = try? JSONDecoder().decode(CompanionStatus.self, from: data) { self.status = status; self.message = status.message; self.settings.agents = status.agents }
                     completion?(data)
                 }
             } catch { DispatchQueue.main.async { self.busy = false; self.failure = true; self.message = error.localizedDescription } }
         }
     }
-    func save() {
+    @discardableResult func save() -> Bool {
         guard let url = URL(string: settings.websiteUrl), url.user == nil, url.password == nil,
               url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(url.host ?? "")) else {
-            failure = true; message = "Enter an HTTPS Project CAD address or a localhost address."; return
+            failure = true; message = "Enter an HTTPS Project CAD address or a localhost address."; return false
         }
         do {
             try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -86,7 +122,8 @@ final class CompanionModel: ObservableObject {
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path)
             showSettings = false
             perform("restart")
-        } catch { failure = true; message = "Settings could not be saved. \(error.localizedDescription)" }
+            return true
+        } catch { failure = true; message = "Settings could not be saved. \(error.localizedDescription)"; return false }
     }
     func setup(_ provider: String) {
         guard !busy else { return }
@@ -118,7 +155,7 @@ final class CompanionModel: ObservableObject {
 struct CompanionView: View {
     @StateObject private var model = CompanionModel()
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 13) {
                 Image(systemName: "point.3.connected.trianglepath.dotted").font(.system(size: 30, weight: .medium)).foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 3) {
@@ -126,23 +163,58 @@ struct CompanionView: View {
                     Text("Your local assistant").foregroundStyle(.secondary)
                 }
                 Spacer()
-                HStack(spacing: 6) { Circle().fill(model.status?.running == true ? accent : Color.secondary).frame(width: 7, height: 7); Text(model.status?.running == true ? "Running" : "Stopped").font(.caption) }
+                HStack(spacing: 6) { Circle().fill(model.status?.running == true ? accent : Color.secondary).frame(width: 7, height: 7); Text(model.status?.running == true ? "Running" : model.settings.agents == nil ? "Setup" : "Stopped").font(.caption) }
             }
-            Text("Connect your AI to the project on your laptop.").font(.title3.weight(.medium))
-            Text("Open the assistant in Project CAD, choose Connect, and approve the website. Your conversations stay on this Mac.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 12) {
-                Button("Open Project CAD", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
-                Button(model.status?.running == true ? "Stop assistant" : "Start assistant") { model.perform(model.status?.running == true ? "stop" : "start") }.disabled(model.busy || (model.status?.running == true && model.status?.managed == false))
-                Spacer()
-                Button { model.perform("status") } label: { Image(systemName: "arrow.clockwise") }.help("Refresh connection").disabled(model.busy)
-            }
-            Divider()
-            Text("Choose your AI").font(.headline)
-            provider("Codex", detail: "Use your ChatGPT or API sign-in.", available: model.status?.codexAvailable == true) { model.setup("codex") }
-            provider("Claude Code", detail: "Use your Claude Code sign-in.", available: model.status?.claudeAvailable == true) { model.setup("claude") }
-            HStack {
-                VStack(alignment: .leading, spacing: 4) { Text("Muse").fontWeight(.medium); Text(model.status?.museConfigured == true ? "API key configured on this Mac." : "Add your Muse API key in settings.").font(.caption).foregroundStyle(.secondary) }
-                Spacer(); Button("Configure") { model.showSettings = true }.disabled(model.busy)
+            Text("Step \(model.stage + 1) of 3 · \(model.stage == 0 ? "Agents" : model.stage == 1 ? "Setup" : "Connect")").font(.caption).foregroundStyle(.secondary)
+            if model.stage == 0 {
+                Text("Choose your agents").font(.title2.weight(.semibold))
+                Text("Select one or more agents to use with Project CAD. You can change these later.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ForEach(agentIDs, id: \.self) { id in
+                    Toggle(isOn: Binding(get: { model.chosenAgents.contains(id) }, set: { model.toggleAgent(id, selected: $0) })) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(agentNames[id]!).fontWeight(.medium)
+                            Text(id == "codex" ? "Use your ChatGPT or API sign-in." : id == "claude" ? "Use your Claude Code sign-in." : "Use your Muse API key.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.toggleStyle(.checkbox).disabled(model.busy)
+                }
+                if model.chosenAgents.count > 1 {
+                    Picker("Default agent", selection: $model.preferred) {
+                        ForEach(model.chosenAgents, id: \.self) { id in Text(agentNames[id]!).tag(id) }
+                    }.disabled(model.busy)
+                }
+                HStack {
+                    if model.settings.agents != nil { Button("Cancel") { model.stage = 1 }.disabled(model.busy) }
+                    Spacer()
+                    Button("Continue", action: model.saveAgents).buttonStyle(.borderedProminent).tint(accent).disabled(model.chosenAgents.isEmpty || model.busy)
+                }
+            } else if model.stage == 1 {
+                Text("Set up your agents").font(.title2.weight(.semibold))
+                Text("Set up the agents you selected. Existing installations can be reused.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ForEach(model.settings.agents?.providers ?? [], id: \.self) { id in
+                    if id == "muse" {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) { Text("Muse").fontWeight(.medium); Text(model.status?.museConfigured == true ? "API key configured. Access is checked when you send a message." : "Add your Muse API key.").font(.caption).foregroundStyle(.secondary) }
+                            Spacer(); Button("Configure") { model.showSettings = true }.disabled(model.busy)
+                        }
+                    } else {
+                        provider(agentNames[id]!, detail: "Complete sign-in in the window that opens.", available: id == "codex" ? model.status?.codexAvailable == true : model.status?.claudeAvailable == true) { model.setup(id) }
+                    }
+                }
+                HStack {
+                    Button("Manage agents", action: model.editAgents).disabled(model.busy)
+                    Spacer()
+                    Button("Continue to connection") { model.stage = 2 }.buttonStyle(.borderedProminent).tint(accent).disabled(model.busy)
+                }
+            } else {
+                Text("Connect to Project CAD").font(.title2.weight(.semibold))
+                Text((model.settings.agents?.providers ?? []).compactMap { agentNames[$0] }.joined(separator: ", ")).fontWeight(.medium)
+                if let preferred = model.settings.agents?.preferred { Text("Default: \(agentNames[preferred] ?? preferred)").font(.caption).foregroundStyle(.secondary) }
+                Text("Open your project, open the assistant, and choose Connect assistant. Approve the website and your selected agents in the connection window.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Back to agent setup") { model.stage = 1 }.disabled(model.busy)
+                    Spacer()
+                    Button("Open Project CAD", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
+                }
             }
             Divider()
             HStack(alignment: .top, spacing: 10) {
@@ -152,19 +224,23 @@ struct CompanionView: View {
             HStack {
                 Button("Settings…") { model.showSettings = true }.disabled(model.busy)
                 Button("Open logs") { NSWorkspace.shared.open(dataDirectory.appendingPathComponent("logs")) }
-                Spacer(); Text("The assistant runs in the background.").font(.caption2).foregroundStyle(.secondary)
+                Spacer()
+                if model.settings.agents != nil {
+                    Button(model.status?.running == true ? "Stop assistant" : "Start assistant") { model.perform(model.status?.running == true ? "stop" : "start") }.disabled(model.busy || (model.status?.running == true && model.status?.managed == false))
+                }
+                Button { model.perform("status") } label: { Image(systemName: "arrow.clockwise") }.help("Refresh connection").disabled(model.busy)
             }
         }
         .padding(28).frame(width: 550).background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { model.perform("start") }
+        .onAppear { model.perform(model.settings.agents == nil ? "status" : "start") }
         .sheet(isPresented: $model.showSettings) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Assistant settings").font(.title2.weight(.semibold))
-                VStack(alignment: .leading, spacing: 6) { Text("Project CAD website").font(.caption); TextField("https://your-project-cad-address", text: $model.settings.websiteUrl) }
+                VStack(alignment: .leading, spacing: 6) { Text("Project CAD website").font(.caption); TextField("https://projectcad.vercel.app", text: $model.settings.websiteUrl) }
                 Toggle("Start assistant when I log in", isOn: $model.settings.startAtLogin)
                 VStack(alignment: .leading, spacing: 6) { Text("Muse API key").font(.caption); SecureField("API key", text: $model.settings.museApiKey); Text("Stored in your private local assistant settings.").font(.caption2).foregroundStyle(.secondary) }
                 if model.failure { Text(model.message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
-                HStack { Button("Cancel") { model.loadSettings(); model.showSettings = false }; Spacer(); Button("Save settings", action: model.save).buttonStyle(.borderedProminent).tint(accent) }
+                HStack { Button("Cancel") { model.loadSettings(); model.showSettings = false }; Spacer(); Button("Save settings") { model.save() }.buttonStyle(.borderedProminent).tint(accent) }
             }.padding(25).frame(width: 440)
         }
     }

@@ -49,7 +49,7 @@ test("first launch remembers one folder for creation, autosave, duplicates and l
   context,
 }, info) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await expect(setup(page)).toBeVisible();
   await expect(
     setup(page).getByRole("button", { name: "Choose folder", exact: true }),
@@ -116,7 +116,7 @@ test("first launch remembers one folder for creation, autosave, duplicates and l
   ).toEqual(["First study copy.pcad", "First study.pcad", "Second study.pcad"]);
   const other = await context.newPage();
   await installFolderPicker(other);
-  await other.goto("/");
+  await other.goto("/workspace");
   await expect(other.locator(".save-status")).toContainText(
     "Laptop projects/Second study.pcad",
   );
@@ -151,7 +151,7 @@ test("cancelling a picker or failing to remember a folder keeps setup available"
   page,
 }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await folderControls(page, { cancel: "yes" });
   await setup(page)
     .getByRole("button", { name: "Choose folder", exact: true })
@@ -190,7 +190,7 @@ test("expired permission reconnects the remembered folder without another picker
   page,
 }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await chooseFolder(page);
   await library(page);
   await create(page, "Existing study");
@@ -226,7 +226,7 @@ test("changing the default folder applies to new projects and keeps existing fil
   page,
 }) => {
   await installFolderPicker(page);
-  await page.goto("/");
+  await page.goto("/workspace");
   await chooseFolder(page);
   await library(page);
   await create(page, "Original study");
@@ -276,7 +276,7 @@ test("browsers without folder access keep the existing workspace available", asy
   page,
 }) => {
   await installFolderPicker(page, true);
-  await page.goto("/");
+  await page.goto("/workspace");
   await library(page);
   await expect(setup(page)).toHaveCount(0);
   await page
