@@ -200,7 +200,7 @@ export default function LandingPage() {
           sceneUnavailable ? "unavailable" : sceneReady ? "live" : "preparing"
         }
       >
-        <Link className={styles.skipLink} href="/onboarding">
+        <Link className={styles.skipLink} href="/workspace?home=1">
           Skip the story and open workspace
         </Link>
         <div
@@ -250,7 +250,7 @@ export default function LandingPage() {
               ))}
             </nav>
             {/* Full navigation releases the landing WebGL context before setup. */}
-            <a href="/onboarding" className={styles.workspaceLink}>
+            <a href="/workspace?home=1" className={styles.workspaceLink}>
               Open workspace
               <ArrowUpRight size={16} />
             </a>

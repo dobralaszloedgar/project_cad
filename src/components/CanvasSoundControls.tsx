@@ -1,5 +1,6 @@
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { workspaceSound } from "@/lib/audio/sound-design";
+import { workspaceSimulationSound } from "@/lib/audio/simulation-sound";
 import type { CanvasSound } from "./useCanvasSound";
 import styles from "./CanvasSoundControls.module.css";
 
@@ -13,8 +14,8 @@ export function CanvasSoundToggle({ sound }: { sound: CanvasSound }) {
       title={
         sound.error ||
         (sound.enabled
-          ? `${workspaceSound.name} sounds on · Click to mute`
-          : `Enable ${workspaceSound.name} sounds`)
+          ? `${workspaceSound.name} + ${workspaceSimulationSound.name} sounds on · Click to mute`
+          : `Enable ${workspaceSound.name} + ${workspaceSimulationSound.name} sounds`)
       }
       onClick={() => sound.setEnabled(!sound.enabled)}
     >
@@ -49,7 +50,7 @@ export default function CanvasSoundSettings({ sound }: { sound: CanvasSound }) {
       <p>
         <strong>{workspaceSound.name}</strong>
         <br />
-        Gentle taps when you place equipment, connect streams, or remove items.
+        Gentle taps when you add equipment or complete a connection.
       </p>
       <div className={styles.volume}>
         <label htmlFor="canvas-sound-volume">Volume</label>
@@ -75,6 +76,31 @@ export default function CanvasSoundSettings({ sound }: { sound: CanvasSound }) {
           Preview sound
         </button>
         <span>Saved on this browser</span>
+      </div>
+      <div className={styles.simulation}>
+        <p>
+          <strong>{workspaceSimulationSound.name}</strong>
+          <br />
+          Four notes when a simulation succeeds. Two notes when it fails.
+        </p>
+        <div className={styles.outcomePreviews}>
+          <button
+            type="button"
+            className="btn"
+            disabled={!sound.enabled || sound.volume === 0}
+            onClick={() => sound.playSimulation("complete")}
+          >
+            <Play size={13} /> Preview success
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={!sound.enabled || sound.volume === 0}
+            onClick={() => sound.playSimulation("attention")}
+          >
+            <Play size={13} /> Preview failure
+          </button>
+        </div>
       </div>
       {sound.error && (
         <p className={styles.error} role="alert">

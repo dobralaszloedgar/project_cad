@@ -1,3 +1,4 @@
+import { submitNewProject } from "./project-create-fixture";
 import { expect, test, type Page } from "./test";
 import {
   folderControls,
@@ -6,6 +7,8 @@ import {
 } from "./folder-fixture";
 
 async function library(page: Page) {
+  if (await page.getByRole("region", { name: "Project library" }).isVisible())
+    return;
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();
@@ -105,12 +108,7 @@ test("last project can be trashed, restored, and permanently deleted without rea
     exact: true,
   });
   await create.getByLabel("Project name", { exact: true }).fill("After trash");
-  await create
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await create
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(page.locator(".project-heading h1")).toHaveText("After trash");
   await library(page);
   await expect(page.locator(".project-card")).toHaveCount(1);
@@ -130,12 +128,7 @@ test("folder projects keep their file in Trash and delete it from disk only afte
     exact: true,
   });
   await create.getByLabel("Project name", { exact: true }).fill("Trash study");
-  await create
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await create
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(create).toHaveCount(0);
   const original = await folderText(page, "Trash study");
   await page.evaluate(async () => {

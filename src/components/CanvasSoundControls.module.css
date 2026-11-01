@@ -82,3 +82,14 @@
   margin: 12px 0 0;
   font-size: 12px;
 }
+.simulation {
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+.outcomePreviews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}

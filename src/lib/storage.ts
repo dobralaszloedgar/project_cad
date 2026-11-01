@@ -611,6 +611,22 @@ async function relativeTo(
   return typeof root.resolve === "function" ? root.resolve(directory) : null;
 }
 
+/** Display a folder's path within its connected root without an absolute path. */
+export async function getProjectDirectoryPath(
+  directory: ProjectDirectoryHandle,
+): Promise<string> {
+  const roots = await listProjectRoots();
+  for (const root of roots) {
+    try {
+      const path = await relativeTo(root.directory, directory);
+      if (path) return [root.name, ...path].join("/");
+    } catch {
+      /* Other disconnected folders must not block this location's preview. */
+    }
+  }
+  return directory.name;
+}
+
 export async function connectProjectRoot(
   directory: ProjectDirectoryHandle,
 ): Promise<ProjectRoot> {

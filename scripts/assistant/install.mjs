@@ -24,7 +24,13 @@ try {
   await cp(source, staging, { recursive: true, preserveTimestamps: true });
   await execute(runtime(staging), [controller(staging), 'doctor'], { timeout: 10000 });
   if (await exists(destination)) {
-    if (!args.includes('--no-start')) await execute(runtime(destination), [controller(destination), 'stop'], { timeout: 25000 });
+    // Replacing the bundle must also replace the running app and its service.
+    // --no-start controls what happens after installation, not whether the old
+    // connector may keep running with sessions from the previous version.
+    await execute(join(staging, 'Contents', 'MacOS', 'ProjectCADAssistant'), ['--quit-for-update', destination], { timeout: 15000 });
+    const stopped = await execute(runtime(destination), [controller(destination), 'stop'], { timeout: 25000 });
+    if (JSON.parse(stopped.stdout).running)
+      throw new Error('Close the running Project CAD assistant before updating.');
     await rename(destination, previous); backedUp = true;
   }
   await rename(staging, destination); promoted = true;

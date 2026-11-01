@@ -2,8 +2,8 @@ export const SOUND_STORAGE_KEY = "project-cad:sound:v1";
 export type SoundPreferences = { version: 1; enabled: boolean; volume: number };
 export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {
   version: 1,
-  enabled: false,
-  volume: 35,
+  enabled: true,
+  volume: 100,
 };
 
 export function parseSoundPreferences(raw: string | null): SoundPreferences {
@@ -12,7 +12,10 @@ export function parseSoundPreferences(raw: string | null): SoundPreferences {
     if (!value || value.version !== 1) return DEFAULT_SOUND_PREFERENCES;
     return {
       version: 1,
-      enabled: value.enabled === true,
+      enabled:
+        typeof value.enabled === "boolean"
+          ? value.enabled
+          : DEFAULT_SOUND_PREFERENCES.enabled,
       volume:
         typeof value.volume === "number" && Number.isFinite(value.volume)
           ? Math.max(0, Math.min(100, Math.round(value.volume)))

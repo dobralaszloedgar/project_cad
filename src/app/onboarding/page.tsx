@@ -1,10 +1,5 @@
-import type { Metadata } from "next";
-import Onboarding from "@/components/Onboarding";
-
-export const metadata: Metadata = {
-  title: "Project CAD – Set up your workspace",
-};
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <Onboarding />;
+  redirect("/workspace?home=1");
 }

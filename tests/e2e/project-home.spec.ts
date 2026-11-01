@@ -1,3 +1,4 @@
+import { submitNewProject } from "./project-create-fixture";
 import { expect, test, type Page } from "./test";
 import { THEMES } from "../../src/lib/theme";
 import {
@@ -9,6 +10,8 @@ import {
 } from "./folder-fixture";
 
 async function home(page: Page) {
+  if (await page.getByRole("region", { name: "Project library" }).isVisible())
+    return;
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();
@@ -160,9 +163,7 @@ test("home themes and default save folder persist and apply when creating a proj
     "Folder access was not granted",
   );
   await folderControls(page, { grant: "granted" });
-  await create
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(create).toHaveCount(0);
   expect(
     JSON.parse(await folderText(page, "Default folder study")).workspace.project
@@ -427,10 +428,10 @@ test("sort changes reorder the current grid and list, including filtered project
       point,
     ),
   ).toBe("SELECT");
-  // Exercise the visible arrow rather than only setting the select value.
+  // The arrow's hit area must be the native select. Drive its OS popup with
+  // selectOption because headless macOS does not deliver popup arrow keys.
   await page.mouse.click(point.x, point.y);
-  await page.keyboard.press("ArrowDown");
-  await page.keyboard.press("Enter");
+  await sort.selectOption("name");
   await expect(sort).toHaveValue("name");
   await expect(names).toHaveText(["Alpha", "Study 2", "Study 10"]);
   await page.getByRole("button", { name: "List view", exact: true }).click();

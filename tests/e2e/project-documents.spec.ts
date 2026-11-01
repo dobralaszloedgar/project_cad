@@ -1,3 +1,4 @@
+import { submitNewProject } from "./project-create-fixture";
 import { test, expect, type Page } from "./test";
 import {
   folderControls,
@@ -6,6 +7,8 @@ import {
 } from "./folder-fixture";
 
 async function home(page: Page) {
+  if (await page.getByRole("region", { name: "Project library" }).isVisible())
+    return;
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();
@@ -24,14 +27,7 @@ async function create(page: Page, name = "Study") {
     exact: true,
   });
   await dialog.getByLabel("Project name", { exact: true }).fill(name);
-  const choose = dialog.getByRole("button", {
-    name: "Choose folder",
-    exact: true,
-  });
-  if (await choose.count()) await choose.click();
-  await dialog
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(dialog).not.toBeVisible();
   await expect(page.locator(".save-status")).toContainText(`${name}.pcad`);
 }

@@ -1,3 +1,4 @@
+import { submitNewProject } from "./project-create-fixture";
 import { test, expect } from "./test";
 import { reactorExample } from "../../src/domain/examples";
 import { checkpoint } from "../../src/lib/revisions";
@@ -32,12 +33,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await expect(create.getByLabel("Project name", { exact: true })).toHaveValue(
     "Simple heating",
   );
-  await create
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await create
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(create).not.toBeVisible();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await page.getByRole("button", { name: "Run simulation" }).click();
@@ -72,12 +68,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await expect(create.getByLabel("Project name", { exact: true })).toHaveValue(
     "Heating study copy",
   );
-  await create
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await create
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(create).not.toBeVisible();
   await expect(page.locator(".project-heading h1")).toHaveText(
     "Heating study copy",
@@ -169,12 +160,15 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .getByRole("button", { name: "Open Heating study", exact: true })
     .dblclick();
   await expect(page.locator(".equipment-library")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Run simulation" }),
+  ).toBeEnabled();
   await page.getByRole("button", { name: "Open assistant" }).click();
   await expect(
     page.getByRole("dialog", { name: "Assistant", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Connect local assistant", exact: true }),
+    page.getByRole("checkbox", { name: "Codex", exact: true }),
   ).toBeVisible();
 });
 
@@ -225,6 +219,7 @@ test("existing single-project storage upgrades without losing the graph or histo
   await page
     .getByRole("button", { name: `Open ${project.name}`, exact: true })
     .dblclick();
+  await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await expect(page.locator(".react-flow__node")).toHaveCount(6);

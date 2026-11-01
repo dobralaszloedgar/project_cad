@@ -1,3 +1,4 @@
+import { submitNewProject } from "./project-create-fixture";
 import { expect, test, type Page } from "./test";
 import { mkdir, readFile } from "node:fs/promises";
 import { newUnit } from "../../src/domain/schema";
@@ -50,6 +51,8 @@ async function addEquipment(page: Page, kind: string) {
 }
 
 async function library(page: Page) {
+  if (await page.getByRole("region", { name: "Project library" }).isVisible())
+    return;
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();
@@ -75,18 +78,7 @@ async function createDialog(page: Page, name: string) {
 async function createProject(page: Page, name: string, capture = false) {
   await library(page);
   const dialog = await createDialog(page, name);
-  await expect(
-    dialog.getByRole("button", { name: "Create project", exact: true }),
-  ).toBeDisabled();
-  await dialog
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await expect(
-    dialog.getByRole("button", { name: "Change folder", exact: true }),
-  ).toContainText(`Laptop projects/${name}`);
-  await expect(
-    dialog.getByRole("button", { name: "Create project", exact: true }),
-  ).toBeEnabled();
+  await expect(dialog.locator("form")).toHaveAttribute("aria-busy", "false");
   if (capture) {
     await page.screenshot({
       path: `${evidence}/create-project-desktop.png`,
@@ -106,9 +98,7 @@ async function createProject(page: Page, name: string, capture = false) {
     });
     await page.setViewportSize({ width: 1536, height: 1024 });
   }
-  await dialog
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(dialog).not.toBeVisible();
   await expect(page.locator(".project-heading h1")).toHaveText(name);
   await expect(page.locator(".save-status")).toContainText(/saved/i);
@@ -219,13 +209,15 @@ test("creating a project cannot be dismissed while its file is committing", asyn
 }) => {
   await start(page);
   await library(page);
-  const dialog = await createDialog(page, "Committing study");
-  await dialog
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
+  const draft = await createDialog(page, "Committing study");
+  await draft.getByRole("button", { name: "Continue", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Choose a project folder",
+    exact: true,
+  });
   await folderControls(page, { "write-hold": "yes" });
   await dialog
-    .getByRole("button", { name: "Create project", exact: true })
+    .getByRole("button", { name: "Choose folder & create", exact: true })
     .click();
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("folder-qa-writing")))
@@ -239,7 +231,7 @@ test("creating a project cannot be dismissed while its file is committing", asyn
   await page.keyboard.press("Escape");
   await expect(dialog).toBeVisible();
   await dialog
-    .getByRole("button", { name: "Close Create project", exact: true })
+    .getByRole("button", { name: "Close Choose a project folder", exact: true })
     .click();
   await expect(dialog).toBeVisible();
   await releaseWrite(page);
@@ -259,14 +251,19 @@ test("cancelled picks and existing directories never create or overwrite a proje
   await start(page);
   await library(page);
   const before = await page.locator(".project-card").count();
-  const dialog = await createDialog(page, "Cancelled study");
+  const draft = await createDialog(page, "Cancelled study");
+  await draft.getByRole("button", { name: "Continue", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Choose a project folder",
+    exact: true,
+  });
   await folderControls(page, { cancel: "yes" });
   await dialog
-    .getByRole("button", { name: "Choose folder", exact: true })
+    .getByRole("button", { name: "Choose folder & create", exact: true })
     .click();
   await expect(
-    dialog.getByRole("button", { name: "Create project", exact: true }),
-  ).toBeDisabled();
+    dialog.getByRole("button", { name: "Choose folder & create", exact: true }),
+  ).toBeEnabled();
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator(".project-card")).toHaveCount(before);
@@ -291,12 +288,7 @@ test("cancelled picks and existing directories never create or overwrite a proje
   await library(page);
   const text = await folderText(page, "Existing study");
   const collision = await createDialog(page, "Existing study");
-  await collision
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await collision
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page, false);
   await expect(collision.getByRole("alert")).toContainText(/exist/i);
   expect(await folderText(page, "Existing study")).toBe(text);
   await collision.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -477,10 +469,7 @@ test("unsupported browsers explain folder access and preserve existing projects"
   const dialog = await createDialog(page, "Unsupported study");
   await expect(dialog).toContainText(/Chrome|Edge/);
   await expect(
-    dialog.getByRole("button", { name: "Choose folder", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    dialog.getByRole("button", { name: "Create project", exact: true }),
+    dialog.getByRole("button", { name: "Continue", exact: true }),
   ).toBeDisabled();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await page
@@ -594,12 +583,7 @@ test("duplicating reads newer source JSON and cancel preserves that source for s
   await expect(
     copyDialog.getByLabel("Project name", { exact: true }),
   ).toHaveValue("Source study copy");
-  await copyDialog
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await copyDialog
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(copyDialog).not.toBeVisible();
   await expect(page.locator(".project-heading h1")).toHaveText(
     "Source study copy",

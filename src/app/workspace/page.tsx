@@ -16,6 +16,7 @@ export default async function Page({
   return (
     <Workspace
       exampleId={exampleId}
+      initialScreen={query.home === "1" && !exampleId ? "projects" : "editor"}
       initialView={initialView}
       initialPlayback={query.play === "1"}
       initialArrange={query.arrange === "1"}

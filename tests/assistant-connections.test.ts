@@ -18,9 +18,10 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-async function fixture() {
+async function fixture(seed?: (requests: ConnectionRequests) => void) {
   const root = mkdtempSync(join(tmpdir(), "project-cad-consent-"));
   const requests = new ConnectionRequests(root);
+  seed?.(requests);
   const store = new AssistantStore(join(root, "history.sqlite"));
   const adapters = Object.fromEntries(
     (["codex", "claude", "muse"] as ProviderId[]).map((id) => [
@@ -73,8 +74,47 @@ async function fixture() {
       expires: number;
     };
   };
-  return { root, requests, selectAgents, request, create };
+  return { root, requests, selectAgents, request, create, runtime, endpoint };
 }
+
+it("discards old pending and approved connection requests when the replacement starts", async () => {
+  const previous: string[] = [];
+  const { requests, request, create } = await fixture((consent) => {
+    previous.push(consent.create(origin, crypto.randomUUID(), agents).id);
+    const approved = consent.create(origin, crypto.randomUUID(), agents);
+    consent.decide(approved.id, true);
+    previous.push(approved.id);
+  });
+  expect(requests.pending()).toEqual([]);
+  for (const id of previous)
+    expect((await request(`/connections/${id}`)).status).toBe(404);
+  const fresh = await create();
+  requests.decide(fresh.id, true);
+  expect(
+    (await (await request(`/connections/${fresh.id}`)).json()).status,
+  ).toBe("connected");
+});
+
+it("preserves the live connector's approvals when a second instance cannot bind", async () => {
+  const { root, runtime, endpoint, requests, create, request } =
+    await fixture();
+  const pending = await create();
+  const duplicate = createAssistantServer(runtime, {
+    port: Number(new URL(endpoint).port),
+    origins: [origin],
+    connections: new ConnectionRequests(root),
+  });
+  const failure = new Promise<NodeJS.ErrnoException>((resolve) =>
+    duplicate.once("error", resolve),
+  );
+  duplicate.listen(Number(new URL(endpoint).port), "127.0.0.1");
+  expect((await failure).code).toBe("EADDRINUSE");
+  expect(requests.get(pending.id)?.status).toBe("pending");
+  requests.decide(pending.id, true);
+  expect(
+    (await (await request(`/connections/${pending.id}`)).json()).status,
+  ).toBe("connected");
+});
 
 it("requires a private desktop decision before issuing an origin-bound session", async () => {
   const { root, requests, selectAgents, request, create } = await fixture();

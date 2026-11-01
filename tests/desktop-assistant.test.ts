@@ -1,11 +1,14 @@
 import { it, expect } from "vitest";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { mkdtemp, mkdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, stat, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildAssistant } from "../scripts/assistant/build.mjs";
 import { assistantDownloads } from "../src/assistant/downloads";
+import { promisify } from "node:util";
+import { DatabaseSync } from "node:sqlite";
+import { ConnectionRequests } from "../src/server/assistant/connections";
 
 it("only offers real platform installers from the release manifest", () => {
   const files = [
@@ -76,19 +79,20 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     origin = `http://127.0.0.1:${desktopPort}`;
   await buildAssistant(bundle);
   await mkdir(data);
-  const child = spawn(
+  const environment = {
+    ...process.env,
+    PROJECT_CAD_ASSISTANT_DATA: data,
+    PROJECT_CAD_DESKTOP_PORT: String(desktopPort),
+    PROJECT_CAD_ASSISTANT_PORT: String(assistantPort),
+    XDG_CONFIG_HOME: join(temporary, "config"),
+    XDG_DATA_HOME: join(temporary, "share"),
+    PROJECT_CAD_NO_DESKTOP_OPEN: "1",
+  };
+  let child = spawn(
     process.execPath,
     [join(bundle, "app", "desktop.mjs"), "serve"],
     {
-      env: {
-        ...process.env,
-        PROJECT_CAD_ASSISTANT_DATA: data,
-        PROJECT_CAD_DESKTOP_PORT: String(desktopPort),
-        PROJECT_CAD_ASSISTANT_PORT: String(assistantPort),
-        XDG_CONFIG_HOME: join(temporary, "config"),
-        XDG_DATA_HOME: join(temporary, "share"),
-        PROJECT_CAD_NO_DESKTOP_OPEN: "1",
-      },
+      env: environment,
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -231,6 +235,171 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     expect(
       await readFile(join(data, "logs", "assistant.log"), "utf8"),
     ).not.toContain("EADDRINUSE");
+
+    // An actual installer run must retire both the desktop session and worker,
+    // even when the installer asks not to start the replacement yet.
+    const connectionOrigin = "https://project.example";
+    const request = await (
+      await fetch(endpoint + "/connections", {
+        method: "POST",
+        headers: {
+          Origin: connectionOrigin,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nonce: crypto.randomUUID(),
+          agents: { providers: ["muse"], preferred: "muse" },
+        }),
+      })
+    ).json();
+    new ConnectionRequests(data).decide(request.id, true);
+    const connection = await (
+      await fetch(endpoint + "/connections/" + request.id, {
+        headers: { Origin: connectionOrigin },
+      })
+    ).json();
+    expect(connection.token).toBeTruthy();
+    const history = new DatabaseSync(join(data, "conversations.sqlite"));
+    const savedChat = JSON.stringify({
+      id: "upgrade-history",
+      runs: [],
+      title: "Keep this conversation",
+    });
+    history
+      .prepare("INSERT INTO conversations VALUES (?, ?, ?, ?, ?)")
+      .run(
+        "upgrade-history",
+        connectionOrigin,
+        "project",
+        new Date().toISOString(),
+        savedChat,
+      );
+    history.close();
+    const settingsBefore = await readFile(join(data, "settings.json"), "utf8");
+    const installed = join(temporary, "installed");
+    await mkdir(join(bundle, "runtime"));
+    await symlink(
+      process.execPath,
+      join(
+        bundle,
+        "runtime",
+        process.platform === "win32" ? "node.exe" : "node",
+      ),
+    );
+    await promisify(execFile)(
+      process.execPath,
+      [
+        join(bundle, "app", "desktop.mjs"),
+        "install",
+        bundle,
+        installed,
+        "--no-start",
+      ],
+      { env: environment, timeout: 30000 },
+    );
+    await expect.poll(() => child.exitCode).toBe(0);
+    expect(
+      await fetch(endpoint + "/health").then(
+        () => true,
+        () => false,
+      ),
+    ).toBe(false);
+    await expect(stat(join(data, "desktop-control.json"))).rejects.toThrow();
+    expect(await readFile(join(data, "settings.json"), "utf8")).toBe(
+      settingsBefore,
+    );
+
+    const orphan = spawn(
+      process.execPath,
+      [join(installed, "app", "assistant.mjs")],
+      { env: environment, stdio: "ignore" },
+    );
+    try {
+      await expect
+        .poll(() =>
+          fetch(endpoint + "/health").then(
+            (response) => response.ok,
+            () => false,
+          ),
+        )
+        .toBe(true);
+      await expect(
+        promisify(execFile)(
+          process.execPath,
+          [
+            join(bundle, "app", "desktop.mjs"),
+            "install",
+            bundle,
+            installed,
+            "--no-start",
+          ],
+          { env: environment, timeout: 30000 },
+        ),
+      ).rejects.toThrow("previous session is still active");
+      expect(await readFile(join(data, "settings.json"), "utf8")).toBe(
+        settingsBefore,
+      );
+    } finally {
+      const exited = new Promise<void>((resolve) =>
+        orphan.once("exit", () => resolve()),
+      );
+      orphan.kill();
+      await exited;
+    }
+
+    child = spawn(
+      process.execPath,
+      [join(installed, "app", "desktop.mjs"), "serve"],
+      { env: environment, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    child.stdout.on("data", () => {});
+    child.stderr.on("data", () => {});
+    const oldToken = token;
+    await expect
+      .poll(
+        async () => {
+          try {
+            token = JSON.parse(
+              await readFile(join(data, "desktop-control.json"), "utf8"),
+            ).token;
+            return token !== oldToken;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 15000 },
+      )
+      .toBe(true);
+    expect((await command("status")).running).toBe(true);
+    expect(
+      (
+        await fetch(endpoint + "/connections/" + request.id, {
+          headers: { Origin: connectionOrigin },
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (await fetch(origin + "/api/state", { headers: { Cookie: cookie } }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await fetch(endpoint + "/providers", {
+          headers: {
+            Origin: connectionOrigin,
+            Authorization: "Bearer " + connection.token,
+            "x-project-cad-client": crypto.randomUUID(),
+          },
+        })
+      ).status,
+    ).toBe(401);
+    const preserved = new DatabaseSync(join(data, "conversations.sqlite"));
+    expect(
+      preserved
+        .prepare("SELECT data FROM conversations WHERE id=?")
+        .get("upgrade-history")?.data,
+    ).toBe(savedChat);
+    preserved.close();
   } finally {
     if (token) await command("shutdown").catch(() => {});
     await new Promise<void>((resolve) => {

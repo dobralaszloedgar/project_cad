@@ -244,7 +244,7 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
   await expect(page.getByRole("heading", { name: "Design." })).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Open workspace", exact: true }),
-  ).toHaveAttribute("href", "/onboarding");
+  ).toHaveAttribute("href", "/workspace?home=1");
   const canvas = page.locator("[data-shared-scene] canvas");
   await expect(canvas).toHaveCount(0);
   await page.mouse.move(768, 500);

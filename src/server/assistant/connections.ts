@@ -111,4 +111,14 @@ export class ConnectionRequests {
   remove(id: string) {
     rmSync(this.path(id), { recursive: true, force: true });
   }
+  clear() {
+    let ids: string[];
+    try {
+      ids = readdirSync(this.directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    for (const id of ids) if (/^[a-f0-9]{64}$/.test(id)) this.remove(id);
+  }
 }

@@ -16,7 +16,8 @@ const temporary = await mkdtemp(join(tmpdir(), 'project-cad-package-test-'));
 const resources = folder => join(folder, 'Contents', 'Resources');
 const node = folder => join(resources(folder), 'runtime', process.arch, 'node');
 const controller = folder => join(resources(folder), 'app', 'control.mjs');
-const env = { ...process.env, PATH: '/usr/bin:/bin', PROJECT_CAD_ASSISTANT_DATA: join(temporary, 'preserved') };
+const serviceLabel = `com.projectcad.assistant.verify-${randomUUID()}`;
+const env = { ...process.env, PATH: '/usr/bin:/bin', PROJECT_CAD_ASSISTANT_DATA: join(temporary, 'preserved'), PROJECT_CAD_ASSISTANT_SERVICE_LABEL: serviceLabel, PROJECT_CAD_ASSISTANT_PORT: '0' };
 let child;
 let serviceEnv, installed;
 try {
@@ -102,8 +103,8 @@ try {
   const providers = await response.json();
   assert.deepEqual(providers.map(item => item.id).sort(), ['muse']);
   child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve));
-  const registered = await execute('/bin/launchctl', ['print', `gui/${process.getuid()}/com.projectcad.assistant`]).then(() => true, () => false);
-  const persistent = await access(join(homedir(), 'Library', 'LaunchAgents', 'com.projectcad.assistant.plist')).then(() => true, () => false);
+  const registered = await execute('/bin/launchctl', ['print', `gui/${process.getuid()}/${serviceLabel}`]).then(() => true, () => false);
+  const persistent = await access(join(homedir(), 'Library', 'LaunchAgents', `${serviceLabel}.plist`)).then(() => true, () => false);
   let backgroundService = 'skipped: existing user service preserved';
   if (!registered && !persistent) {
     const data = join(temporary, 'service-data');

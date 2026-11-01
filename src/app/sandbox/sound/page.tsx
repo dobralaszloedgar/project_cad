@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import SoundSandbox from "@/components/sound-sandbox/SoundSandbox";
+import SimulationSoundSandbox from "@/components/simulation-sound-sandbox/SimulationSoundSandbox";
 
 export const metadata: Metadata = {
-  title: "Project CAD – Sound sandbox",
+  title: "Project CAD – Simulation sounds",
   description:
-    "Try subtle sound feedback while placing and connecting process equipment.",
+    "Compare 10 music-box variations, each with a success melody and a two-note cue for unsuccessful simulations.",
 };
 
 export default function SoundSandboxPage() {
-  return <SoundSandbox />;
+  return <SimulationSoundSandbox />;
 }
