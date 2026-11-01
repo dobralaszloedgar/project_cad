@@ -3,6 +3,7 @@ import {
   Color,
   CylinderGeometry,
   DoubleSide,
+  DynamicDrawUsage,
   ExtrudeGeometry,
   Group,
   InstancedMesh,
@@ -284,6 +285,7 @@ class Contents {
       .setFromPoints(paths.flat().map((p) => new Vector3(...p)))
       .expandByScalar(radius * 1.7);
     mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new Sphere());
+    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     this.group.add(mesh);
     this.droplets.push({
       mesh,
@@ -353,7 +355,7 @@ class Contents {
       this.bubbles.length,
     );
     bubbles.name = "vapor-bubbles-in-liquid";
-    bubbles.frustumCulled = false;
+    bubbles.instanceMatrix.setUsage(DynamicDrawUsage);
     // Fit the real operating envelope, even before the first animation frame.
     // Default identity instance matrices would otherwise add a unit sphere at
     // the origin and make the camera fit empty space below the equipment.
@@ -370,14 +372,27 @@ class Contents {
         ),
       );
     }
+    bubbles.boundingSphere = bubbles.boundingBox.getBoundingSphere(
+      new Sphere(),
+    );
     if (this.bubbles.length) this.group.add(bubbles);
     else {
       bubbles.geometry.dispose();
       (bubbles.material as MeshPhysicalMaterial).dispose();
     }
+    let previousTime = Number.NaN;
+    let previousActive: boolean | undefined;
     return {
       group: this.group,
       update: (active: boolean) => {
+        // Camera movement renders paused scenes too. Keep instance buffers on
+        // the GPU until operation time or visibility actually changes.
+        const time = this.clock.uniform.value;
+        if (active === previousActive && (!active || time === previousTime))
+          return;
+        previousActive = active;
+        const changed = time !== previousTime;
+        if (active) previousTime = time;
         for (const {
           mesh,
           curves,
@@ -388,7 +403,7 @@ class Contents {
           pendant,
         } of this.droplets) {
           mesh.visible = active;
-          if (!active) continue;
+          if (!active || !changed) continue;
           for (let path = 0; path < curves.length; path++) {
             for (let drop = 0; drop < perPath; drop++) {
               const phase =
@@ -427,7 +442,7 @@ class Contents {
         }
         if (!this.bubbles.length) return;
         bubbles.visible = active;
-        if (!active) return;
+        if (!active || !changed) return;
         for (let i = 0; i < this.bubbles.length; i++) {
           const b = this.bubbles[i],
             phase = (this.clock.uniform.value * b.rate + b.phase) % 1;

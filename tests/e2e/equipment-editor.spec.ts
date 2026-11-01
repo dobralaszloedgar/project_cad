@@ -144,9 +144,7 @@ test("feed composition and reactor sizing retain drafts and compact layouts fit 
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Target conversion (%)")).toHaveValue("50");
-  await page
-    .getByText("Model equations and assumptions", { exact: true })
-    .click();
+  await page.getByText("Model details", { exact: true }).click();
   await expect(page.locator(".model-notes")).toBeVisible();
   expect(
     await dialog.evaluate(

@@ -4,11 +4,8 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeElements } from "@react-three/fiber";
 import { Group } from "three";
 import type { Kind } from "@/domain/schema";
-import {
-  createEquipmentModel,
-  createSystemConnections,
-  disposeEquipmentModel,
-} from "./models";
+import { createSystemConnections, disposeEquipmentModel } from "./models";
+import { acquireEquipmentModel } from "./model-resources";
 import { OperationClock } from "./operation";
 import { createProcessContents, createSystemFlow } from "./process-contents";
 import type { SystemExample } from "./system-geometry";
@@ -56,10 +53,15 @@ export function EquipmentModel({
   useLayoutEffect(() => {
     const parent = mount.current;
     if (!parent) return;
-    const model = createEquipmentModel(kind, section, transparent, {
-      trayCount,
-      column,
-    });
+    const { model, release } = acquireEquipmentModel(
+      kind,
+      section,
+      transparent,
+      {
+        trayCount,
+        column,
+      },
+    );
     rotors.current = [];
     model.traverse((part) => {
       if (
@@ -80,14 +82,14 @@ export function EquipmentModel({
     return () => {
       parent.remove(model);
       rotors.current = [];
-      disposeEquipmentModel(model);
+      release();
     };
   }, [kind, section, transparent, invalidate, clock, trayCount, column]);
   // Composition edits replace only the fluid, preserving equipment, camera,
   // and animation time while the new material colors become visible.
   useLayoutEffect(() => {
     const parent = mount.current;
-    if (!parent) return;
+    if (!parent || (!section && !transparent)) return;
     const fluid = createProcessContents(
       kind,
       section || transparent,
@@ -118,15 +120,17 @@ export function EquipmentModel({
     compositionColors,
   ]);
   useFrame((_, delta) => {
+    const previousTime = clock.uniform.value;
     clock.advance(delta, playing, speed);
-    for (const rotor of rotors.current) {
-      const angle = clock.uniform.value * rotor.userData.angularSpeed;
-      rotor.rotation.set(
-        rotor.userData.angularAxis === "x" ? angle : 0,
-        rotor.userData.angularAxis === "x" ? 0 : angle,
-        0,
-      );
-    }
+    if (clock.uniform.value !== previousTime)
+      for (const rotor of rotors.current) {
+        const angle = clock.uniform.value * rotor.userData.angularSpeed;
+        rotor.rotation.set(
+          rotor.userData.angularAxis === "x" ? angle : 0,
+          rotor.userData.angularAxis === "x" ? 0 : angle,
+          0,
+        );
+      }
     contents.current?.update(motionVisible);
   });
   return (
@@ -164,9 +168,8 @@ export function SystemConnections({
   }, [system, transparent, section, invalidate]);
   useLayoutEffect(() => {
     const parent = mount.current;
-    if (!parent) return;
+    if (!parent || (!transparent && !section)) return;
     const fluid = createSystemFlow(system, clock, streamColors);
-    fluid.visible = transparent || section;
     parent.add(fluid);
     invalidate();
     return () => {

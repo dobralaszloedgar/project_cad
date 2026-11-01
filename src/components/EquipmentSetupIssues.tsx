@@ -95,7 +95,7 @@ export default function EquipmentSetupIssues({
               <strong>
                 {invalid ? "Review equipment errors" : "Complete setup"}
               </strong>
-              <span>Select an item to go to its field.</span>
+              <span>Select a field to edit.</span>
             </div>
             <button
               type="button"

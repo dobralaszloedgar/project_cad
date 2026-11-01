@@ -20,6 +20,7 @@ import {
   DirectionalLight,
   Group,
   MathUtils,
+  Matrix4,
   PerspectiveCamera,
   Vector3,
 } from "three";
@@ -751,6 +752,13 @@ function ProjectLabels({
 }) {
   const point = useMemo(() => new Vector3(), []);
   const widths = useRef(new Map<string, number>());
+  const projection = useRef({
+    view: new Matrix4(),
+    camera: new Matrix4(),
+    width: 0,
+    height: 0,
+    dirty: true,
+  });
   const invalidate = useThree((state) => state.invalidate);
   useEffect(() => {
     // Measure labels outside the render loop: interleaved width reads and
@@ -761,8 +769,10 @@ function ProjectLabels({
         if (id)
           widths.current.set(id, (entry.target as HTMLElement).offsetWidth);
       }
+      projection.current.dirty = true;
       invalidate();
     });
+    projection.current.dirty = true;
     widths.current.clear();
     for (const item of labels) {
       const element = elements.current.get(item.id);
@@ -774,6 +784,22 @@ function ProjectLabels({
     return () => observer.disconnect();
   }, [labels, elements, invalidate]);
   useFrame(({ camera, size }) => {
+    // Fluid animation leaves labels in place. Reproject only after navigation,
+    // viewport changes, or a label edit/resize, avoiding per-frame DOM writes.
+    const previous = projection.current;
+    if (
+      !previous.dirty &&
+      previous.width === size.width &&
+      previous.height === size.height &&
+      previous.view.equals(camera.matrixWorldInverse) &&
+      previous.camera.equals(camera.projectionMatrix)
+    )
+      return;
+    previous.dirty = false;
+    previous.width = size.width;
+    previous.height = size.height;
+    previous.view.copy(camera.matrixWorldInverse);
+    previous.camera.copy(camera.projectionMatrix);
     const occupied: { x: number; y: number; width: number }[] = [];
     for (const item of labels) {
       const element = elements.current.get(item.id);

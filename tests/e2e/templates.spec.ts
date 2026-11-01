@@ -88,7 +88,7 @@ test("every offered template loads its specifications and runs without a chemica
         bed.reactions.length,
       );
       await page
-        .getByText("Published kinetics · source and limits", { exact: true })
+        .getByText("Kinetics source and limits", { exact: true })
         .click();
       const source = page.locator(".kinetics-source");
       await expect(source.getByRole("link")).toHaveAttribute(
@@ -235,9 +235,7 @@ test("published reactor recipes reload offline with source limits on a narrow sc
     .filter({ hasText: "R-101" })
     .dblclick();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page
-    .getByText("Published kinetics · source and limits", { exact: true })
-    .click();
+  await page.getByText("Kinetics source and limits", { exact: true }).click();
   const source = page.locator(".kinetics-source");
   await expect(source).toContainText("Choi & Stenger");
   expect(await source.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(

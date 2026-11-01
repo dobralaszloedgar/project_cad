@@ -214,7 +214,7 @@ export function equipmentSetupIssues(
     });
   const settings = project.thermo ?? defaultThermo;
   if (settings.mixture === "catalog" && !settings.catalog) {
-    add("Select project components and load their property data.", "missing", {
+    add("Select components and load property data.", "missing", {
       section: "thermodynamics",
       field: "components",
     });
@@ -222,7 +222,7 @@ export function equipmentSetupIssues(
   }
   if (settings.modelId !== "ideal-gas" && settings.mixture === "demo")
     add(
-      "Choose a real sample mixture for the liquid-solution models; synthetic A/B has no vapor-pressure or group data.",
+      "Liquid thermodynamics requires real components; synthetic A/B lacks property data.",
     );
   try {
     const { ids, catalog } = thermoContext(settings);
@@ -259,14 +259,12 @@ export function equipmentSetupIssues(
             );
         }
         if (settings.modelId !== "ideal-gas")
-          add("The reaction-set PBR requires the ideal-gas model.");
+          add("PBR requires the ideal-gas model.");
       } else if (
         settings.mixture !== "demo" ||
         settings.modelId !== "ideal-gas"
       )
-        add(
-          "The sample PBR reaction supports synthetic A/B with the ideal-gas model only.",
-        );
+        add("Sample PBR requires synthetic A/B and the ideal-gas model.");
     }
     const d = unit.params.distillation;
     if (unit.kind === "Distillation" && d) {
@@ -274,7 +272,7 @@ export function equipmentSetupIssues(
         for (const key of ["lightKey", "heavyKey"] as const)
           if (!d[key] || !new Set<string>(ids).has(d[key]!))
             add(
-              `Select a ${key === "lightKey" ? "light" : "heavy"} key from the project components.`,
+              `Select a ${key === "lightKey" ? "light" : "heavy"} key.`,
               "missing",
               { section: "settings", field: `distillation.${key}` },
             );
@@ -305,7 +303,7 @@ export function equipmentSetupIssues(
         for (const id of active)
           if (!(d.relativeVolatilities[id] > 0))
             add(
-              `Supply a positive relative volatility for ${catalog.get(id).name}.`,
+              `Enter relative volatility > 0 for ${catalog.get(id).name}.`,
               "missing",
               {
                 section: "settings",
@@ -314,11 +312,9 @@ export function equipmentSetupIssues(
             );
       } else {
         if (d.feedTray > unit.params.trayCount)
-          add("Feed tray must be within the installed equilibrium trays.");
+          add("Feed tray must be within the tray count.");
         if (settings.modelId === "ideal-gas")
-          add(
-            "MESH requires liquid thermodynamics. Select a liquid model and real project components.",
-          );
+          add("MESH requires liquid thermodynamics and real components.");
       }
     }
     if (
@@ -327,7 +323,7 @@ export function equipmentSetupIssues(
     ) {
       if (settings.modelId !== "ideal-gas")
         add(
-          "Specified duty supports the ideal-gas model only; select an outlet temperature for liquid models.",
+          "Specified duty requires the ideal-gas model. Otherwise, set outlet temperature.",
           "error",
           { section: "settings", field: "thermalMode" },
         );

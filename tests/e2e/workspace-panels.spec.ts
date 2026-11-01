@@ -19,7 +19,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     exact: true,
   });
   const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
-  await expect(tabs.getByRole("button")).toHaveCount(2);
+  await expect(tabs.getByRole("button")).toHaveCount(3);
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
   const canvas = (await page.locator(".canvas-panel").boundingBox())!;
   // Wait for the initial fit before comparing panel actions with this camera.
@@ -27,9 +27,23 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     "transform",
     "matrix(1, 0, 0, 1, 0, 0)",
   );
-  const viewport = await page
-    .locator(".react-flow__viewport")
-    .getAttribute("style");
+  const viewport = await page.locator(".react-flow__viewport").evaluate(
+    (element) =>
+      new Promise<string | null>((resolve) => {
+        let previous = element.getAttribute("style");
+        let stableSince = performance.now();
+        function sample(now: number) {
+          const current = element.getAttribute("style");
+          if (current !== previous) {
+            previous = current;
+            stableSince = now;
+          }
+          if (now - stableSince >= 300) resolve(current);
+          else requestAnimationFrame(sample);
+        }
+        requestAnimationFrame(sample);
+      }),
+  );
   const tabBox = (await pullTab.boundingBox())!;
   expect(tabBox.x).toBe(canvas.x);
   expect(tabBox.y + tabBox.height / 2).toBeCloseTo(
@@ -41,6 +55,7 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(menu.getByRole("button")).toHaveText([
     "Equipment",
     "Results",
+    "Themes",
     "Components",
     "Thermodynamics",
     "Toggle chat",
@@ -229,7 +244,7 @@ test("phone pull tab and panels remain reachable without page overflow", async (
   });
   const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
-  for (const name of ["Equipment", "Settings", "Results"]) {
+  for (const name of ["Equipment", "Themes", "Settings", "Results"]) {
     await pullTab.click();
     await menu.getByRole("button", { name, exact: true }).click();
     const panel = page.getByRole("complementary", { name });

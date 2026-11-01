@@ -58,10 +58,7 @@ export function EquipmentModelNotes({
             .
           </li>
         ) : (
-          <li>
-            Component heat-capacity and vapor-pressure correlations have
-            temperature limits.
-          </li>
+          <li>Property correlations have temperature limits.</li>
         )}
         <li>
           Vapor-only volume flow:{" "}
@@ -91,29 +88,25 @@ export function EquipmentModelNotes({
           <Equation>{String.raw`\frac{dF_i}{dW} = \sum_j \nu_{ij}\frac{r_j}{|\nu_{b,j}|},\qquad Q = \dot H_{\mathrm{out}} - \dot H_{\mathrm{in}}`}</Equation>
           <ul>
             <li>
-              Enabled reactions are solved together in stoichiometric extent
-              coordinates. Rates specify net disappearance of each reaction’s
-              basis reactant, per kg of catalyst.
+              Enabled reactions are coupled. Rates measure basis-reactant
+              consumption per kg of catalyst.
             </li>
             <li>
-              Isothermal gas model. Pressure follows the specified linear drop;
-              volume flow is calculated from local ideal-gas conditions or held
-              at the entered value.
+              Isothermal gas with linear pressure drop. Volume flow is ideal-gas
+              or fixed.
             </li>
             <li>
-              Power-law or general kinetics, including explicit reverse and
-              inhibition terms. Reference-temperature Arrhenius scaling uses
-              user-specified activation energies.
+              Power-law or general kinetics, with reverse, inhibition and
+              Arrhenius terms.
             </li>
             <li>
-              Conversion sizing finds the first resolved target crossing.
-              Unreachable targets, nonphysical depletion and unresolved stiff
-              kinetics are reported as calculation errors.
+              Sizing uses the first target crossing. Unreachable targets,
+              depletion and unresolved stiff kinetics return errors.
             </li>
             <li>
-              Atom and mass balance, component availability and formation
-              enthalpy are checked. No phase equilibrium, transport resistance,
-              catalyst deactivation or mechanical bed design is modeled.
+              Checks atom and mass balance, component data and formation
+              enthalpy. No phase equilibrium, transport resistance or catalyst
+              deactivation.
             </li>
           </ul>
         </>
@@ -206,10 +199,10 @@ export function EquipmentModelNotes({
             <Equation>{String.raw`N_{\min}=\frac{\ln\left[\frac{r_L r_H}{(1-r_L)(1-r_H)}\right]}{\ln(\alpha_L/\alpha_H)}`}</Equation>
             <Equation>{String.raw`\sum_i\frac{\alpha_i z_i}{\alpha_i-\theta}=1-q,\qquad R_{\min}+1=\sum_i\frac{\alpha_i x_{D,i}}{\alpha_i-\theta}`}</Equation>
             <p>
-              FUG uses supplied mean relative volatilities and constant molar
-              overflow. Nonkey recoveries use Hengstebeck–Geddes; stages use the
-              explicit Gilliland fit. No azeotrope prediction, phase-equilibrium
-              stage profile, or end duties.
+              Constant relative volatilities and molar overflow.
+              Hengstebeck–Geddes recoveries and Gilliland stages. Feed q and
+              product temperatures are specified. No azeotrope prediction, stage
+              profiles or end duties.
             </p>
           </>
         ) : (
@@ -218,12 +211,10 @@ export function EquipmentModelNotes({
             <Equation>{String.raw`y_{i,j}P_j=x_{i,j}\gamma_{i,j}P_i^{sat}(T_j),\qquad\sum_i x_{i,j}=\sum_i y_{i,j}=1`}</Equation>
             <Equation>{String.raw`L_{j-1}h_{j-1}+V_{j+1}H_{j+1}+F_jh_F+Q_j=L_jh_j+V_jH_j`}</Equation>
             <p>
-              MESH solves simultaneous stage balances with the selected VLE and
-              caloric model. Adiabatic trays, one feed, total condenser, kettle
-              reboiler. Optional sieve-tray hydraulic rating reports flooding
-              and weeping limits after convergence, without changing separation.
-              No tray efficiency or hydraulic feedback; no liquid–liquid
-              stability search.
+              One feed, adiabatic trays, saturated total condenser and kettle
+              reboiler. Uses the selected equilibrium and enthalpy models.
+              Hydraulics are rated separately. No tray efficiencies, hydraulic
+              feedback, side draws or liquid–liquid stability check.
             </p>
           </>
         ))}
@@ -283,8 +274,8 @@ export function EquipmentModelNotes({
       <ul>
         <li>
           {unit.params.packedBed
-            ? "Prescribed pressure drop; no hydraulic bed sizing or mechanical certification."
-            : "No pressure-drop model or mechanical certification."}
+            ? "Specified bed pressure drop; no hydraulic or mechanical sizing."
+            : "No mechanical sizing."}
         </li>
       </ul>
     </div>

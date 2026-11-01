@@ -17,7 +17,7 @@ export function KineticsSource({
       .join("–")} ${display.quantityLabel(dimension)}`;
   return (
     <details className="kinetics-source">
-      <summary>Published kinetics · source and limits</summary>
+      <summary>Kinetics source and limits</summary>
       <div>
         <a href={source.url} target="_blank" rel="noreferrer">
           {source.citation}
@@ -43,8 +43,7 @@ export function KineticsSource({
         </dl>
         <p>{source.notes}</p>
         <p className="equipment-help">
-          This reference describes the original template. Edited values may
-          differ from the publication.
+          Source for the original template; edits may differ.
         </p>
       </div>
     </details>

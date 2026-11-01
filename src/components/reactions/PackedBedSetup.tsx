@@ -194,8 +194,7 @@ function SpeciesTable({
       ))}
       {!rows.length && (
         <p className="equipment-help">
-          Add a {side === "reactants" ? "reactant" : "product"} from the project
-          components.
+          Add a {side === "reactants" ? "reactant" : "product"}.
         </p>
       )}
       <button
@@ -339,9 +338,7 @@ export function PackedBedSetup({
               }
             >
               <option value="ideal-gas">Ideal-gas flow · FRT/P</option>
-              <option value="constant-flow">
-                Specified constant volume flow
-              </option>
+              <option value="constant-flow">Constant volume flow</option>
             </select>
           </label>
           {value.flowModel === "constant-flow" && (
@@ -358,15 +355,14 @@ export function PackedBedSetup({
         </div>
         {value.sizingMode === "target-conversion" && (
           <p className="equipment-help">
-            Target the overall disappearance of an inlet reactant across all
-            enabled reactions.
+            Overall reactant conversion across enabled reactions.
           </p>
         )}
         <p className="equipment-help">
-          Isothermal gas reaction. Pressure drops linearly across the bed.{" "}
+          Linear pressure drop.{" "}
           {value.flowModel === "ideal-gas"
-            ? "Volume flow follows local composition, temperature and pressure."
-            : "Concentrations use the specified volume flow; gas expansion is neglected."}
+            ? "Volume flow follows local gas conditions."
+            : "Constant volume flow; gas expansion is ignored."}
         </p>
       </section>
       <section
@@ -380,10 +376,7 @@ export function PackedBedSetup({
             {value.reactions.length} enabled
           </span>
         </div>
-        <p className="equipment-help">
-          Define main, competing and consecutive reactions. All enabled
-          reactions share the mixture and are solved together.
-        </p>
+        <p className="equipment-help">Enabled reactions are solved together.</p>
         <div className="reaction-cards" aria-label="Reactions in this reactor">
           {value.reactions.map((reaction, index) => (
             <div
@@ -413,7 +406,7 @@ export function PackedBedSetup({
                 </span>
                 <small>
                   {reaction.rateLaw
-                    ? `General law · ${reaction.rateLaw.mode === "custom" ? "custom expression" : "table builder"}`
+                    ? `General law · ${reaction.rateLaw.mode === "custom" ? "expression" : "table"}`
                     : `Power law · order ${reaction.order} · k = ${reaction.rateConstant}`}
                 </small>
               </button>
@@ -434,10 +427,7 @@ export function PackedBedSetup({
         {!value.reactions.length && (
           <div className="reaction-empty">
             <strong>Define your first reaction</strong>
-            <p>
-              Choose reactants and products from the project components, then
-              enter the rate law and its constants.
-            </p>
+            <p>Add reactants, products and kinetics.</p>
           </div>
         )}
         <div className="reaction-actions">
@@ -503,8 +493,7 @@ export function PackedBedSetup({
             </div>
             {!selected.enabled && (
               <p className="equipment-help">
-                This reaction is disabled. Its definition is retained and
-                contributes zero rate.
+                Disabled; excluded from calculations.
               </p>
             )}
             <label>
@@ -542,8 +531,8 @@ export function PackedBedSetup({
               />
             </div>
             <p className="equipment-help">
-              Enter positive coefficients on each side. Components absent from
-              the reaction remain inert. Add chemicals in Project components.
+              Use positive coefficients. Unlisted components are inert in this
+              reaction.
             </p>
             <section
               className="reaction-kinetics"
@@ -600,19 +589,11 @@ export function PackedBedSetup({
                       });
                     }}
                   >
-                    <option value="power-law">
-                      Simple power law · one species
-                    </option>
-                    <option value="general">
-                      General rate law · tables or expression
-                    </option>
+                    <option value="power-law">Power law · one species</option>
+                    <option value="general">General rate law</option>
                   </select>
                 </label>
               </div>
-              <p className="equipment-help">
-                Rates describe net disappearance of the basis species. Reaction
-                extent is the rate divided by its stoichiometric coefficient.
-              </p>
               {selected.rateLaw ? (
                 <RateLawEditor
                   law={selected.rateLaw}
@@ -678,10 +659,9 @@ export function PackedBedSetup({
                     />
                   )}
                   <p className="equipment-help">
-                    Changing reaction order changes the units of k. Use a
-                    general law for multiple species, reverse rates or
-                    inhibition. Zero activation energy makes k independent of
-                    temperature.
+                    Order sets k’s units. Zero activation energy keeps k
+                    constant. Use a general law for multiple species, reverse
+                    rates or inhibition.
                   </p>
                 </>
               )}

@@ -1,8 +1,10 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { settleCanvas } from "./canvas-fixture";
 
 const edgeFor = (page: Page, id: string) =>
   page.locator(`.react-flow__edge[data-id="${id}"]`);
 async function openStream(page: Page, id: string) {
+  await settleCanvas(page);
   const point = await edgeFor(page, id)
     .locator(".react-flow__edge-path")
     .evaluate((element) => {

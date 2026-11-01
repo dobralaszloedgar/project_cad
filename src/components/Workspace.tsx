@@ -28,6 +28,7 @@ import {
   Rainbow,
   HardDrive,
   Ruler,
+  Palette,
 } from "lucide-react";
 import { useCanvasFullscreen } from "./useCanvasFullscreen";
 import Dialog from "./Dialog";
@@ -123,6 +124,7 @@ import ProjectStorageSettings from "./ProjectStorageSettings";
 import UnitSettings from "./UnitSettings";
 import { useUnitSystem } from "./useUnitSystem";
 import ProjectFolderSetup from "./ProjectFolderSetup";
+import ThemePicker from "./ThemePicker";
 import { useTheme } from "./useTheme";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
 import {
@@ -136,7 +138,12 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
 type WorkspacePanel =
-  "Equipment" | "Results" | "Units" | "Storage settings" | "Settings";
+  | "Equipment"
+  | "Results"
+  | "Themes"
+  | "Units"
+  | "Storage settings"
+  | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
     ? `Saved to ${location.folderName}/${location.fileName ?? "project.json"}`
@@ -213,6 +220,7 @@ export default function Workspace({
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [editingComponents, setEditingComponents] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const assistantApplyLock = useRef(false);
   useEffect(() => {
@@ -307,6 +315,7 @@ export default function Workspace({
   }, [ready, showProjects, displayProjectName]);
   const pullTabRef = useRef<HTMLButtonElement>(null);
   const unitsButtonRef = useRef<HTMLButtonElement>(null);
+  const themesButtonRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuPinned = useRef(false);
   function closeWorkspaceMenu() {
@@ -336,7 +345,12 @@ export default function Workspace({
     setThermoDialog(null);
   }
   function closeDrawer() {
-    const trigger = drawer === "Units" ? unitsButtonRef : pullTabRef;
+    const trigger =
+      drawer === "Units"
+        ? unitsButtonRef
+        : drawer === "Themes"
+          ? themesButtonRef
+          : pullTabRef;
     setDrawer(null);
     requestAnimationFrame(() => trigger.current?.focus());
   }
@@ -352,7 +366,12 @@ export default function Workspace({
       event.preventDefault();
       closeWorkspaceMenu();
       setDrawer(null);
-      (drawer === "Units" ? unitsButtonRef : pullTabRef).current?.focus();
+      (drawer === "Units"
+        ? unitsButtonRef
+        : drawer === "Themes"
+          ? themesButtonRef
+          : pullTabRef
+      ).current?.focus();
     }
     function onPointerDown(event: PointerEvent) {
       if (
@@ -753,6 +772,7 @@ export default function Workspace({
     }
   }
   function inspect(id: string) {
+    setEditingComponents(false);
     setIssueTarget(undefined);
     setSelected(id);
     setPropertiesOpen(true);
@@ -994,6 +1014,7 @@ export default function Workspace({
     setMessage("");
     setPropertiesOpen(false);
     setTemplatesOpen(false);
+    setEditingComponents(false);
     setAssistantOpen(false);
     setView("2D");
     setPlaybackOnOpen(false);
@@ -1552,7 +1573,7 @@ export default function Workspace({
     );
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
-    <main className="workspace" data-theme="light" data-palette="light">
+    <main className="workspace" data-theme={theme} data-palette={palette.id}>
       <header
         className="app-header"
         inert={!ready || projectBusy || isViewportFullscreen}
@@ -1693,6 +1714,7 @@ export default function Workspace({
                 {[
                   { name: "Equipment", icon: EquipmentPanelIcon },
                   { name: "Results", icon: ChartNoAxesColumnIncreasing },
+                  { name: "Themes", icon: Palette },
                   { name: "Components", icon: FlaskConical },
                   { name: "Thermodynamics", icon: Thermometer },
                   { name: "Toggle chat", icon: MessageCircle },
@@ -1759,6 +1781,8 @@ export default function Workspace({
                         inspect(id);
                       }}
                     />
+                  ) : drawer === "Themes" ? (
+                    <ThemePicker value={palette.id} onChange={setTheme} />
                   ) : (
                     <>
                       {drawer === "Settings" ? (
@@ -1858,6 +1882,21 @@ export default function Workspace({
               >
                 <ChartNoAxesColumnIncreasing size={18} />
                 <span>Results</span>
+              </button>
+              <span className="tool-divider" />
+              <button
+                ref={themesButtonRef}
+                className={drawer === "Themes" ? "active" : ""}
+                aria-label="Themes"
+                title="Themes"
+                aria-expanded={drawer === "Themes"}
+                aria-controls="workspace-themes-panel"
+                onClick={() =>
+                  drawer === "Themes" ? closeDrawer() : openPanel("Themes")
+                }
+              >
+                <Palette size={18} />
+                <span>Themes</span>
               </button>
             </nav>
             <div className="canvas-right-tools">
@@ -1969,8 +2008,8 @@ export default function Workspace({
             {view !== "2D" && ready ? (
               <Plant3D
                 initialPlaying={playbackOnOpen}
-                dark={false}
-                canvasColor="#fafbf9"
+                dark={theme === "dark"}
+                canvasColor={palette.swatch[0]}
                 project={project}
                 result={result}
                 selected={selected}
@@ -2053,13 +2092,23 @@ export default function Workspace({
       {propertiesOpen ? (
         <Dialog
           title={
-            selectedUnit
-              ? `${selectedUnit.name} · ${selectedUnit.id}`
-              : (project.edges.find((edge) => edge.id === selected)?.name ??
-                "Stream properties")
+            editingComponents
+              ? "Project components"
+              : selectedUnit
+                ? `${selectedUnit.name} · ${selectedUnit.id}`
+                : (project.edges.find((edge) => edge.id === selected)?.name ??
+                  "Stream properties")
           }
-          className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
+          className={
+            editingComponents
+              ? "components-dialog"
+              : `properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`
+          }
           onClose={() => {
+            if (editingComponents) {
+              setEditingComponents(false);
+              return;
+            }
             setPropertiesOpen(false);
             setIssueTarget(undefined);
           }}
@@ -2069,6 +2118,8 @@ export default function Workspace({
             selected={selected}
             result={result}
             issueTarget={issueTarget}
+            editingComponents={editingComponents}
+            onEditingComponentsChange={setEditingComponents}
             status={selectedUnit ? statuses[selectedUnit.id] : undefined}
             onNavigateIssue={(target) =>
               selected && navigateIssue(selected, target)

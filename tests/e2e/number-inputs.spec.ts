@@ -287,8 +287,6 @@ test("reaction inputs respect their ranges and retain scientific notation", asyn
   await order.press("ArrowDown");
   await expect(order).toHaveValue("-0.6");
   await page.getByLabel("Rate species 1 basis").selectOption("mole-fraction");
-  await page
-    .getByText("Test the rate with sample values", { exact: true })
-    .click();
+  await page.getByText("Test sample values", { exact: true }).click();
   await checkBounds(page.getByLabel("Sample a", { exact: true }), 0, 1);
 });

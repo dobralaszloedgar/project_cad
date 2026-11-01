@@ -26,7 +26,7 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   ).toHaveCount(0);
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-palette",
-    "light",
+    "nord",
   );
   await trigger.click();
   const modelDialog = page.getByRole("dialog", {

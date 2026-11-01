@@ -201,7 +201,7 @@ test("missing reaction and column settings link to their setup controls", async 
     await hoverStatus(page, "H1")
   )
     .getByRole("button", {
-      name: "Select a light key from the project components.",
+      name: "Select a light key.",
     })
     .click();
   await expect(

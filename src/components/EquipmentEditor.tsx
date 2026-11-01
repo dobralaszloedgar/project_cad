@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import {
   CheckCircle2,
   ChevronDown,
@@ -12,16 +11,9 @@ import {
 } from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
-import {
-  defaultThermo,
-  modelInfo,
-  type ThermoSettings,
-} from "@/domain/thermo/registry";
-import {
-  componentNames,
-  mixtureName,
-  thermoContext,
-} from "@/domain/thermo/catalog";
+import { defaultThermo, type ThermoSettings } from "@/domain/thermo/registry";
+import { componentNames, thermoContext } from "@/domain/thermo/catalog";
+import { catalogChoices } from "@/lib/chemical-catalog";
 import { EquipmentModelNotes, CatalystProfile } from "./EquipmentModelNotes";
 import "./equipment-setup.css";
 import { PackedBedSetup } from "./reactions/PackedBedSetup";
@@ -45,7 +37,6 @@ import {
 import { revealEquipmentIssue } from "./equipment-issue-navigation";
 import UnitSelect from "./UnitSelect";
 import EquipmentSetupIssues from "./EquipmentSetupIssues";
-import Dialog from "./Dialog";
 import ProjectComponents from "./ProjectComponents";
 import "./equipment-status.css";
 
@@ -121,13 +112,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section
       className="equipment-section"
-      data-setup-section={
-        title === "Composition"
-          ? "composition"
-          : title === "Thermodynamics"
-            ? "thermodynamics"
-            : undefined
-      }
+      data-setup-section={title === "Composition" ? "composition" : undefined}
     >
       <h3>{title}</h3>
       {children}
@@ -136,7 +121,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function Connections({ unit, project }: { unit: Unit; project: Project }) {
-  const settings = project.thermo ?? defaultThermo;
   const unitPorts = ports(unit.kind);
   const missing = [
     ...(unit.kind === "Mixer"
@@ -197,7 +181,6 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
             );
           }),
         )}
-        <p className="equipment-help">Connect streams on the flowsheet.</p>
         {missing.length ? (
           <p className="equipment-help">
             Connect{" "}
@@ -208,22 +191,14 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
                     port
                   ] ?? port,
               )
-              .join(", ")}{" "}
-            before calculating.
+              .join(", ")}
+            .
           </p>
         ) : (
           <p className="equipment-connected">
-            <CheckCircle2 size={14} /> All required ports connected
+            <CheckCircle2 size={14} /> Connected
           </p>
         )}
-      </Section>
-      <Section title="Thermodynamics">
-        <dl className="equipment-context">
-          <dt>Property model</dt>
-          <dd>{modelInfo(settings.modelId).name}</dd>
-          <dt>Components</dt>
-          <dd>{mixtureName(settings)}</dd>
-        </dl>
       </Section>
     </aside>
   );
@@ -378,6 +353,8 @@ export default function EquipmentEditor({
   status,
   onNavigateIssue,
   onComponentsChange,
+  editingComponents,
+  onEditingComponentsChange,
 }: {
   unit: Unit;
   project: Project;
@@ -389,11 +366,12 @@ export default function EquipmentEditor({
   status?: EquipmentStatus;
   onNavigateIssue?: (target: EquipmentTarget) => void;
   onComponentsChange: (settings: ThermoSettings) => void;
+  editingComponents: boolean;
+  onEditingComponentsChange: (open: boolean) => void;
 }) {
   const settings = project.thermo ?? defaultThermo;
   const context = thermoContext(settings);
   const [params, setParams] = useState(() => setupParams(unit, context.ids));
-  const [componentsOpen, setComponentsOpen] = useState(false);
   const display = useUnitSystem();
   const [name, setName] = useState(unit.name);
   const [tab, setTab] = useState<"setup" | "results">(
@@ -401,7 +379,14 @@ export default function EquipmentEditor({
   );
   const [lastTarget, setLastTarget] = useState(issueTarget);
   const root = useRef<HTMLElement>(null);
+  const componentsButton = useRef<HTMLButtonElement>(null);
+  const wasEditingComponents = useRef(false);
   const clearNavigation = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => {
+    if (wasEditingComponents.current && !editingComponents)
+      componentsButton.current?.focus();
+    wasEditingComponents.current = editingComponents;
+  }, [editingComponents]);
   if (lastTarget !== issueTarget) {
     setLastTarget(issueTarget);
     if (issueTarget)
@@ -450,10 +435,6 @@ export default function EquipmentEditor({
               ? 1 - params.fractionA
               : 0),
     ]),
-  );
-  const compositionTotal = Object.values(composition).reduce(
-    (sum, n) => sum + n,
-    0,
   );
   const draftIssues = equipmentSetupIssues(project, {
     ...unit,
@@ -539,6 +520,32 @@ export default function EquipmentEditor({
     "1",
     "K",
   );
+  if (editingComponents)
+    return (
+      <ProjectComponents
+        project={project}
+        onCancel={() => onEditingComponentsChange(false)}
+        onApply={(next) => {
+          const nextIds = thermoContext(next).ids;
+          const choices = catalogChoices(settings);
+          // Built-in mixtures use names as IDs; catalog records use CAS IDs.
+          const catalogComposition = Object.fromEntries(
+            context.ids.map((id, index) => [
+              choices[index]?.id ?? id,
+              composition[id],
+            ]),
+          );
+          setParams((current) => ({
+            ...current,
+            composition: Object.fromEntries(
+              nextIds.map((id) => [id, catalogComposition[id] ?? 0]),
+            ),
+          }));
+          onComponentsChange(next);
+          onEditingComponentsChange(false);
+        }}
+      />
+    );
   return (
     <aside className="panel inspector equipment-editor" ref={root}>
       <div className="equipment-editor-top">
@@ -698,16 +705,6 @@ export default function EquipmentEditor({
                 </Section>
                 <Section title="Composition">
                   <>
-                    <div className="equipment-composition-actions">
-                      <span>{chemicals.length} project components</span>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => setComponentsOpen(true)}
-                      >
-                        <Plus size={14} /> Add components
-                      </button>
-                    </div>
                     <div className="equipment-composition-heading">
                       <span>Component</span>
                       <span>Mole fraction / ratio</span>
@@ -738,52 +735,27 @@ export default function EquipmentEditor({
                         />
                       </div>
                     ))}
-                    <div className="reaction-actions">
-                      <output aria-label="Total mole fraction">
-                        Total:{" "}
-                        {Number.isFinite(compositionTotal)
-                          ? Number(compositionTotal.toFixed(8))
-                          : "—"}
-                      </output>
+                    <p className="equipment-help">
+                      If values add up to more than 1, they are treated as
+                      ratios.
+                    </p>
+                    <div className="equipment-composition-actions">
+                      <span>{chemicals.length} project components</span>
                       <button
+                        ref={componentsButton}
                         type="button"
                         className="btn btn-sm"
-                        disabled={
-                          !Object.values(composition).some(
-                            (value) => value > 0,
-                          ) ||
-                          Object.values(composition).some(
-                            (value) => !Number.isFinite(value) || value < 0,
-                          )
-                        }
-                        onClick={() =>
-                          setParams({
-                            ...params,
-                            composition: normalizeComposition(composition),
-                          })
-                        }
+                        onClick={() => onEditingComponentsChange(true)}
                       >
-                        Normalize composition
+                        <Plus size={14} /> Add components
                       </button>
                     </div>
-                    <p className="equipment-help">
-                      Enter mole fractions, percentages or ratios. Values are
-                      normalized automatically when applied (for example, 2:3
-                      becomes 0.4:0.6). Use zero for components absent from this
-                      feed.
-                    </p>
                   </>
                 </Section>
               </>
             )}
             {thermal && (
-              <Section
-                title={
-                  unit.kind === "Heater"
-                    ? "Heating specification"
-                    : "Cooling specification"
-                }
-              >
+              <Section title={unit.kind === "Heater" ? "Heating" : "Cooling"}>
                 <label
                   className="equipment-field"
                   data-setup-field="thermalMode"
@@ -805,7 +777,7 @@ export default function EquipmentEditor({
                       value="duty"
                       disabled={settings.modelId !== "ideal-gas"}
                     >
-                      Specified heat duty
+                      Heat duty
                     </option>
                   </select>
                 </label>
@@ -821,10 +793,10 @@ export default function EquipmentEditor({
                     )}
                 <p className="equipment-help">
                   {params.thermalMode === "duty"
-                    ? "Positive duty adds heat; negative duty removes heat. Outlet temperature is calculated."
-                    : "Heat duty is calculated from the inlet and outlet enthalpy."}
+                    ? "Positive duty heats; negative duty cools."
+                    : "Heat duty is calculated."}
                   {settings.modelId !== "ideal-gas" &&
-                    " Specified duty requires the ideal-gas model. Use outlet temperature with this model."}
+                    " Specified duty requires ideal gas."}
                 </p>
               </Section>
             )}
@@ -833,8 +805,7 @@ export default function EquipmentEditor({
                 <Section title="Operating conditions">
                   <div className="equipment-field-grid">{temperature}</div>
                   <p className="equipment-help">
-                    Isothermal operation. Inlet pressure comes from the
-                    connected stream.
+                    Isothermal. Inlet pressure comes from the feed.
                   </p>
                 </Section>
                 {params.packedBed && (
@@ -852,7 +823,7 @@ export default function EquipmentEditor({
             {unit.kind === "Splitter" && (
               <Section title="Outlet split">
                 <p className="equipment-help">
-                  Both outlets retain the inlet composition, temperature and
+                  Both outlets keep the inlet composition, temperature and
                   pressure.
                 </p>
                 <div className="equipment-field-grid">
@@ -910,8 +881,8 @@ export default function EquipmentEditor({
                       </div>
                     ) : (
                       <p className="equipment-help">
-                        The feed temperature and pressure determine the phase
-                        split. Vapor leaves outlet 1; liquid leaves outlet 2.
+                        Flash at feed conditions. Outlet 1: vapor; outlet 2:
+                        liquid.
                       </p>
                     )}
                   </Section>
@@ -934,8 +905,8 @@ export default function EquipmentEditor({
                   )}
                   <p className="equipment-help">
                     {params.distillation?.method === "mesh"
-                      ? "This count sets the solved equilibrium trays and resizes both views. Condenser and reboiler are additional stages."
-                      : "Visible trays resize both column views. They do not constrain the separation calculation."}
+                      ? "Excludes the condenser and reboiler."
+                      : "Appearance only; does not affect separation."}
                   </p>
                 </Section>
               </>
@@ -943,28 +914,23 @@ export default function EquipmentEditor({
             {unit.kind === "Mixer" && (
               <Section title="Mixing conditions">
                 <p className="equipment-help">
-                  The outlet conserves component flows and enthalpy at the
-                  lowest flowing inlet pressure. Temperature and composition are
-                  calculated from the connected feeds.
-                </p>
-                <p className="equipment-help">
-                  Connect one or more feeds to the mixer’s center on the
-                  flowsheet.
+                  Connect feeds at the center. Outlet temperature and
+                  composition are calculated at the lowest flowing inlet
+                  pressure.
                 </p>
               </Section>
             )}
             {unit.kind === "Product" && (
               <Section title="Product stream">
                 <p className="equipment-help">
-                  Flow, composition, temperature and pressure come from the
-                  connected inlet. View the calculated state in Results.
+                  Uses the inlet state. See Results.
                 </p>
               </Section>
             )}
             <details className="equipment-model-details">
               <summary>
                 <Info size={15} />
-                Model equations and assumptions
+                Model details
                 <ChevronDown size={15} />
               </summary>
               <EquipmentModelNotes
@@ -1042,31 +1008,6 @@ export default function EquipmentEditor({
           Calculate
         </button>
       </footer>
-      {componentsOpen &&
-        createPortal(
-          <Dialog
-            title="Project components"
-            className="components-dialog"
-            onClose={() => setComponentsOpen(false)}
-          >
-            <ProjectComponents
-              project={project}
-              onCancel={() => setComponentsOpen(false)}
-              onApply={(next) => {
-                const nextIds = thermoContext(next).ids;
-                setParams((current) => ({
-                  ...current,
-                  composition: Object.fromEntries(
-                    nextIds.map((id) => [id, composition[id] ?? 0]),
-                  ),
-                }));
-                onComponentsChange(next);
-                setComponentsOpen(false);
-              }}
-            />
-          </Dialog>,
-          document.body,
-        )}
     </aside>
   );
 }
