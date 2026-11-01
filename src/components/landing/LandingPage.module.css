@@ -12,7 +12,7 @@
 
 .story {
   position: relative;
-  height: 780svh;
+  height: 380svh;
   color: var(--ink);
   background: #fafbf9;
   font:
@@ -681,9 +681,6 @@
   }
   .chapter[data-scene="build"] .sceneActions {
     bottom: 7.5%;
-  }
-  .story {
-    height: 750svh;
   }
   .header {
     height: 72px;

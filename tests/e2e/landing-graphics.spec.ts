@@ -22,6 +22,11 @@ for (const preference of ["auto", "webgl"] as const) {
     }, preference);
     await page.goto("/");
     const canvas = page.locator("[data-shared-scene] canvas");
+    await expect(canvas).toHaveCount(0);
+    await page
+      .getByRole("navigation", { name: "Story chapters" })
+      .getByRole("button", { name: "02 Build" })
+      .click();
     await expect(canvas).toHaveAttribute("data-ready", "true", {
       timeout: 30000,
     });

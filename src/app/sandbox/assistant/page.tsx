@@ -16,7 +16,9 @@ export default async function AssistantSandboxPage({
   return (
     <AssistantSandbox
       initialScenario={
-        scenario === "new" || scenario === "ready" ? scenario : "live"
+        scenario === "new" || scenario === "ready" || scenario === "install"
+          ? scenario
+          : "live"
       }
     />
   );

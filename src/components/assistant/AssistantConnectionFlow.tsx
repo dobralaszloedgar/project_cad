@@ -27,6 +27,7 @@ import {
   savedAgentSelection,
 } from "@/assistant/selection";
 import type { AssistantAvailability } from "./useAssistantDiscovery";
+import AssistantInstallationHelp from "./AssistantInstallationHelp";
 import styles from "./AssistantConnectionFlow.module.css";
 
 type Props = {
@@ -566,7 +567,7 @@ export default function AssistantConnectionFlow({
                     <h3>Open Project CAD Assistant</h3>
                     <p>
                       {download?.platform === "macos"
-                        ? "You’ll find it in your Applications folder."
+                        ? "In Finder, choose Go → Home → Applications."
                         : download?.platform === "windows"
                           ? "You’ll find it in your Start menu."
                           : "Launch the assistant from its installed folder."}{" "}
@@ -586,6 +587,12 @@ export default function AssistantConnectionFlow({
                   </div>
                 </li>
               </ol>
+              {download ? (
+                <AssistantInstallationHelp
+                  key={download.filename}
+                  download={download}
+                />
+              ) : null}
               {updating ? (
                 <button
                   className={styles.primary}

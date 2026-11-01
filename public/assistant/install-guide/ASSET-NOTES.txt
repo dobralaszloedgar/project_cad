@@ -1,0 +1,18 @@
+# Installer-guide reference assets
+
+These assets support the inline installer guide in the application’s assistant setup and its /sandbox/assistant?scenario=install preview.
+
+- `macos-filevault.png`, `macos-caution.png`, and `macos-package.png`: unchanged artwork converted from the corresponding macOS 26.1 system icon resources to PNG. `apple-menu.png` renders the macOS `apple.logo` system symbol.
+- `windows-setup-wizard.bmp`: the unmodified default NSIS 3.13 wizard bitmap used by the connector’s MUI2 installer.
+
+The tutorial windows are DOM recreations, not screen recordings. No personal account data or screenshots from this computer are included. Tahoe styling was checked against this Mac’s System Settings; warning text was checked against its English quarantine resources. Sequoia and SmartScreen were checked against the official references below. The Windows package has not been run on Windows as part of this guide’s verification.
+
+References:
+
+- https://support.apple.com/en-us/102445
+- https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation
+- https://learn.microsoft.com/en-us/power-automate/desktop-flows/dynamics365-cs-rpa#install-and-configure-contoso-crm-app
+- `scripts/assistant/package-macos.mjs`
+- `scripts/assistant/package-portable.mjs`
+
+The browser can identify the OS family but does not reliably expose the macOS release. The version selector is intentional; it must not be presented as automatic version detection.

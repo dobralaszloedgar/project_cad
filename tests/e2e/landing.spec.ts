@@ -65,12 +65,16 @@ async function expectViewportFilled(page: Page) {
       right: rect.right,
       height: innerHeight,
       width: innerWidth,
+      screens:
+        document.querySelector<HTMLElement>("[data-landing-page]")!
+          .offsetHeight / innerHeight,
     };
   });
   expect(view.top).toBe(0);
   expect(view.left).toBe(0);
   expect(view.right).toBe(view.width);
   expect(view.bottom).toBe(view.height);
+  expect(view.screens).toBeCloseTo(3.8, 2);
 }
 
 test("the app-style assistant starts with a cursor, opens, types and sends", async ({
@@ -179,6 +183,7 @@ test("the app-style assistant starts with a cursor, opens, types and sends", asy
   await expect(
     chat.getByRole("button", { name: "Build this flowsheet" }),
   ).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("[data-shared-scene] canvas")).toHaveCount(0);
   await chat.getByText("3 project tool calls").click();
   await expect(chat.getByText("propose actions · done")).toBeVisible();
   await page.screenshot({ path: info.outputPath("design-desktop.png") });
@@ -241,14 +246,7 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
     page.getByRole("link", { name: "Open workspace", exact: true }),
   ).toHaveAttribute("href", "/onboarding");
   const canvas = page.locator("[data-shared-scene] canvas");
-  // Model assembly and software WebGL warm-up are asynchronous; wait for the
-  // actual readiness signal instead of the default five-second DOM deadline.
-  await expect(canvas).toHaveAttribute("data-ready", "true", {
-    timeout: 30000,
-  });
-  await expect(canvas).toBeVisible();
-  const original = await canvas.elementHandle();
-  await expect(canvas).toHaveAttribute("data-process-phase", "design");
+  await expect(canvas).toHaveCount(0);
   await page.mouse.move(768, 500);
   await page.mouse.wheel(0, -2000);
   await expectViewportFilled(page);
@@ -258,14 +256,20 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
   await page
     .getByRole("button", { name: "Watch this process take shape" })
     .click();
+  // 3D now warms up on entry to Build, while the live drawing stays usable.
+  await expect(page.locator("[data-live-cad]")).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(canvas).toHaveAttribute("data-ready", "true", {
+    timeout: 30000,
+  });
+  const original = await canvas.elementHandle();
   await expect(canvas).toHaveAttribute("data-process-phase", "blueprint", {
     timeout: 15000,
   });
   await expect(canvas).toHaveAttribute("data-unfold", "0.0000");
   // The workbench keeps constructing after scrolling stops; a fast scroll
   // must not collapse the whole equipment/stream sequence into one frame.
-  const initialBuild = Number(await canvas.getAttribute("data-construction"));
-  expect(initialBuild).toBeLessThan(0.9);
   await expect
     .poll(async () => Number(await canvas.getAttribute("data-construction")), {
       timeout: 25000,
@@ -351,10 +355,11 @@ test("pause, shell controls and reverse navigation preserve the scene", async ({
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/landing");
   const canvas = page.locator("[data-shared-scene] canvas");
+  await expect(canvas).toHaveCount(0);
+  await chapter(page, "03 Explore", 2);
   await expect(canvas).toHaveAttribute("data-ready", "true", {
     timeout: 30000,
   });
-  await chapter(page, "03 Explore", 2);
   const original = await canvas.elementHandle();
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.getByRole("button", { name: "Pause motion", exact: true }).click();
@@ -438,11 +443,15 @@ test("mobile scenes fit, have readable controls and open the real equipment sand
 test("a fast scroll accelerates every build step before revealing the plant", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/landing");
   const canvas = page.locator("[data-shared-scene] canvas");
+  await chapter(page, "02 Build", 1);
   await expect(canvas).toHaveAttribute("data-ready", "true", {
     timeout: 60000,
   });
+  await chapter(page, "01 Design", 0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await scrollTo(page, STORY_END);
   const samples = await page.evaluate(async () => {
     const samples: {
