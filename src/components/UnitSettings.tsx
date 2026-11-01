@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Gauge, RotateCcw, Ruler, SlidersHorizontal } from "lucide-react";
+import {
+  Check,
+  Gauge,
+  RotateCcw,
+  Ruler,
+  SlidersHorizontal,
+} from "lucide-react";
 import {
   STANDARD_ATMOSPHERE,
   UNIT_SYSTEMS,
@@ -83,14 +89,18 @@ export default function UnitSettings() {
   const candidate = text.trim() ? toSI(Number(text), atmosphereUnit) : NaN;
   const invalid = !Number.isFinite(candidate) || candidate <= 0;
   return (
-    <section className="unit-settings" aria-label="Engineering units">
+    <section
+      id="workspace-units-panel"
+      className="unit-settings"
+      aria-label="Engineering units"
+    >
       <div className="units-intro">
         <div>
-          <h3>Engineering units</h3>
-          <p>
-            Choose a standard system or customize each quantity. Changes apply
-            immediately and are remembered in this browser.
-          </p>
+          <p>Choose a standard system or fine-tune units for each quantity.</p>
+          <span className="units-save-note">
+            <Check size={13} aria-hidden="true" /> Changes apply immediately and
+            are saved in this browser.
+          </span>
         </div>
         <button
           className="btn btn-sm"
@@ -100,14 +110,15 @@ export default function UnitSettings() {
             setEditing(null);
           }}
         >
-          <RotateCcw size={14} /> Restore defaults
+          <RotateCcw size={14} aria-hidden="true" /> Restore defaults
         </button>
       </div>
       <div className="units-workbench">
         <aside className="units-sidebar">
-          <section aria-label="Standard unit systems">
+          <section className="units-card" aria-label="Standard unit systems">
             <h3>
-              <SlidersHorizontal size={16} /> Standard systems
+              <SlidersHorizontal size={16} aria-hidden="true" /> Standard
+              systems
             </h3>
             <label className="units-preset-label">
               Unit system
@@ -131,28 +142,28 @@ export default function UnitSettings() {
                 ))}
               </select>
             </label>
-            <p>
+            <p className="units-preset-preview">
               {preset
                 ? UNIT_SYSTEMS[preset].description
                 : "Your own combination of units."}
             </p>
             <p>
-              Choosing a system resets every quantity. Default: Metric
-              engineering.
+              Applies to every quantity below. Customize individual units as
+              needed.
             </p>
             <button
-              className="btn btn-sm"
+              className="btn btn-sm units-reset"
               onClick={() => setSystem(preferences.system)}
             >
               Reset to {UNIT_SYSTEMS[preferences.system].label}
             </button>
           </section>
           <section
-            className="units-atmosphere"
+            className="units-card units-atmosphere"
             aria-label="Gauge pressure reference"
           >
             <h3>
-              <Gauge size={16} /> Atmospheric pressure
+              <Gauge size={16} aria-hidden="true" /> Atmospheric pressure
             </h3>
             <p>Reference for gauge pressures.</p>
             <div className="units-atmosphere-input">
@@ -196,7 +207,7 @@ export default function UnitSettings() {
               </p>
             )}
             <button
-              className="btn btn-sm"
+              className="btn btn-sm units-reset"
               onClick={() => {
                 setAtmosphere(STANDARD_ATMOSPHERE);
                 setAtmosphereUnit("atm");
@@ -210,7 +221,7 @@ export default function UnitSettings() {
         <div className="units-quantities">
           <div className="units-quantity-heading">
             <h3>
-              <Ruler size={16} /> Units by quantity
+              <Ruler size={16} aria-hidden="true" /> Units by quantity
             </h3>
             <span className="units-badge" aria-label="Active unit system">
               {preferences.label}

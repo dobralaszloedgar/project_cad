@@ -107,6 +107,14 @@ import {
 } from "@/lib/project-file";
 import { projectFileName } from "@/lib/project-directory";
 import ProcessCanvas from "./ProcessCanvas";
+import { EquipmentSimulationError } from "@/domain/solver";
+import {
+  equipmentStatuses,
+  equipmentIssueTarget,
+  simulationKey,
+  type EquipmentTarget,
+  type SimulationFailure,
+} from "@/domain/equipment-status";
 import Inspector from "./Inspector";
 import Results from "./Results";
 import FloatingAssistant from "./assistant/FloatingAssistant";
@@ -184,7 +192,15 @@ export default function Workspace({
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
   const [compareId, setCompareId] = useState("");
-  const [result, setResult] = useState<Result | null>(null);
+  const [simulation, setSimulation] = useState<{
+    projectId: string;
+    key: string;
+    result: Result | null;
+    failure?: SimulationFailure;
+  } | null>(null);
+  const [issueTarget, setIssueTarget] = useState<EquipmentTarget | undefined>(
+    undefined,
+  );
   const [message, setMessage] = useState("");
   const { theme: palette, setTheme } = useTheme();
   const unitDisplay = useUnitSystem();
@@ -247,6 +263,44 @@ export default function Workspace({
     () => projectSchema.parse(state.project),
     [state.project],
   );
+  const calculationKey = useMemo(() => simulationKey(project), [project]);
+  const currentSimulation =
+    simulation?.projectId === projectId && simulation.key === calculationKey
+      ? simulation
+      : null;
+  const result = currentSimulation?.result ?? null;
+  const failure = currentSimulation?.failure;
+  const statuses = useMemo(
+    () =>
+      equipmentStatuses(
+        project,
+        result,
+        failure,
+        simulation?.projectId === projectId ? simulation.result : null,
+      ),
+    [project, result, failure, simulation, projectId],
+  );
+  function calculate(next: Project) {
+    try {
+      const result = simulate(next);
+      setSimulation({ projectId, key: simulationKey(next), result });
+      return result;
+    } catch (error) {
+      setSimulation({
+        projectId,
+        key: simulationKey(next),
+        result: null,
+        failure: {
+          message: errorMessage(error),
+          unitId:
+            error instanceof EquipmentSimulationError
+              ? error.unitId
+              : undefined,
+        },
+      });
+      throw error;
+    }
+  }
   const displayProjectName = projectDisplayName({ fileName, workspace: state });
   useEffect(() => {
     document.title = `Project CAD – ${!ready || showProjects ? "Home" : displayProjectName}`;
@@ -282,8 +336,9 @@ export default function Workspace({
     setThermoDialog(null);
   }
   function closeDrawer() {
+    const trigger = drawer === "Units" ? unitsButtonRef : pullTabRef;
     setDrawer(null);
-    (drawer === "Units" ? unitsButtonRef : pullTabRef).current?.focus();
+    requestAnimationFrame(() => trigger.current?.focus());
   }
   useEffect(() => {
     if (!drawer && !workspaceMenuOpen) return;
@@ -527,12 +582,10 @@ export default function Workspace({
         revisions: [...s.revisions, checkpoint(next, label)],
       }));
       setStorage("Saving…");
-      setResult(null);
       setMessage("");
       if (run) {
         try {
-          const r = simulate(next);
-          setResult(r);
+          const r = calculate(next);
           setMessage(
             r.converged
               ? "Calculated · open Results for balances and model limits."
@@ -569,8 +622,7 @@ export default function Workspace({
   }
   function run() {
     try {
-      const calculated = simulate(project);
-      setResult(calculated);
+      const calculated = calculate(project);
       setMessage(
         calculated.converged
           ? "Calculated · review model limits in Results."
@@ -580,7 +632,6 @@ export default function Workspace({
       setWorkspaceMenuOpen(false);
       setDrawer("Results");
     } catch (e) {
-      setResult(null);
       setMessage(e instanceof Error ? e.message : "Simulation failed.");
     }
   }
@@ -630,7 +681,6 @@ export default function Workspace({
       future: [],
     };
     setState(restore(state, r));
-    setResult(null);
     setMessage("Restored as a new revision. Later revisions are preserved.");
     setSelected(null);
   }
@@ -692,7 +742,6 @@ export default function Workspace({
         future: [],
       };
       setState(next);
-      setResult(null);
       setSelected(null);
       setMessage(outcome);
       return outcome;
@@ -702,9 +751,21 @@ export default function Workspace({
     }
   }
   function inspect(id: string) {
+    setIssueTarget(undefined);
     setSelected(id);
     setPropertiesOpen(true);
   }
+  const navigateIssue = useCallback((id: string, target: EquipmentTarget) => {
+    setSelection([id]);
+    setWorkspaceMenuOpen(false);
+    if (target.section === "thermodynamics") {
+      setPropertiesOpen(false);
+      setThermoDialog(target.field === "components" ? "components" : "model");
+    } else {
+      setIssueTarget(target);
+      setPropertiesOpen(true);
+    }
+  }, []);
   function openResults(nextTab = "Results") {
     setTab(nextTab);
     setWorkspaceMenuOpen(false);
@@ -735,7 +796,7 @@ export default function Workspace({
       };
       setState(blank);
       editHistory.current = { past: [], future: [] };
-      setResult(null);
+      setSimulation(null);
       setSelected(null);
       setCompareId("");
       setClearConfirm(false);
@@ -926,7 +987,7 @@ export default function Workspace({
     setDrawer(null);
     setWorkspaceMenuOpen(false);
     setSelected(null);
-    setResult(null);
+    setSimulation(null);
     setCompareId("");
     setMessage("");
     setPropertiesOpen(false);
@@ -1556,6 +1617,7 @@ export default function Workspace({
             ref={unitsButtonRef}
             className="icon-button units-button"
             aria-label="Units"
+            aria-haspopup="dialog"
             aria-expanded={drawer === "Units"}
             aria-controls="workspace-units-panel"
             title={`Engineering units: ${unitDisplay.label}`}
@@ -1660,7 +1722,7 @@ export default function Workspace({
               </nav>
             ) : null}
           </div>
-          {drawer ? (
+          {drawer && drawer !== "Units" ? (
             <aside
               id={`workspace-${drawer.toLowerCase().replaceAll(" ", "-")}-panel`}
               className={`workspace-drawer drawer-${drawer.toLowerCase().replaceAll(" ", "-")}`}
@@ -1695,8 +1757,6 @@ export default function Workspace({
                         inspect(id);
                       }}
                     />
-                  ) : drawer === "Units" ? (
-                    <UnitSettings />
                   ) : (
                     <>
                       {drawer === "Settings" ? (
@@ -1892,6 +1952,8 @@ export default function Workspace({
                 selection={selection}
                 onSelection={setSelection}
                 onInspect={inspect}
+                statuses={statuses}
+                onNavigateIssue={navigateIssue}
                 onChange={change}
                 onAdd={add}
                 onError={setMessage}
@@ -1921,6 +1983,20 @@ export default function Workspace({
             <div className="notification" role="status">
               <Info size={15} />
               <span>{message}</span>
+              {failure?.unitId && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() =>
+                    navigateIssue(
+                      failure.unitId!,
+                      equipmentIssueTarget(failure.message),
+                    )
+                  }
+                >
+                  Review error
+                </button>
+              )}
               <button
                 className="icon-button"
                 aria-label="Dismiss notification"
@@ -1950,6 +2026,15 @@ export default function Workspace({
       </div>
       {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
       {projectDialogs}
+      {drawer === "Units" ? (
+        <Dialog
+          title="Engineering units"
+          className="units-dialog"
+          onClose={closeDrawer}
+        >
+          <UnitSettings />
+        </Dialog>
+      ) : null}
       {thermoDialog === "components" ? (
         <Dialog
           title="Project components"
@@ -1972,12 +2057,20 @@ export default function Workspace({
                 "Stream properties")
           }
           className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
-          onClose={() => setPropertiesOpen(false)}
+          onClose={() => {
+            setPropertiesOpen(false);
+            setIssueTarget(undefined);
+          }}
         >
           <Inspector
             project={project}
             selected={selected}
             result={result}
+            issueTarget={issueTarget}
+            status={selectedUnit ? statuses[selectedUnit.id] : undefined}
+            onNavigateIssue={(target) =>
+              selected && navigateIssue(selected, target)
+            }
             onChange={(p, l) => {
               change(p, l, true);
               if (

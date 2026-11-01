@@ -1,4 +1,3 @@
-import { Color } from "three";
 import type { Connection, Project, Unit } from "../../domain/schema";
 import { simulate, type Result } from "../../domain/solver";
 import {
@@ -7,18 +6,9 @@ import {
 } from "../../domain/stream-composition";
 import { sampleCatalog, sampleMixtures } from "../../domain/thermo/catalog";
 import { defaultThermo } from "../../domain/thermo/registry";
+import { DEFAULT_FLUID_PALETTE, fluidPaletteColors } from "./fluid-palettes";
 
 export const UNKNOWN_COMPOSITION_COLOR = "#94a3ab";
-const componentColors = [
-  "#e53950", // Red + blue make a purple binary mixture.
-  "#3569ef",
-  "#e5b82e",
-  "#12b886",
-  "#f08235",
-  "#2db7ce",
-  "#bf4bc7",
-  "#8c6d4f",
-] as const;
 
 export type ComponentColor = { id: string; name: string; color: string };
 type Composition = Record<string, number>;
@@ -35,21 +25,23 @@ export type PlantCompositionColors = {
 
 /** Palette assignment depends on component identity, never its concentration or
  * catalog selection order. Keep the original order for legacy a/b stream data. */
-export function componentPalette(project: Project): ComponentColor[] {
+export function componentPalette(
+  project: Project,
+  paletteId: string = DEFAULT_FLUID_PALETTE,
+): ComponentColor[] {
   const settings = project.thermo ?? defaultThermo;
   const chemicals =
     settings.mixture === "catalog"
       ? (settings.catalog?.chemicals ?? [])
       : sampleMixtures[settings.mixture].ids.map((id) => sampleCatalog.get(id));
   const sorted = chemicals.map(({ id }) => id).sort();
+  const colors = fluidPaletteColors(paletteId, sorted.length);
   return chemicals.map(({ id, name }) => {
     const index = sorted.indexOf(id);
     return {
       id,
       name: settings.mixture === "demo" ? id : name,
-      color:
-        componentColors[index] ??
-        `#${new Color().setHSL((index * 0.61803398875) % 1, 0.66, 0.48).getHexString()}`,
+      color: colors[index],
     };
   });
 }
@@ -59,7 +51,12 @@ export function componentPalette(project: Project): ComponentColor[] {
 export function blendColors(
   parts: { color: string; amount: number }[],
 ): string {
-  const total = parts.reduce((sum, part) => sum + part.amount, 0);
+  // Canonical summation prevents catalog reordering from moving a channel
+  // across a rounding boundary in mixtures with many components.
+  const ordered = [...parts].sort((a, b) =>
+    a.color < b.color ? -1 : a.color > b.color ? 1 : a.amount - b.amount,
+  );
+  const total = ordered.reduce((sum, part) => sum + part.amount, 0);
   if (
     !Number.isFinite(total) ||
     total <= 0 ||
@@ -67,12 +64,18 @@ export function blendColors(
   )
     return UNKNOWN_COMPOSITION_COLOR;
   const rgb = [0, 0, 0];
-  for (const { color, amount } of parts) {
+  for (const { color, amount } of ordered) {
     const value = Number.parseInt(color.slice(1), 16);
     for (let i = 0; i < 3; i++)
-      rgb[i] += (((value >> (16 - i * 8)) & 255) * amount) / total;
+      rgb[i] += ((value >> (16 - i * 8)) & 255) * amount;
   }
-  return `#${rgb.map((value) => Math.round(value).toString(16).padStart(2, "0")).join("")}`;
+  return `#${rgb
+    .map((value) =>
+      Math.round(value / total)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }
 
 export function compositionColor(
@@ -132,8 +135,9 @@ function previewStreams(project: Project) {
 export function projectCompositionColors(
   project: Project,
   result: Result | null = null,
+  paletteId: string = DEFAULT_FLUID_PALETTE,
 ): PlantCompositionColors {
-  const components = componentPalette(project);
+  const components = componentPalette(project, paletteId);
   const ids = components.map(({ id }) => id);
   const solved = result
     ? result.converged

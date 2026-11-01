@@ -283,6 +283,7 @@ export function PackedBedSetup({
             <select
               className="select"
               aria-label="Conversion reporting component"
+              data-setup-field="packedBed.conversionComponentId"
               value={value.conversionComponentId}
               onChange={(e) => patch({ conversionComponentId: e.target.value })}
             >
@@ -363,7 +364,10 @@ export function PackedBedSetup({
             : "Concentrations use the specified volume flow; gas expansion is neglected."}
         </p>
       </section>
-      <section className="equipment-section reaction-set">
+      <section
+        className="equipment-section reaction-set"
+        data-setup-section="reactions"
+      >
         <div className="reaction-set-heading">
           <h3>Reaction set</h3>
           <span>
@@ -384,6 +388,7 @@ export function PackedBedSetup({
               <button
                 type="button"
                 className="reaction-card-select"
+                data-setup-reaction={reaction.id}
                 aria-label={`Edit reaction ${index + 1}: ${reaction.name}`}
                 aria-pressed={selected?.id === reaction.id}
                 onClick={() => setSelectedId(reaction.id)}
@@ -479,7 +484,11 @@ export function PackedBedSetup({
           </button>
         </div>
         {selected && (
-          <div className="reaction-definition" key={selected.id}>
+          <div
+            className="reaction-definition"
+            key={selected.id}
+            data-setup-reaction-editor={selected.id}
+          >
             <div className="reaction-definition-heading">
               <h4>Reaction definition</h4>
               <span>
@@ -498,6 +507,7 @@ export function PackedBedSetup({
               <input
                 className="input"
                 aria-label="Reaction name"
+                data-setup-field="reaction.name"
                 required
                 maxLength={100}
                 value={selected.name}
@@ -509,7 +519,10 @@ export function PackedBedSetup({
                 <ReactionEquation reaction={selected} chemicals={chemicals} />
               </span>
             </div>
-            <div className="reaction-sides">
+            <div
+              className="reaction-sides"
+              data-setup-field="reaction.stoichiometry"
+            >
               <SpeciesTable
                 reaction={selected}
                 chemicals={chemicals}
@@ -527,7 +540,10 @@ export function PackedBedSetup({
               Enter positive coefficients on each side. Components absent from
               the reaction remain inert. Add chemicals in Project components.
             </p>
-            <section className="reaction-kinetics">
+            <section
+              className="reaction-kinetics"
+              data-setup-field="reaction.kinetics"
+            >
               <h4>Reaction kinetics</h4>
               {selected.kineticsSource && (
                 <KineticsSource source={selected.kineticsSource} />
@@ -538,6 +554,7 @@ export function PackedBedSetup({
                   <select
                     className="select"
                     aria-label="Rate basis species"
+                    data-setup-field="reaction.basisComponentId"
                     value={selected.basisComponentId}
                     onChange={(e) => edit({ basisComponentId: e.target.value })}
                   >

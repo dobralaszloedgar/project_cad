@@ -70,6 +70,18 @@ export interface Result {
   warnings: string[];
   tearId?: string;
 }
+/** Preserve the failing unit even when the underlying kernel only returns prose. */
+export class EquipmentSimulationError extends Error {
+  constructor(
+    public readonly unitId: string,
+    cause: unknown,
+  ) {
+    super(cause instanceof Error ? cause.message : "Simulation failed.", {
+      cause,
+    });
+    this.name = "EquipmentSimulationError";
+  }
+}
 export const flow = (s: Stream) =>
   s.components
     ? Object.values(s.components).reduce((sum, n) => sum + n, 0)
@@ -555,7 +567,12 @@ export function simulate(
       const incoming = project.edges
         .filter((e) => e.target === n.id)
         .map((e) => (e.id === tear?.id ? guess : streams[e.id]));
-      const op = operate(n, incoming, settings);
+      let op: ReturnType<typeof operate>;
+      try {
+        op = operate(n, incoming, settings);
+      } catch (error) {
+        throw new EquipmentSimulationError(n.id, error);
+      }
       equipment[n.id] = op.result;
       for (const e of project.edges.filter((e) => e.source === n.id))
         streams[e.id] = op.outputs[e.sourcePort === "out2" ? 1 : 0];

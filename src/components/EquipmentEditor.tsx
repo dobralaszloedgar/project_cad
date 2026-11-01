@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
@@ -23,6 +23,13 @@ import NumberInput from "./NumberInput";
 import { useUnitSystem } from "./useUnitSystem";
 import { DistillationSetup } from "./DistillationSetup";
 import { DistillationResults } from "./DistillationResults";
+import {
+  equipmentSetupIssues,
+  type EquipmentStatus,
+  type EquipmentTarget,
+} from "@/domain/equipment-status";
+import { revealEquipmentIssue } from "./equipment-issue-navigation";
+import "./equipment-status.css";
 
 type NumericParam = {
   [K in keyof Unit["params"]]-?: Unit["params"][K] extends number ? K : never;
@@ -81,7 +88,16 @@ function streamRows(display: ReturnType<typeof useUnitSystem>): {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="equipment-section">
+    <section
+      className="equipment-section"
+      data-setup-section={
+        title === "Composition"
+          ? "composition"
+          : title === "Thermodynamics"
+            ? "thermodynamics"
+            : undefined
+      }
+    >
       <h3>{title}</h3>
       {children}
     </section>
@@ -110,7 +126,11 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
     ),
   ];
   return (
-    <aside className="equipment-setup-side" aria-label="Equipment connections">
+    <aside
+      className="equipment-setup-side"
+      aria-label="Equipment connections"
+      data-setup-section="connections"
+    >
       <Section title="Connections">
         {(["inputs", "outputs"] as const).flatMap((direction) =>
           unitPorts[direction].map((port, index) => {
@@ -122,7 +142,7 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
             );
             const label = `${incoming ? "Inlet" : "Outlet"}${unitPorts[direction].length > 1 ? ` ${index + 1}` : ""}`;
             return (
-              <div className="equipment-port" key={port}>
+              <div className="equipment-port" key={port} data-setup-port={port}>
                 <span>
                   {label}
                   {unit.kind === "Mixer" && port === "in2" ? " · optional" : ""}
@@ -323,6 +343,9 @@ export default function EquipmentEditor({
   onApply,
   onDuplicate,
   onDelete,
+  issueTarget,
+  status,
+  onNavigateIssue,
 }: {
   unit: Unit;
   project: Project;
@@ -330,13 +353,41 @@ export default function EquipmentEditor({
   onApply: (unit: Unit) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  issueTarget?: EquipmentTarget;
+  status?: EquipmentStatus;
+  onNavigateIssue?: (target: EquipmentTarget) => void;
 }) {
   const settings = project.thermo ?? defaultThermo;
   const context = thermoContext(settings);
   const [params, setParams] = useState(() => setupParams(unit, context.ids));
   const display = useUnitSystem();
   const [name, setName] = useState(unit.name);
-  const [tab, setTab] = useState<"setup" | "results">("setup");
+  const [tab, setTab] = useState<"setup" | "results">(
+    issueTarget?.section === "results" ? "results" : "setup",
+  );
+  const [lastTarget, setLastTarget] = useState(issueTarget);
+  const root = useRef<HTMLElement>(null);
+  const clearNavigation = useRef<(() => void) | undefined>(undefined);
+  if (lastTarget !== issueTarget) {
+    setLastTarget(issueTarget);
+    if (issueTarget)
+      setTab(issueTarget.section === "results" ? "results" : "setup");
+  }
+  useEffect(() => {
+    if (root.current && issueTarget)
+      clearNavigation.current = revealEquipmentIssue(root.current, issueTarget);
+    return () => clearNavigation.current?.();
+  }, [issueTarget]);
+  function navigate(target: EquipmentTarget) {
+    if (target.section === "thermodynamics" && onNavigateIssue) {
+      onNavigateIssue(target);
+      return;
+    }
+    setTab(target.section === "results" ? "results" : "setup");
+    clearNavigation.current?.();
+    if (root.current)
+      clearNavigation.current = revealEquipmentIssue(root.current, target);
+  }
   const [appliedUnit, setAppliedUnit] = useState(unit);
   // Refresh the draft after an applied edit without losing the selected tab.
   if (appliedUnit !== unit) {
@@ -371,6 +422,21 @@ export default function EquipmentEditor({
     0,
   );
   const [validationError, setValidationError] = useState("");
+  const setupIssues = [
+    ...equipmentSetupIssues(project, { ...unit, name, params }),
+    ...(status?.issues.filter(
+      (issue) =>
+        issue.target.section === "connections" ||
+        (!dirty && issue.kind === "error"),
+    ) ?? []),
+  ].filter(
+    (issue, index, issues) =>
+      issues.findIndex(
+        (entry) =>
+          entry.message === issue.message &&
+          entry.target.reactionId === issue.target.reactionId,
+      ) === index,
+  );
   function field(
     key: NumericParam,
     label: string,
@@ -385,7 +451,7 @@ export default function EquipmentEditor({
       ? display.quantityLabel(dimension)
       : suffix;
     return (
-      <label className="equipment-field">
+      <label className="equipment-field" data-setup-field={key}>
         <span>{title}</span>
         <span className="equipment-quantity">
           {dimension ? (
@@ -431,7 +497,7 @@ export default function EquipmentEditor({
     "K",
   );
   return (
-    <aside className="panel inspector equipment-editor">
+    <aside className="panel inspector equipment-editor" ref={root}>
       <div className="equipment-editor-top">
         <div
           className="equipment-editor-tabs"
@@ -495,6 +561,7 @@ export default function EquipmentEditor({
           <form
             id={formId}
             className="equipment-form"
+            data-setup-section="settings"
             onInvalid={(event) => {
               setTab("setup");
               const input = event.target as HTMLElement;
@@ -544,7 +611,7 @@ export default function EquipmentEditor({
                 Tag
                 <input className="input" value={unit.id} readOnly />
               </label>
-              <label>
+              <label data-setup-field="name">
                 Name
                 <input
                   className="input"
@@ -561,6 +628,30 @@ export default function EquipmentEditor({
               <p className="reaction-issues" role="alert">
                 {validationError}
               </p>
+            )}
+            {setupIssues.length > 0 && (
+              <section
+                className="equipment-setup-issues"
+                aria-label="Equipment issues"
+              >
+                <h3>
+                  {setupIssues.some((issue) => issue.kind === "error")
+                    ? "Review equipment errors"
+                    : "Complete setup"}
+                </h3>
+                <ul className="equipment-issue-list">
+                  {setupIssues.map((issue, index) => (
+                    <li key={`${issue.message}-${index}`}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(issue.target)}
+                      >
+                        {issue.message}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
             {unit.kind === "Feed" && (
               <>
@@ -696,7 +787,10 @@ export default function EquipmentEditor({
                     : "Cooling specification"
                 }
               >
-                <label className="equipment-field">
+                <label
+                  className="equipment-field"
+                  data-setup-field="thermalMode"
+                >
                   Thermal specification
                   <select
                     className="select"
@@ -891,7 +985,24 @@ export default function EquipmentEditor({
           id="equipment-panel-results"
           aria-labelledby="equipment-tab-results"
           hidden={tab !== "results"}
+          data-setup-section="results"
         >
+          {status?.issues.some((issue) => issue.kind === "warning") && (
+            <section
+              className="equipment-setup-issues"
+              aria-label="Calculation warnings"
+              data-setup-field="warnings"
+            >
+              <h3>Calculation warnings</h3>
+              <ul>
+                {status.issues
+                  .filter((issue) => issue.kind === "warning")
+                  .map((issue) => (
+                    <li key={issue.message}>{issue.message}</li>
+                  ))}
+              </ul>
+            </section>
+          )}
           <EquipmentResults
             unit={unit}
             project={project}

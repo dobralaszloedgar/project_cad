@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { Mesh, type MeshPhysicalMaterial, type Object3D } from "three";
+import {
+  Color,
+  Mesh,
+  SRGBColorSpace,
+  type MeshPhysicalMaterial,
+  type Object3D,
+} from "three";
 import {
   distillationExample,
   heatingExample,
@@ -25,6 +31,11 @@ import { buildProjectPlant } from "../src/components/equipment-3d/project-plant"
 import { disposeEquipmentModel } from "../src/components/equipment-3d/models";
 import { OperationClock } from "../src/components/equipment-3d/operation";
 import { settingsFor } from "./helpers/catalog";
+import { tenComponentPlant } from "./helpers/ten-component-plant";
+import {
+  FLUID_PALETTES,
+  fluidPaletteColors,
+} from "../src/components/equipment-3d/fluid-palettes";
 
 const rgb = (hex: string) =>
   [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
@@ -58,27 +69,26 @@ describe("composition colors in the 3D plant", () => {
   it("makes separation colors approach the component colors only as purity increases", () => {
     const project = distillationExample();
     const first = projectCompositionColors(project);
-    const [red, blue] = first.components.map((c) => c.color);
+    const [componentA, componentB] = first.components.map((c) => c.color);
     const feed = first.streams.s1;
-    expect(rgb(feed)[0]).toBeGreaterThan(rgb(feed)[1]);
-    expect(rgb(feed)[2]).toBeGreaterThan(rgb(feed)[1]);
-    expect(distance(first.streams.distillate, red)).toBeLessThan(
-      distance(feed, red),
+    expect(feed).toBe(compositionColor({ A: 1, B: 1 }, first.components));
+    expect(distance(first.streams.distillate, componentA)).toBeLessThan(
+      distance(feed, componentA),
     );
-    expect(distance(first.streams.bottoms, blue)).toBeLessThan(
-      distance(feed, blue),
+    expect(distance(first.streams.bottoms, componentB)).toBeLessThan(
+      distance(feed, componentB),
     );
     project.units[1].params.relativeVolatility = 20;
     const purer = projectCompositionColors(project);
     expect(purer.streams.s1).toBe(feed);
-    expect(distance(purer.streams.distillate, red)).toBeLessThan(
-      distance(first.streams.distillate, red),
+    expect(distance(purer.streams.distillate, componentA)).toBeLessThan(
+      distance(first.streams.distillate, componentA),
     );
-    expect(distance(purer.streams.bottoms, blue)).toBeLessThan(
-      distance(first.streams.bottoms, blue),
+    expect(distance(purer.streams.bottoms, componentB)).toBeLessThan(
+      distance(first.streams.bottoms, componentB),
     );
-    expect(purer.streams.distillate).not.toBe(red);
-    expect(purer.streams.bottoms).not.toBe(blue);
+    expect(purer.streams.distillate).not.toBe(componentA);
+    expect(purer.streams.bottoms).not.toBe(componentB);
     expect(projectCompositionColors(project, simulate(project))).toEqual(purer);
   });
 
@@ -224,6 +234,92 @@ describe("composition colors in the 3D plant", () => {
     const known = projectCompositionColors(heating).streams;
     expect(known.s1).not.toBe(UNKNOWN_COMPOSITION_COLOR);
     expect(known.s2).toBe(known.s1);
+  });
+
+  it.each(FLUID_PALETTES)(
+    "renders ten distinct chemicals and their mixture with $name",
+    ({ id }) => {
+      const project = tenComponentPlant();
+      const saved = structuredClone(project);
+      const result = simulate(project);
+      expect(result.converged).toBe(true);
+      const colors = projectCompositionColors(project, result, id);
+      expect(new Set(colors.components.map((c) => c.color)).size).toBe(10);
+      colors.components.forEach(({ color }, index) => {
+        expect(colors.streams[`feed-F-${index + 1}`]).toBe(color);
+        expect(colors.equipment[`F-${index + 1}`].color).toBe(color);
+      });
+      const mixture = blendColors(
+        colors.components.map(({ color }) => ({ color, amount: 1 })),
+      );
+      expect(colors.streams.mixed).toBe(mixture);
+      expect(colors.equipment["P-mixed"].color).toBe(mixture);
+      const pipes = createSystemFlow(
+        buildProjectPlant(project),
+        new OperationClock(),
+        colors.streams,
+      );
+      try {
+        for (const [streamId, color] of Object.entries(colors.streams))
+          expect(
+            materialColor(pipes.getObjectByName(`stream-${streamId}`)),
+          ).toBe(color);
+      } finally {
+        disposeEquipmentModel(pipes);
+      }
+      project.thermo = settingsFor(
+        project.thermo!.catalog!.chemicals.map((c) => c.id).reverse(),
+      );
+      expect(projectCompositionColors(project, result, id).streams).toEqual(
+        colors.streams,
+      );
+      project.thermo = saved.thermo;
+      expect(project).toEqual(saved);
+    },
+  );
+
+  it.each(FLUID_PALETTES)(
+    "extends $name to 40 unique shades without size-dependent reassignment",
+    ({ id }) => {
+      const full = fluidPaletteColors(id, 40);
+      expect(full).toHaveLength(40);
+      expect(new Set(full).size).toBe(40);
+      expect(fluidPaletteColors(id, 10)).toEqual(full.slice(0, 10));
+      expect(fluidPaletteColors(id, 24)).toEqual(full.slice(0, 24));
+      for (const color of full) {
+        expect(color).toMatch(/^#[0-9a-f]{6}$/);
+        if (id !== "red-blue") {
+          const { h } = new Color(color).getHSL(
+            { h: 0, s: 0, l: 0 },
+            SRGBColorSpace,
+          );
+          const degrees = h * 360;
+          expect(degrees >= 20 && degrees <= 345).toBe(true);
+          expect(degrees < 190 || degrees > 260).toBe(true);
+        }
+      }
+    },
+  );
+
+  it("changes palettes without changing layout or treating unknown compositions as known", () => {
+    const project = distillationExample();
+    const saved = structuredClone(project);
+    const layout = buildProjectPlant(project);
+    const first = projectCompositionColors(project);
+    const next = projectCompositionColors(project, null, "iris-apricot");
+    expect(next.streams.s1).not.toBe(first.streams.s1);
+    expect(next.components).not.toEqual(first.components);
+    expect(projectCompositionColors(project, null, "missing-palette")).toEqual(
+      first,
+    );
+    expect(buildProjectPlant(project)).toBe(layout);
+    expect(project).toEqual(saved);
+    const failed = simulate(project);
+    failed.converged = false;
+    expect(
+      projectCompositionColors(project, failed, "iris-apricot").streams
+        .distillate,
+    ).toBe(UNKNOWN_COMPOSITION_COLOR);
   });
 
   it("renders the calculated colors in external pipes, column products and receiver liquid", () => {

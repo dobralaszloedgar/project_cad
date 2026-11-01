@@ -9,12 +9,19 @@ import { defaultThermo } from "@/domain/thermo/registry";
 import EquipmentEditor from "./EquipmentEditor";
 import { STREAM_COLOR_LABELS, streamColor } from "./stream-colors";
 import { useUnitSystem } from "./useUnitSystem";
+import type {
+  EquipmentStatus,
+  EquipmentTarget,
+} from "@/domain/equipment-status";
 interface Props {
   project: Project;
   selected: string | null;
   result: Result | null;
   onChange: (p: Project, label: string) => void;
   onError: (m: string) => void;
+  issueTarget?: EquipmentTarget;
+  status?: EquipmentStatus;
+  onNavigateIssue?: (target: EquipmentTarget) => void;
 }
 function StreamInspector({
   project,
@@ -247,6 +254,9 @@ export default function Inspector({
   result,
   onChange,
   onError,
+  issueTarget,
+  status,
+  onNavigateIssue,
 }: Props) {
   const unit = project.units.find((n) => n.id === selected),
     edge = project.edges.find((e) => e.id === selected);
@@ -276,6 +286,9 @@ export default function Inspector({
       unit={unit}
       project={project}
       result={result}
+      issueTarget={issueTarget}
+      status={status}
+      onNavigateIssue={onNavigateIssue}
       onApply={(next) => {
         try {
           unitSchema.parse(next);

@@ -49,6 +49,11 @@ import {
   validateGraph,
 } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
+import { EquipmentStatusIndicator } from "./EquipmentStatusIndicator";
+import type {
+  EquipmentStatus,
+  EquipmentTarget,
+} from "@/domain/equipment-status";
 import {
   CANVAS_MIN_ZOOM,
   CANVAS_MAX_ZOOM,
@@ -75,7 +80,13 @@ const subscribePointer = (onChange: () => void) => {
   return () => query.removeEventListener("change", onChange);
 };
 type EquipmentNode = Node<
-  { unit: Unit; connected: string[]; change?: string },
+  {
+    unit: Unit;
+    connected: string[];
+    change?: string;
+    status?: EquipmentStatus;
+    onNavigate?: (id: string, target: EquipmentTarget) => void;
+  },
   "equipment"
 >;
 // Keep equipment labels and the outer stream lanes clear of the floating toolbar.
@@ -105,12 +116,15 @@ function portGeometry(unit: Unit, output: boolean, index: number) {
 const UnitNode = memo(function UnitNode({
   data,
   selected,
+  positionAbsoluteX,
+  positionAbsoluteY,
 }: NodeProps<EquipmentNode>) {
   const n = data.unit,
     p = ports(n.kind);
   const size = equipmentSize(n.kind, n.params.trayCount);
   const updateNodeInternals = useUpdateNodeInternals();
   const nodeRef = useRef<HTMLDivElement>(null);
+  const [labelBottom, setLabelBottom] = useState(-6);
   const [frame, setFrame] = useState({
     left: 0,
     top: 0,
@@ -118,7 +132,8 @@ const UnitNode = memo(function UnitNode({
     height: 128,
   });
   useLayoutEffect(() => {
-    const bounds = nodeRef.current?.querySelector("svg")?.getBBox();
+    const symbol = nodeRef.current?.querySelector("svg");
+    const bounds = symbol?.getBBox();
     if (!bounds?.width || !bounds.height) return;
     const padding = 3 + Math.min(bounds.width, bounds.height) * 0.1;
     setFrame({
@@ -127,6 +142,13 @@ const UnitNode = memo(function UnitNode({
       width: bounds.width + padding * 2,
       height: bounds.height + padding * 2,
     });
+    // Follow the visible drawing instead of the empty SVG margin. The reactor
+    // label sits beside its top inlet, so it can align with the vessel body.
+    const labelBounds =
+      n.kind === "PBR"
+        ? symbol?.querySelector<SVGGraphicsElement>(".pfd-body")?.getBBox()
+        : bounds;
+    setLabelBottom((labelBounds?.y ?? bounds.y) - 6);
     updateNodeInternals(n.id);
   }, [n.id, n.kind, n.params.trayCount, updateNodeInternals]);
   return (
@@ -140,9 +162,22 @@ const UnitNode = memo(function UnitNode({
         style={frame}
         aria-hidden="true"
       />
-      <div className="unit-label">
-        <span className="unit-tag" title={n.id}>
-          {n.id}
+      <div className="unit-label" style={{ bottom: size.height - labelBottom }}>
+        <span className="unit-tag-row">
+          <span className="unit-tag" title={n.id}>
+            {n.id}
+          </span>
+          {data.status && data.onNavigate && (
+            <EquipmentStatusIndicator
+              unit={n}
+              status={data.status}
+              nodeRef={nodeRef}
+              x={positionAbsoluteX}
+              anchorTop={positionAbsoluteY + labelBottom - 46}
+              anchorBottom={positionAbsoluteY + frame.top + frame.height}
+              onNavigate={data.onNavigate}
+            />
+          )}
         </span>
         <span className="unit-name" title={n.name}>
           {n.name}
@@ -326,6 +361,8 @@ interface Props {
   selection: string[];
   onSelection: Dispatch<SetStateAction<string[]>>;
   onInspect: (id: string) => void;
+  statuses?: Record<string, EquipmentStatus>;
+  onNavigateIssue?: (id: string, target: EquipmentTarget) => void;
   onChange: (project: Project, label: string) => void;
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
   onError: (message: string) => void;
@@ -351,6 +388,8 @@ function Inner(props: Props) {
     compositionColors,
     fitRequest = 0,
     presentation,
+    statuses,
+    onNavigateIssue,
   } = props;
   const rf = useReactFlow();
   const flowStore = useStoreApi();
@@ -582,6 +621,8 @@ function Inner(props: Props) {
       data: {
         unit,
         connected: connected.get(unit.id) ?? [],
+        status: presentation ? undefined : statuses?.[unit.id],
+        onNavigate: presentation ? undefined : onNavigateIssue,
         change: changes?.added.some((n) => n.id === unit.id)
           ? "added"
           : changes?.changed.some((n) => n.id === unit.id)
@@ -589,7 +630,14 @@ function Inner(props: Props) {
             : undefined,
       },
     }));
-  }, [project.units, project.edges, changes]);
+  }, [
+    project.units,
+    project.edges,
+    changes,
+    statuses,
+    onNavigateIssue,
+    presentation,
+  ]);
   const nodes: EquipmentNode[] = useMemo(
     () =>
       baseNodes.map((node) => ({

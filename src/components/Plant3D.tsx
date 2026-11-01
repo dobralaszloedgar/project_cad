@@ -7,6 +7,8 @@ import type { Result } from "@/domain/solver";
 import EquipmentScene, { type CameraView } from "./equipment-3d/EquipmentScene";
 import { buildProjectPlant } from "./equipment-3d/project-plant";
 import { projectCompositionColors } from "./equipment-3d/composition-colors";
+import { FLUID_PALETTES } from "./equipment-3d/fluid-palettes";
+import { useFluidPalette } from "./equipment-3d/useFluidPalette";
 import type { TrayHydraulicsResult } from "@/domain/equipment/tray-hydraulics";
 import "./tray-hydraulics.css";
 
@@ -41,9 +43,10 @@ export default function Plant3D({
   const [reset, setReset] = useState(0);
   const [focus, setFocus] = useState(0);
   const [view, setView] = useState<CameraView>("perspective");
+  const { palette, setPalette } = useFluidPalette();
   const compositionColors = useMemo(
-    () => projectCompositionColors(project, result),
-    [project, result],
+    () => projectCompositionColors(project, result, palette.id),
+    [project, result, palette.id],
   );
   const layout = useMemo(() => {
     try {
@@ -166,7 +169,28 @@ export default function Plant3D({
           className="plant-composition-legend"
           aria-label="3D component colors"
         >
-          <strong>Composition</strong>
+          <div className="plant-composition-heading">
+            <strong>Composition</strong>
+            <span>{compositionColors.components.length} chemicals</span>
+          </div>
+          <label className="plant-palette-select">
+            <span>Fluid palette</span>
+            <select
+              value={palette.id}
+              onChange={(event) => setPalette(event.target.value)}
+            >
+              {FLUID_PALETTES.map(({ id, name }) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="plant-palette-preview" aria-hidden="true">
+            {palette.colors.map((color) => (
+              <i key={color} style={{ backgroundColor: color }} />
+            ))}
+          </div>
           <div className="plant-component-swatches">
             {compositionColors.components.map(({ id, name, color }) => (
               <span key={id} title={name}>

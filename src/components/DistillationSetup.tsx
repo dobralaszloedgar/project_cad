@@ -33,7 +33,7 @@ export function DistillationSetup({
     step = 0.1,
     integer = false,
   ) => (
-    <label key={key}>
+    <label key={key} data-setup-field={`distillation.${key}`}>
       {label}
       <NumberInput
         aria-label={label}
@@ -88,6 +88,7 @@ export function DistillationSetup({
               Column top pressure ({display.quantityLabel("pressure")})
               <EngineeringInput
                 aria-label="Column top pressure"
+                data-setup-field="pressure"
                 dimension="pressure"
                 value={params.pressure}
                 min={10000}
@@ -99,7 +100,7 @@ export function DistillationSetup({
             {d.method === "fug" ? (
               <>
                 {(["lightKey", "heavyKey"] as const).map((key) => (
-                  <label key={key}>
+                  <label key={key} data-setup-field={`distillation.${key}`}>
                     {key === "lightKey" ? "Light key" : "Heavy key"}
                     <select
                       className="select"
@@ -247,9 +248,15 @@ export function DistillationSetup({
                 product temperatures are supplied assumptions. No
                 condenser/reboiler duty is predicted.
               </p>
-              <div className="equipment-field-grid">
+              <div
+                className="equipment-field-grid"
+                data-setup-field="distillation.relativeVolatilities"
+              >
                 {ids.map((id) => (
-                  <label key={id}>
+                  <label
+                    key={id}
+                    data-setup-field={`distillation.relativeVolatilities.${id}`}
+                  >
                     Relative volatility · {catalog.get(id).name}
                     <NumberInput
                       aria-label={`Relative volatility ${catalog.get(id).name}`}
