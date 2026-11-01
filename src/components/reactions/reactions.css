@@ -1,21 +1,62 @@
 .reaction-set,
 .reaction-definition,
+.reaction-kinetics,
 .reaction-species,
 .reactor-results {
   display: grid;
   gap: 14px;
   min-width: 0;
 }
+.kinetics-source {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.kinetics-source summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.kinetics-source > div {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.kinetics-source a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.kinetics-source p,
+.kinetics-source dl,
+.kinetics-source dd {
+  margin: 0;
+}
+.kinetics-source dl {
+  display: grid;
+  gap: 6px;
+}
+.kinetics-source dt {
+  color: var(--muted);
+}
 .reaction-set-heading,
+.reaction-definition-heading,
 .reaction-actions,
-.reaction-equation {
+.reaction-equation,
+.reaction-card-title,
+.rate-preview-heading {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+}
+.reaction-set-heading,
+.reaction-definition-heading,
+.reaction-card-title,
+.rate-preview-heading {
+  justify-content: space-between;
 }
 .reaction-set-heading {
-  justify-content: space-between;
   border-bottom: 1px solid var(--border);
   padding-bottom: 10px;
 }
@@ -23,133 +64,201 @@
   margin: 0;
   font-size: 14px;
 }
+.reaction-definition h4,
+.rate-law-editor h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
 .reaction-set-heading > span,
-.reaction-species-labels {
+.reaction-definition-heading > span,
+.reaction-species-labels,
+.reaction-card-select small {
   color: var(--muted);
   font-size: 11px;
 }
 .reaction-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
   gap: 8px;
 }
 .reaction-card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 10px;
   min-width: 0;
+  overflow: hidden;
 }
 .reaction-card.is-selected {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  box-shadow: inset 3px 0 var(--accent);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
 }
 .reaction-card.is-disabled {
-  opacity: 0.65;
+  opacity: 0.7;
 }
 .reaction-card-select {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   text-align: left;
   background: none;
   border: 0;
-  padding: 0 0 10px;
+  padding: 12px 14px;
   color: var(--ink);
   font-size: 12px;
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
-.reaction-card-select small {
-  color: var(--muted);
-  font-size: 11px;
+.reaction-card-title {
+  align-items: baseline;
+}
+.reaction-card-title small {
+  flex-shrink: 0;
+}
+.reaction-card-equation {
+  font-size: 14px;
+  line-height: 1.6;
 }
 .equipment-editor .equipment-form .reaction-enable,
-.rate-toggle {
+.equipment-editor .equipment-form .rate-toggle,
+.rate-dialog .rate-toggle {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 7px;
-  font-size: 11px;
+  gap: 8px;
+  font-size: 12px;
 }
-.reaction-definition {
+.equipment-editor .equipment-form .reaction-enable {
+  padding: 0 14px 12px;
+}
+.reaction-enable input,
+.rate-toggle input {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+.reaction-actions {
+  flex-wrap: wrap;
+}
+.reaction-definition,
+.reaction-kinetics {
   border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-top: 18px;
 }
 .reaction-equation {
-  padding: 14px;
-  border-radius: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
   background: var(--hover);
-  font-size: 15px;
+  font-size: 18px;
+  line-height: 1.6;
   overflow-wrap: anywhere;
+}
+.reaction-empty {
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.reaction-empty p {
+  margin: 6px 0 0;
+  color: var(--muted);
 }
 .reaction-sides {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
 }
-.reaction-species h4 {
-  margin: 0;
-  font-size: 12px;
+.reaction-species {
+  align-content: start;
+  gap: 10px;
 }
 .reaction-species-row,
 .reaction-species-labels {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 86px 30px;
+  grid-template-columns: minmax(0, 1fr) 90px 28px;
   gap: 8px;
   align-items: center;
 }
-.reaction-species > .btn {
+.reaction-species > .btn,
+.rate-group > .btn,
+.rate-factor-group > .btn,
+.rate-law-editor > .btn,
+.reaction-kinetics > .btn,
+.reactor-results > .btn {
   justify-self: start;
 }
-.reaction-rate-preview {
-  font-size: 12px;
-  margin: 0;
-  padding: 12px;
-  background: var(--hover);
-  border-radius: 6px;
+.equipment-editor .reaction-species-row .btn,
+.rate-law-editor .btn-square {
+  padding: 4px;
+  flex-shrink: 0;
+}
+.reaction-species-row svg,
+.rate-law-editor svg {
+  flex-shrink: 0;
 }
 .reaction-issues,
 .rate-errors {
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, #b7791f 40%, var(--border));
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #b7791f 50%, var(--border));
+  border-radius: 6px;
   background: color-mix(in srgb, #b7791f 5%, transparent);
   font-size: 12px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .reaction-issues ul,
 .rate-errors ul {
   padding-left: 18px;
   margin: 6px 0 0;
+  list-style: disc;
 }
 .rate-law-editor {
+  display: grid;
+  gap: 20px;
   min-width: 0;
   font-size: 12px;
+  container-type: inline-size;
 }
 .rate-editor-columns,
 .rate-main-column,
 .rate-side-column,
 .rate-group,
+.rate-factor-group,
 .rate-species-card,
 .rate-parameter {
   display: grid;
   gap: 12px;
   min-width: 0;
-}
-.rate-editor-columns {
-  gap: 20px;
-}
-.rate-group {
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
   align-content: start;
 }
-.rate-group h4 {
-  margin: 0;
-  font-size: 13px;
+.rate-editor-columns {
+  gap: 24px;
+  align-items: start;
+}
+.rate-main-column,
+.rate-side-column {
+  gap: 20px;
+}
+.rate-group + .rate-group {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+.rate-factor-group {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.rate-species-card,
+.rate-parameter {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 .rate-law-editor .engineering-help {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   color: var(--muted);
   margin: 0;
@@ -159,6 +268,7 @@
   display: grid;
   gap: 6px;
   min-width: 0;
+  font-size: 12px;
 }
 .rate-card-title,
 .rate-insert,
@@ -168,77 +278,168 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.rate-card-title > :last-child {
+.rate-card-title {
+  align-items: end;
+}
+.rate-card-title > .btn {
   margin-left: auto;
+}
+.rate-symbol-field {
+  max-width: 160px;
+  flex: 1;
+}
+.rate-symbol-field input {
+  font-family: monospace !important;
+}
+.rate-symbol-error {
+  color: #b7791f;
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 .rate-two-columns,
 .rate-factor-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   align-items: start;
-  gap: 10px;
 }
 .rate-factor-row {
-  grid-template-columns: minmax(0, 1fr) 80px 28px;
+  grid-template-columns: minmax(0, 1fr) 90px 28px;
   align-items: end;
+  gap: 8px;
 }
 .rate-preview {
-  background: var(--hover);
+  position: sticky;
+  top: -1px;
+  z-index: 2;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 14px;
-  overflow-x: auto;
+  background: var(--panel, #fff);
+  box-shadow: 0 3px 12px #00000008;
+}
+.rate-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rate-preview p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.rate-preview-constants {
+  max-height: 48px;
+  overflow: auto;
+}
+.rate-preview-constants > span:not(:first-child) {
+  font-variant-numeric: tabular-nums;
+}
+.rate-preview-mode {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.rate-preview-mode button {
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rate-preview-mode button[aria-pressed="true"] {
+  background: var(--hover);
+  color: var(--ink);
 }
 .rate-equation {
-  overflow-wrap: anywhere;
+  overflow: auto;
+  max-height: 160px;
+  margin: 6px 0;
+  min-width: 0;
 }
 .typeset-math {
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
+  min-width: 0;
+  padding: 2px;
 }
 .typeset-math .katex-display {
   margin: 8px 0;
+  text-align: left;
+}
+.typeset-math .katex-display > .katex {
+  text-align: left;
+}
+.rate-equation .katex {
+  font-size: 1.3em;
+}
+.arrhenius-math .katex {
+  font-size: 1em;
 }
 .rate-law-editor .textarea {
   width: 100%;
-  min-height: 100px;
+  min-height: 120px;
+  padding: 12px;
   font-family: monospace;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.7;
   resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 .rate-valid {
   color: var(--accent);
+  margin: 0;
+  font-size: 12px;
 }
 .rate-sample {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.rate-sample summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
 }
 .rate-sample > :not(summary) {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 .rate-sample-result {
   display: block;
   padding: 10px;
   background: var(--hover);
-  border-radius: 6px;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 .rate-dialog {
-  width: min(1120px, calc(100vw - 64px));
-  height: min(900px, calc(100dvh - 64px));
-  max-height: calc(100dvh - 64px);
+  width: min(1440px, calc(100vw - 48px));
+  height: min(1000px, calc(100dvh - 48px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  inset: 0;
   padding: 0;
   color: var(--ink);
   background: var(--panel, #fff);
   border: 1px solid var(--border);
   border-radius: 14px;
+  overflow: hidden;
 }
 .rate-dialog[open] {
   display: flex;
   flex-direction: column;
 }
 .rate-dialog::backdrop {
-  background: #0006;
+  background: #0007;
 }
 .rate-dialog-heading,
 .rate-dialog-footer {
@@ -246,7 +447,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 18px 24px;
+  padding: 18px 28px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
 .rate-dialog-heading h2 {
@@ -254,66 +456,94 @@
   font-size: 20px;
 }
 .rate-dialog-heading p,
-.rate-dialog-footer,
-.rate-eyebrow {
+.rate-dialog-footer {
   font-size: 12px;
   color: var(--muted);
 }
 .rate-dialog-scroll {
-  overflow-y: auto;
+  overflow: auto;
   min-height: 0;
   flex: 1;
-  padding: 20px 24px;
+  padding: 20px 28px;
+  scroll-padding-top: 200px;
 }
 .rate-dialog-footer {
   border-bottom: 0;
   border-top: 1px solid var(--border);
+  padding-block: 14px;
 }
-.reactor-results > .btn {
-  justify-self: start;
+.rate-dialog .rate-preview {
+  padding: 16px 20px;
 }
-@media (min-width: 1100px) {
-  .rate-dialog .rate-editor-columns {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  }
+.rate-dialog .rate-equation .katex {
+  font-size: 1.6em;
 }
-
-.rate-dialog {
-  margin: auto;
-  inset: 0;
+.rate-dialog .rate-side-column {
+  background: var(--hover);
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
-.equipment-editor .equipment-form .rate-toggle,
-.rate-dialog .rate-toggle {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
+.equipment-editor .equipment-form .rate-dialog :is(.input, .select) {
+  height: 34px;
+  min-height: 34px;
 }
-.equipment-editor .reaction-species-row .btn,
-.rate-dialog .btn-square {
-  padding: 4px;
-  flex-shrink: 0;
-}
-.equipment-editor .reaction-species-row svg,
-.rate-dialog .btn-square svg {
-  flex-shrink: 0;
+.rate-dialog .rate-group h4 {
+  font-size: 14px;
 }
 .reactor-results {
   margin-bottom: 24px;
+}
+.reactor-results .equipment-stream-results td {
+  font-variant-numeric: tabular-nums;
+}
+@container (min-width:740px) {
+  .rate-editor-columns {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+}
+@container (min-width:1100px) {
+  .rate-editor-columns {
+    grid-template-columns: minmax(0, 1.65fr) minmax(340px, 1fr);
+    gap: 28px;
+  }
+  .rate-species-card {
+    grid-template-columns: 120px minmax(120px, 1fr) minmax(240px, 1.6fr);
+    align-items: end;
+    gap: 14px;
+  }
+  .rate-species-card > .rate-card-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px;
+    gap: 6px;
+  }
+  .rate-factor-row {
+    grid-template-columns: minmax(0, 1fr) 112px 28px;
+  }
 }
 @media (min-width: 1000px) {
   .equipment-setup-panel:has(.reaction-set) {
     grid-template-columns: minmax(0, 1fr);
   }
   .equipment-setup-panel:has(.reaction-set) > .equipment-setup-side {
-    grid-row: 1;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 24px;
-    padding: 0 0 20px;
+    padding: 20px 0 0;
     border: 0;
-    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
   }
+}
+@media (max-width: 760px) {
   .reaction-sides {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rate-preview-heading {
+    flex-wrap: wrap;
+  }
+  .rate-dialog-heading,
+  .rate-dialog-scroll,
+  .rate-dialog-footer {
+    padding-inline: 16px;
   }
 }

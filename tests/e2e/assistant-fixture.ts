@@ -50,6 +50,39 @@ export async function installAssistant(page: Page) {
       revision: string;
     };
     await input.call("get_capabilities", {});
+    if (input.prompt === "rate column hydraulics") {
+      await input.call("get_guide", {});
+      const plan = {
+        summary: "Rate the tower at 0.7 m diameter",
+        actions: [
+          {
+            type: "update" as const,
+            id: "D-201",
+            params: {
+              distillation: { hydraulics: { diameter: 0.7 } },
+            },
+          },
+        ],
+      };
+      await input.call("preview_actions", {
+        baseRevision: value.revision,
+        plan,
+      });
+      const calculation = await input.call("simulate", {
+        baseRevision: value.revision,
+        plan,
+      });
+      input.text(
+        JSON.stringify(calculation).includes('"state":"flooding"')
+          ? "The simulation predicts flooding. The change is ready for review."
+          : "No flooding result was returned.",
+      );
+      await input.call("propose_actions", {
+        baseRevision: value.revision,
+        plan,
+      });
+      return;
+    }
     if (
       input.prompt.includes("read") ||
       input.conversation.mode === "read-only"

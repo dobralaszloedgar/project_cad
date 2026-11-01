@@ -4,6 +4,29 @@ import { workspaceSchema, type Workspace } from "./revisions";
 
 export const MAX_PROJECT_FILE_BYTES = 32_000_000;
 export const PROJECT_FILE_NAME = "project.json";
+export const PROJECT_FILE_EXTENSION = ".pcad";
+
+export function projectDisplayName(project: {
+  fileName?: string;
+  workspace: Workspace;
+}): string {
+  return project.fileName?.toLowerCase().endsWith(PROJECT_FILE_EXTENSION)
+    ? project.fileName.slice(0, -PROJECT_FILE_EXTENSION.length)
+    : project.workspace.project.name;
+}
+
+export function projectLocation(project: {
+  folderName?: string;
+  fileName?: string;
+  relativePath?: string;
+  rootName?: string;
+}): string {
+  return project.rootName && project.relativePath
+    ? `${project.rootName}/${project.relativePath}`
+    : project.folderName
+      ? `${project.folderName}/${project.fileName ?? PROJECT_FILE_NAME}`
+      : "Browser storage";
+}
 
 const fileSchema = z
   .object({
@@ -36,7 +59,7 @@ function readJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error("This project.json is not valid JSON.");
+    throw new Error("This project file is not valid JSON.");
   }
 }
 
@@ -55,7 +78,7 @@ export function parseProjectFile(text: string): ProjectFile {
     );
   const parsed = fileSchema.safeParse(raw);
   if (!parsed.success)
-    throw new Error("This is not a valid Project CAD project.json file.");
+    throw new Error("This is not a valid Project CAD project file.");
   return {
     ...parsed.data,
     workspace: validateWorkspace(parsed.data.workspace),

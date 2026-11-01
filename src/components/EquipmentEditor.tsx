@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronDown, Copy, Info, Trash2 } from "lucide-react";
 import { ports, type Project, type Unit } from "@/domain/schema";
 import { flow, type Result, type Stream } from "@/domain/solver";
@@ -17,39 +17,87 @@ import { PackedBedResults } from "./reactions/PackedBedResults";
 import { defaultPackedBed } from "@/domain/reactions/schema";
 import { packedBedIssues } from "@/domain/reactions/validation";
 import { componentFlows } from "@/domain/stream-composition";
+import type { Dimension } from "@/domain/unit-definitions";
+import EngineeringInput from "./EngineeringInput";
+import NumberInput from "./NumberInput";
+import { useUnitSystem } from "./useUnitSystem";
+import { DistillationSetup } from "./DistillationSetup";
+import { DistillationResults } from "./DistillationResults";
+import {
+  equipmentSetupIssues,
+  type EquipmentStatus,
+  type EquipmentTarget,
+} from "@/domain/equipment-status";
+import { revealEquipmentIssue } from "./equipment-issue-navigation";
+import "./equipment-status.css";
 
 type NumericParam = {
   [K in keyof Unit["params"]]-?: Unit["params"][K] extends number ? K : never;
 }[keyof Unit["params"]];
 
-const streamRows: {
+const parameterDimensions: Partial<Record<NumericParam, Dimension>> = {
+  temperature: "temperature",
+  pressure: "pressure",
+  flow: "molarFlow",
+  heatDuty: "power",
+};
+
+function setupParams(
+  unit: Unit,
+  componentIds: readonly string[],
+): Unit["params"] {
+  if (unit.kind !== "PBR" || unit.params.packedBed) return unit.params;
+  return {
+    ...unit.params,
+    packedBed: {
+      ...defaultPackedBed(componentIds),
+      catalystMass: unit.params.catalystMass,
+    },
+  };
+}
+
+function streamRows(display: ReturnType<typeof useUnitSystem>): {
   label: string;
   component?: number;
   value: (stream: Stream, properties?: Result["properties"][string]) => string;
-}[] = [
-  {
-    label: "Molar flow",
-    value: (stream) => `${flow(stream).toFixed(4)} mol/s`,
-  },
-  {
-    label: "Temperature",
-    value: (stream) => `${stream.temperature.toFixed(2)} K`,
-  },
-  {
-    label: "Pressure",
-    value: (stream) => `${(stream.pressure / 1000).toFixed(3)} kPa`,
-  },
-  { label: "Phase", value: (_stream, properties) => properties?.phase ?? "—" },
-  {
-    label: "Vapor fraction",
-    value: (_stream, properties) =>
-      properties?.vaporFraction?.toFixed(5) ?? "Undefined",
-  },
-];
+}[] {
+  return [
+    {
+      label: "Molar flow",
+      value: (stream) => display.format(flow(stream), "molarFlow", 4),
+    },
+    {
+      label: "Temperature",
+      value: (stream) => display.format(stream.temperature, "temperature", 2),
+    },
+    {
+      label: "Pressure",
+      value: (stream) => display.format(stream.pressure, "pressure", 3),
+    },
+    {
+      label: "Phase",
+      value: (_stream, properties) => properties?.phase ?? "—",
+    },
+    {
+      label: "Vapor fraction",
+      value: (_stream, properties) =>
+        properties?.vaporFraction?.toFixed(5) ?? "Undefined",
+    },
+  ];
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="equipment-section">
+    <section
+      className="equipment-section"
+      data-setup-section={
+        title === "Composition"
+          ? "composition"
+          : title === "Thermodynamics"
+            ? "thermodynamics"
+            : undefined
+      }
+    >
       <h3>{title}</h3>
       {children}
     </section>
@@ -78,7 +126,11 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
     ),
   ];
   return (
-    <aside className="equipment-setup-side" aria-label="Equipment connections">
+    <aside
+      className="equipment-setup-side"
+      aria-label="Equipment connections"
+      data-setup-section="connections"
+    >
       <Section title="Connections">
         {(["inputs", "outputs"] as const).flatMap((direction) =>
           unitPorts[direction].map((port, index) => {
@@ -90,7 +142,7 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
             );
             const label = `${incoming ? "Inlet" : "Outlet"}${unitPorts[direction].length > 1 ? ` ${index + 1}` : ""}`;
             return (
-              <div className="equipment-port" key={port}>
+              <div className="equipment-port" key={port} data-setup-port={port}>
                 <span>
                   {label}
                   {unit.kind === "Mixer" && port === "in2" ? " · optional" : ""}
@@ -158,11 +210,13 @@ function EquipmentResults({
   dirty: boolean;
 }) {
   const eq = result?.equipment[unit.id];
+  const display = useUnitSystem();
+  const rows = streamRows(display);
   const settings = project.thermo ?? defaultThermo;
   const names = componentNames(settings);
   const context = thermoContext(settings);
   const resultRows = [
-    ...streamRows.slice(0, 3),
+    ...rows.slice(0, 3),
     ...names.map((name, index) => ({
       label: `Mole fraction ${name}`,
       value: (stream: Stream) =>
@@ -173,7 +227,7 @@ function EquipmentResults({
             ).toFixed(5)
           : "Undefined at zero flow",
     })),
-    ...streamRows.slice(3),
+    ...rows.slice(3),
   ];
   const edges = project.edges.filter((edge) =>
     unit.kind === "Product" ? edge.target === unit.id : edge.source === unit.id,
@@ -201,8 +255,12 @@ function EquipmentResults({
           <div className="equipment-performance">
             <dl className="equipment-result-values">
               <div>
-                <dt>Heat duty</dt>
-                <dd>{(eq.duty / 1000).toFixed(3)} kW</dd>
+                <dt>
+                  {eq.distillation?.method === "fug"
+                    ? "Net duty at specified product temperatures"
+                    : "Heat duty"}
+                </dt>
+                <dd>{display.format(eq.duty, "power")}</dd>
               </div>
               {eq.conversion !== undefined && (
                 <div>
@@ -213,6 +271,14 @@ function EquipmentResults({
             </dl>
             {eq.profile && <CatalystProfile profile={eq.profile} />}
           </div>
+          {eq.distillation && (
+            <DistillationResults
+              result={eq.distillation}
+              names={Object.fromEntries(
+                context.ids.map((id) => [id, context.catalog.get(id).name]),
+              )}
+            />
+          )}
           {eq.packedBed && (
             <PackedBedResults
               result={eq.packedBed}
@@ -277,6 +343,9 @@ export default function EquipmentEditor({
   onApply,
   onDuplicate,
   onDelete,
+  issueTarget,
+  status,
+  onNavigateIssue,
 }: {
   unit: Unit;
   project: Project;
@@ -284,25 +353,53 @@ export default function EquipmentEditor({
   onApply: (unit: Unit) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  issueTarget?: EquipmentTarget;
+  status?: EquipmentStatus;
+  onNavigateIssue?: (target: EquipmentTarget) => void;
 }) {
-  const [params, setParams] = useState(unit.params);
-  const [reactionDraft, setReactionDraft] = useState(unit.params.packedBed);
+  const settings = project.thermo ?? defaultThermo;
+  const context = thermoContext(settings);
+  const [params, setParams] = useState(() => setupParams(unit, context.ids));
+  const display = useUnitSystem();
   const [name, setName] = useState(unit.name);
-  const [tab, setTab] = useState<"setup" | "results">("setup");
+  const [tab, setTab] = useState<"setup" | "results">(
+    issueTarget?.section === "results" ? "results" : "setup",
+  );
+  const [lastTarget, setLastTarget] = useState(issueTarget);
+  const root = useRef<HTMLElement>(null);
+  const clearNavigation = useRef<(() => void) | undefined>(undefined);
+  if (lastTarget !== issueTarget) {
+    setLastTarget(issueTarget);
+    if (issueTarget)
+      setTab(issueTarget.section === "results" ? "results" : "setup");
+  }
+  useEffect(() => {
+    if (root.current && issueTarget)
+      clearNavigation.current = revealEquipmentIssue(root.current, issueTarget);
+    return () => clearNavigation.current?.();
+  }, [issueTarget]);
+  function navigate(target: EquipmentTarget) {
+    if (target.section === "thermodynamics" && onNavigateIssue) {
+      onNavigateIssue(target);
+      return;
+    }
+    setTab(target.section === "results" ? "results" : "setup");
+    clearNavigation.current?.();
+    if (root.current)
+      clearNavigation.current = revealEquipmentIssue(root.current, target);
+  }
   const [appliedUnit, setAppliedUnit] = useState(unit);
   // Refresh the draft after an applied edit without losing the selected tab.
   if (appliedUnit !== unit) {
     setAppliedUnit(unit);
-    setParams(unit.params);
+    setParams(setupParams(unit, context.ids));
     setName(unit.name);
   }
-  const settings = project.thermo ?? defaultThermo;
   const thermal = unit.kind === "Heater" || unit.kind === "Cooler";
   const dirty =
     name !== unit.name ||
     JSON.stringify(params) !== JSON.stringify(unit.params);
   const formId = `equipment-form-${unit.id}`;
-  const context = thermoContext(settings);
   const components = context.ids.map((id) => context.catalog.get(id).name);
   const labels = componentNames(settings);
   const chemicals = context.ids.map((id) => context.catalog.get(id));
@@ -325,6 +422,21 @@ export default function EquipmentEditor({
     0,
   );
   const [validationError, setValidationError] = useState("");
+  const setupIssues = [
+    ...equipmentSetupIssues(project, { ...unit, name, params }),
+    ...(status?.issues.filter(
+      (issue) =>
+        issue.target.section === "connections" ||
+        (!dirty && issue.kind === "error"),
+    ) ?? []),
+  ].filter(
+    (issue, index, issues) =>
+      issues.findIndex(
+        (entry) =>
+          entry.message === issue.message &&
+          entry.target.reactionId === issue.target.reactionId,
+      ) === index,
+  );
   function field(
     key: NumericParam,
     label: string,
@@ -333,26 +445,43 @@ export default function EquipmentEditor({
     step: string,
     suffix?: string,
   ) {
+    const dimension = parameterDimensions[key];
+    const title = suffix ? label.slice(0, label.lastIndexOf(" (")) : label;
+    const displayedSuffix = dimension
+      ? display.quantityLabel(dimension)
+      : suffix;
     return (
-      <label className="equipment-field">
-        <span>{suffix ? label.slice(0, label.lastIndexOf(" (")) : label}</span>
+      <label className="equipment-field" data-setup-field={key}>
+        <span>{title}</span>
         <span className="equipment-quantity">
-          <input
-            className="input"
-            aria-label={label}
-            type="number"
-            required
-            min={min}
-            max={max}
-            step={step}
-            value={Number.isNaN(params[key]) ? "" : params[key]}
-            onChange={(event) =>
-              setParams({ ...params, [key]: event.target.valueAsNumber })
-            }
-          />
-          {suffix && (
+          {dimension ? (
+            <EngineeringInput
+              className="input"
+              aria-label={`${title} (${displayedSuffix})`}
+              required
+              dimension={dimension}
+              min={min}
+              max={max}
+              step={step === "any" ? undefined : Number(step)}
+              value={params[key]}
+              onValueChange={(value) => setParams({ ...params, [key]: value })}
+            />
+          ) : (
+            <NumberInput
+              className="input"
+              aria-label={label}
+              required
+              min={min}
+              max={max}
+              step={step === "any" ? 0.001 : Number(step)}
+              integer={key === "trayCount"}
+              value={params[key]}
+              onValueChange={(value) => setParams({ ...params, [key]: value })}
+            />
+          )}
+          {displayedSuffix && (
             <span className="equipment-unit" aria-hidden="true">
-              {suffix}
+              {displayedSuffix}
             </span>
           )}
         </span>
@@ -368,7 +497,7 @@ export default function EquipmentEditor({
     "K",
   );
   return (
-    <aside className="panel inspector equipment-editor">
+    <aside className="panel inspector equipment-editor" ref={root}>
       <div className="equipment-editor-top">
         <div
           className="equipment-editor-tabs"
@@ -432,6 +561,7 @@ export default function EquipmentEditor({
           <form
             id={formId}
             className="equipment-form"
+            data-setup-section="settings"
             onInvalid={(event) => {
               setTab("setup");
               const input = event.target as HTMLElement;
@@ -481,7 +611,7 @@ export default function EquipmentEditor({
                 Tag
                 <input className="input" value={unit.id} readOnly />
               </label>
-              <label>
+              <label data-setup-field="name">
                 Name
                 <input
                   className="input"
@@ -498,6 +628,30 @@ export default function EquipmentEditor({
               <p className="reaction-issues" role="alert">
                 {validationError}
               </p>
+            )}
+            {setupIssues.length > 0 && (
+              <section
+                className="equipment-setup-issues"
+                aria-label="Equipment issues"
+              >
+                <h3>
+                  {setupIssues.some((issue) => issue.kind === "error")
+                    ? "Review equipment errors"
+                    : "Complete setup"}
+                </h3>
+                <ul className="equipment-issue-list">
+                  {setupIssues.map((issue, index) => (
+                    <li key={`${issue.message}-${index}`}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(issue.target)}
+                      >
+                        {issue.message}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
             {unit.kind === "Feed" && (
               <>
@@ -538,25 +692,20 @@ export default function EquipmentEditor({
                           key={chemical.id}
                         >
                           <span>{chemical.name}</span>
-                          <input
+                          <NumberInput
                             className="input"
-                            type="number"
                             required
-                            min="0"
-                            max="1"
-                            step="any"
+                            min={0}
+                            max={1}
+                            step={0.01}
                             aria-label={`Mole fraction ${chemical.name}`}
-                            value={
-                              Number.isFinite(composition[chemical.id])
-                                ? composition[chemical.id]
-                                : ""
-                            }
-                            onChange={(e) =>
+                            value={composition[chemical.id]}
+                            onValueChange={(value) =>
                               setParams({
                                 ...params,
                                 composition: {
                                   ...composition,
-                                  [chemical.id]: e.target.valueAsNumber,
+                                  [chemical.id]: value,
                                 },
                               })
                             }
@@ -638,7 +787,10 @@ export default function EquipmentEditor({
                     : "Cooling specification"
                 }
               >
-                <label className="equipment-field">
+                <label
+                  className="equipment-field"
+                  data-setup-field="thermalMode"
+                >
                   Thermal specification
                   <select
                     className="select"
@@ -682,118 +834,17 @@ export default function EquipmentEditor({
             {unit.kind === "PBR" && (
               <>
                 <Section title="Operating conditions">
-                  {temperature}
+                  <div className="equipment-field-grid">{temperature}</div>
                   <p className="equipment-help">
                     Isothermal operation. Inlet pressure comes from the
                     connected stream.
                   </p>
                 </Section>
-                <Section title="Reaction model">
-                  <label>
-                    Reaction setup
-                    <select
-                      className="select"
-                      aria-label="Reaction setup"
-                      value={params.packedBed ? "reaction-set" : "teaching"}
-                      onChange={(e) => {
-                        const config = defaultPackedBed(
-                          context.ids,
-                          settings.mixture === "demo",
-                        );
-                        config.catalystMass = params.catalystMass;
-                        if (config.reactions[0])
-                          config.reactions[0].rateConstant =
-                            params.catalystRateConstant;
-                        if (params.packedBed)
-                          setReactionDraft(params.packedBed);
-                        setParams({
-                          ...params,
-                          packedBed:
-                            e.target.value === "reaction-set"
-                              ? (reactionDraft ?? config)
-                              : undefined,
-                        });
-                      }}
-                    >
-                      <option value="reaction-set">
-                        Reaction set · configurable chemistry
-                      </option>
-                      <option value="teaching">
-                        Synthetic A → B teaching model
-                      </option>
-                    </select>
-                  </label>
-                  {!params.packedBed && (
-                    <>
-                      <div className="equipment-reaction">
-                        <strong>A → B</strong>
-                        <span>First order · isothermal</span>
-                      </div>
-                      <label className="equipment-field">
-                        Reaction basis
-                        <select
-                          className="select"
-                          value={params.reactorMode}
-                          onChange={(event) =>
-                            setParams({
-                              ...params,
-                              reactorMode: event.target
-                                .value as Unit["params"]["reactorMode"],
-                            })
-                          }
-                        >
-                          <option value="catalyst-weight">Catalyst mass</option>
-                          <option value="residence-time">Residence time</option>
-                        </select>
-                      </label>
-                      {params.reactorMode === "catalyst-weight" ? (
-                        <div className="equipment-field-grid">
-                          {field(
-                            "catalystMass",
-                            "Catalyst mass (kg)",
-                            0,
-                            10000,
-                            "any",
-                            "kg",
-                          )}
-                          {field(
-                            "catalystRateConstant",
-                            "Rate constant at 450 K (m³/(kg·s))",
-                            Number.MIN_VALUE,
-                            10,
-                            "any",
-                            "m³/(kg·s)",
-                          )}
-                        </div>
-                      ) : (
-                        field(
-                          "residenceTime",
-                          "Residence time (s)",
-                          0,
-                          1000,
-                          "0.1",
-                          "s",
-                        )
-                      )}
-                      <p className="equipment-help">
-                        Synthetic A/B reaction. Combine multiple feeds in an
-                        upstream mixer.
-                      </p>
-                      {(settings.mixture !== "demo" ||
-                        settings.modelId !== "ideal-gas") && (
-                        <p className="equipment-help" role="status">
-                          This reaction requires the synthetic A/B mixture and
-                          ideal-gas model. The selected thermodynamic settings
-                          are unsupported.
-                        </p>
-                      )}
-                    </>
-                  )}
-                </Section>
                 {params.packedBed && (
                   <PackedBedSetup
                     value={params.packedBed}
                     chemicals={chemicals}
+                    temperature={params.temperature}
                     onChange={(packedBed) => {
                       setParams({ ...params, packedBed });
                       setValidationError("");
@@ -829,44 +880,66 @@ export default function EquipmentEditor({
             )}
             {unit.kind === "Distillation" && (
               <>
-                <Section title="Separation specification">
-                  <p className="equipment-model-badge">
-                    Simplified separation ·{" "}
-                    {settings.modelId === "ideal-gas"
-                      ? "single equilibrium contact"
-                      : "single TP flash"}
-                  </p>
-                  {settings.modelId === "ideal-gas" ? (
-                    <div className="equipment-field-grid">
-                      {field(
-                        "relativeVolatility",
-                        context.ids.length > 2
-                          ? "Relative volatility: first / remaining components"
-                          : "Relative volatility A/B",
-                        1.01,
-                        20,
-                        "0.01",
-                      )}
-                      {field(
-                        "distillateFraction",
-                        "Distillate fraction",
-                        0.01,
-                        0.99,
-                        "0.01",
-                      )}
-                    </div>
-                  ) : (
-                    <p className="equipment-help">
-                      The feed temperature and pressure determine the phase
-                      split. Vapor leaves outlet 1; liquid leaves outlet 2.
+                <DistillationSetup
+                  params={params}
+                  settings={settings}
+                  onChange={setParams}
+                />
+                {!params.distillation && (
+                  <Section title="Separation specification">
+                    <p className="equipment-model-badge">
+                      Simplified separation ·{" "}
+                      {settings.modelId === "ideal-gas"
+                        ? "single equilibrium contact"
+                        : "single TP flash"}
                     </p>
+                    {settings.modelId === "ideal-gas" ? (
+                      <div className="equipment-field-grid">
+                        {field(
+                          "relativeVolatility",
+                          context.ids.length > 2
+                            ? "Relative volatility: first / remaining components"
+                            : "Relative volatility A/B",
+                          1.01,
+                          20,
+                          "0.01",
+                        )}
+                        {field(
+                          "distillateFraction",
+                          "Distillate fraction",
+                          0.01,
+                          0.99,
+                          "0.01",
+                        )}
+                      </div>
+                    ) : (
+                      <p className="equipment-help">
+                        The feed temperature and pressure determine the phase
+                        split. Vapor leaves outlet 1; liquid leaves outlet 2.
+                      </p>
+                    )}
+                  </Section>
+                )}
+                <Section
+                  title={
+                    params.distillation?.method === "mesh"
+                      ? "Equilibrium trays"
+                      : "Column appearance"
+                  }
+                >
+                  {field(
+                    "trayCount",
+                    params.distillation?.method === "mesh"
+                      ? "Equilibrium trays (2D & 3D)"
+                      : "Visible trays (2D & 3D)",
+                    2,
+                    80,
+                    "1",
                   )}
-                </Section>
-                <Section title="3D schematic">
-                  {field("trayCount", "Visible trays (3D)", 2, 80, "1")}
                   <p className="equipment-help">
-                    Visible trays resize the 3D column. They do not change the
-                    equilibrium calculation.
+                    {params.distillation?.method === "mesh"
+                      ? "This count sets the solved equilibrium trays and resizes both views. Condenser and reboiler are additional stages."
+                      : "Visible trays resize both column views. They do not constrain the separation calculation."}
                   </p>
                 </Section>
               </>
@@ -912,7 +985,24 @@ export default function EquipmentEditor({
           id="equipment-panel-results"
           aria-labelledby="equipment-tab-results"
           hidden={tab !== "results"}
+          data-setup-section="results"
         >
+          {status?.issues.some((issue) => issue.kind === "warning") && (
+            <section
+              className="equipment-setup-issues"
+              aria-label="Calculation warnings"
+              data-setup-field="warnings"
+            >
+              <h3>Calculation warnings</h3>
+              <ul>
+                {status.issues
+                  .filter((issue) => issue.kind === "warning")
+                  .map((issue) => (
+                    <li key={issue.message}>{issue.message}</li>
+                  ))}
+              </ul>
+            </section>
+          )}
           <EquipmentResults
             unit={unit}
             project={project}

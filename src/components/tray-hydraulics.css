@@ -1,0 +1,75 @@
+.tray-hydraulics-setup,
+.tray-hydraulics-results {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line, #d9dfdf);
+}
+.tray-hydraulics-setup h4 {
+  margin: 0 0 0.6rem;
+}
+.tray-hydraulics-setup .equipment-help {
+  margin: 0.6rem 0;
+}
+.equipment-editor .equipment-form .tray-hydraulics-toggle {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.6rem;
+}
+.equipment-editor .equipment-form .tray-hydraulics-toggle input {
+  flex: none;
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+}
+.tray-hydraulics-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 5px;
+  margin: 1rem 0;
+}
+.tray-hydraulics-map > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  font-size: 11px;
+  border: 1px solid #809494;
+  border-left: 4px solid #6d8585;
+  border-radius: 5px;
+}
+.tray-hydraulics-map > [data-state="normal"] {
+  border-left-color: #17885f;
+}
+.tray-hydraulics-map > [data-state="near-flooding"] {
+  border-left-color: #cf8a15;
+}
+.tray-hydraulics-map > [data-state="weeping"] {
+  border-left-color: #3577ef;
+}
+.tray-hydraulics-map > [data-state="flooding"],
+.tray-hydraulics-map > [data-state="flooding-and-weeping"] {
+  border-left-color: #e44747;
+}
+.plant-hydraulics-legend {
+  position: absolute;
+  bottom: 74px;
+  right: 14px;
+  z-index: 5;
+  max-width: min(330px, calc(100% - 24px));
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  pointer-events: none;
+}
+.plant-hydraulics-legend strong,
+.plant-hydraulics-legend small {
+  display: block;
+}
+.plant-hydraulics-legend p {
+  margin: 5px 0;
+}

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { thermoSchema } from "./thermo/registry";
 import { nameStreams } from "./stream-names";
 import { compositionSchema, packedBedSchema } from "./reactions/schema";
+import { distillationSchema } from "./equipment/distillation-schema";
 export const MAX_PROJECT_REQUEST_BYTES = 4 * 1024 * 1024;
 export const kinds = [
   "Feed",
@@ -30,6 +31,7 @@ export const paramsSchema = z
     fractionA: z.number().min(0).max(1).default(1),
     composition: compositionSchema.optional(),
     packedBed: packedBedSchema.optional(),
+    distillation: distillationSchema.optional(),
     residenceTime: z.number().min(0).max(1000).default(10),
     reactorMode: z
       .enum(["residence-time", "catalyst-weight"])
@@ -103,28 +105,48 @@ export function newUnit(kind: Kind, id: string, x: number, y: number): Unit {
     },
   });
 }
-export function validateGraph(project: Project, complete = false): string[] {
-  const errors: string[] = [];
+export interface GraphDiagnostic {
+  kind: "missing" | "error";
+  message: string;
+  unitId?: string;
+  port?: string;
+}
+
+/** Keep equipment identity alongside validation text, including duplicate names. */
+export function graphDiagnostics(
+  project: Project,
+  complete = false,
+): GraphDiagnostic[] {
+  const errors: GraphDiagnostic[] = [];
+  const report = (
+    message: string,
+    unitId?: string,
+    kind: GraphDiagnostic["kind"] = "error",
+    port?: string,
+  ) => errors.push({ message, unitId, kind, port });
   const units = new Map(project.units.map((n) => [n.id, n]));
   if (units.size !== project.units.length)
-    errors.push("Equipment IDs must be unique.");
+    report("Equipment IDs must be unique.");
   if (new Set(project.edges.map((e) => e.id)).size !== project.edges.length)
-    errors.push("Stream IDs must be unique.");
+    report("Stream IDs must be unique.");
   const used = new Set<string>();
   for (const e of project.edges) {
     const source = units.get(e.source),
       target = units.get(e.target);
     if (!source || !target) {
-      errors.push(`Stream ${e.id} references missing equipment.`);
+      report(
+        `Stream ${e.id} references missing equipment.`,
+        source?.id ?? target?.id,
+      );
       continue;
     }
     if (e.source === e.target)
-      errors.push("Self-connections are not supported.");
+      report("Self-connections are not supported.", source.id);
     if (
       !ports(source.kind).outputs.includes(e.sourcePort) ||
       !ports(target.kind).inputs.includes(e.targetPort)
     )
-      errors.push(`Stream ${e.id} has incompatible material ports.`);
+      report(`Stream ${e.id} has incompatible material ports.`, target.id);
     for (const [key, acceptsMultiple] of [
       [`${e.source}:source:${e.sourcePort}`, false],
       [
@@ -134,7 +156,10 @@ export function validateGraph(project: Project, complete = false): string[] {
       ],
     ] as const) {
       if (used.has(key) && !acceptsMultiple)
-        errors.push("Each port accepts one stream; use a mixer or splitter.");
+        report(
+          "Each port accepts one stream; use a mixer or splitter.",
+          key.split(":")[0],
+        );
       used.add(key);
     }
   }
@@ -143,7 +168,7 @@ export function validateGraph(project: Project, complete = false): string[] {
       !project.units.some((n) => n.kind === "Feed") ||
       !project.units.some((n) => n.kind === "Product")
     )
-      errors.push("Add at least one Feed and Product.");
+      report("Add at least one Feed and Product.", undefined, "missing");
     const reachable = (starts: string[], reverse: boolean) => {
       const seen = new Set(starts);
       let changed = true;
@@ -170,21 +195,30 @@ export function validateGraph(project: Project, complete = false): string[] {
       );
     for (const n of project.units) {
       if (!fromFeeds.has(n.id) || !toProducts.has(n.id))
-        errors.push(
+        report(
           `${n.name}: equipment must be on a path from Feed to Product.`,
+          n.id,
+          "missing",
         );
       for (const p of ports(n.kind).outputs)
         if (!used.has(`${n.id}:source:${p}`))
-          errors.push(`${n.name}: connect ${p}.`);
+          report(`${n.name}: connect ${p}.`, n.id, "missing", p);
       if (n.kind === "Mixer") {
         if (!ports(n.kind).inputs.some((p) => used.has(`${n.id}:target:${p}`)))
-          errors.push(`${n.name}: connect an inlet.`);
+          report(`${n.name}: connect an inlet.`, n.id, "missing", "in");
         continue;
       }
       for (const p of ports(n.kind).inputs.filter((p) => p !== "in2"))
         if (!used.has(`${n.id}:target:${p}`))
-          errors.push(`${n.name}: connect ${p}.`);
+          report(`${n.name}: connect ${p}.`, n.id, "missing", p);
     }
   }
-  return [...new Set(errors)];
+  return errors;
+}
+export function validateGraph(project: Project, complete = false): string[] {
+  return [
+    ...new Set(
+      graphDiagnostics(project, complete).map((issue) => issue.message),
+    ),
+  ];
 }

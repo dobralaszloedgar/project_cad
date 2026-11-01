@@ -94,21 +94,32 @@ function execute(
   const context = thermoContext(settings);
   catalog ??= context.catalog;
   chemicalIds ??= context.ids;
+  const result = executeKernel<Properties>({
+    modelId: settings.modelId,
+    temperature,
+    pressure,
+    composition,
+    chemicals: chemicalIds.map((id) => catalog.get(id)),
+    extrapolate: settings.extrapolate,
+    activityParameters: catalog.activityParameters,
+    ...specification,
+  });
+  for (const id of chemicalIds) {
+    const chemical = catalog.get(id);
+    if (chemical.formationSource?.startsWith("Explicit reference convention:"))
+      result.warnings.push(
+        `${chemical.name}: formation enthalpy is unavailable; a zero gas-enthalpy reference at 298.15 K is used for nonreacting balances.`,
+      );
+  }
+  return result;
+}
+
+/** Shared synchronous Rust/WASM ABI used by flashes and the column solver. */
+export function executeKernel<T>(request: unknown): T {
   kernel ??= new WebAssembly.Instance(
     new WebAssembly.Module(new Uint8Array(kernelBytes)),
   ).exports as Kernel;
-  const bytes = new TextEncoder().encode(
-    JSON.stringify({
-      modelId: settings.modelId,
-      temperature,
-      pressure,
-      composition,
-      chemicals: chemicalIds.map((id) => catalog.get(id)),
-      extrapolate: settings.extrapolate,
-      activityParameters: catalog.activityParameters,
-      ...specification,
-    }),
-  );
+  const bytes = new TextEncoder().encode(JSON.stringify(request));
   const pointer = kernel.thermo_alloc(bytes.length);
   try {
     new Uint8Array(kernel.memory.buffer, pointer, bytes.length).set(bytes);
@@ -120,17 +131,8 @@ function execute(
         new TextDecoder().decode(
           new Uint8Array(kernel.memory.buffer, outputPointer, size),
         ),
-      ) as { ok: true; result: Properties } | { ok: false; error: string };
+      ) as { ok: true; result: T } | { ok: false; error: string };
       if (!response.ok) throw new Error(response.error);
-      for (const id of chemicalIds) {
-        const chemical = catalog.get(id);
-        if (
-          chemical.formationSource?.startsWith("Explicit reference convention:")
-        )
-          response.result.warnings.push(
-            `${chemical.name}: formation enthalpy is unavailable; a zero gas-enthalpy reference at 298.15 K is used for nonreacting balances.`,
-          );
-      }
       return response.result;
     } finally {
       kernel.thermo_free(outputPointer, size);

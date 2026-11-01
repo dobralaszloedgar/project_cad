@@ -1,5 +1,6 @@
 import {
   Box3,
+  Color,
   CylinderGeometry,
   DoubleSide,
   ExtrudeGeometry,
@@ -8,20 +9,43 @@ import {
   LatheGeometry,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   MeshPhysicalMaterial,
   PlaneGeometry,
   Quaternion,
   Shape,
   SphereGeometry,
+  Sphere,
   TubeGeometry,
+  TorusGeometry,
   Vector2,
   Vector3,
 } from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { Kind } from "@/domain/schema";
 import { liquidMaterial, vaporMaterial } from "./fluid-materials";
 import { OperationClock, pipeCurve, type Point } from "./operation";
 import { flowColors, type SystemExample } from "./system-geometry";
-import { columnLayout, type EquipmentModelOptions } from "./column-layout";
+import {
+  blendColors,
+  UNKNOWN_COMPOSITION_COLOR,
+  type EquipmentCompositionColors,
+} from "./composition-colors";
+import {
+  columnLayout,
+  columnOverhead,
+  type EquipmentModelOptions,
+} from "./column-layout";
+import type {
+  TrayHydraulicsResult,
+  HydraulicState,
+} from "@/domain/equipment/tray-hydraulics";
+import {
+  bedRivulets,
+  bedDrainage,
+  distributorBores,
+  packedBedLayout,
+} from "./packed-bed-layout";
 
 type Bubble = {
   x: number;
@@ -40,11 +64,24 @@ const random = (n: number) => {
 class Contents {
   readonly group = new Group();
   private bubbles: Bubble[] = [];
+  private droplets: {
+    mesh: InstancedMesh;
+    curves: ReturnType<typeof pipeCurve>[];
+    lengths: number[];
+    radius: number;
+    perPath: number;
+    velocity: number;
+    pendant: boolean;
+  }[] = [];
   constructor(
     private clock: OperationClock,
     private color = flowColors.feed,
   ) {
     this.group.name = "process-contents";
+  }
+
+  tint(color: string) {
+    this.color = color;
   }
 
   surface(
@@ -92,14 +129,20 @@ class Contents {
     this.group.add(mesh);
   }
 
-  fall(position: Point, width: number, height: number, rotation = Math.PI / 2) {
+  fall(
+    position: Point,
+    width: number,
+    height: number,
+    rotation = Math.PI / 2,
+    options: { amplitude?: number; froth?: number } = {},
+  ) {
     const mesh = new Mesh(
       new PlaneGeometry(width, height, 20, 32),
       liquidMaterial(this.clock, {
         mode: "fall",
         color: this.color,
-        amplitude: 0.019,
-        froth: 0.55,
+        amplitude: options.amplitude ?? 0.019,
+        froth: options.froth ?? 0.55,
         opacity: 0.8,
       }),
     );
@@ -137,6 +180,120 @@ class Contents {
     mesh.name = "liquid-core";
     mesh.renderOrder = 1;
     this.group.add(mesh);
+    return mesh;
+  }
+
+  trickles(
+    paths: Point[][],
+    radius: number,
+    name: string,
+    opacity = 0.78,
+    coalescing = false,
+  ) {
+    const geometries = paths.map((points, i) => {
+      const curve = pipeCurve(points);
+      const geometry = new TubeGeometry(
+        curve,
+        Math.max(12, (points.length - 1) * 4),
+        radius,
+        6,
+        false,
+      );
+      const uv = geometry.getAttribute("uv");
+      if (coalescing) {
+        const positions = geometry.getAttribute("position");
+        const normals = geometry.getAttribute("normal");
+        for (let vertex = 0; vertex < positions.count; vertex++) {
+          const t = uv.getX(vertex);
+          // The meniscus draws into a neck with an uneven, fuller stream below.
+          const thickness = 1.35 - t * 0.55 + Math.sin(t * 9 + i * 2.7) * 0.14;
+          positions.setXYZ(
+            vertex,
+            positions.getX(vertex) +
+              normals.getX(vertex) * radius * (thickness - 1),
+            positions.getY(vertex) +
+              normals.getY(vertex) * radius * (thickness - 1),
+            positions.getZ(vertex) +
+              normals.getZ(vertex) * radius * (thickness - 1),
+          );
+        }
+        geometry.computeVertexNormals();
+      }
+      const length = curve.getLength();
+      // Physical distance gives every path the same downward velocity; phase
+      // offsets keep a bed of independent rivulets from flashing in unison.
+      for (let vertex = 0; vertex < uv.count; vertex++)
+        uv.setX(vertex, uv.getX(vertex) * length + random(i + 31) * 2);
+      return geometry;
+    });
+    const merged = mergeGeometries(geometries);
+    geometries.forEach((geometry) => geometry.dispose());
+    if (!merged) return;
+    const mesh = new Mesh(
+      merged,
+      liquidMaterial(this.clock, {
+        mode: "trickle",
+        color: this.color,
+        amplitude: radius * (coalescing ? 0.42 : 0.12),
+        opacity,
+        froth: 0,
+      }),
+    );
+    mesh.name = name;
+    mesh.renderOrder = 1;
+    this.group.add(mesh);
+  }
+
+  drops(
+    paths: Point[][],
+    radius: number,
+    perPath: number,
+    velocity: number,
+    name: string,
+    pendant = false,
+  ) {
+    const curves = paths.map(pipeCurve);
+    const geometry = new SphereGeometry(1, 10, 8);
+    if (pendant) {
+      const vertices = geometry.getAttribute("position");
+      for (let i = 0; i < vertices.count; i++) {
+        const y = vertices.getY(i);
+        const neck = y > 0 ? 1 - y * y * 0.65 : 1;
+        vertices.setXYZ(i, vertices.getX(i) * neck, y, vertices.getZ(i) * neck);
+      }
+      geometry.computeVertexNormals();
+    }
+    const mesh = new InstancedMesh(
+      geometry,
+      new MeshPhysicalMaterial({
+        color: new Color(this.color).lerp(new Color("#c1eee7"), 0.12),
+        transparent: true,
+        opacity: 0.92,
+        roughness: 0.08,
+        metalness: 0,
+        clearcoat: 1,
+        ior: 1.333,
+        depthWrite: false,
+      }),
+      curves.length * perPath,
+    );
+    mesh.name = name;
+    mesh.renderOrder = 1;
+    mesh.visible = false;
+    mesh.boundingBox = new Box3()
+      .setFromPoints(paths.flat().map((p) => new Vector3(...p)))
+      .expandByScalar(radius * 1.7);
+    mesh.boundingSphere = mesh.boundingBox.getBoundingSphere(new Sphere());
+    this.group.add(mesh);
+    this.droplets.push({
+      mesh,
+      curves,
+      lengths: curves.map((curve) => curve.getLength()),
+      radius,
+      perPath,
+      velocity,
+      pendant,
+    });
   }
 
   vapor(
@@ -221,6 +378,53 @@ class Contents {
     return {
       group: this.group,
       update: (active: boolean) => {
+        for (const {
+          mesh,
+          curves,
+          lengths,
+          radius,
+          perPath,
+          velocity,
+          pendant,
+        } of this.droplets) {
+          mesh.visible = active;
+          if (!active) continue;
+          for (let path = 0; path < curves.length; path++) {
+            for (let drop = 0; drop < perPath; drop++) {
+              const phase =
+                (this.clock.uniform.value *
+                  velocity *
+                  (pendant
+                    ? 0.7 + random(path + 211) * 0.7
+                    : 1 / lengths[path]) +
+                  random(path + 109) +
+                  drop / perPath) %
+                1;
+              if (pendant) {
+                const falling = Math.max(0, (phase - 0.58) / 0.42);
+                curves[path].getPointAt(falling * falling, point);
+                const growth =
+                  phase < 0.58
+                    ? Math.cbrt(phase / 0.58)
+                    : Math.min(1, (1 - phase) * 18);
+                const r = radius * growth;
+                const stretch =
+                  1.15 + (phase < 0.58 ? phase / 0.58 : 1 - falling) * 0.9;
+                scale.set(r, r * stretch, r);
+                point.y -= r * stretch * (1 - falling);
+              } else {
+                curves[path].getPointAt(phase, point);
+                const r = radius * Math.min(1, phase * 12, (1 - phase) * 12);
+                scale.set(r, r * 1.7, r);
+              }
+              mesh.setMatrixAt(
+                path * perPath + drop,
+                matrix.compose(point, rotation, scale),
+              );
+            }
+          }
+          mesh.instanceMatrix.needsUpdate = true;
+        }
         if (!this.bubbles.length) return;
         bubbles.visible = active;
         if (!active) return;
@@ -253,8 +457,18 @@ export function createProcessContents(
     ? flowColors.warm
     : flowColors.feed,
   options: EquipmentModelOptions = {},
+  composition?: EquipmentCompositionColors,
+  hydraulics?: TrayHydraulicsResult,
 ) {
+  color = composition?.color ?? color;
   const c = new Contents(clock, color);
+  const inlet = composition?.ports.in ?? color;
+  const outlet = composition?.ports.out ?? color;
+  const between = (from: string, to: string, fraction: number) =>
+    blendColors([
+      { color: from, amount: 1 - Math.max(0, Math.min(1, fraction)) },
+      { color: to, amount: Math.max(0, Math.min(1, fraction)) },
+    ]);
   if (!section) return c.finish();
   switch (kind) {
     case "Feed":
@@ -341,6 +555,8 @@ export function createProcessContents(
           [0.61, 0.82, 0],
         ],
         0.077,
+        0.95,
+        inlet,
       );
       c.stream(
         [
@@ -348,6 +564,8 @@ export function createProcessContents(
           [1.39, 0.82, 0],
         ],
         0.024,
+        0.95,
+        composition?.ports.in2 ?? color,
       );
       c.stream(
         [
@@ -355,6 +573,8 @@ export function createProcessContents(
           [0.73, 2.36, 0],
         ],
         0.064,
+        0.95,
+        outlet,
       );
       break;
     }
@@ -374,6 +594,8 @@ export function createProcessContents(
             [1.38, 1.1, z],
           ],
           0.078,
+          0.95,
+          composition?.ports[z < 0 ? "out" : "out2"] ?? color,
         );
       break;
     case "Heater":
@@ -391,7 +613,7 @@ export function createProcessContents(
         ],
         0.073,
         0.95,
-        flowColors.warm,
+        composition ? outlet : flowColors.warm,
       );
       for (let y = -0.32; y <= 0.33; y += 0.16)
         for (let z = -0.32; z <= 0.33; z += 0.16)
@@ -403,8 +625,8 @@ export function createProcessContents(
               ],
               0.025,
               0.96,
-              color,
-              flowColors.warm,
+              inlet,
+              composition ? outlet : flowColors.warm,
             );
       c.vapor([0, 1.18, 0.05], 1.98, 0.75, 0.11, 0.7);
       c.stream(
@@ -418,9 +640,9 @@ export function createProcessContents(
       break;
     case "Cooler":
       for (const x of [-1.38, 1.38]) {
-        const inlet = x < 0;
+        const isInlet = x < 0;
         c.stream(
-          inlet
+          isInlet
             ? [
                 [x, 1.5, 0.85],
                 [x, 1.5, -0.61],
@@ -431,7 +653,7 @@ export function createProcessContents(
               ],
           0.066,
           0.95,
-          inlet ? color : flowColors.cool,
+          isInlet ? inlet : composition ? outlet : flowColors.cool,
         );
       }
       for (let z = -0.52; z < 0.6; z += 0.18)
@@ -443,56 +665,135 @@ export function createProcessContents(
           0.027,
           0.96,
           color,
-          flowColors.cool,
+          composition ? outlet : flowColors.cool,
         );
       break;
-    case "PBR":
+    case "PBR": {
+      c.tint(inlet);
       c.stream(
         [
           [-0.99, 3.55, 0],
           [-0.99, 4.07, 0],
           [0, 4.07, 0],
-          [0, 3.3, 0],
+          [0, 3.29, 0],
         ],
         0.058,
       );
       c.stream(
         [
+          [0, packedBedLayout.collector, 0],
           [0, 0.75, 0],
           [0, 0.48, 0.08],
           [1.04, 0.48, 0.08],
         ],
         0.06,
+        0.95,
+        outlet,
       );
-      // Thin liquid rivulets wet the fixed packing, with short distributor jets.
-      for (const base of [1.12, 2.22]) {
-        for (let i = 0; i < 16; i++) {
-          const a = 0.12 + i * 0.095,
-            x = Math.sin(a) * 0.51,
-            z = Math.cos(a) * 0.51;
-          const points: Point[] = [];
-          for (let j = 0; j <= 14; j++)
-            points.push([
-              x + Math.sin(j * 2.4 + i) * 0.016,
-              base + 0.88 - j * 0.059,
-              z + Math.sin(j * 2.1 + i) * 0.015,
-            ]);
-          c.stream(points, 0.012, 0.94);
-        }
+      c.trickles(
+        Array.from({ length: 12 }, (_, i): Point[] => {
+          const a = (i / 12) * Math.PI * 2;
+          return [
+            [Math.cos(a) * 0.08, 3.285, Math.sin(a) * 0.08],
+            [Math.cos(a) * 0.17, 3.26, Math.sin(a) * 0.17],
+            [Math.cos(a) * 0.26, 3.216, Math.sin(a) * 0.26],
+          ];
+        }),
+        0.006,
+        "inlet-diffuser-liquid",
+      );
+      for (const [index, bed] of packedBedLayout.beds.entries()) {
+        // Illustrate the change between the calculated inlet and outlet; the
+        // authored beds are visual sections, not additional reaction stages.
+        c.tint(between(inlet, outlet, index / packedBedLayout.beds.length));
+        c.surface([0, bed.distributor + 0.014, 0], 0.599, 0.0015, 0.015);
+        const feeds = distributorBores.map(({ x, z }, i): Point[] => [
+          [x, bed.distributor - 0.04, z],
+          [
+            x + Math.sin(i * 2.7) * 0.008,
+            bed.top + 0.07,
+            z + Math.cos(i) * 0.008,
+          ],
+          [
+            x + Math.sin(i * 2.7) * 0.016,
+            bed.top + 0.025,
+            z + Math.cos(i) * 0.016,
+          ],
+        ]);
+        c.trickles(
+          feeds.filter((_, i) => i % 7 === index),
+          0.006,
+          `bed-${index + 1}-distributor-threads`,
+          0.88,
+          true,
+        );
+        c.drops(
+          feeds.filter((_, i) => i % 7 !== index),
+          0.009,
+          1,
+          1.2,
+          `bed-${index + 1}-distributor-beads`,
+          true,
+        );
+        const wetting = bedRivulets(index);
+        c.tint(
+          between(inlet, outlet, (index + 0.5) / packedBedLayout.beds.length),
+        );
+        c.trickles(wetting, 0.0022, `bed-${index + 1}-wetting-films`, 0.38);
+        c.drops(
+          wetting,
+          0.007,
+          2,
+          0.17,
+          `bed-${index + 1}-descending-droplets`,
+        );
+        const drainage = bedDrainage(index);
+        c.tint(
+          between(inlet, outlet, (index + 1) / packedBedLayout.beds.length),
+        );
+        c.trickles(
+          drainage.branches,
+          0.007,
+          `bed-${index + 1}-gathering-films`,
+          0.88,
+          true,
+        );
+        c.trickles(
+          drainage.streams,
+          0.014,
+          `bed-${index + 1}-merged-streams`,
+          0.94,
+          true,
+        );
+        c.drops(
+          drainage.drips,
+          0.011,
+          1,
+          0.9,
+          `bed-${index + 1}-pendant-drops`,
+          true,
+        );
       }
-      for (const x of [-0.24, 0, 0.24])
-        for (const z of [0, 0.24])
-          c.stream(
-            [
-              [x, 3.19, z],
-              [x, 3.06, z],
-            ],
-            0.009,
-          );
+      // A shallow sump collects the distributed drainage before the low outlet.
+      // Its radius is inside the dished head at this elevation.
+      c.tint(outlet);
+      c.surface([0, packedBedLayout.collector, 0], 0.59, 0.003, 0.025);
+      c.bulk([0, 0.79, 0], 0.59, 0.06);
       break;
+    }
     case "Distillation": {
       const layout = columnLayout(options);
+      c.group.scale.set(layout.radialScale, 1, layout.radialScale);
+      c.group.userData.hydraulics = hydraulics;
+      const overhead = columnOverhead(options);
       const top = (y: number) => y + layout.topOffset;
+      const distillate = composition
+        ? (composition.ports.out ?? UNKNOWN_COMPOSITION_COLOR)
+        : flowColors.cool;
+      const bottoms = composition
+        ? (composition.ports.out2 ?? UNKNOWN_COMPOSITION_COLOR)
+        : color;
+      c.tint(inlet);
       c.stream(
         [
           [-1.3, layout.feedY, 0],
@@ -500,25 +801,15 @@ export function createProcessContents(
         ],
         0.054,
       );
-      c.stream(
-        [
-          [1.52, top(5.33), 0],
-          [1.52, top(5.06), 0],
-          [0.54, top(5.06), 0],
-        ],
-        0.039,
-        0.95,
-        flowColors.cool,
-      );
-      c.stream(
-        [
-          [1.52, top(5.06), 0],
-          [2.1, top(5.06), 0],
-        ],
-        0.039,
-        0.95,
-        flowColors.cool,
-      );
+      for (const branch of [
+        "condensate",
+        "inlet",
+        "reflux",
+        "distillate",
+      ] as const)
+        c.stream(overhead[branch], 0.039, 0.86, distillate).name =
+          `column-${branch}-flow`;
+      c.tint(bottoms);
       c.stream(
         [
           [0, 0.82, 0.1],
@@ -546,40 +837,149 @@ export function createProcessContents(
         0.043,
       );
       c.stream(
-        [
-          [0, top(5.45), 0],
-          [0, top(6.7), 0],
-          [1.52, top(6.7), 0],
-          [1.52, top(6.18), 0],
-        ],
+        overhead.vapor,
         0.048,
         0.42,
-        "#c1d9d6",
+        composition ? distillate : "#c1d9d6",
       );
       for (const [i, y] of layout.trays.entries()) {
+        // Geometry is bottom-up; the solver numbers trays from the top.
+        const stage = layout.trayCount - i;
+        const rating = hydraulics?.stages.find((s) => s.stage === stage);
+        const weeping =
+          rating?.weepRatio !== null &&
+          rating?.weepRatio !== undefined &&
+          rating.weepRatio < 1;
+        const flooding =
+          !!rating &&
+          Math.max(
+            rating.jetFloodFraction ?? 0,
+            rating.downcomerFloodFraction,
+          ) >= 1;
+        const depth = rating
+          ? Math.min(
+              layout.traySpacing * 0.82,
+              Math.max(
+                0.025,
+                rating.frothHeight * (weeping ? 0.45 : 1) +
+                  (flooding ? layout.traySpacing * 0.28 : 0),
+              ),
+            )
+          : 0.07;
+        // The solver provides endpoint compositions, not a tray profile. Blend
+        // through the feed elevation without inventing additional separation.
+        c.tint(
+          composition
+            ? y <= layout.feedY
+              ? between(
+                  bottoms,
+                  inlet,
+                  (y - layout.trays[0]) / (layout.feedY - layout.trays[0]),
+                )
+              : between(
+                  inlet,
+                  distillate,
+                  (y - layout.feedY) / (layout.trays.at(-1)! - layout.feedY),
+                )
+            : color,
+        );
         const x = i % 2 === 0 ? -0.46 : 0.46;
-        c.bulk([0, y + 0.035, 0], 0.54, 0.05);
-        c.surface([0, y + 0.07, 0], 0.54, 0.035, 0.82);
+        c.bulk([0, y + depth / 2, 0], 0.54, depth);
+        c.surface(
+          [0, y + depth, 0],
+          0.54,
+          flooding ? 0.018 : 0.007,
+          flooding ? 0.65 : 0.28,
+        );
         c.aerate(
           [0, y + 0.055, 0],
           0.47,
-          Math.min(120, Math.max(24, Math.floor(1600 / layout.trayCount))),
-          0.15,
+          Math.min(
+            120,
+            Math.max(12, Math.floor((weeping ? 400 : 1600) / layout.trayCount)),
+          ),
+          Math.max(0.03, depth - 0.025),
         );
-        c.fall([x, y - 0.15, 0], 0.43, 0.43);
-        c.vapor([0, y + 0.26, 0], 0.89, 0.3, 0.08);
+        c.fall(
+          [x, y - (layout.traySpacing - depth) / 2, 0],
+          0.43,
+          layout.traySpacing - 0.03,
+          Math.PI / 2,
+          {
+            amplitude: 0.004,
+            froth: 0.14,
+          },
+        );
+        c.vapor(
+          [0, y + layout.traySpacing * 0.57, 0],
+          0.89,
+          layout.traySpacing * 0.65,
+          0.035,
+        );
+        if (hydraulics) {
+          const colors: Record<HydraulicState, string> = {
+            normal: "#17885f",
+            "near-flooding": "#eaa521",
+            weeping: "#3577ef",
+            flooding: "#f04949",
+            "flooding-and-weeping": "#f04949",
+            unrated: "#94a3ab",
+          };
+          const ring = new Mesh(
+            new TorusGeometry(0.558, 0.012, 8, 48),
+            new MeshBasicMaterial({
+              color: colors[rating?.state ?? "unrated"],
+            }),
+          );
+          ring.rotation.x = Math.PI / 2;
+          ring.position.y = y + 0.02;
+          ring.name = `tray-${stage}-hydraulic-state`;
+          ring.userData = { stage, state: rating?.state ?? "unrated" };
+          c.group.add(ring);
+        }
+        if (weeping) {
+          const paths: Point[][] = [];
+          for (let dx = -0.27; dx <= 0.3; dx += 0.18)
+            for (let dz = -0.27; dz <= 0.3; dz += 0.18)
+              paths.push([
+                [dx, y - 0.02, dz],
+                [dx, y - layout.traySpacing + 0.1, dz],
+              ]);
+          c.drops(paths, 0.012, 3, 0.65, `tray-${stage}-weeping`, true);
+        }
+        if (flooding) {
+          const paths: Point[][] = Array.from({ length: 8 }, (_, k) => {
+            const angle = (k * Math.PI) / 4;
+            return [
+              [Math.cos(angle) * 0.28, y + depth, Math.sin(angle) * 0.28],
+              [
+                Math.cos(angle + 0.15) * 0.4,
+                y + layout.traySpacing + 0.05,
+                Math.sin(angle + 0.15) * 0.4,
+              ],
+            ];
+          });
+          c.drops(paths, 0.014, 3, 0.8, `tray-${stage}-carryover`);
+        }
       }
+      c.tint(bottoms);
       c.bulk([0, 1.1, 0], 0.54, 0.16);
-      c.surface([0, 1.18, 0], 0.54, 0.035, 0.45);
+      c.surface([0, 1.18, 0], 0.54, 0.009, 0.12);
       // Reboiler liquid boils around the heated bundle; condenser films descend.
       c.bulk([1.25, 0.74, -0.12], 0.24, 0.48);
-      c.surface([1.25, 0.98, -0.12], 0.24, 0.038, 0.9);
+      c.surface([1.25, 0.98, -0.12], 0.24, 0.012, 0.5);
       c.aerate([1.25, 0.93, -0.12], 0.19, 120, 0.16);
       c.vapor([1.25, 1.04, -0.12], 0.39, 0.15, 0.12);
-      c.bulk([1.52, top(5.51), 0], 0.175, 0.16);
-      c.surface([1.52, top(5.59), 0], 0.175, 0.005, 0.05);
+      c.tint(distillate);
+      c.bulk([1.52, top(5.96), 0], 0.21, 0.08);
+      c.surface([1.52, top(6), 0], 0.21, 0.003, 0.04);
       for (const x of [-0.09, 0.09])
-        c.fall([1.52 + x, top(5.85), 0.08], 0.07, 0.51, 0);
+        c.fall([1.52 + x, top(6.17), 0.08], 0.07, 0.3, 0, {
+          amplitude: 0.002,
+          froth: 0.08,
+        });
+      c.bulk([1.52, top(5.47), 0], 0.203, 0.13);
+      c.surface([1.52, top(5.535), 0], 0.203, 0.002, 0.015);
       break;
     }
   }
@@ -587,11 +987,20 @@ export function createProcessContents(
 }
 
 /** Pipe walls and contents share exactly the same centerline and bend radii. */
-export function createSystemFlow(system: SystemExample, clock: OperationClock) {
+export function createSystemFlow(
+  system: SystemExample,
+  clock: OperationClock,
+  colors?: Record<string, string>,
+) {
   const c = new Contents(clock);
   c.group.name = `system-flow-${system.id}`;
   for (const stream of system.streams) {
-    c.stream(stream.points, stream.radius * 0.76, 0.96, stream.color);
+    c.stream(
+      stream.points,
+      stream.radius * 0.76,
+      0.96,
+      colors?.[stream.id] ?? stream.color,
+    ).name = `stream-${stream.id}`;
   }
   return c.group;
 }

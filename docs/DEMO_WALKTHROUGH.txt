@@ -7,12 +7,12 @@ REPRODUCIBLE DEMO
    Review actual iteration count and balance residuals in Results.
 3. Close Results, then select 3D. Select the reactor or splitter label to inspect it.
    Orbit the scene and use Reset camera. Split shows the same graph in both views.
-4. In 2D, double-click the reactor, set temperature to 500 K and Apply conditions.
+4. In 2D, double-click the splitter, set secondary outlet fraction to 0.6 and Apply conditions.
    Close Properties. Results update from a new deterministic solve. Use the header
    history button and choose Initial example to compare conversion, net duty,
    equipment changes and stream changes.
 5. Restore Initial example. Run again; conversion returns to about 77.46%.
-   The later hotter revision remains available in history.
+   The later edited revision remains available in history.
 6. Use the project menu (...) to export JSON. Choose Templates in the same menu,
    then Blank flowsheet. Import the JSON from the project menu to recover the graph
    and revisions. Wait for Saved on this device, then refresh to verify persistence.

@@ -1,6 +1,6 @@
 import type { Kind } from "@/domain/schema";
 import type { Point } from "./operation";
-import { columnLayout } from "./column-layout";
+import { columnLayout, type EquipmentModelOptions } from "./column-layout";
 
 export const flowColors = { feed: "#008f88", warm: "#d18416", cool: "#168bb9" };
 
@@ -35,6 +35,7 @@ export type EquipmentInstance = {
   title: string;
   color: string;
   trayCount?: number;
+  column?: EquipmentModelOptions["column"];
   /** Clockwise quarter turns when seen from above, shared by models and ports. */
   turn?: 0 | 1 | 2 | 3;
 };
@@ -126,6 +127,8 @@ export function worldPort(
     port = [...port];
     if (endpoint[1] === "in") port[1] = layout.feedY;
     if (endpoint[1] === "top") port[1] = layout.distillateY;
+    port[0] *= layout.radialScale;
+    port[2] *= layout.radialScale;
   }
   if (!port) throw new Error(`Missing port ${endpoint.join(".")}`);
   return rotatePoint(port, item.turn).map((v, i) =>

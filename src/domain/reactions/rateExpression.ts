@@ -218,6 +218,16 @@ function parseRateExpression(
 export function compileRateExpression(expression: string, symbols: string[]) {
   return parseRateExpression(expression, symbols);
 }
+/** Read identifiers without mistaking scientific-notation exponents for symbols. */
+export function rateExpressionSymbols(expression: string) {
+  return new Set(
+    (
+      expression.match(
+        /(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*/g,
+      ) ?? []
+    ).filter((token) => /^[A-Za-z]/.test(token)),
+  );
+}
 export function rateExpressionLatex(
   expression: string,
   symbols: string[],

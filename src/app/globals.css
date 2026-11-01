@@ -479,29 +479,6 @@ h3 {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-.navigation-hint {
-  position: absolute;
-  left: 14px;
-  bottom: 10px;
-  right: 76px;
-  z-index: 5;
-  width: fit-content;
-  max-width: calc(100% - 90px);
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
-  pointer-events: none;
-}
-.flow-wrapper .navigation-hint {
-  left: 58px;
-  max-width: calc(100% - 135px);
-}
-.flow-wrapper:has(.canvas-footnote) .navigation-hint {
-  display: none;
-}
 .plant-controls {
   position: absolute;
   bottom: 40px;
@@ -528,6 +505,88 @@ h3 {
   font: inherit;
   font-size: 12px;
   pointer-events: auto;
+}
+.plant-composition-legend {
+  position: absolute;
+  top: 56px;
+  left: 14px;
+  z-index: 5;
+  max-width: min(330px, calc(100% - 90px));
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+}
+.plant-composition-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.plant-composition-heading > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.plant-palette-select {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0 6px;
+  color: var(--muted);
+}
+.plant-palette-select select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.plant-palette-select select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.plant-palette-preview {
+  display: flex;
+  gap: 2px;
+  margin: 7px 0 10px;
+  overflow: hidden;
+  border-radius: 3px;
+}
+.plant-palette-preview i {
+  flex: 1;
+  height: 5px;
+}
+.plant-component-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  max-height: min(190px, 24vh);
+  overflow: auto;
+  margin: 6px 0;
+}
+.plant-component-swatches span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.plant-component-swatches i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px #00000018;
+}
+.plant-composition-legend small {
+  color: var(--muted);
+  font-size: 10px;
 }
 .plant-view .equipment-label-layer {
   z-index: 4;
@@ -684,7 +743,7 @@ h3 {
 .equipment-node .equipment-symbol {
   position: relative;
   width: 100%;
-  height: 128px;
+  height: 100%;
   overflow: visible;
 }
 .equipment-selection-frame {
@@ -727,30 +786,43 @@ h3 {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   border: 1px dashed var(--accent);
 }
-.unit-tag {
+.unit-label {
   position: absolute;
-  top: -28px;
-  left: -30px;
-  right: -30px;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  width: 144px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   text-align: center;
+  pointer-events: none;
+}
+.unit-tag {
+  max-width: 100%;
   font-size: 12px;
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.025em;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .unit-name {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 50%;
-  width: max-content;
-  max-width: 160px;
-  transform: translateX(-50%);
-  padding: 0 4px;
-  background: var(--canvas);
-  font-size: 12px;
+  max-width: 100%;
+  font-size: 11px;
   color: var(--muted);
-  text-align: center;
-  line-height: 1.25;
+  font-weight: 400;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
   white-space: normal;
 }
 .material-handle {
@@ -765,9 +837,12 @@ h3 {
      tooltips and hit targets; React Flow still enforces port direction. */
   pointer-events: all;
 }
-.equipment-node.bottom-outlet .unit-name {
+.equipment-node.bottom-outlet .unit-label {
   left: calc(50% + 12px);
+  width: 116px;
   transform: none;
+  align-items: flex-start;
+  text-align: left;
 }
 .react-flow__handle.mixer-drop-handle {
   left: 31.25%;
@@ -843,27 +918,6 @@ h3 {
   padding: 4px 6px;
   border-radius: 3px;
 }
-.canvas-footer {
-  position: absolute;
-  left: 55px;
-  bottom: 13px;
-  z-index: 4;
-  pointer-events: none;
-}
-.canvas-status {
-  display: flex;
-  gap: 16px;
-  color: var(--muted);
-  font-size: 10px;
-}
-.canvas-status > span:not(.save-status) {
-  display: none;
-}
-.save-status {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
 .wide {
   width: 100%;
 }
@@ -918,33 +972,6 @@ h3 {
 .notification .icon-button {
   width: 24px;
   height: 24px;
-}
-.blank-canvas {
-  position: absolute;
-  inset: 90px 15px 80px;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 12px;
-  color: var(--muted);
-  text-align: center;
-}
-.blank-canvas > svg {
-  color: var(--accent);
-  margin-bottom: 6px;
-}
-.blank-canvas h2 {
-  font-size: 19px;
-  color: var(--ink);
-}
-.blank-canvas p {
-  font-size: 13px;
-}
-.blank-canvas .btn {
-  pointer-events: auto;
-  margin-top: 10px;
 }
 .mobile-canvas-hint {
   display: none;
@@ -1571,9 +1598,6 @@ h3 {
   .header-navigation {
     gap: 3px;
   }
-  .canvas-status {
-    gap: 12px;
-  }
   .model-button {
     font-size: 11px;
   }
@@ -1585,9 +1609,6 @@ h3 {
   }
   .view-switch button {
     padding: 0 6px;
-  }
-  .canvas-status .save-status {
-    display: none;
   }
 }
 @media (max-width: 1080px) {
@@ -1606,10 +1627,6 @@ h3 {
   }
   .view-switch {
     margin-left: auto;
-  }
-  .canvas-status {
-    font-size: 9px;
-    gap: 10px;
   }
   .sheet-tabs button {
     padding: 0 12px;
@@ -1662,9 +1679,6 @@ h3 {
   .view-switch {
     margin: 0 0 0 auto;
   }
-  .canvas-footer {
-    display: none;
-  }
   .sheet-tabs {
     padding-left: 3px;
   }
@@ -1674,15 +1688,6 @@ h3 {
     gap: 5px;
   }
   .sheet-tabs button svg {
-    display: none;
-  }
-  .canvas-status {
-    padding-right: 9px;
-    gap: 0;
-    font-size: 9px;
-  }
-  .canvas-status > span:first-child,
-  .canvas-status > span:last-child {
     display: none;
   }
   .canvas-footnote {
@@ -1818,13 +1823,6 @@ h3 {
   .dialog-actions {
     flex-wrap: wrap;
     gap: 8px;
-  }
-  .blank-canvas h2 {
-    font-size: 17px;
-  }
-  .blank-canvas p {
-    font-size: 12px;
-    max-width: 260px;
   }
   .split-view {
     flex-direction: column;
@@ -2470,14 +2468,29 @@ h3 {
   position: relative;
   border-radius: 9px;
   background-color: var(--canvas);
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--border) 65%, transparent) 0.7px,
+    transparent 0.7px
+  );
   background-size: 12px 12px;
   color: var(--symbol-stroke);
 }
 .project-preview-stage {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: calc(100% - 20px);
+  height: calc(100% - 30px);
+  margin: 20px 10px 10px;
+}
+.project-preview-stage .preview-unit :is(path, circle, rect) {
+  /* Workspace strokes stay fixed under zoom; thumbnail strokes scale together. */
+  vector-effect: none;
+  stroke-width: 3;
+}
+.project-preview-stage .preview-unit text {
+  display: none;
+}
+.project-preview-stage .preview-pipes {
+  opacity: 0.7;
 }
 .empty-preview {
   display: flex;
@@ -2573,6 +2586,11 @@ h3 {
 .project-list .project-preview {
   width: 100px;
   height: 66px;
+}
+.project-list .project-preview-stage {
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  margin: 6px;
 }
 .project-list .project-card-title {
   margin: 0;
@@ -3186,4 +3204,97 @@ h3 {
 .chemical-search-results button span {
   font-size: 12px;
   color: var(--muted, #64736b);
+}
+
+/* Project documents and the user's connected disk folders. */
+.project-connected-folders {
+  margin-top: 24px;
+  min-width: 0;
+}
+.project-folders-caption {
+  display: block;
+  padding: 0 14px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+}
+.project-connected-folders .projects-nav-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-folder-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 18px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+.project-folder-breadcrumbs button {
+  cursor: pointer;
+  padding: 4px 2px;
+  border-radius: 4px;
+}
+.project-folder-breadcrumbs button:hover {
+  text-decoration: underline;
+}
+.project-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.project-folder-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.project-folder-card span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-folder-card:hover {
+  background: color-mix(in srgb, currentColor 5%, transparent);
+}
+.project-folder-card svg {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .project-connected-folders {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .project-folders-caption {
+    padding: 0 7px;
+  }
+  .project-connected-folders .projects-nav-item {
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+  .project-connected-folders .projects-nav-item svg {
+    display: block;
+    flex-shrink: 0;
+  }
+  .project-search-row > .icon-button {
+    flex: 0 0 28px;
+  }
+  .project-search-row .project-search {
+    flex: 1 1 calc(100% - 48px);
+    min-width: 0;
+    width: auto;
+  }
 }

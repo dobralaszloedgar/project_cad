@@ -51,9 +51,7 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
     "Modified UNIFAC 2.0",
   );
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByText("Saved on this device", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page
     .getByRole("button", { name: "Workspace menu", exact: true })
     .click();

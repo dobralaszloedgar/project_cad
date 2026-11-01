@@ -1,5 +1,6 @@
 import { type CSSProperties } from "react";
 import type { Kind } from "@/domain/schema";
+import { columnSymbol } from "./column-symbol";
 import {
   compactEquipmentSymbols,
   equipmentConnectors,
@@ -36,23 +37,28 @@ export function EquipmentPanelIcon({ size = 18 }: { size?: number }) {
 export function EquipmentIcon({
   kind,
   size = 24,
+  trayCount,
 }: {
   kind: Kind;
   size?: number;
+  trayCount?: number;
 }) {
   const compact = size <= 48 ? compactEquipmentSymbols[kind] : undefined;
-  const geometry =
-    compact ??
-    equipmentSymbols[kind] +
-      (size > 48
-        ? `<path d="${equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
-        : "");
+  const column =
+    kind === "Distillation" && !compact ? columnSymbol(trayCount) : undefined;
+  const geometry = column
+    ? column.body + column.connectors
+    : (compact ??
+      equipmentSymbols[kind] +
+        (size > 48
+          ? `<path d="${equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
+          : ""));
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox={compact ? "0 0 32 32" : "0 0 128 128"}
+      viewBox={compact ? "0 0 32 32" : `0 0 128 ${column?.height ?? 128}`}
       width={size}
-      height={size}
+      height={(size * (column?.height ?? 128)) / 128}
       fill="none"
       stroke="currentColor"
       strokeWidth="var(--pfd-stroke-width,1.8)"

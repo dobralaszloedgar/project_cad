@@ -14,6 +14,7 @@ import {
 } from "@/lib/project-preferences";
 import Dialog from "./Dialog";
 import styles from "./CreateProjectDialog.module.css";
+import { connectProjectRoot } from "@/lib/storage";
 
 export default function ProjectFolderSetup({
   onComplete,
@@ -77,6 +78,7 @@ export default function ProjectFolderSetup({
       )
         throw new Error("Allow folder access or choose another folder.");
       await setDefaultProjectDirectory(selected);
+      await connectProjectRoot(selected);
       setDirectory(selected);
       onComplete();
       onConnected();

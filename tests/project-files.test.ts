@@ -9,7 +9,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative, isAbsolute, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { heatingExample } from "../src/domain/examples";
 import { projectSchema } from "../src/domain/schema";
@@ -187,6 +187,14 @@ class DiskDirectory {
   async isSameEntry(other: DiskDirectory) {
     return this.path === other.path;
   }
+  async resolve(other: DiskDirectory | DiskFile) {
+    const path = relative(this.path, other.path);
+    return path.startsWith("..") || isAbsolute(path)
+      ? null
+      : path
+        ? path.split(sep)
+        : [];
+  }
 }
 
 let temporary: string;
@@ -228,6 +236,338 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.unstubAllGlobals();
   await rm(temporary, { recursive: true, force: true });
+});
+
+describe("named project files and disk folders", () => {
+  const named = (name = "Study") =>
+    readFile(join(temporary, `${name}.pcad`), "utf8");
+
+  it("renames an externally renamed file even when the requested title matches its embedded title", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    await rename(
+      join(temporary, "Study.pcad"),
+      join(temporary, "Outside name.pcad"),
+    );
+    const scanned = await storage.scanProjectLibrary();
+    const entry = scanned.projects.find((item) => item.id === created.id)!;
+    await storage.updateSavedProject({ ...entry, starred: true });
+    expect(await readdir(temporary)).toEqual(["Outside name.pcad"]);
+    await storage.updateSavedProject(
+      { ...entry, starred: true },
+      { rename: true },
+    );
+    expect(await readdir(temporary)).toEqual(["Study.pcad"]);
+  });
+
+  it("requires locating ambiguous moved copies and removes the temporary duplicate library entry", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const text = await named();
+    const chosen = await parent.getDirectoryHandle("Chosen", { create: true });
+    await writeFile(join(temporary, "Chosen/Study.pcad"), text);
+    await writeFile(join(temporary, "Other.pcad"), text);
+    await rm(join(temporary, "Study.pcad"));
+    const ambiguous = await storage.scanProjectLibrary();
+    expect(
+      ambiguous.projects.find((item) => item.id === created.id)?.missing,
+    ).toBe(true);
+    expect(ambiguous.projects.filter((item) => item.copyOf)).toHaveLength(2);
+    await storage.locateProjectFile(
+      created.id,
+      chosen as ProjectDirectoryHandle,
+    );
+    const connected = await storage.scanProjectLibrary();
+    expect(connected.projects).toHaveLength(2);
+    expect(
+      connected.projects.find((item) => item.id === created.id)?.relativePath,
+    ).toBe("Chosen/Study.pcad");
+    await storage.saveWorkspace(created.workspace, created.id);
+    expect(await named("Other")).toBe(text);
+  });
+
+  it("keeps recovery separate when a different project replaces the file at the old path", async () => {
+    const first = await storage.createProjectFile(parent, "Study", workspace());
+    const second = await storage.createProjectFile(
+      parent,
+      "Other",
+      workspace(),
+    );
+    const secondText = await named("Other");
+    await rm(join(temporary, "Study.pcad"));
+    await rename(join(temporary, "Other.pcad"), join(temporary, "Study.pcad"));
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.projects.find((item) => item.id === first.id)?.missing).toBe(
+      true,
+    );
+    expect(
+      scanned.projects.find((item) => item.id === second.id)?.fileName,
+    ).toBe("Study.pcad");
+    await expect(
+      storage.saveWorkspace(first.workspace, first.id),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(await named()).toBe(secondText);
+  });
+
+  it("creates one self-contained file and autosaves its history without a wrapper folder", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    expect(await readdir(temporary)).toEqual(["Study.pcad"]);
+    expect(created.fileName).toBe("Study.pcad");
+    const next = structuredClone(created.workspace);
+    next.project.units[0].name = "Changed feed";
+    next.revisions.push(checkpoint(next.project, "Edited feed"));
+    await storage.saveWorkspace(next, created.id);
+    const disk = parseProjectFile(await named());
+    expect(disk.projectId).toBe(created.id);
+    expect(disk.workspace).toEqual(next);
+    expect((await storage.scanProjectLibrary()).projects).toHaveLength(1);
+  });
+
+  it("renames the actual file and directs subsequent saves to it", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const next = structuredClone(created);
+    next.workspace.project.name = "Renamed";
+    const saved = await storage.updateSavedProject(next);
+    expect(saved.fileName).toBe("Renamed.pcad");
+    expect(await readdir(temporary)).toEqual(["Renamed.pcad"]);
+    await storage.saveWorkspace(saved.workspace, saved.id);
+    expect(parseProjectFile(await named("Renamed")).projectId).toBe(created.id);
+    expect(await readdir(temporary)).toEqual(["Renamed.pcad"]);
+  });
+
+  it("moves a file into a real subfolder, removes its source, and retains identity", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const destination = await parent.getDirectoryHandle("Client A", {
+      create: true,
+    });
+    const moved = await storage.moveProjectFile(
+      created.id,
+      destination as ProjectDirectoryHandle,
+      "Study",
+    );
+    expect(await exists(join(temporary, "Study.pcad"))).toBeNull();
+    expect(moved.relativePath).toBe("Client A/Study.pcad");
+    expect(moved.id).toBe(created.id);
+    await storage.saveWorkspace(moved.workspace, moved.id);
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.folders.map((item) => item.path)).toEqual(["", "Client A"]);
+    expect(scanned.projects).toHaveLength(1);
+    expect(
+      parseProjectFile(await named("Client A/Study")).workspace.revisions,
+    ).toEqual(created.workspace.revisions);
+  });
+
+  it("never overwrites an occupied destination", async () => {
+    const first = await storage.createProjectFile(parent, "Study", workspace());
+    await storage.createProjectFile(parent, "Occupied", workspace());
+    const before = await named("Occupied");
+    await expect(
+      storage.moveProjectFile(first.id, parent, "Occupied"),
+    ).rejects.toMatchObject({ code: "exists" });
+    expect(await named("Occupied")).toBe(before);
+    expect(parseProjectFile(await named()).projectId).toBe(first.id);
+  });
+
+  it("keeps the source and binding when a destination commit fails", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const before = await named();
+    control.failClose = true;
+    await expect(
+      storage.moveProjectFile(created.id, parent, "Failed"),
+    ).rejects.toThrow();
+    expect(await named()).toBe(before);
+    expect((await storage.getProjectFolderInfo(created.id))?.fileName).toBe(
+      "Study.pcad",
+    );
+    control.failClose = false;
+    await storage.saveWorkspace(created.workspace, created.id);
+    expect(parseProjectFile(await named()).projectId).toBe(created.id);
+  });
+
+  it("retains both complete files and the original binding when source deletion fails", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    control.failDelete = true;
+    await expect(
+      storage.moveProjectFile(created.id, parent, "Destination"),
+    ).rejects.toThrow(/original save location/);
+    expect(parseProjectFile(await named()).projectId).toBe(created.id);
+    expect(parseProjectFile(await named("Destination")).projectId).toBe(
+      created.id,
+    );
+    expect((await storage.getProjectFolderInfo(created.id))?.fileName).toBe(
+      "Study.pcad",
+    );
+    control.failDelete = false;
+  });
+
+  it("reconnects an external rename and never recreates the old path", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    await rename(
+      join(temporary, "Study.pcad"),
+      join(temporary, "Renamed outside.pcad"),
+    );
+    const next = structuredClone(created.workspace);
+    next.project.units[0].name = "Unsaved edit";
+    await expect(storage.saveWorkspace(next, created.id)).rejects.toMatchObject(
+      { code: "missing" },
+    );
+    expect(await exists(join(temporary, "Study.pcad"))).toBeNull();
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.projects).toHaveLength(1);
+    expect(scanned.projects[0].fileName).toBe("Renamed outside.pcad");
+    expect(scanned.projects[0].workspace.project.units[0].name).toBe(
+      "Unsaved edit",
+    );
+    await storage.saveWorkspace(next, created.id);
+    expect(parseProjectFile(await named("Renamed outside")).workspace).toEqual(
+      next,
+    );
+    expect(await exists(join(temporary, "Study.pcad"))).toBeNull();
+  });
+
+  it("follows an externally moved directory within the connected root", async () => {
+    await storage.connectProjectRoot(parent);
+    const child = await parent.getDirectoryHandle("Client A", { create: true });
+    const created = await storage.createProjectFile(
+      child as ProjectDirectoryHandle,
+      "Study",
+      workspace(),
+    );
+    await rename(join(temporary, "Client A"), join(temporary, "Client B"));
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.projects).toHaveLength(1);
+    expect(scanned.projects[0].relativePath).toBe("Client B/Study.pcad");
+    await storage.saveWorkspace(created.workspace, created.id);
+    expect(await exists(join(temporary, "Client A"))).toBeNull();
+    expect(parseProjectFile(await named("Client B/Study")).projectId).toBe(
+      created.id,
+    );
+  });
+
+  it("treats a disk copy as independent on opening without changing either file while scanning", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const original = await named();
+    await writeFile(join(temporary, "Copy.pcad"), original);
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.projects).toHaveLength(2);
+    const copy = scanned.projects.find((item) => item.copyOf === created.id)!;
+    expect(copy.fileName).toBe("Copy.pcad");
+    expect(await named()).toBe(original);
+    expect(await named("Copy")).toBe(original);
+    const opened = await storage.activateSavedProject(copy.id);
+    expect(opened.id).not.toBe(created.id);
+    expect(opened.copyOf).toBeUndefined();
+    await storage.saveWorkspace(opened.workspace, opened.id);
+    expect(parseProjectFile(await named("Copy")).projectId).toBe(opened.id);
+    expect(await named()).toBe(original);
+    expect((await storage.scanProjectLibrary()).projects).toHaveLength(2);
+  });
+
+  it("does not adopt external content or authorize stale autosave during a rescan", async () => {
+    const created = await storage.createProjectFile(
+      parent,
+      "Study",
+      workspace(),
+    );
+    const external = parseProjectFile(await named());
+    external.workspace.project.units[0].name = "Changed outside";
+    const text = serializeProjectFile(external);
+    await writeFile(join(temporary, "Study.pcad"), text);
+    await storage.scanProjectLibrary();
+    await expect(
+      storage.saveWorkspace(created.workspace, created.id),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(await named()).toBe(text);
+  });
+
+  it("marks files moved outside connected folders missing and locates them by identity", async () => {
+    const connected = await parent.getDirectoryHandle("Connected", {
+      create: true,
+    });
+    const elsewhere = await parent.getDirectoryHandle("Elsewhere", {
+      create: true,
+    });
+    const created = await storage.createProjectFile(
+      connected as ProjectDirectoryHandle,
+      "Study",
+      workspace(),
+    );
+    await rename(
+      join(temporary, "Connected/Study.pcad"),
+      join(temporary, "Elsewhere/Study.pcad"),
+    );
+    expect((await storage.scanProjectLibrary()).projects[0].missing).toBe(true);
+    await expect(
+      storage.saveWorkspace(created.workspace, created.id),
+    ).rejects.toMatchObject({ code: "missing" });
+    await storage.locateProjectFile(
+      created.id,
+      elsewhere as ProjectDirectoryHandle,
+    );
+    await storage.saveWorkspace(created.workspace, created.id);
+    expect(parseProjectFile(await named("Elsewhere/Study")).projectId).toBe(
+      created.id,
+    );
+    expect(await readdir(join(temporary, "Connected"))).toEqual([]);
+  });
+
+  it("discovers legacy project.json files and preserves them until explicitly moved", async () => {
+    const created = await storage.createFolderProject(
+      parent,
+      "Legacy",
+      workspace(),
+    );
+    await storage.connectProjectRoot(parent);
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.projects[0].relativePath).toBe("Legacy/project.json");
+    expect((await storage.activateSavedProject(created.id)).workspace).toEqual(
+      created.workspace,
+    );
+    const moved = await storage.moveProjectFile(
+      created.id,
+      parent,
+      "Converted",
+    );
+    expect(moved.fileName).toBe("Converted.pcad");
+    expect(await readdir(join(temporary, "Legacy"))).toEqual([]);
+    expect(
+      parseProjectFile(await named("Converted")).workspace.revisions,
+    ).toEqual(created.workspace.revisions);
+  });
 });
 
 describe("project Trash", () => {

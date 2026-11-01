@@ -21,7 +21,19 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
   await page.goto("/workspace");
   await loadProject(page, project);
   await inspect(page, "R-101");
-  await page.getByLabel("Reaction setup").selectOption("reaction-set");
+  await expect(page.getByLabel("Reaction setup", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("Define your first reaction")).toBeVisible();
+  await page.getByRole("button", { name: "Calculate", exact: true }).click();
+  await expect(
+    page.getByRole("tabpanel", { name: "Setup", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: /^Add a reaction before calculating\.$/ }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Add reaction", exact: true }).click();
   await page
     .getByLabel("Reaction name", { exact: true })
@@ -41,7 +53,7 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
   ).toBeVisible();
   await expect(
     page.getByRole("table", { name: "Reactor species balance" }),
-  ).toContainText("2.207277");
+  ).toContainText("7.946196");
   await expect(
     page
       .getByRole("table", { name: "Reactor species balance" })
@@ -52,17 +64,19 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
     .getByLabel("Packed-bed calculation")
     .selectOption("target-conversion");
   await page.getByLabel("Target conversion (%)", { exact: true }).fill("50");
-  await page.getByLabel("Pressure drop (Pa)", { exact: true }).fill("20000");
+  await page.getByLabel("Pressure drop (bar)", { exact: true }).fill("0.2");
   await page.getByRole("button", { name: "Calculate", exact: true }).click();
   await expect(page.locator(".reactor-results")).toContainText("6.931472 kg");
-  await expect(page.locator(".reactor-results")).toContainText("81.325 kPa");
+  await expect(page.locator(".reactor-results")).toContainText(
+    "0.81325 bar abs",
+  );
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export bed profile (CSV)" }).click();
   const file = await downloaded;
   expect(file.suggestedFilename()).toBe("reactor-profile.csv");
   const fs = await import("node:fs/promises");
   expect(await fs.readFile((await file.path())!, "utf8")).toContain(
-    "nitrogen (mol/s)",
+    "nitrogen (kmol/h)",
   );
   await page.screenshot({ path: "test-results/pbr-results-desktop.png" });
   await page.getByRole("tab", { name: "Setup", exact: true }).click();
@@ -73,9 +87,7 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
       .evaluate((element) => element.scrollWidth <= element.clientWidth),
   ).toBe(true);
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByText("Saved on this device", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await inspect(page, "R-101");
   await expect(page.getByLabel("Reaction name", { exact: true })).toHaveValue(
@@ -87,6 +99,38 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
   await page.getByRole("button", { name: "Calculate", exact: true }).click();
   await expect(page.locator(".reactor-results")).toContainText("6.931472 kg");
   expect(errors).toEqual([]);
+});
+
+test("new reactors require user-defined chemistry even with demo components", async ({
+  page,
+}) => {
+  await page.goto("/workspace");
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
+  await page.getByTitle("Add Packed-bed reactor", { exact: true }).click();
+  await page.getByRole("button", { name: "Properties", exact: true }).click();
+  await expect(page.getByText("Define your first reaction")).toBeVisible();
+  await expect(page.getByLabel("Reaction setup", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByLabel("Reaction basis", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByLabel("Reactions in this reactor").locator(".reaction-card"),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Add reaction", exact: true }).click();
+  await expect(page.getByLabel("Reaction name", { exact: true })).toHaveValue(
+    "Reaction 1",
+  );
+  await expect(
+    page.getByLabel("reactants component 1", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByLabel("products component 1", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Rate constant", { exact: true })).toHaveValue(
+    "0",
+  );
 });
 
 test("add catalog components and edit all feed fractions", async ({ page }) => {
@@ -159,11 +203,9 @@ test("general rate expressions, reaction duplication and disabled states persist
   ).toContainText("disabled");
   await expect(
     page.getByRole("table", { name: "Reactor species balance" }),
-  ).toContainText("2.207277");
+  ).toContainText("7.946196");
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByText("Saved on this device", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await inspect(page, "R-101");
   await expect(

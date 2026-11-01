@@ -1,7 +1,8 @@
 import type { Chemical } from "@/domain/thermo/data";
 import type { PackedBedResult } from "@/domain/reactions/packed-bed";
 import type { PackedBedConfig } from "@/domain/reactions/schema";
-import { reactionEquation } from "@/domain/reactions/validation";
+import { ReactionEquation } from "./ReactionEquation";
+import { useUnitSystem } from "../useUnitSystem";
 
 const format = (value: number) =>
   Number(value.toPrecision(7)).toLocaleString("en-US", {
@@ -17,21 +18,24 @@ export function PackedBedResults({
   chemicals: Chemical[];
   config: PackedBedConfig;
 }) {
+  const display = useUnitSystem();
   const inlet = result.profile[0].flows;
   const total = Object.values(result.flows).reduce((sum, n) => sum + n, 0);
   function downloadProfile() {
     const rows = [
       [
-        "Catalyst mass (kg)",
+        `Catalyst mass (${display.quantityLabel("mass")})`,
         "Conversion",
-        "Pressure (Pa)",
-        ...chemicals.map((c) => `${c.name} (mol/s)`),
+        `Pressure (${display.quantityLabel("pressure")})`,
+        ...chemicals.map(
+          (c) => `${c.name} (${display.quantityLabel("molarFlow")})`,
+        ),
       ],
       ...result.profile.map((point) => [
-        point.catalystMass,
+        display.value(point.catalystMass, "mass"),
         point.conversion,
-        point.pressure,
-        ...chemicals.map((c) => point.flows[c.id]),
+        display.value(point.pressure, "pressure"),
+        ...chemicals.map((c) => display.value(point.flows[c.id], "molarFlow")),
       ]),
     ];
     const csv = rows
@@ -53,6 +57,11 @@ export function PackedBedResults({
   return (
     <section className="equipment-section reactor-results">
       <h3>Reaction results</h3>
+      {result.warnings?.map((warning) => (
+        <p className="equipment-help" role="alert" key={warning}>
+          {warning}
+        </p>
+      ))}
       <dl className="equipment-result-values">
         <div>
           <dt>
@@ -60,7 +69,10 @@ export function PackedBedResults({
               ? "Required catalyst mass"
               : "Catalyst mass"}
           </dt>
-          <dd>{format(result.catalystMass)} kg</dd>
+          <dd>
+            {format(display.value(result.catalystMass, "mass"))}{" "}
+            {display.quantityLabel("mass")}
+          </dd>
         </div>
         <div>
           <dt>Conversion basis</dt>
@@ -70,7 +82,10 @@ export function PackedBedResults({
         </div>
         <div>
           <dt>Outlet pressure</dt>
-          <dd>{format(result.pressure / 1000)} kPa</dd>
+          <dd>
+            {format(display.value(result.pressure, "pressure"))}{" "}
+            {display.quantityLabel("pressure")}
+          </dd>
         </div>
       </dl>
       <div className="equipment-table-scroll">
@@ -81,23 +96,43 @@ export function PackedBedResults({
           <thead>
             <tr>
               <th>Component</th>
-              <th>Inlet (mol/s)</th>
-              <th>Outlet (mol/s)</th>
-              <th>Change (mol/s)</th>
+              <th>Inlet ({display.quantityLabel("molarFlow")})</th>
+              <th>Outlet ({display.quantityLabel("molarFlow")})</th>
+              <th>Change ({display.quantityLabel("molarFlow")})</th>
               <th>Outlet fraction</th>
+              <th>Conversion (%)</th>
             </tr>
           </thead>
           <tbody>
             {chemicals.map((chemical) => (
               <tr key={chemical.id}>
                 <th>{chemical.name}</th>
-                <td>{format(inlet[chemical.id])}</td>
-                <td>{format(result.flows[chemical.id])}</td>
                 <td>
-                  {format(result.flows[chemical.id] - inlet[chemical.id])}
+                  {format(display.value(inlet[chemical.id], "molarFlow"))}
+                </td>
+                <td>
+                  {format(
+                    display.value(result.flows[chemical.id], "molarFlow"),
+                  )}
+                </td>
+                <td>
+                  {format(
+                    display.value(
+                      result.flows[chemical.id] - inlet[chemical.id],
+                      "molarFlow",
+                    ),
+                  )}
                 </td>
                 <td>
                   {total ? format(result.flows[chemical.id] / total) : "—"}
+                </td>
+                <td>
+                  {inlet[chemical.id] > 0
+                    ? format(
+                        100 *
+                          (1 - result.flows[chemical.id] / inlet[chemical.id]),
+                      )
+                    : "—"}
                 </td>
               </tr>
             ))}
@@ -113,7 +148,7 @@ export function PackedBedResults({
             <tr>
               <th>Reaction</th>
               <th>Equation</th>
-              <th>Extent (mol/s)</th>
+              <th>Extent ({display.quantityLabel("molarFlow")})</th>
             </tr>
           </thead>
           <tbody>
@@ -123,13 +158,27 @@ export function PackedBedResults({
                   {reaction.name}
                   {reaction.enabled ? "" : " · disabled"}
                 </th>
-                <td>{reactionEquation(reaction, chemicals)}</td>
-                <td>{format(result.extents[reaction.id] ?? 0)}</td>
+                <td>
+                  <ReactionEquation reaction={reaction} chemicals={chemicals} />
+                </td>
+                <td>
+                  {format(
+                    display.value(
+                      result.extents[reaction.id] ?? 0,
+                      "molarFlow",
+                    ),
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <p className="equipment-help">
+        Conversion is the overall disappearance of each inlet species across all
+        reactions. A negative value means net production; — means the species is
+        absent from the inlet.
+      </p>
       <button className="btn btn-sm" type="button" onClick={downloadProfile}>
         Export bed profile (CSV)
       </button>

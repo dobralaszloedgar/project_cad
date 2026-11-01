@@ -40,7 +40,8 @@ export default function Templates({
     >
       <p className="dialog-intro">
         Ready to run with real chemicals: components, property models,
-        separations and operating conditions are already specified.
+        reactions, kinetics, separations and operating conditions are already
+        specified.
       </p>
       <div className="template-list">
         {examples.map((t) => (
@@ -65,8 +66,8 @@ export default function Templates({
       </div>
       <div className="template-bottom">
         <span>
-          Every template includes its chemical property data. Reactor templates
-          will be available when real-chemical reactions are supported.
+          Every template includes its chemical property data. PBR source links,
+          catalyst details and kinetic limits are in reactor setup.
         </span>
         <button className="btn" onClick={() => onLoad("empty")}>
           <Plus size={15} /> Blank flowsheet

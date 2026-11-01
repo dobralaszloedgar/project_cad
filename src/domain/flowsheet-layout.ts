@@ -1,4 +1,5 @@
 import type { Project } from "./schema";
+import { columnDiagramLayout } from "./column-geometry";
 
 type Viewport = { width: number; height: number };
 const columnGap = 240;
@@ -69,14 +70,41 @@ export function arrangeFlowsheet(
     Number.isFinite(viewport.height) ? viewport.height - 160 : 740,
   );
   const order = processOrder(project);
+  const unitHeights = new Map(
+    project.units.map((unit) => [
+      unit.id,
+      unit.kind === "Distillation"
+        ? columnDiagramLayout(unit.params.trayCount).height
+        : 128,
+    ]),
+  );
+  const rowHeights = (columns: number) =>
+    Array.from({ length: Math.ceil(order.length / columns) }, (_, row) =>
+      Math.max(
+        ...order
+          .slice(row * columns, (row + 1) * columns)
+          .map((id) => unitHeights.get(id)!),
+      ),
+    );
   let columns = order.length;
   if (order.length > 6 || (columns - 1) * columnGap + 192 > width / 0.8) {
     let best = -Infinity;
-    for (let count = 1; count <= order.length; count++) {
+    // Taller columns should add row clearance, not force the entire flowsheet
+    // into an excessively wide row just to improve its bounding-box ratio.
+    const maxColumns = Math.max(
+      1,
+      Math.floor((width / 0.6 - 192) / columnGap) + 1,
+    );
+    for (let count = 1; count <= Math.min(order.length, maxColumns); count++) {
       const rows = Math.ceil(order.length / count);
       const scale = Math.min(
         width / ((count - 1) * columnGap + 192),
-        height / ((rows - 1) * rowGap + 196),
+        height /
+          (rowHeights(count).reduce(
+            (sum, h) => sum + Math.max(rowGap, h + 96),
+            0,
+          ) -
+            64),
       );
       // Prefer equally readable layouts with fewer empty slots.
       const score = scale - (rows * count - order.length) * 0.001;
@@ -86,12 +114,18 @@ export function arrangeFlowsheet(
       }
     }
   }
+  let nextY = 60;
+  const rowPositions = rowHeights(columns).map((h) => {
+    const y = nextY;
+    nextY += Math.max(rowGap, h + 96);
+    return y;
+  });
   const positions = new Map(
     order.map((id, index) => [
       id,
       {
         x: 40 + (index % columns) * columnGap,
-        y: 60 + Math.floor(index / columns) * rowGap,
+        y: rowPositions[Math.floor(index / columns)],
       },
     ]),
   );

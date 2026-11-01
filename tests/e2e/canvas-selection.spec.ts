@@ -48,6 +48,21 @@ test.beforeEach(async ({ page }) => {
     "transform",
     "matrix(1, 0, 0, 1, 0, 0)",
   );
+  // Font and symbol measurements can complete a second initial fit. Capture
+  // marquee coordinates only after the viewport has settled.
+  let previous = "";
+  let stable = 0;
+  await expect
+    .poll(
+      async () => {
+        const current = (await camera(page)) ?? "";
+        stable = current === previous ? stable + 1 : 0;
+        previous = current;
+        return stable;
+      },
+      { intervals: [100] },
+    )
+    .toBeGreaterThanOrEqual(3);
 });
 
 test("marquee selects visible frames, replaces selection, and moves a group in one undo step", async ({
@@ -247,9 +262,7 @@ test.describe("touch canvas", () => {
     await expect(
       page.getByRole("button", { name: "Pan canvas", exact: true }),
     ).toHaveCount(0);
-    await expect(page.locator(".navigation-hint")).toHaveText(
-      "Drag to pan · Pinch to zoom",
-    );
+    await expect(page.locator(".navigation-hint")).toHaveCount(0);
     await tab.tap();
     await expect(menu).toBeVisible();
     await menu

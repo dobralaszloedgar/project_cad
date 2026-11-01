@@ -19,10 +19,11 @@ async function home(page: Page) {
 
 async function saveDialog(page: Page) {
   await page.locator(".project-card-menu-toggle").first().click();
-  await page.getByRole("menuitem", { name: "Save to folder…" }).click();
+  await page
+    .getByRole("menuitem", { name: /^(Save|Move) to folder…$/ })
+    .click();
   return page.getByRole("dialog", {
-    name: "Save project to folder",
-    exact: true,
+    name: /^(Save project to folder|Move project)$/,
   });
 }
 
@@ -226,39 +227,45 @@ test("saving and relocating an existing project retains its identity and history
 }) => {
   const original = await recoveryWorkspace(page);
   let save = await saveDialog(page);
-  await save.getByLabel("Folder name").fill("Original location");
+  await save.getByLabel("Project name").fill("Original location");
   await save
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
   await save
-    .getByRole("button", { name: "Save to folder", exact: true })
+    .getByRole("button", { name: /^(Save to folder|Move project)$/ })
     .click();
   await expect(save).toHaveCount(0);
   const firstText = await folderText(page, "Original location");
   const first = JSON.parse(firstText);
-  expect(first.workspace).toEqual(original);
+  expect(first.workspace).toEqual({
+    ...original,
+    project: { ...original.project, name: "Original location" },
+  });
   await expect(page.locator(".project-card")).toHaveCount(1);
   const newer = structuredClone(first);
   newer.workspace.project.name = "Updated on disk";
   await replaceFolderText(page, "Original location", JSON.stringify(newer));
   save = await saveDialog(page);
-  await save.getByLabel("Folder name").fill("New location");
+  await save.getByLabel("Project name").fill("New location");
   await save
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
   await save
-    .getByRole("button", { name: "Save to folder", exact: true })
+    .getByRole("button", { name: /^(Save to folder|Move project)$/ })
     .click();
   await expect(save).toHaveCount(0);
   const relocated = JSON.parse(await folderText(page, "New location"));
   expect(relocated.projectId).toBe(first.projectId);
-  expect(relocated.workspace).toEqual(newer.workspace);
+  expect(relocated.workspace).toEqual({
+    ...newer.workspace,
+    project: { ...newer.workspace.project, name: "New location" },
+  });
   await expect(page.locator(".project-card")).toHaveCount(1);
   await page.locator(".project-open").dblclick();
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Mixer", { exact: true }).click();
   await expect(page.locator(".save-status")).toContainText(
-    "Saved to New location/project.json",
+    "Saved to Laptop projects/New location.pcad",
   );
   const updated = JSON.parse(await folderText(page, "New location"));
   expect(updated.workspace.project.units).toHaveLength(
@@ -267,12 +274,24 @@ test("saving and relocating an existing project retains its identity and history
   expect(updated.workspace.revisions).toHaveLength(
     original.revisions.length + 1,
   );
-  expect(JSON.parse(await folderText(page, "Original location"))).toEqual(
-    newer,
-  );
+  expect(
+    await page.evaluate(async () => {
+      const parent = await (
+        await navigator.storage.getDirectory()
+      ).getDirectoryHandle("Laptop projects");
+      try {
+        await parent.getFileHandle("Original location.pcad");
+        return false;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError")
+          return true;
+        throw error;
+      }
+    }),
+  ).toBe(true);
   await page.reload();
   await expect(page.locator(".save-status")).toContainText(
-    "New location/project.json",
+    "Laptop projects/New location.pcad",
   );
 });
 
@@ -286,21 +305,21 @@ test("cancelled picks and failed folder saves keep the existing project intact",
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
   await expect(
-    save.getByRole("button", { name: "Save to folder", exact: true }),
+    save.getByRole("button", { name: /^(Save to folder|Move project)$/ }),
   ).toBeDisabled();
-  await save.getByLabel("Folder name").fill("Failed destination");
+  await save.getByLabel("Project name").fill("Failed destination");
   await save
     .getByRole("button", { name: "Choose folder", exact: true })
     .click();
   await folderControls(page, { "write-failure": "yes" });
   await save
-    .getByRole("button", { name: "Save to folder", exact: true })
+    .getByRole("button", { name: /^(Save to folder|Move project)$/ })
     .click();
   await expect(save.getByRole("alert")).toBeVisible();
   expect(await recoveryWorkspace(page)).toEqual(original);
   await folderControls(page, { "write-failure": null });
   await save
-    .getByRole("button", { name: "Save to folder", exact: true })
+    .getByRole("button", { name: /^(Save to folder|Move project)$/ })
     .click();
   await expect(save.getByRole("alert")).toContainText("already exists");
   await save.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -349,7 +368,7 @@ test("sort changes reorder the current grid and list, including filtered project
   await page.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("project-cad", 3);
+        const request = indexedDB.open("project-cad");
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const database = request.result;

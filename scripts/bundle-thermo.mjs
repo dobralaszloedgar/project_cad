@@ -3,6 +3,14 @@ import { createHash } from "node:crypto";
 const kernel = readFileSync(
   "rust/thermo/target/wasm32-unknown-unknown/release/project_thermo.wasm",
 );
+if (
+  /(?:\b[A-Za-z]:[\\/](?:[\w .-]+[\\/])+|\/(?:Users|home)\/)/i.test(
+    kernel.toString("latin1"),
+  )
+)
+  throw new Error(
+    "The thermodynamics kernel contains local build paths. Rebuild with source-path remapping before bundling.",
+  );
 const parameters = readFileSync("rust/thermo/sample-groups.json");
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 writeFileSync(

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
-  Workflow,
   Download,
   Play,
   Box,
@@ -23,14 +22,12 @@ import {
   Minimize,
   MessageCircle,
   Settings2,
-  FolderOpen,
-  Check,
   ChartNoAxesColumnIncreasing,
   CircleHelp,
   AlignHorizontalJustifyStart,
   Rainbow,
   HardDrive,
-  AlertCircle,
+  Ruler,
 } from "lucide-react";
 import { useCanvasFullscreen } from "./useCanvasFullscreen";
 import Dialog from "./Dialog";
@@ -40,6 +37,7 @@ import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
 import { plantTemplate } from "@/domain/plant-templates";
 import { arrangeFlowsheet } from "@/domain/flowsheet-layout";
+import { availableEquipmentTag } from "@/domain/equipment-tags";
 import ProjectsPage from "./ProjectsPage";
 import CreateProjectDialog from "./CreateProjectDialog";
 import FolderSaveNotice from "./FolderSaveNotice";
@@ -74,8 +72,14 @@ import {
   saveWorkspace,
   saveWorkspaceRecovery,
   loadActiveWorkspace,
-  createFolderProject,
-  saveProjectToFolder,
+  createProjectFile,
+  moveProjectFile,
+  scanProjectLibrary,
+  connectProjectRoot,
+  locateProjectFile,
+  chooseProjectDirectory,
+  createProjectLibraryFolder,
+  type ProjectLibrary,
   activateSavedProject,
   loadSavedProject,
   getProjectFolderInfo,
@@ -92,12 +96,32 @@ import {
   type ProjectDirectoryHandle,
   type ProjectFolderInfo,
 } from "@/lib/storage";
+import {
+  getDefaultProjectDirectory,
+  setDefaultProjectDirectory,
+} from "@/lib/project-preferences";
+import {
+  projectDisplayName,
+  projectLocation,
+  serializeProjectFile,
+} from "@/lib/project-file";
+import { projectFileName } from "@/lib/project-directory";
 import ProcessCanvas from "./ProcessCanvas";
+import { EquipmentSimulationError } from "@/domain/solver";
+import {
+  equipmentStatuses,
+  equipmentIssueTarget,
+  simulationKey,
+  type EquipmentTarget,
+  type SimulationFailure,
+} from "@/domain/equipment-status";
 import Inspector from "./Inspector";
 import Results from "./Results";
 import FloatingAssistant from "./assistant/FloatingAssistant";
 import KeyboardHelp from "./KeyboardHelp";
 import ProjectStorageSettings from "./ProjectStorageSettings";
+import UnitSettings from "./UnitSettings";
+import { useUnitSystem } from "./useUnitSystem";
 import ProjectFolderSetup from "./ProjectFolderSetup";
 import { useTheme } from "./useTheme";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
@@ -111,10 +135,11 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
-type WorkspacePanel = "Equipment" | "Results" | "Storage settings" | "Settings";
+type WorkspacePanel =
+  "Equipment" | "Results" | "Units" | "Storage settings" | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
-    ? `Saved to ${location.folderName}/project.json`
+    ? `Saved to ${location.folderName}/${location.fileName ?? "project.json"}`
     : "Saved on this device";
 }
 function errorMessage(error: unknown) {
@@ -161,13 +186,24 @@ export default function Workspace({
   const clipboard = useRef<SelectionCopy | null>(null);
   const pasteOffset = useRef(40);
   const [view, setView] = useState<string>(initialView);
+  const [graphicsSettingsContainer, setGraphicsSettingsContainer] =
+    useState<HTMLDivElement | null>(null);
   const [fitRequest, setFitRequest] = useState(0);
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
   const [compareId, setCompareId] = useState("");
-  const [result, setResult] = useState<Result | null>(null);
+  const [simulation, setSimulation] = useState<{
+    projectId: string;
+    key: string;
+    result: Result | null;
+    failure?: SimulationFailure;
+  } | null>(null);
+  const [issueTarget, setIssueTarget] = useState<EquipmentTarget | undefined>(
+    undefined,
+  );
   const [message, setMessage] = useState("");
   const { theme: palette, setTheme } = useTheme();
+  const unitDisplay = useUnitSystem();
   const theme = palette.mode;
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
@@ -197,9 +233,12 @@ export default function Workspace({
   const [projectId, setProjectId] = useState("main");
   const [showProjects, setShowProjects] = useState(false);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [library, setLibrary] = useState<ProjectLibrary | null>(null);
+  const libraryRefreshing = useRef(false);
   const [projectBusy, setProjectBusy] = useState(false);
   const [projectMessage, setProjectMessage] = useState("");
   const [folderName, setFolderName] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | undefined>();
   const [saveIssue, setSaveIssue] = useState<{
     message: string;
     needsPermission: boolean;
@@ -208,6 +247,7 @@ export default function Workspace({
   const [createDraft, setCreateDraft] = useState<{
     seed: Project;
     revisions?: Revision[];
+    directory?: ProjectDirectoryHandle;
   } | null>(null);
   const [reloadConfirm, setReloadConfirm] = useState(false);
   const [saveFolderDraft, setSaveFolderDraft] = useState<SavedProject | null>(
@@ -223,10 +263,50 @@ export default function Workspace({
     () => projectSchema.parse(state.project),
     [state.project],
   );
+  const calculationKey = useMemo(() => simulationKey(project), [project]);
+  const currentSimulation =
+    simulation?.projectId === projectId && simulation.key === calculationKey
+      ? simulation
+      : null;
+  const result = currentSimulation?.result ?? null;
+  const failure = currentSimulation?.failure;
+  const statuses = useMemo(
+    () =>
+      equipmentStatuses(
+        project,
+        result,
+        failure,
+        simulation?.projectId === projectId ? simulation.result : null,
+      ),
+    [project, result, failure, simulation, projectId],
+  );
+  function calculate(next: Project) {
+    try {
+      const result = simulate(next);
+      setSimulation({ projectId, key: simulationKey(next), result });
+      return result;
+    } catch (error) {
+      setSimulation({
+        projectId,
+        key: simulationKey(next),
+        result: null,
+        failure: {
+          message: errorMessage(error),
+          unitId:
+            error instanceof EquipmentSimulationError
+              ? error.unitId
+              : undefined,
+        },
+      });
+      throw error;
+    }
+  }
+  const displayProjectName = projectDisplayName({ fileName, workspace: state });
   useEffect(() => {
-    document.title = `Project CAD – ${!ready || showProjects ? "Home" : project.name}`;
-  }, [ready, showProjects, project.name]);
+    document.title = `Project CAD – ${!ready || showProjects ? "Home" : displayProjectName}`;
+  }, [ready, showProjects, displayProjectName]);
   const pullTabRef = useRef<HTMLButtonElement>(null);
+  const unitsButtonRef = useRef<HTMLButtonElement>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuPinned = useRef(false);
   function closeWorkspaceMenu() {
@@ -256,8 +336,9 @@ export default function Workspace({
     setThermoDialog(null);
   }
   function closeDrawer() {
+    const trigger = drawer === "Units" ? unitsButtonRef : pullTabRef;
     setDrawer(null);
-    pullTabRef.current?.focus();
+    requestAnimationFrame(() => trigger.current?.focus());
   }
   useEffect(() => {
     if (!drawer && !workspaceMenuOpen) return;
@@ -271,7 +352,7 @@ export default function Workspace({
       event.preventDefault();
       closeWorkspaceMenu();
       setDrawer(null);
-      pullTabRef.current?.focus();
+      (drawer === "Units" ? unitsButtonRef : pullTabRef).current?.focus();
     }
     function onPointerDown(event: PointerEvent) {
       if (
@@ -294,6 +375,7 @@ export default function Workspace({
   const reportSaved = useCallback((location: SaveLocation) => {
     setStorage(savedMessage(location));
     setFolderName(location.folderName ?? null);
+    setFileName(location.fileName);
     setSaveIssue(null);
   }, []);
   const reportSaveError = useCallback((error: unknown) => {
@@ -308,6 +390,7 @@ export default function Workspace({
   const reportFolder = useCallback(
     (info: ProjectFolderInfo | null) => {
       setFolderName(info?.name ?? null);
+      setFileName(info?.fileName);
       if (
         info &&
         (info.error || info.hasRecovery || info.permission !== "granted")
@@ -315,8 +398,8 @@ export default function Workspace({
         const description =
           info.error ??
           (info.permission !== "granted"
-            ? "Reconnect the folder to save project.json. Your current work is available in this browser."
-            : "Changes in this browser have not been saved to project.json. Retry saving or reload the file.");
+            ? "Reconnect the folder to save the project file. Your current work is available in this browser."
+            : "Changes in this browser have not been saved to the project file. Retry saving or reload the file.");
         setStorage("Could not finish saving");
         setSaveIssue({
           message: description,
@@ -325,7 +408,11 @@ export default function Workspace({
       } else
         reportSaved(
           info
-            ? { location: "folder", folderName: info.name }
+            ? {
+                location: "folder",
+                folderName: info.name,
+                fileName: info.fileName,
+              }
             : { location: "browser" },
         );
     },
@@ -336,14 +423,23 @@ export default function Workspace({
     const example = exampleId
       ? (loadTemplate(exampleId) ?? plantTemplate(exampleId))
       : undefined;
-    const opening =
+    const opening = (async () => {
+      const directory = await getDefaultProjectDirectory();
+      if (directory) await connectProjectRoot(directory);
+      const scanned = await scanProjectLibrary();
+      if (active) {
+        setLibrary(scanned);
+        setSavedProjects(scanned.projects);
+      }
+    })().then(() =>
       example && exampleId
         ? openExampleWorkspace(exampleId, {
             version: 1,
             project: example,
             revisions: [checkpoint(example, "Created from example")],
           })
-        : loadActiveWorkspace();
+        : loadActiveWorkspace(),
+    );
     opening
       .then(async ({ workspace: saved, projectId: id }) => {
         const info = await getProjectFolderInfo(id);
@@ -486,12 +582,10 @@ export default function Workspace({
         revisions: [...s.revisions, checkpoint(next, label)],
       }));
       setStorage("Saving…");
-      setResult(null);
       setMessage("");
       if (run) {
         try {
-          const r = simulate(next);
-          setResult(r);
+          const r = calculate(next);
           setMessage(
             r.converged
               ? "Calculated · open Results for balances and model limits."
@@ -508,7 +602,7 @@ export default function Workspace({
     }
   }
   function add(kind: Kind, position?: { x: number; y: number }) {
-    const id = `${kind}-${crypto.randomUUID().slice(0, 6)}`;
+    const id = availableEquipmentTag(kind, project.units);
     const unit = newUnit(
       kind,
       id,
@@ -521,18 +615,14 @@ export default function Workspace({
         settings.mixture === "catalog" && !settings.catalog
           ? []
           : thermoContext(settings).ids;
-      unit.params.packedBed = defaultPackedBed(
-        ids,
-        settings.mixture === "demo",
-      );
+      unit.params.packedBed = defaultPackedBed(ids);
     }
     change({ ...project, units: [...project.units, unit] }, `Add ${kind}`);
     setSelected(id);
   }
   function run() {
     try {
-      const calculated = simulate(project);
-      setResult(calculated);
+      const calculated = calculate(project);
       setMessage(
         calculated.converged
           ? "Calculated · review model limits in Results."
@@ -542,7 +632,6 @@ export default function Workspace({
       setWorkspaceMenuOpen(false);
       setDrawer("Results");
     } catch (e) {
-      setResult(null);
       setMessage(e instanceof Error ? e.message : "Simulation failed.");
     }
   }
@@ -552,29 +641,32 @@ export default function Workspace({
       setMessage("This template is unavailable.");
       return;
     }
-    if (showProjects) {
-      setTemplatesOpen(false);
-      setCreateDraft({ seed: next });
-      return;
-    }
-    change(next, `Load ${name} example`);
-    setSelected(
-      next.units.find((n) => n.kind === "PBR" || n.kind === "Distillation")
-        ?.id ?? null,
-    );
-    setCompareId("");
     setTemplatesOpen(false);
-    setPropertiesOpen(false);
-    setDrawer(null);
+    setCreateDraft({ seed: next });
   }
   function exportFile() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], {
+    const now = new Date().toISOString();
+    const text = serializeProjectFile({
+      format: "project-cad",
+      formatVersion: 1,
+      projectId: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+      workspace: state,
+    });
+    const blob = new Blob([text], {
         type: "application/json",
       }),
       url = URL.createObjectURL(blob),
       a = document.createElement("a");
     a.href = url;
-    a.download = "project-cad.json";
+    try {
+      a.download = projectFileName(
+        projectDisplayName({ fileName, workspace: state }),
+      );
+    } catch {
+      a.download = "Project.pcad";
+    }
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -589,7 +681,6 @@ export default function Workspace({
       future: [],
     };
     setState(restore(state, r));
-    setResult(null);
     setMessage("Restored as a new revision. Later revisions are preserved.");
     setSelected(null);
   }
@@ -638,7 +729,7 @@ export default function Workspace({
         reportSaved(location);
         outcome =
           location.location === "folder"
-            ? "Applied and saved to project.json."
+            ? "Applied and saved to the project file."
             : "Applied and saved on this device.";
       } catch (error) {
         await saveWorkspaceRecovery(next, projectId);
@@ -651,7 +742,6 @@ export default function Workspace({
         future: [],
       };
       setState(next);
-      setResult(null);
       setSelected(null);
       setMessage(outcome);
       return outcome;
@@ -661,9 +751,21 @@ export default function Workspace({
     }
   }
   function inspect(id: string) {
+    setIssueTarget(undefined);
     setSelected(id);
     setPropertiesOpen(true);
   }
+  const navigateIssue = useCallback((id: string, target: EquipmentTarget) => {
+    setSelection([id]);
+    setWorkspaceMenuOpen(false);
+    if (target.section === "thermodynamics") {
+      setPropertiesOpen(false);
+      setThermoDialog(target.field === "components" ? "components" : "model");
+    } else {
+      setIssueTarget(target);
+      setPropertiesOpen(true);
+    }
+  }, []);
   function openResults(nextTab = "Results") {
     setTab(nextTab);
     setWorkspaceMenuOpen(false);
@@ -694,7 +796,7 @@ export default function Workspace({
       };
       setState(blank);
       editHistory.current = { past: [], future: [] };
-      setResult(null);
+      setSimulation(null);
       setSelected(null);
       setCompareId("");
       setClearConfirm(false);
@@ -772,10 +874,110 @@ export default function Workspace({
     setProjectMessage("");
     try {
       await preserveCurrentProject();
-      setSavedProjects(await listProjects());
+      await refreshLibrarySnapshot();
       setShowProjects(true);
     } catch (error) {
       setMessage(errorMessage(error));
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function refreshLibrarySnapshot() {
+    const scanned = await scanProjectLibrary();
+    setLibrary(scanned);
+    setSavedProjects(scanned.projects);
+    if (scanned.errors.length) setProjectMessage(scanned.errors.join(" "));
+    return scanned;
+  }
+  async function refreshProjectFiles() {
+    if (!ready || projectBusy || libraryRefreshing.current) return;
+    libraryRefreshing.current = true;
+    setProjectBusy(true);
+    setProjectMessage("");
+    try {
+      await preserveCurrentProject();
+      await refreshLibrarySnapshot();
+      if (projectId) {
+        const info = await getProjectFolderInfo(projectId);
+        reportFolder(info);
+        if (info?.hasRecovery && !info.error && info.permission === "granted")
+          await flushCurrentProject();
+      }
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+    } finally {
+      libraryRefreshing.current = false;
+      setProjectBusy(false);
+    }
+  }
+  useEffect(() => {
+    const refresh = () => {
+      if (
+        document.visibilityState === "visible" &&
+        !document.querySelector("dialog[open]")
+      )
+        void refreshProjectFiles();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("project-cad-folders-changed", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("project-cad-folders-changed", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  });
+  async function connectFolder() {
+    if (projectBusy) return;
+    try {
+      const directory = await chooseProjectDirectory();
+      if (!directory) return;
+      setProjectBusy(true);
+      await preserveCurrentProject();
+      await connectProjectRoot(directory);
+      await setDefaultProjectDirectory(directory);
+      setProjectMessage("");
+      await refreshLibrarySnapshot();
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function locateProject(id: string) {
+    if (projectBusy) return;
+    try {
+      const directory = await chooseProjectDirectory();
+      if (!directory) return;
+      setProjectBusy(true);
+      await preserveCurrentProject();
+      const found = await locateProjectFile(id, directory);
+      await refreshLibrarySnapshot();
+      if (id === projectId) {
+        reportFolder(await getProjectFolderInfo(id));
+        await flushCurrentProject();
+      }
+      setProjectMessage(`Reconnected ${projectLocation(found)}.`);
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+      if (id === projectId) reportSaveError(error);
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function newLibraryFolder(
+    directory: ProjectDirectoryHandle,
+    name: string,
+  ) {
+    if (projectBusy) throw new Error("Another project action is in progress.");
+    setProjectBusy(true);
+    try {
+      if (
+        (await directory.requestPermission({ mode: "readwrite" })) !== "granted"
+      )
+        throw new Error("Allow folder access to create a folder.");
+      await createProjectLibraryFolder(directory, name);
+      await refreshLibrarySnapshot();
     } finally {
       setProjectBusy(false);
     }
@@ -785,7 +987,7 @@ export default function Workspace({
     setDrawer(null);
     setWorkspaceMenuOpen(false);
     setSelected(null);
-    setResult(null);
+    setSimulation(null);
     setCompareId("");
     setMessage("");
     setPropertiesOpen(false);
@@ -838,7 +1040,7 @@ export default function Workspace({
                 ),
               ],
       };
-      const entry = await createFolderProject(parent, name, workspace);
+      const entry = await createProjectFile(parent, name, workspace);
       await activateProject(entry);
       if (!savedToFile)
         setMessage(
@@ -881,17 +1083,21 @@ export default function Workspace({
       if (saveFolderDraft.folderName)
         await requestProjectFolderAccess(saveFolderDraft.id);
       await preserveCurrentProject();
-      const saved = await saveProjectToFolder(saveFolderDraft.id, parent, name);
+      const saved = await moveProjectFile(saveFolderDraft.id, parent, name);
       if (saveFolderDraft.id === projectId) {
         ++saveVersion.current;
         setProjectId(saved.id);
         setState(saved.workspace);
         lastSaved.current = { id: saved.id, workspace: saved.workspace };
-        reportSaved({ location: "folder", folderName: saved.folderName });
+        reportSaved({
+          location: "folder",
+          folderName: saved.folderName,
+          fileName: saved.fileName,
+        });
       }
-      setSavedProjects(await listProjects());
+      await refreshLibrarySnapshot();
       setProjectMessage(
-        `Saved to ${saved.folderName}/project.json. Future changes save here automatically.`,
+        `Saved to ${projectLocation(saved)}. Future changes save here automatically.`,
       );
       setSaveFolderDraft(null);
     } finally {
@@ -909,7 +1115,7 @@ export default function Workspace({
       if (reconnect && !(await requestProjectFolderAccess(projectId)))
         throw new FolderStorageError(
           "permission",
-          "Folder access was not granted. Reconnect the folder to save project.json.",
+          "Folder access was not granted. Reconnect the folder to save the project file.",
         );
       // A retry checks the file again even if this workspace was saved earlier.
       lastSaved.current = null;
@@ -927,7 +1133,7 @@ export default function Workspace({
       if (!(await requestProjectFolderAccess(projectId)))
         throw new FolderStorageError(
           "permission",
-          "Folder access was not granted. Reconnect the folder to read project.json.",
+          "Folder access was not granted. Reconnect the folder to read the project file.",
         );
       if (saveTimer.current) clearTimeout(saveTimer.current);
       ++saveVersion.current;
@@ -987,12 +1193,16 @@ export default function Workspace({
           lastSaved.current = { id: projectId, workspace: source.workspace };
           reportSaved(
             info
-              ? { location: "folder", folderName: info.name }
+              ? {
+                  location: "folder",
+                  folderName: info.name,
+                  fileName: info.fileName,
+                }
               : { location: "browser" },
           );
         }
         setSavedProjects(await listProjects());
-        next.workspace.project.name = `${next.workspace.project.name.slice(0, 75)} copy`;
+        next.workspace.project.name = `${projectDisplayName(source).slice(0, 75)} copy`;
         setCreateDraft({
           seed: next.workspace.project,
           revisions: next.workspace.revisions,
@@ -1008,19 +1218,23 @@ export default function Workspace({
       next.updatedAt = new Date().toISOString();
       if (name) {
         renameAttempt = next;
-        if (next.id === projectId) {
+        if (next.id === projectId && !next.fileName) {
           setState(next.workspace);
           lastSaved.current = null;
           setStorage("Saving…");
         }
       }
-      await updateSavedProject(next);
+      const updated = await updateSavedProject(next, { rename: Boolean(name) });
       if (next.id === projectId && name) {
-        setState(next.workspace);
-        lastSaved.current = { id: projectId, workspace: next.workspace };
+        setState(updated.workspace);
+        lastSaved.current = { id: projectId, workspace: updated.workspace };
         reportSaved(
           info
-            ? { location: "folder", folderName: info.name }
+            ? {
+                location: "folder",
+                folderName: updated.folderName,
+                fileName: updated.fileName,
+              }
             : { location: "browser" },
         );
       }
@@ -1210,12 +1424,14 @@ export default function Workspace({
     <FolderSaveNotice
       message={saveIssue.message}
       folderName={folderName}
+      fileName={fileName}
       needsPermission={saveIssue.needsPermission}
       busy={projectBusy}
       onRetry={() => void retrySave()}
       onReconnect={() => void retrySave(true)}
       onReload={() => setReloadConfirm(true)}
       onExport={exportFile}
+      onLocate={() => void locateProject(projectId)}
     />
   ) : null;
   const projectDialogs = (
@@ -1224,14 +1440,18 @@ export default function Workspace({
         <ProjectFolderSetup
           onComplete={finishFolderSetup}
           onConnected={() => {
-            if (folderName) void retrySave();
+            void refreshProjectFiles();
           }}
         />
       ) : null}
       {saveFolderDraft ? (
         <CreateProjectDialog
-          seed={saveFolderDraft.workspace.project}
+          seed={{
+            ...saveFolderDraft.workspace.project,
+            name: projectDisplayName(saveFolderDraft),
+          }}
           saveLocation
+          moving={!!saveFolderDraft.folderName}
           onCreate={changeProjectFolder}
           onClose={() => {
             if (!projectBusy) setSaveFolderDraft(null);
@@ -1241,6 +1461,7 @@ export default function Workspace({
       {createDraft ? (
         <CreateProjectDialog
           seed={createDraft.seed}
+          initialDirectory={createDraft.directory}
           onCreate={createProject}
           onClose={() => {
             if (!projectBusy) setCreateDraft(null);
@@ -1257,8 +1478,11 @@ export default function Workspace({
         >
           <p>
             This replaces the current project and revision history with{" "}
-            <strong>{folderName}/project.json</strong>. Export a copy first to
-            keep any changes that have not reached the file.
+            <strong>
+              {folderName}/{fileName ?? "project.json"}
+            </strong>
+            . Export a copy first to keep any changes that have not reached the
+            file.
           </p>
           <div className="dialog-actions">
             <button
@@ -1289,9 +1513,13 @@ export default function Workspace({
         {saveNotice}
         <ProjectsPage
           projects={savedProjects}
+          roots={library?.roots ?? []}
+          folders={library?.folders ?? []}
           currentId={projectId}
           onOpen={(entry) => void openProject(entry)}
-          onNew={() => setCreateDraft({ seed: blankProject() })}
+          onNew={(directory) =>
+            setCreateDraft({ seed: blankProject(), directory })
+          }
           onTemplates={() => setTemplatesOpen(true)}
           onRename={(entry, name) => void editSavedProject(entry, name)}
           onDuplicate={(entry) => void editSavedProject(entry, undefined, true)}
@@ -1304,6 +1532,10 @@ export default function Workspace({
           palette={palette.id}
           onPalette={setTheme}
           onSaveFolder={setSaveFolderDraft}
+          onRefresh={() => void refreshProjectFiles()}
+          onConnectFolder={() => void connectFolder()}
+          onLocate={(entry) => void locateProject(entry.id)}
+          onNewFolder={newLibraryFolder}
           busy={projectBusy}
           message={projectMessage}
         />
@@ -1351,9 +1583,12 @@ export default function Workspace({
           </button>
         </div>
         <div className="project-heading">
-          <h1>{project.name}</h1>
+          <h1>{projectDisplayName({ fileName, workspace: state })}</h1>
         </div>
         <div className="header-actions">
+          {view !== "2D" && !isFullscreen ? (
+            <div ref={setGraphicsSettingsContainer} />
+          ) : null}
           <ThermodynamicSelector
             key={`${projectId}:${state.revisions.length}`}
             settings={project.thermo ?? defaultThermo}
@@ -1377,6 +1612,20 @@ export default function Workspace({
                 ? (project.thermo.catalog?.chemicals.length ?? 0)
                 : 2}
             </span>
+          </button>
+          <button
+            ref={unitsButtonRef}
+            className="icon-button units-button"
+            aria-label="Units"
+            aria-haspopup="dialog"
+            aria-expanded={drawer === "Units"}
+            aria-controls="workspace-units-panel"
+            title={`Engineering units: ${unitDisplay.label}`}
+            onClick={() =>
+              drawer === "Units" ? closeDrawer() : openPanel("Units")
+            }
+          >
+            <Ruler size={16} aria-hidden="true" />
           </button>
           <button
             className="btn btn-primary simulate-button"
@@ -1444,7 +1693,6 @@ export default function Workspace({
                   { name: "Results", icon: ChartNoAxesColumnIncreasing },
                   { name: "Components", icon: FlaskConical },
                   { name: "Thermodynamics", icon: Thermometer },
-                  { name: "Templates", icon: FolderOpen },
                   { name: "Toggle chat", icon: MessageCircle },
                   { name: "Storage settings", icon: HardDrive },
                   { name: "Settings", icon: Settings2 },
@@ -1456,10 +1704,6 @@ export default function Workspace({
                       if (name === "Toggle chat") {
                         closeWorkspaceMenu();
                         handleAssistantOpenChange(!assistantOpen);
-                      } else if (name === "Templates") {
-                        closeWorkspaceMenu();
-                        setDrawer(null);
-                        setTemplatesOpen(true);
                       } else if (
                         name === "Components" ||
                         name === "Thermodynamics"
@@ -1478,7 +1722,7 @@ export default function Workspace({
               </nav>
             ) : null}
           </div>
-          {drawer ? (
+          {drawer && drawer !== "Units" ? (
             <aside
               id={`workspace-${drawer.toLowerCase().replaceAll(" ", "-")}-panel`}
               className={`workspace-drawer drawer-${drawer.toLowerCase().replaceAll(" ", "-")}`}
@@ -1516,22 +1760,37 @@ export default function Workspace({
                   ) : (
                     <>
                       {drawer === "Settings" ? (
-                        <div className="preference-section">
-                          <h3>Assistant</h3>
-                          <p>
-                            Open the assistant or bring back a hidden chat
-                            bubble.
-                          </p>
-                          <button
-                            className="btn"
-                            onClick={() => {
-                              setDrawer(null);
-                              handleAssistantOpenChange(true);
-                            }}
-                          >
-                            <MessageCircle size={15} /> Show assistant
-                          </button>
-                        </div>
+                        <>
+                          <div className="preference-section">
+                            <h3>Engineering units</h3>
+                            <p>
+                              {unitDisplay.label} · Choose units for equipment
+                              inputs and calculated results.
+                            </p>
+                            <button
+                              className="btn"
+                              onClick={() => openPanel("Units")}
+                            >
+                              <Ruler size={15} /> Configure units
+                            </button>
+                          </div>
+                          <div className="preference-section">
+                            <h3>Assistant</h3>
+                            <p>
+                              Open the assistant or bring back a hidden chat
+                              bubble.
+                            </p>
+                            <button
+                              className="btn"
+                              onClick={() => {
+                                setDrawer(null);
+                                handleAssistantOpenChange(true);
+                              }}
+                            >
+                              <MessageCircle size={15} /> Show assistant
+                            </button>
+                          </div>
+                        </>
                       ) : null}
                       {drawer === "Storage settings" ||
                       drawer === "Settings" ? (
@@ -1540,7 +1799,7 @@ export default function Workspace({
                           <h3>Local project</h3>
                           <p>
                             {folderName
-                              ? `This project and its revisions save to ${folderName}/project.json on your laptop.`
+                              ? `This project and its revisions save to ${folderName}/${fileName ?? "project.json"} on your laptop.`
                               : "This project and its revisions are saved in this browser. Create a project in a folder to save directly to your laptop."}{" "}
                             Export a JSON copy to keep or share your work.
                           </p>
@@ -1630,6 +1889,9 @@ export default function Workspace({
                 </div>
               </div>
               <div className="tool-group canvas-edit-tools">
+                {view !== "2D" && isFullscreen ? (
+                  <div ref={setGraphicsSettingsContainer} />
+                ) : null}
                 <button
                   aria-label="Properties"
                   title="Edit selected equipment"
@@ -1690,6 +1952,8 @@ export default function Workspace({
                 selection={selection}
                 onSelection={setSelection}
                 onInspect={inspect}
+                statuses={statuses}
+                onNavigateIssue={navigateIssue}
                 onChange={change}
                 onAdd={add}
                 onError={setMessage}
@@ -1706,30 +1970,33 @@ export default function Workspace({
                 dark={false}
                 canvasColor="#fafbf9"
                 project={project}
+                result={result}
                 selected={selected}
-                onSelect={inspect}
+                onSelect={setSelected}
+                graphicsSettingsContainer={graphicsSettingsContainer}
               />
             ) : view !== "2D" ? (
               <div className="empty-state">Opening 3D project…</div>
             ) : null}
           </div>
-          {project.units.length === 0 ? (
-            <div className="blank-canvas">
-              <Workflow size={34} />
-              <h2>Your next process starts here</h2>
-              <p>
-                Add equipment from the library or start with a simple template.
-              </p>
-              <button className="btn" onClick={() => setTemplatesOpen(true)}>
-                <FolderOpen size={15} />
-                Browse templates
-              </button>
-            </div>
-          ) : null}
           {message ? (
             <div className="notification" role="status">
               <Info size={15} />
               <span>{message}</span>
+              {failure?.unitId && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() =>
+                    navigateIssue(
+                      failure.unitId!,
+                      equipmentIssueTarget(failure.message),
+                    )
+                  }
+                >
+                  Review error
+                </button>
+              )}
               <button
                 className="icon-button"
                 aria-label="Dismiss notification"
@@ -1752,29 +2019,22 @@ export default function Workspace({
             onApply={applyAssistantProposal}
             onError={setMessage}
           />
-          <footer className="canvas-footer">
-            <div className="canvas-status">
-              <span className="save-status">
-                {saveIssue ? <AlertCircle size={12} /> : <Check size={12} />}
-                {storage}
-              </span>
-              <span>
-                {project.units.length} equipment · {project.edges.length}{" "}
-                streams
-              </span>
-              <span className={result?.converged ? "calculated" : ""}>
-                {result
-                  ? result.converged
-                    ? "Calculated"
-                    : "Not converged"
-                  : "Not calculated"}
-              </span>
-            </div>
-          </footer>
+          <span className="save-status sr-only" aria-live="polite">
+            {storage}
+          </span>
         </section>
       </div>
       {helpOpen ? <KeyboardHelp onClose={() => setHelpOpen(false)} /> : null}
       {projectDialogs}
+      {drawer === "Units" ? (
+        <Dialog
+          title="Engineering units"
+          className="units-dialog"
+          onClose={closeDrawer}
+        >
+          <UnitSettings />
+        </Dialog>
+      ) : null}
       {thermoDialog === "components" ? (
         <Dialog
           title="Project components"
@@ -1788,12 +2048,6 @@ export default function Workspace({
           />
         </Dialog>
       ) : null}
-      {templatesOpen ? (
-        <Templates
-          onClose={() => setTemplatesOpen(false)}
-          onLoad={loadExample}
-        />
-      ) : null}
       {propertiesOpen ? (
         <Dialog
           title={
@@ -1803,12 +2057,20 @@ export default function Workspace({
                 "Stream properties")
           }
           className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
-          onClose={() => setPropertiesOpen(false)}
+          onClose={() => {
+            setPropertiesOpen(false);
+            setIssueTarget(undefined);
+          }}
         >
           <Inspector
             project={project}
             selected={selected}
             result={result}
+            issueTarget={issueTarget}
+            status={selectedUnit ? statuses[selectedUnit.id] : undefined}
+            onNavigateIssue={(target) =>
+              selected && navigateIssue(selected, target)
+            }
             onChange={(p, l) => {
               change(p, l, true);
               if (
@@ -1836,7 +2098,7 @@ export default function Workspace({
           <p>
             This removes the current project and its saved revision history.
             {folderName
-              ? ` It also replaces ${folderName}/project.json with an empty project.`
+              ? ` It also replaces ${folderName}/${fileName ?? "project.json"} with an empty project.`
               : ""}
             Export first if you want to keep a copy.
           </p>

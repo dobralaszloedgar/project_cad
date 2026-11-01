@@ -65,7 +65,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await page.getByLabel("Search projects").fill("Heating");
   await expect(page.locator(".project-card")).toHaveCount(1);
   await page.getByLabel("Search projects").fill("");
-  const originalFile = JSON.parse(await folderText(page, "Simple heating"));
+  const originalFile = JSON.parse(await folderText(page, "Heating study"));
   expect(originalFile.workspace.project.name).toBe("Heating study");
   await page.getByRole("button", { name: "Actions for Heating study" }).click();
   await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
@@ -126,7 +126,9 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await expect(page.locator(".save-status")).toContainText(/^Saved/i);
-  await expect(page.locator(".save-status")).toContainText("project.json");
+  await expect(page.locator(".save-status")).toContainText(
+    "Heating study.pcad",
+  );
   await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText("Heating study");
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
@@ -169,7 +171,10 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await expect(page.locator(".equipment-library")).toHaveCount(0);
   await page.getByRole("button", { name: "Open assistant" }).click();
   await expect(
-    page.getByRole("textbox", { name: "Process prompt" }),
+    page.getByRole("dialog", { name: "Assistant", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Connect local assistant", exact: true }),
   ).toBeVisible();
 });
 

@@ -1,4 +1,4 @@
-import { Color, DoubleSide } from "three";
+import { Color, DoubleSide, FrontSide } from "three";
 import {
   MeshBasicNodeMaterial,
   MeshPhysicalNodeMaterial,
@@ -51,7 +51,7 @@ const waterNoise = Fn(([p]: [Node<"vec2">]) =>
 );
 
 type LiquidOptions = {
-  mode?: "surface" | "fall" | "pipe" | "swirl";
+  mode?: "surface" | "fall" | "pipe" | "swirl" | "trickle";
   radius?: number;
   amplitude?: number;
   froth?: number;
@@ -131,6 +131,11 @@ function liquidNodes(mode: LiquidMode): LiquidNodes {
       .sin()
       .mul(amplitude);
     material.positionNode = positionLocal.add(normalLocal.mul(offset));
+  } else if (mode === "trickle") {
+    // UV.x is distance along each rivulet, increasing downwards. The fixed
+    // route stays put while small capillary ripples travel with the liquid.
+    const ripple = uv().x.mul(33).sub(time.mul(5.2)).sin().mul(amplitude);
+    material.positionNode = positionLocal.add(normalLocal.mul(ripple));
   }
   const current =
     mode === "surface"
@@ -139,13 +144,15 @@ function liquidNodes(mode: LiquidMode): LiquidNodes {
         ? uv()
             .mul(vec2(28, 7))
             .add(vec2(0, time.mul(5.4)))
-        : mode === "swirl"
-          ? uv()
-              .mul(vec2(35, 4))
-              .sub(vec2(time.mul(16).add(uv().y.mul(12)), time.mul(0.35)))
-          : uv()
-              .mul(vec2(28, 9))
-              .sub(vec2(time.mul(5.4), 0));
+        : mode === "trickle"
+          ? vec2(uv().x.mul(26).sub(time.mul(4.1)), uv().y.mul(4))
+          : mode === "swirl"
+            ? uv()
+                .mul(vec2(35, 4))
+                .sub(vec2(time.mul(16).add(uv().y.mul(12)), time.mul(0.35)))
+            : uv()
+                .mul(vec2(28, 9))
+                .sub(vec2(time.mul(5.4), 0));
   const ripple = waterNoise(current);
   material.colorNode = Fn(() => {
     if (mode === "surface") {
@@ -160,6 +167,20 @@ function liquidNodes(mode: LiquidMode): LiquidNodes {
     }
     let foam = ripple.smoothstep(0.44, 0.76).mul(froth);
     let base: Node<"vec3"> = startColor.rgb;
+    if (mode === "trickle") {
+      const highlight = uv()
+        .x.mul(31)
+        .sub(time.mul(4.9))
+        .sin()
+        .mul(0.5)
+        .add(0.5)
+        .pow(9);
+      return mix(
+        base.mul(ripple.mul(0.28).add(0.78)),
+        vec3(0.94, 0.97, 0.93),
+        highlight.mul(0.32),
+      );
+    }
     if (mode === "pipe") {
       const distance = uv().x.mul(length);
       const phase = distance.mul(17).sub(time.mul(13));
@@ -191,6 +212,8 @@ function liquidNodes(mode: LiquidMode): LiquidNodes {
   })();
   if (mode === "fall")
     material.opacityNode = ripple.mul(0.38).add(0.62).mul(opacity);
+  if (mode === "trickle")
+    material.opacityNode = ripple.mul(0.2).add(0.8).mul(opacity);
   liquidPrograms.set(mode, material);
   return material;
 }
@@ -220,7 +243,7 @@ export function liquidMaterial(
     clearcoat: 1,
     clearcoatRoughness: 0.1,
     ior: 1.333,
-    side: DoubleSide,
+    side: mode === "trickle" ? FrontSide : DoubleSide,
     depthWrite: false,
     envMapIntensity: 0.55,
   });

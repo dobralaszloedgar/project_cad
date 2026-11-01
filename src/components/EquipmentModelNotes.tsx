@@ -4,6 +4,7 @@ import type { Unit } from "@/domain/schema";
 import { modelInfo, type ThermoSettings } from "@/domain/thermo/registry";
 import { mixtureName } from "@/domain/thermo/catalog";
 import "katex/dist/katex.min.css";
+import { useUnitSystem } from "./useUnitSystem";
 
 function Equation({
   children,
@@ -199,6 +200,35 @@ export function EquipmentModelNotes({
         </>
       )}
       {unit.kind === "Distillation" &&
+        unit.params.distillation &&
+        (unit.params.distillation.method === "fug" ? (
+          <>
+            <Equation>{String.raw`N_{\min}=\frac{\ln\left[\frac{r_L r_H}{(1-r_L)(1-r_H)}\right]}{\ln(\alpha_L/\alpha_H)}`}</Equation>
+            <Equation>{String.raw`\sum_i\frac{\alpha_i z_i}{\alpha_i-\theta}=1-q,\qquad R_{\min}+1=\sum_i\frac{\alpha_i x_{D,i}}{\alpha_i-\theta}`}</Equation>
+            <p>
+              FUG uses supplied mean relative volatilities and constant molar
+              overflow. Nonkey recoveries use Hengstebeck–Geddes; stages use the
+              explicit Gilliland fit. No azeotrope prediction, phase-equilibrium
+              stage profile, or end duties.
+            </p>
+          </>
+        ) : (
+          <>
+            <Equation>{String.raw`L_{j-1}x_{i,j-1}+V_{j+1}y_{i,j+1}+F_jz_i=L_jx_{i,j}+V_jy_{i,j}`}</Equation>
+            <Equation>{String.raw`y_{i,j}P_j=x_{i,j}\gamma_{i,j}P_i^{sat}(T_j),\qquad\sum_i x_{i,j}=\sum_i y_{i,j}=1`}</Equation>
+            <Equation>{String.raw`L_{j-1}h_{j-1}+V_{j+1}H_{j+1}+F_jh_F+Q_j=L_jh_j+V_jH_j`}</Equation>
+            <p>
+              MESH solves simultaneous stage balances with the selected VLE and
+              caloric model. Adiabatic trays, one feed, total condenser, kettle
+              reboiler. Optional sieve-tray hydraulic rating reports flooding
+              and weeping limits after convergence, without changing separation.
+              No tray efficiency or hydraulic feedback; no liquid–liquid
+              stability search.
+            </p>
+          </>
+        ))}
+      {unit.kind === "Distillation" &&
+        !unit.params.distillation &&
         (idealGas ? (
           <>
             <Equation>{String.raw`y = \frac{\alpha x}{1+(\alpha-1)x},\qquad z = dy+(1-d)x`}</Equation>
@@ -266,6 +296,7 @@ export function CatalystProfile({
 }: {
   profile: { catalystMass: number; conversion: number }[];
 }) {
+  const display = useUnitSystem();
   if (!profile.length) return null;
   const last = profile[profile.length - 1];
   const maxMass = last.catalystMass || 1;
@@ -291,7 +322,7 @@ export function CatalystProfile({
       <svg
         viewBox="0 0 280 182"
         role="img"
-        aria-label={`Conversion reaches ${(last.conversion * 100).toFixed(2)} percent at ${last.catalystMass} kilograms of catalyst`}
+        aria-label={`Conversion reaches ${(last.conversion * 100).toFixed(2)} percent at ${display.format(last.catalystMass, "mass")} of catalyst`}
       >
         <path d="M42 26H246M42 78H246M42 130H246" className="profile-grid" />
         <path d="M42 26V130H246" className="profile-axis" />
@@ -310,14 +341,14 @@ export function CatalystProfile({
         </text>
         {last.catalystMass > 0 && (
           <text x="246" y="149" textAnchor="middle">
-            {Number(last.catalystMass.toPrecision(5))}
+            {Number(display.value(last.catalystMass, "mass").toPrecision(5))}
           </text>
         )}
         <text x="42" y="14">
           Conversion (%)
         </text>
         <text x="144" y="173" textAnchor="middle">
-          Catalyst mass (kg)
+          Catalyst mass ({display.quantityLabel("mass")})
         </text>
       </svg>
     </figure>

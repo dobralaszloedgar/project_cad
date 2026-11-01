@@ -558,6 +558,208 @@ fn evaluate_tp(req: &Request) -> Result<Properties, String> {
     Ok(result)
 }
 
+/// Couple the simultaneous MESH solver to the shared caloric VLE model.
+/// Both phases use the same correlations and enthalpy reference as stream flashes.
+pub fn column(mut req: Request, spec: serde_json::Value) -> Result<serde_json::Value, String> {
+    use crate::column_numerics::{num, require};
+    require(
+        req.model_id != Model::Gas,
+        "MESH requires Raoult or Modified UNIFAC liquid thermodynamics; ideal gas cannot condense",
+    )?;
+    // Validate the original feed before filtering inactive components.
+    let feed = evaluate_tp(&req)?;
+    let feed_h = feed
+        .molar_enthalpy
+        .ok_or("MESH requires a determinate feed enthalpy")?;
+    let active: Vec<_> = req
+        .composition
+        .iter()
+        .enumerate()
+        .filter(|(_, z)| **z > 0.)
+        .map(|(i, _)| i)
+        .collect();
+    require(
+        active.len() >= 2,
+        "MESH requires at least two positive-flow feed components",
+    )?;
+    req.chemicals = active.iter().map(|&i| req.chemicals[i].clone()).collect();
+    req.composition = active.iter().map(|&i| req.composition[i]).collect();
+    let n = req.chemicals.len();
+    let trays = spec["trayCount"].as_u64().ok_or("Invalid tray count")?;
+    let feed_tray = spec["feedTray"].as_u64().ok_or("Invalid feed tray")?;
+    require(
+        (2..=80).contains(&trays) && (1..=trays).contains(&feed_tray),
+        "MESH needs 2–80 trays and a feed tray within the column",
+    )?;
+    require(
+        spec["maxIterations"]
+            .as_u64()
+            .is_some_and(|v| (1..=2000).contains(&v)),
+        "Invalid MESH iteration budget",
+    )?;
+    require(
+        spec.as_object().is_some_and(|v| {
+            v.keys().all(|k| {
+                [
+                    "trayCount",
+                    "feedTray",
+                    "pressurePa",
+                    "pressureDropPa",
+                    "feedMolS",
+                    "distillateMolS",
+                    "refluxRatio",
+                    "maxIterations",
+                    "tolerance",
+                    "kTolerance",
+                    "enthalpyTolerance",
+                ]
+                .contains(&k.as_str())
+            })
+        }),
+        "Unsupported MESH specification",
+    )?;
+    let p0 = num(&spec, "pressurePa")?;
+    let drop = num(&spec, "pressureDropPa")?;
+    require(
+        drop >= 0. && p0 >= 1000. && p0 + drop <= 200000.,
+        "MESH pressure profile must remain within 1–200 kPa",
+    )?;
+    let feed_pressure = p0 + drop * feed_tray as f64 / (trays + 1) as f64;
+    require(
+        req.pressure >= feed_pressure,
+        "Feed pressure is below the specified feed-tray pressure",
+    )?;
+    let dataset = if let Some(dataset) = &req.activity_parameters {
+        dataset.clone()
+    } else {
+        serde_json::from_str(include_str!("../sample-groups.json")).map_err(|e| e.to_string())?
+    };
+    let mut registry = activity::Registry::default();
+    registry
+        .datasets
+        .insert("modified-unifac-2.0".into(), dataset);
+    let mixture: activity::Mixture = serde_json::from_value(json!({
+        "model": "modified-unifac-2.0",
+        "cas": req.chemicals.iter().map(|c| &c.id).collect::<Vec<_>>(),
+        "species": req.chemicals.iter().map(|c| json!({"groups":c.groups,"vpRange":[250.,800.]})).collect::<Vec<_>>()
+    })).map_err(|e| e.to_string())?;
+    let props = |t: f64, p: f64, x: &[f64], y: &[f64]| -> Result<crate::mesh::Props, String> {
+        let mut log_k = Vec::with_capacity(n);
+        let mut gas = Vec::with_capacity(n);
+        let mut latent = Vec::with_capacity(n);
+        for c in &req.chemicals {
+            let (ps, hvap, _) = saturation(c, t, req.extrapolate)?;
+            log_k.push((ps / p).ln());
+            latent.push(hvap);
+            gas.push(
+                c.formation_enthalpy
+                    + if let Some(cp) = &c.gas_cp {
+                        cp.enthalpy(t)?
+                    } else {
+                        c.cp.unwrap() * (t - T_REF)
+                    },
+            );
+        }
+        let mut excess = 0.;
+        if req.model_id == Model::Modified {
+            let a =
+                activity::properties(&mixture, &registry, activity::State { t, zs: x.to_vec() })?;
+            for (j, &i) in a.active.iter().enumerate() {
+                log_k[i] += a.activity.gamma[j].ln();
+            }
+            excess = a.activity.he;
+        }
+        Ok(crate::mesh::Props {
+            pl: log_k,
+            pv: vec![0.; n],
+            hl: dot(x, &gas) - dot(x, &latent) + excess,
+            hv: dot(y, &gas),
+            derivatives: None,
+        })
+    };
+    // Locate a supported bubble point for initialization; never bridge a data gap.
+    let mut initialization = None;
+    for (low, high) in temperature_intervals(&req)? {
+        if high - low < 1e-5 {
+            continue;
+        }
+        let bubble = |t| -> Result<f64, String> {
+            let state = props(t, feed_pressure, &req.composition, &req.composition)?;
+            Ok(req
+                .composition
+                .iter()
+                .zip(state.pl)
+                .map(|(x, k)| x * k.exp())
+                .sum::<f64>()
+                - 1.)
+        };
+        let (mut a, mut b) = (low + 1e-6, high - 1e-6);
+        if bubble(a)? > 0. || bubble(b)? < 0. {
+            continue;
+        }
+        for _ in 0..70 {
+            let t = (a + b) / 2.;
+            if bubble(t)? > 0. {
+                b = t;
+            } else {
+                a = t;
+            }
+        }
+        initialization = Some(([low, high], (a + b) / 2.));
+        break;
+    }
+    let (range, seed) = initialization.ok_or("No supported bubble point at column pressure; check pressure and shared property temperature ranges")?;
+    let mut result = crate::mesh::solve(
+        &json!({"column":spec}),
+        &req.composition,
+        feed_h,
+        range,
+        seed,
+        props,
+        None,
+    )?;
+    // Independently TP-flash a two-phase blend on every converged stage. A bad
+    // root/unsupported state must not be returned as a successful column.
+    let mut warnings = feed.warnings;
+    for stage in result["stages"].as_array().ok_or("Missing MESH stages")? {
+        let x = crate::column_numerics::numbers(&stage["liquidComposition"])?;
+        let y = crate::column_numerics::numbers(&stage["vaporComposition"])?;
+        let mut check = req.clone();
+        check.temperature = num(stage, "temperatureK")?;
+        check.pressure = num(stage, "pressurePa")?;
+        check.composition = x.iter().zip(&y).map(|(x, y)| (x + y) / 2.).collect();
+        check.vapor_fraction = None;
+        let verified = evaluate_tp(&check)?;
+        let vx = verified
+            .liquid_composition
+            .as_ref()
+            .ok_or("MESH stage verification lost liquid phase")?;
+        let vy = verified
+            .vapor_composition
+            .as_ref()
+            .ok_or("MESH stage verification lost vapor phase")?;
+        require(
+            vx.iter()
+                .zip(&x)
+                .chain(vy.iter().zip(&y))
+                .all(|(a, b)| (a - b).abs() < 1e-6),
+            "MESH stage failed independent equilibrium verification",
+        )?;
+        let h = (num(stage, "liquidEnthalpy")? + num(stage, "vaporEnthalpy")?) / 2.;
+        require(
+            (verified.molar_enthalpy.ok_or("Missing stage enthalpy")? - h).abs() < 0.01,
+            "MESH stage failed independent enthalpy verification",
+        )?;
+        warnings.extend(verified.warnings);
+    }
+    warnings.sort();
+    warnings.dedup();
+    result["componentIds"] = json!(req.chemicals.iter().map(|c| &c.id).collect::<Vec<_>>());
+    result["feedEnthalpy"] = json!(feed_h);
+    result["warnings"] = json!(warnings);
+    Ok(result)
+}
+
 // Intersect the UNION of each active chemical's data intervals. Never bridge an
 // unsupported gap just because the endpoints of a temperature bracket are valid.
 fn temperature_intervals(req: &Request) -> Result<Vec<(f64, f64)>, String> {

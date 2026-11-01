@@ -1,14 +1,36 @@
 import { getSmoothStepPath, Position } from "@xyflow/react";
 import type { Connection, Kind, Unit } from "@/domain/schema";
+import { columnDiagramLayout } from "../domain/column-geometry";
 
-export function equipmentPort(kind: Kind, output: boolean, index: number) {
+export function equipmentSize(kind: Kind, trayCount?: number) {
+  return {
+    width: 128,
+    height:
+      kind === "Distillation" ? columnDiagramLayout(trayCount).height : 128,
+  };
+}
+
+export function equipmentPort(
+  kind: Kind,
+  output: boolean,
+  index: number,
+  trayCount?: number,
+) {
+  if (kind === "Distillation") {
+    const layout = columnDiagramLayout(trayCount);
+    return {
+      x: output ? 120 : 8,
+      y: output ? (index ? layout.bottomsY : layout.distillateY) : layout.feedY,
+      position: output ? Position.Right : Position.Left,
+    };
+  }
   let x = output ? 120 : 8,
     y = 64;
   let position = output ? Position.Right : Position.Left;
   if (kind === "Mixer" && !output) y = index ? 88 : 40;
   if (kind === "Splitter" && output) y = index ? 88 : 40;
-  if (kind === "PBR" || (kind === "Distillation" && output)) {
-    const bottom = kind === "PBR" ? output : index > 0;
+  if (kind === "PBR") {
+    const bottom = output;
     x = 64;
     y = bottom ? 120 : 8;
     position = bottom ? Position.Bottom : Position.Top;

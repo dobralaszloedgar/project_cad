@@ -246,6 +246,12 @@ dashed accent border. 2D/3D/Split controls share the floating toolbar treatment.
 The detailed 3D view derives a compact arrangement from saved equipment and streams,
 preserving saved 2D positions. Transparent shells are on by default. The models are
 illustrative, not fabrication geometry.
+Single-clicking 3D equipment selects its orbit anchor without opening setup or
+jumping the camera. The 2D scroll/pinch, Space-pan, arrow, +/- and F/Shift+F
+gestures also apply in 3D; P/V switches pan/orbit, and G/L toggles grid/labels.
+The closest camera distance is 0.025 scene units. The farthest distance is 2.5
+times the fitted scene distance (minimum 4), with clipping planes adjusted for
+both catalyst close-ups and large plants.
 Rainbow dash motion is 1.4s linear and does not encode calculated speed/composition.
 Reduced-motion preferences disable animation and transitions.
 

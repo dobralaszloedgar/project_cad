@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+import { ChevronDown, Monitor } from "lucide-react";
 import type { GraphicsInfo, GraphicsPreference } from "./renderer";
 import styles from "./graphics.module.css";
 import { AccelerationNotice } from "./AccelerationHelp";
@@ -8,51 +10,61 @@ export function GraphicsSettings({
   info,
   preference,
   onChange,
+  container,
 }: {
   info: GraphicsInfo | null;
   preference: GraphicsPreference;
   onChange: (value: GraphicsPreference) => void;
+  container?: HTMLElement | null;
 }) {
-  return (
-    <>
-      {info?.software ? <AccelerationNotice /> : null}
-      <details className={styles.settings}>
-        <summary aria-label="Graphics settings">
+  const settings = (
+    <details
+      className={`${styles.settings}${container ? ` ${styles.inlineSettings}` : ""}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector("summary")?.focus();
+        }
+      }}
+    >
+      <summary aria-label="Graphics settings" title="3D graphics">
+        <Monitor className={styles.icon} size={16} aria-hidden="true" />
+        <span className={styles.backend}>
           {info
             ? info.backend === "webgpu"
               ? "WebGPU"
               : "WebGL 2"
             : "Graphics"}
-        </summary>
-        <div className={styles.panel}>
-          <label>
-            Renderer
-            <select
-              aria-label="3D renderer"
-              value={preference}
-              onChange={(event) =>
-                onChange(event.target.value as GraphicsPreference)
-              }
-            >
-              <option value="auto">Automatic (prefer WebGPU)</option>
-              <option value="webgl">WebGL 2 compatibility</option>
-            </select>
-          </label>
-          <p>
-            <strong>Active GPU</strong>
-            <span>{info?.gpu ?? "Connecting…"}</span>
-          </p>
-          <p>
-            High-performance graphics requested. Resolution adjusts
-            automatically to keep movement smooth.
-          </p>
-          <p>
-            On a laptop, Windows and your browser choose the GPU. To prefer
-            NVIDIA, set your browser to High performance in Windows Settings →
-            System → Display → Graphics, then restart it.
-          </p>
-        </div>
-      </details>
+        </span>
+        <ChevronDown className={styles.chevron} size={12} aria-hidden="true" />
+      </summary>
+      <div className={styles.panel}>
+        <label>
+          Graphics mode
+          <select
+            aria-label="Graphics mode"
+            value={preference}
+            onChange={(event) =>
+              onChange(event.target.value as GraphicsPreference)
+            }
+          >
+            <option value="auto">Automatic (recommended)</option>
+            <option value="webgl">Compatibility</option>
+          </select>
+        </label>
+        <p>Try Compatibility if 3D isn’t displaying correctly.</p>
+        <p>
+          <strong>Graphics card</strong>
+          <span>{info?.gpu ?? "Connecting…"}</span>
+        </p>
+      </div>
+    </details>
+  );
+  return (
+    <>
+      {info?.software ? <AccelerationNotice /> : null}
+      {container ? createPortal(settings, container) : settings}
     </>
   );
 }

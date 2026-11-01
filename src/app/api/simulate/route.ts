@@ -1,29 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MAX_PROJECT_REQUEST_BYTES, projectSchema } from "@/domain/schema";
+import { projectSchema } from "@/domain/schema";
 import { simulate } from "@/domain/solver";
+import {
+  ProjectRequestError,
+  readProjectRequest,
+} from "@/server/project-request";
 export const runtime = "nodejs";
 export async function POST(request: NextRequest) {
   try {
-    const reader = request.body?.getReader();
-    if (!reader) throw new Error("Project JSON is required.");
-    const decoder = new TextDecoder();
-    let body = "",
-      bytes = 0;
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.length;
-      if (bytes > MAX_PROJECT_REQUEST_BYTES) {
-        await reader.cancel();
-        return NextResponse.json(
-          { error: "Simulation request exceeds 4 MB." },
-          { status: 413 },
-        );
-      }
-      body += decoder.decode(chunk.value, { stream: true });
-    }
-    body += decoder.decode();
-    return NextResponse.json(simulate(projectSchema.parse(JSON.parse(body))));
+    return NextResponse.json(
+      simulate(projectSchema.parse(await readProjectRequest(request))),
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -32,7 +20,7 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "Invalid simulation request.",
       },
-      { status: 422 },
+      { status: error instanceof ProjectRequestError ? error.status : 422 },
     );
   }
 }

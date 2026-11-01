@@ -3,6 +3,7 @@ import { Position } from "@xyflow/react";
 import { kinds, newUnit, ports, type Connection } from "../src/domain/schema";
 import {
   equipmentPort,
+  equipmentSize,
   plantHeight,
   plantPort,
   plantStreamPath,
@@ -30,7 +31,7 @@ describe("equipment geometry", () => {
         expect(x).toBeGreaterThanOrEqual(8);
         expect(x).toBeLessThanOrEqual(120);
         expect(y).toBeGreaterThanOrEqual(8);
-        expect(y).toBeLessThanOrEqual(120);
+        expect(y).toBeLessThanOrEqual(equipmentSize(kind).height - 8);
       }
       expect(equipmentSymbols[kind]).toMatch(/<(path|circle|rect)/);
       expect(equipmentConnectors[kind]).toMatch(/^M/);

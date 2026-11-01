@@ -120,7 +120,7 @@ for (const example of examples) {
     await page
       .getByRole("combobox", { name: "Inspect 3D equipment" })
       .selectOption(column.id);
-    await expect(page.getByLabel("Visible trays (3D)")).toHaveValue(
+    await expect(page.getByLabel("Visible trays (2D & 3D)")).toHaveValue(
       String(example.trays),
     );
     await closeDialog(page);
@@ -156,7 +156,7 @@ test("example links preserve the original project and reopen an edited example w
   await page
     .getByRole("combobox", { name: "Inspect 3D equipment" })
     .selectOption(column.id);
-  await page.getByLabel("Visible trays (3D)").fill(String(editedCount));
+  await page.getByLabel("Visible trays (2D & 3D)").fill(String(editedCount));
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await closeDialog(page);
   const edited = await exported(page);

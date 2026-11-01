@@ -2,7 +2,8 @@ EQUIPMENT MODELS
 
 Eight operations are available: Feed, Product, Mixer, Splitter, Heater, Cooler,
 Packed-bed reactor and simplified Distillation. All calculations are steady
-state. Molar flows are mol/s, temperatures K, pressures Pa and heat duties W.
+state. Stored values and model equations use mol/s, K, Pa and W. Workspace menu
+> Units selects display and input units, with Metric engineering as the default.
 The 2D symbols and 3D shapes are schematic, not mechanical dimensions.
 
 Feed and Product
@@ -48,8 +49,11 @@ There is no area sizing, heat-transfer coefficient, utility circuit or pressure
 drop. Supported calculated temperatures remain inside 250-800 K.
 
 Packed-bed reactor
-New reactors use a configurable reaction set. Existing projects keep their
-synthetic catalyst-mass or residence-time mode until explicitly switched.
+Reactors use user-defined reactions. New reactors start with no assumed chemistry;
+add reactants, products and kinetics directly in the editor. There is no reaction
+model selector. Existing saved definitions are retained. Older projects without
+a reaction definition open an empty reaction draft; their stored model remains
+unchanged until a complete definition is applied.
 
 Define reactants and products with positive coefficients in the corresponding
 editor tables. Internally, negative coefficients consume species and positive
@@ -70,6 +74,18 @@ consistent with the new law; constants are never fitted automatically.
   k(T) = k(Tref) exp[-E/R (1/T - 1/Tref)].
 The expression parser supports arithmetic, powers, exp, log/ln, sqrt, abs,
 min, max and pow, plus T (K), P (Pa) and R. Expressions cannot execute code.
+
+The PBR editor groups operating conditions, bed specification, reaction definitions
+and kinetics in a stable Setup/Results shell. The live, typeset rate law uses the
+same definition as the solver for both simple and general laws. "With constants"
+substitutes temperature-adjusted constants at the specified reactor temperature.
+The expanded rate editor keeps the equation visible above species, forward/reverse
+factors, adsorption terms, constants and an independent sample-value calculator.
+Species and added parameters have editable symbols. Renaming updates complete
+identifiers in both table and custom drafts; kf and kr retain their table roles.
+Switching table/custom modes retains both drafts. Invalid formulas show inline
+errors and cannot be applied. Done editing returns to the equipment draft; Apply
+conditions saves it. Sample inputs are independent and do not block saving.
 
 The reaction model is isothermal gas only, using the ideal-gas thermodynamic
 model. Local volume flow is Ftotal R T / P, or an explicitly specified constant
@@ -97,7 +113,16 @@ Catalyst-mass mode uses k450=0.01 m3/(kg-cat s) and X=1-exp[-kPW/(Ftotal RT)].
 Residence-time mode uses k450=0.1 s^-1 and X=1-exp[-k tau]. Pressure is constant
 and multiple feeds must be combined in an upstream mixer for these modes.
 
-Simplified separation
+Distillation columns
+Select Shortcut design (FUG) or Equilibrium stages (MESH) in the column Setup.
+FUG predicts minimum/operating reflux and theoretical stage estimates from
+key recoveries and supplied relative volatilities. MESH solves the material,
+equilibrium, summation and energy balances of installed equilibrium trays,
+a saturated total condenser and kettle reboiler. See DISTILLATION.txt for
+specifications, supported thermodynamics, stage conventions and verification.
+The template library includes a ready-to-run benzene–toluene case for each.
+
+Legacy simplified separation (when params.distillation is omitted)
 With ideal gas, Distillation represents one binary equilibrium contact:
   yA = alpha*xA / (1+(alpha-1)*xA)
   zA = d*yA + (1-d)*xA.
@@ -129,6 +154,6 @@ Property sources and thermodynamic limitations remain in SOURCES.txt and
 THERMODYNAMICS.txt. Agreement with analytical cases is numerical verification,
 not experimental validation of the synthetic kinetic constants.
 
-Multicomponent separation uses the first component as the light key; all remaining
+Legacy multicomponent separation uses the first component as the light key; all remaining
 components have equal relative volatility in the ideal-gas teaching contact.
 Liquid models perform a multicomponent TP flash with species conservation.

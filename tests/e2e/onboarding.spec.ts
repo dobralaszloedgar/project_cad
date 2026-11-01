@@ -38,7 +38,7 @@ test("landing leads to folder setup, first project, and a remembered workspace",
   await expect(page.getByLabel("Project name", { exact: true })).toBeFocused();
   await page.getByLabel("Project name", { exact: true }).fill("First process");
   await expect(page.locator("#project-destination")).toHaveText(
-    "Laptop projects/First process",
+    "Laptop projects/First process.pcad",
   );
   await page.screenshot({
     path: info.outputPath("onboarding-project.png"),
@@ -50,7 +50,7 @@ test("landing leads to folder setup, first project, and a remembered workspace",
   await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.locator(".project-heading h1")).toHaveText("First process");
   await expect(page.locator(".save-status")).toContainText(
-    "First process/project.json",
+    "First process.pcad",
   );
   await expect(
     page.getByRole("dialog", { name: "Choose project folder" }),
