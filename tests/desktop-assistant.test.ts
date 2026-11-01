@@ -123,7 +123,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       }
     }
     expect(token, logs).not.toBe("");
-    expect((await command("status")).running).toBe(false);
+    expect((await command("status")).running).toBe(true);
     expect((await command("status")).agents).toBeNull();
     expect((await fetch(origin + "/api/state")).status).toBe(403);
     expect(
@@ -145,24 +145,38 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       "frame-ancestors 'none'",
     );
     expect(await page.text()).toContain("Your local assistant");
-    const choose = (agents: unknown) =>
-      fetch(origin + "/api/action", {
-        method: "POST",
-        headers: {
-          Cookie: cookie,
-          Origin: origin,
-          "Content-Type": "application/json",
-          "X-Project-CAD-Desktop": "1",
-        },
-        body: JSON.stringify({ action: "agents", agents }),
-      });
-    expect((await choose({ providers: [], preferred: "codex" })).status).toBe(
-      400,
-    );
+    // A fresh installation listens for consent, but cannot launch any provider.
+    const endpoint = `http://127.0.0.1:${assistantPort}`;
+    const consent = await (
+      await fetch(
+        endpoint +
+          "/connect?" +
+          new URLSearchParams({
+            origin: "https://projectcad.vercel.app",
+            nonce: crypto.randomUUID(),
+            providers: "muse",
+            preferred: "muse",
+          }),
+      )
+    ).text();
+    expect((await command("status")).agents).toBeNull();
+    const csrf = consent.match(/name="csrf" value="([a-f0-9]+)"/)![1];
     expect(
-      (await choose({ providers: ["muse"], preferred: "muse" })).status,
+      (
+        await fetch(endpoint + "/connect", {
+          method: "POST",
+          headers: {
+            Origin: endpoint,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: `csrf=${csrf}`,
+        })
+      ).status,
     ).toBe(200);
-    expect((await command("status")).running).toBe(true);
+    expect((await command("status")).agents).toEqual({
+      providers: ["muse"],
+      preferred: "muse",
+    });
     const unselected = await fetch(origin + "/api/action", {
       method: "POST",
       headers: {

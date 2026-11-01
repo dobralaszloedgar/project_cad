@@ -1,0 +1,782 @@
+.desktop {
+  --os-bg: #f5f5f5;
+  --os-sidebar: #e9e9e9;
+  --os-field: #ececec;
+  --os-text: #252525;
+  --os-muted: #686868;
+  --os-line: #dadada;
+  --os-button: #fff;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 720px;
+  height: 480px;
+  overflow: hidden;
+  background: #dfe6e9;
+  color: var(--os-text);
+  font:
+    13px/1.35 -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  user-select: none;
+}
+.desktop[data-dark="true"] {
+  --os-bg: #242426;
+  --os-sidebar: #202022;
+  --os-field: #2c2c2e;
+  --os-text: #e9e9eb;
+  --os-muted: #a4a4a8;
+  --os-line: #39393c;
+  --os-button: #414144;
+  background: #252e34;
+}
+.desktop[data-os="windows"] {
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #dae6ed;
+}
+.desktop[data-os="windows"][data-dark="true"] {
+  background: #1d2934;
+}
+.desktop p,
+.desktop h3 {
+  margin: 0;
+}
+.desktop img {
+  display: block;
+  flex-shrink: 0;
+}
+.trafficLights {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.trafficLights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+.trafficLights i:nth-child(2) {
+  background: #febc2e;
+}
+.trafficLights i:nth-child(3) {
+  background: #28c840;
+}
+.macButton,
+.warningActions > span {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: var(--os-button);
+  color: var(--os-text);
+  border-radius: 7px;
+  padding: 5px 13px;
+  box-shadow: 0 1px 2px #0002;
+}
+.desktop[data-version="tahoe"] .macButton {
+  border-radius: 15px;
+}
+.settingsWindow {
+  display: grid;
+  grid-template-columns: 205px 1fr;
+  width: 688px;
+  height: 448px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--os-bg);
+  box-shadow: 0 10px 28px #0003;
+}
+.settingsWindow.tahoe {
+  border-radius: 22px;
+  padding: 7px;
+  gap: 6px;
+}
+.settingsSidebar {
+  min-height: 0;
+  background: var(--os-sidebar);
+  padding: 15px 10px 8px;
+  overflow: hidden;
+}
+.tahoe .settingsSidebar {
+  background: var(--os-sidebar);
+  border: 1px solid var(--os-line);
+  border-radius: 16px;
+}
+.settingsSidebar > .trafficLights {
+  margin: 0 0 17px 6px;
+}
+.settingsSearch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--os-field);
+  color: var(--os-muted);
+  padding: 6px 9px;
+  border-radius: 7px;
+  margin: 0 3px 13px;
+}
+.tahoe .settingsSearch {
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--os-text) 9%, var(--os-sidebar));
+}
+.sidebarItems {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.sidebarItems > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sidebarItems .selectedSidebar {
+  background: #086bdb;
+  color: #fff;
+}
+.desktop [data-color] {
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: #888b90;
+  flex-shrink: 0;
+}
+.desktop [data-color="blue"] {
+  background: #0a92f9;
+}
+.desktop [data-color="cyan"] {
+  background: #08bad7;
+}
+.desktop [data-color="red"] {
+  background: #ff385b;
+}
+.desktop [data-color="violet"] {
+  background: #7657e8;
+}
+.desktop [data-color="orange"] {
+  background: #ffa82b;
+}
+.settingsMain {
+  min-width: 0;
+  overflow: hidden;
+}
+.settingsToolbar {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  height: 48px;
+  padding: 4px 14px;
+  background: var(--os-bg);
+}
+.settingsToolbar > span {
+  display: flex;
+  gap: 12px;
+  color: var(--os-muted);
+}
+.settingsToolbar strong {
+  font-size: 16px;
+  font-weight: 650;
+}
+.tahoe .settingsToolbar > span {
+  border: 1px solid var(--os-line);
+  border-radius: 22px;
+  padding: 6px;
+  gap: 9px;
+}
+.settingsPane {
+  position: relative;
+  height: calc(100% - 48px);
+  overflow: hidden;
+  padding: 2px 16px 14px 13px;
+}
+.privacyIntro {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  background: var(--os-field);
+  border-radius: 11px;
+  margin-bottom: 14px;
+}
+.privacyIntro > span {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+}
+.privacyIntro strong {
+  font-size: 13px;
+}
+.privacyIntro p {
+  color: var(--os-muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.privacyIntro em {
+  color: #199cff;
+  font-style: normal;
+}
+.preferenceGroup {
+  background: var(--os-field);
+  border: 1px solid var(--os-line);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.tahoe .preferenceGroup {
+  border-color: transparent;
+  border-radius: 11px;
+}
+.preferenceGroup > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 36px;
+  margin: 0 11px;
+}
+.preferenceGroup > div + div {
+  border-top: 1px solid var(--os-line);
+}
+.preferenceGroup > div > svg:last-child {
+  color: var(--os-muted);
+  margin-left: auto;
+}
+.settingsPane h3 {
+  margin: 15px 8px 9px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.allowApps {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  background: var(--os-field);
+  border: 1px solid var(--os-line);
+  border-radius: 7px;
+  font-size: 11px;
+}
+.allowApps span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.blockedInstaller {
+  background: var(--os-field);
+  border: 1px solid var(--os-line);
+  border-radius: 9px;
+  margin: 9px 0 12px;
+  padding: 10px 11px;
+  font-size: 11px;
+}
+.blockedInstaller > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+}
+.blockedInstaller > div > p {
+  overflow-wrap: anywhere;
+}
+.blockedInstaller .macButton {
+  font-size: 12px;
+}
+.blockedInstaller > p {
+  border-top: 1px solid var(--os-line);
+  padding-top: 8px;
+  color: var(--os-muted);
+}
+.scrollInstruction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  color: var(--os-muted);
+  font-size: 11px;
+}
+.scrollbar {
+  position: absolute;
+  width: 5px;
+  height: 52px;
+  top: 7px;
+  right: 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--os-text) 35%, transparent);
+}
+.scrollbar[data-bottom="true"] {
+  top: auto;
+  bottom: 14px;
+}
+.macWarning {
+  position: relative;
+  width: 330px;
+  padding: 24px 21px 18px;
+  border-radius: 16px;
+  background: var(--os-sidebar);
+  box-shadow: 0 10px 30px #0004;
+  text-align: center;
+}
+.warningHelp {
+  position: absolute;
+  top: 17px;
+  right: 17px;
+  color: var(--os-muted);
+}
+.gatekeeperIcon {
+  position: relative;
+  display: inline-flex;
+  margin-bottom: 16px;
+}
+.gatekeeperIcon > span {
+  position: absolute;
+  top: 42px;
+  right: -8px;
+}
+.macWarning > strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+.macWarning > p {
+  margin: 13px 0 22px;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.warningActions {
+  display: flex;
+  gap: 9px;
+}
+.warningActions > span {
+  flex: 1;
+  padding: 6px 7px;
+  font-size: 13px;
+}
+.warningActions > .defaultButton {
+  background: #087bfa;
+  color: #fff;
+}
+.desktop[data-version="tahoe"] .macWarning {
+  border-radius: 24px;
+}
+.desktop[data-version="tahoe"] .warningActions > span {
+  border-radius: 17px;
+}
+.macMenubar {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 28px;
+  padding: 0 15px;
+  background: var(--os-sidebar);
+  font-size: 13px;
+}
+.macMenubar > svg:last-child {
+  margin-left: auto;
+}
+.appleLogo img {
+  object-fit: contain;
+}
+.desktop[data-dark="true"] .appleLogo img {
+  filter: invert(1);
+}
+.appleMenu {
+  position: absolute;
+  top: 30px;
+  left: 7px;
+  width: 236px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--os-sidebar);
+  box-shadow: 0 8px 22px #0004;
+}
+.appleMenu > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 5px;
+}
+.appleMenu hr {
+  border: 0;
+  border-top: 1px solid var(--os-line);
+  margin: 5px 8px;
+}
+.appleMenu .menuSelected {
+  color: #fff;
+  background: #086bdb;
+}
+.downloadOnDesktop {
+  position: absolute;
+  right: 51px;
+  top: 148px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 185px;
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.macInstaller {
+  display: grid;
+  grid-template-columns: 176px 1fr;
+  grid-template-rows: 44px 1fr 52px;
+  width: 640px;
+  height: 428px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--os-bg);
+  box-shadow: 0 10px 25px #0003;
+}
+.installerToolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 17px;
+  background: var(--os-sidebar);
+}
+.installerToolbar > .trafficLights {
+  margin-right: 21px;
+}
+.installerToolbar strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.macInstaller > aside {
+  padding: 26px 15px;
+}
+.macInstaller > aside > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 17px;
+  font-size: 12px;
+  color: var(--os-muted);
+}
+.macInstaller > aside i {
+  background: #919193;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.macInstaller > aside [data-active="true"] {
+  color: var(--os-text);
+  font-weight: 600;
+}
+.macInstaller > aside [data-active="true"] i {
+  background: #0084ff;
+}
+.macInstallerContent {
+  padding: 20px 24px 16px 0;
+}
+.macInstallerContent > strong {
+  display: block;
+  margin-bottom: 17px;
+  font-size: 13px;
+}
+.macInstallerContent > div {
+  border: 1px solid var(--os-line);
+  padding: 24px 20px;
+  height: 245px;
+}
+.macInstallerContent h3 {
+  font-size: 25px;
+  font-weight: 650;
+  margin-bottom: 20px;
+}
+.macInstallerContent p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-top: 12px;
+}
+.macInstaller > footer {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--os-line);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 22px;
+}
+.disabledButton {
+  color: var(--os-muted);
+  padding: 5px 13px;
+  opacity: 0.5;
+}
+.explorer {
+  position: relative;
+  width: 672px;
+  height: 426px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--os-bg);
+  box-shadow: 0 8px 24px #12243838;
+}
+.explorerTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 16px;
+  background: var(--os-field);
+  font-size: 12px;
+}
+.explorerTitle > svg:last-child {
+  margin-left: auto;
+}
+.explorerTitle > svg:first-child {
+  color: #ad8a28;
+}
+.explorerToolbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--os-line);
+}
+.explorerToolbar > span {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex: 1;
+  border-radius: 4px;
+  background: var(--os-field);
+  padding: 5px 12px;
+}
+.explorerCommands {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  height: 43px;
+  padding: 0 17px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--os-line);
+}
+.explorerCommands > span {
+  width: 130px;
+}
+.explorer > aside {
+  position: absolute;
+  top: 138px;
+  left: 0;
+  width: 144px;
+}
+.explorer > aside > div {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  height: 34px;
+  padding: 0 18px;
+  font-size: 12px;
+}
+.explorer > aside > div[data-active] {
+  background: var(--os-field);
+}
+.explorerFiles {
+  position: absolute;
+  left: 154px;
+  right: 10px;
+  top: 127px;
+}
+.explorerFiles > header {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--os-muted);
+}
+.explorerFiles > header span {
+  margin-right: 38px;
+}
+.explorerFiles > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border: 1px solid #94bed9;
+  border-radius: 3px;
+  background: #d7e9f5;
+  color: #193348;
+  font-size: 11px;
+}
+.explorerFiles small {
+  margin-left: auto;
+  font-size: 11px;
+}
+.explorer > footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 29px;
+  padding: 6px 16px;
+  border-top: 1px solid var(--os-line);
+  font-size: 11px;
+}
+.smartScreen {
+  position: relative;
+  width: 478px;
+  height: 442px;
+  padding: 25px 21px;
+  background: #075a97;
+  color: #fff;
+  box-shadow: 0 8px 24px #0e294b4d;
+  border: 1px solid #b5b5b5;
+}
+.windowsClose {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 42px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #303030;
+}
+.smartScreen > strong {
+  display: block;
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 17px;
+}
+.smartScreen > p {
+  font-size: 13px;
+  line-height: 1.4;
+}
+.moreInfo {
+  display: inline-block;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+.smartScreen > dl {
+  display: grid;
+  grid-template-columns: 65px 1fr;
+  gap: 8px;
+  font-size: 13px;
+  margin-top: 16px;
+}
+.smartScreen dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.smartScreen > footer {
+  position: absolute;
+  bottom: 20px;
+  right: 21px;
+  display: flex;
+  gap: 12px;
+}
+.smartScreen > footer span {
+  display: inline-block;
+  min-width: 95px;
+  padding: 7px 13px;
+  background: #dce7ed;
+  color: #112834;
+  text-align: center;
+  font-size: 13px;
+}
+.smartScreen > footer .dontRun {
+  background: #fff;
+  font-weight: 600;
+}
+.windowsInstaller {
+  position: relative;
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  grid-template-rows: 30px 1fr 47px;
+  width: 504px;
+  height: 385px;
+  background: #fff;
+  color: #1f1f1f;
+  border: 1px solid #aaa;
+  box-shadow: 0 8px 25px #0004;
+}
+.windowsInstaller > header {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 0 9px;
+  font-size: 12px;
+}
+.windowsInstaller > header > span {
+  display: flex;
+  gap: 23px;
+  align-items: center;
+  margin-left: auto;
+}
+.windowsInstaller > aside {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: #eef1f8;
+  color: #5c6f86;
+}
+.windowsInstaller > aside > img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+.windowsInstaller > div {
+  padding: 16px 19px;
+}
+.windowsInstaller h3 {
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 700;
+  margin-bottom: 23px;
+}
+.windowsInstaller p {
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: 15px;
+}
+.windowsInstaller > footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 13px;
+  padding: 8px 12px;
+  border-top: 1px solid #d1d1d1;
+  background: #f0f0f0;
+}
+.windowsInstaller > footer > span {
+  min-width: 73px;
+  text-align: center;
+  border: 1px solid #a4a4a4;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: #f8f8f8;
+}
+.windowsInstaller > footer > span:first-child {
+  border-color: #0078d7;
+  box-shadow: inset 0 0 0 1px #0078d7;
+}

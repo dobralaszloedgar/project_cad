@@ -45,10 +45,10 @@ test("offers the packaged companion and keeps source setup optional", async ({
     route.fulfill({
       json: {
         name: "Project CAD Assistant",
-        version: "0.1.0",
+        version: "0.1.4",
         release: {
           repository: "dobralaszloedgar/project_cad",
-          tag: "v0.1.0",
+          tag: "v0.1.4",
         },
         files: [
           {
@@ -93,28 +93,28 @@ test("offers the packaged companion and keeps source setup optional", async ({
   const download = page.getByRole("link", { name: "Download for macOS" });
   await expect(download).toHaveAttribute(
     "href",
-    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-macos-universal.pkg",
+    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.4/ProjectCAD-Assistant-macos-universal.pkg",
   );
   await installer.selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
   await expect(
     page.getByRole("link", { name: "Download for Windows" }),
   ).toHaveAttribute(
     "href",
-    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-windows-arm64-Setup.exe",
+    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.4/ProjectCAD-Assistant-windows-arm64-Setup.exe",
   );
   await installer.selectOption("ProjectCAD-Assistant-linux-arm64.run");
   await expect(
     page.getByRole("link", { name: "Download for Linux" }),
   ).toHaveAttribute(
     "href",
-    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0/ProjectCAD-Assistant-linux-arm64.run",
+    "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.4/ProjectCAD-Assistant-linux-arm64.run",
   );
   await installer.selectOption("ProjectCAD-Assistant-macos-universal.pkg");
   await expect(
     page.getByRole("link", { name: "All downloads and checksums" }),
   ).toHaveAttribute(
     "href",
-    "https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.0",
+    "https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.4",
   );
   await expect(
     page.getByText("npm run assistant", { exact: true }),

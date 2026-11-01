@@ -18,6 +18,7 @@ import {
 } from "../../src/server/assistant/config";
 
 import { installProvider } from "../../src/server/assistant/install-provider";
+import { ConnectionRequests } from "../../src/server/assistant/connections";
 
 const execute = promisify(execFile);
 const label = "com.projectcad.assistant";
@@ -114,14 +115,15 @@ async function status() {
     websiteUrl: settings.websiteUrl,
     startAtLogin: settings.startAtLogin,
     agents: settings.agents,
+    connections: new ConnectionRequests(root).pending(),
     codexAvailable: !!providerExecutable("codex"),
     claudeAvailable: !!providerExecutable("claude"),
     museConfigured: !!settings.museApiKey || !!process.env.MODEL_API_KEY,
     message: !settings.agents
-      ? "Choose your agents to finish setup."
+      ? "Return to Project CAD and connect. Your selected agents will appear here."
       : running
         ? managed
-          ? "Assistant is running."
+          ? ""
           : "Another Project CAD assistant is already running."
         : "Assistant is stopped.",
   };
@@ -143,7 +145,6 @@ async function start() {
   if (process.platform !== "darwin" || process.getuid?.() === 0)
     throw new Error("Open Project CAD Assistant from your macOS user account.");
   const settings = loadAssistantSettings(root);
-  if (!settings.agents) return status();
   if (await health()) return status();
   await access(join(resources, "app", "assistant.mjs"));
   if (await launchctl(["print", service], true)) await stop();
@@ -202,6 +203,22 @@ async function main() {
   }
   if (command === "status") {
     console.log(JSON.stringify(await status()));
+    return;
+  }
+  if (command === "approve-connection" || command === "deny-connection") {
+    new ConnectionRequests(root).decide(
+      provider,
+      command === "approve-connection",
+    );
+    console.log(
+      JSON.stringify({
+        ...(await status()),
+        message:
+          command === "approve-connection"
+            ? "Connection approved. Return to your project."
+            : "Connection declined.",
+      }),
+    );
     return;
   }
   if (command === "start") {

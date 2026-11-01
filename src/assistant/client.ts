@@ -93,7 +93,13 @@ export function useAssistant(projectId: string, project: Project) {
   );
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [updateRequired, setUpdateRequired] = useState(false);
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
+  const [checkingProviders, setCheckingProviders] = useState(false);
+  const providerRequest = useRef<{
+    token: string;
+    promise: Promise<void>;
+  } | null>(null);
   const [agents, setAgents] = useState<AgentSelection | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversation, setConversation] = useState<Conversation>();
@@ -148,32 +154,62 @@ export function useAssistant(projectId: string, project: Project) {
   }, []);
   const refreshProviders = useCallback(async () => {
     if (!token || !clientId) return;
-    try {
-      setProviders(
-        await request<ProviderStatus[]>(
-          token,
-          clientId,
-          "/providers?refresh=1",
-        ),
-      );
-    } catch (failure) {
-      report(failure);
-    }
+    if (providerRequest.current?.token === token)
+      return providerRequest.current.promise;
+    setCheckingProviders(true);
+    const pending = { token, promise: Promise.resolve() };
+    providerRequest.current = pending;
+    pending.promise = request<ProviderStatus[]>(
+      token,
+      clientId,
+      "/providers?refresh=1",
+    )
+      .then((value) => {
+        if (providerRequest.current === pending) setProviders(value);
+      })
+      .catch((failure) => {
+        if (providerRequest.current === pending) report(failure);
+      })
+      .finally(() => {
+        if (providerRequest.current === pending) {
+          providerRequest.current = null;
+          setCheckingProviders(false);
+        }
+      });
+    return pending.promise;
   }, [token, clientId, report]);
+  useEffect(() => {
+    void refreshProviders();
+    return () => {
+      providerRequest.current = null;
+    };
+  }, [refreshProviders]);
+  const needsProviderSetup =
+    !agents ||
+    agents.providers.some((id) => {
+      const provider = providers.find((item) => item.id === id);
+      return !provider?.available || !provider.models.length;
+    });
+  useEffect(() => {
+    if (!token || !clientId) return;
+    const check = () => {
+      if (!document.hidden) void refreshProviders();
+    };
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    const timer = needsProviderSetup ? setInterval(check, 8000) : undefined;
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [token, clientId, needsProviderSetup, refreshProviders]);
   useEffect(() => {
     if (!token || !clientId) return;
     let alive = true,
       hadPollError = false,
       timer: ReturnType<typeof setTimeout>;
     const replies = new Map<string, { value?: unknown; error?: string }>();
-    void request<ProviderStatus[]>(token, clientId, "/providers").then(
-      (value) => {
-        if (alive) setProviders(value);
-      },
-      (failure) => {
-        if (alive) report(failure);
-      },
-    );
     const detach = () => {
       void request(token, clientId, path("/detach"), {}, true).catch(() => {});
     };
@@ -274,7 +310,7 @@ export function useAssistant(projectId: string, project: Project) {
       detach();
     };
   }, [token, clientId, projectId, path, report]);
-  function connect(selection?: AgentSelection) {
+  function connect(selection?: AgentSelection, onConnected?: () => void) {
     const chosen = agentSelectionSchema.safeParse(
       selection ?? agents ?? savedAgentSelection(),
     );
@@ -286,78 +322,118 @@ export function useAssistant(projectId: string, project: Project) {
     setConnecting(true);
     setError("");
     const nonce = crypto.randomUUID();
-    const popup = window.open(
-      `${ASSISTANT_ENDPOINT}/connect?${new URLSearchParams({ origin: window.location.origin, nonce, providers: chosen.data.providers.join(","), preferred: chosen.data.preferred })}`,
-      "project-cad-connect",
-      "popup,width=560,height=500",
-    );
-    if (!popup) {
-      setConnecting(false);
-      setError("Allow the connection popup, then try again.");
-      return;
-    }
+    const controller = new AbortController();
+    let stopped = false;
+    let id = "";
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
-      window.removeEventListener("message", receive);
-      clearTimeout(timeout);
-      clearInterval(closed);
+      stopped = true;
+      controller.abort();
+      clearTimeout(timer);
       setConnecting(false);
       pairCleanup.current = null;
     };
-    const receive = (event: MessageEvent) => {
-      if (
-        event.origin !== ASSISTANT_ENDPOINT ||
-        event.source !== popup ||
-        event.data?.nonce !== nonce
-      )
-        return;
-      if (
-        event.data.type === "project-cad-assistant-error" &&
-        typeof event.data.error === "string"
-      ) {
-        setError(event.data.error);
-        cleanup();
-        return;
-      }
-      if (
-        event.data.type !== "project-cad-assistant-connected" ||
-        typeof event.data.token !== "string"
-      )
-        return;
-      const accepted = agentSelectionSchema.safeParse(event.data.agents);
-      if (!accepted.success) {
-        setError(
-          "Update Project CAD Assistant to save your agent selection, then connect again.",
-        );
-        cleanup();
-        return;
-      }
-      const selection = accepted.data;
-      setAgents(selection);
-      rememberAgentSelection(selection);
-      sessionStorage.setItem(tokenKey, event.data.token);
-      setToken(event.data.token);
-      setError("");
+    const cancel = () => {
       cleanup();
+      if (id)
+        void fetch(`${ASSISTANT_ENDPOINT}/connections/${id}/cancel`, {
+          method: "POST",
+          credentials: "omit",
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        }).catch(() => {});
     };
-    const timeout = setTimeout(() => {
-      cleanup();
-      setError(
-        "Connection timed out. Open Project CAD Assistant on this laptop, then try again.",
-      );
-    }, 120000);
-    const closed = setInterval(() => {
-      if (popup.closed) {
+    pairCleanup.current = cancel;
+    const signal = AbortSignal.any([
+      controller.signal,
+      AbortSignal.timeout(120000),
+    ]);
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `${ASSISTANT_ENDPOINT}/connections/${id}`,
+          { signal, credentials: "omit", cache: "no-store" },
+        );
+        const value = await response.json();
+        if (!response.ok)
+          throw new Error(
+            value.error ||
+              "Connection expired. Connect again from the website.",
+          );
+        if (stopped) return;
+        if (value.status === "denied")
+          throw new Error(
+            "Connection declined in the assistant. Your agent choices are saved.",
+          );
+        if (value.status !== "connected") {
+          timer = setTimeout(() => void poll(), 800);
+          return;
+        }
+        const accepted = agentSelectionSchema.safeParse(value.agents);
+        if (
+          value.nonce !== nonce ||
+          typeof value.token !== "string" ||
+          !accepted.success
+        )
+          throw new Error(
+            "The connection response was invalid. Try connecting again.",
+          );
+        setAgents(accepted.data);
+        rememberAgentSelection(accepted.data);
+        sessionStorage.setItem(tokenKey, value.token);
+        setToken(value.token);
+        setError("");
+        setUpdateRequired(false);
         cleanup();
-        setError(
-          "Connection window closed. Your agent selection is saved; connect again when ready.",
+        onConnected?.();
+      } catch (failure) {
+        if (stopped) return;
+        const expired = signal.aborted;
+        cancel();
+        report(
+          expired
+            ? new Error(
+                "Connection expired. Connect again and approve it in Project CAD Assistant.",
+              )
+            : failure,
         );
       }
-    }, 500);
-    window.addEventListener("message", receive);
-    pairCleanup.current = () => {
-      cleanup();
-      popup.close();
     };
+    void fetch(`${ASSISTANT_ENDPOINT}/connections`, {
+      method: "POST",
+      credentials: "omit",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nonce, agents: chosen.data }),
+    })
+      .then(async (response) => {
+        if (stopped) return;
+        if (response.status === 401 || response.status === 404) {
+          setUpdateRequired(true);
+          throw new Error(
+            "Update Project CAD Assistant to connect. Your agent choices are saved.",
+          );
+        }
+        const value = await response.json();
+        if (!response.ok)
+          throw new Error(value.error || "Could not request a connection.");
+        if (stopped) return;
+        if (typeof value.id !== "string" || !/^[a-f0-9]{64}$/.test(value.id))
+          throw new Error("The connection request was invalid. Try again.");
+        id = value.id;
+        void poll();
+      })
+      .catch((failure) => {
+        if (stopped) return;
+        const expired = signal.aborted;
+        cancel();
+        report(
+          expired
+            ? new Error("Connection expired. Try connecting again.")
+            : failure,
+        );
+      });
   }
   function select(id?: string) {
     selected.current = id;
@@ -505,6 +581,8 @@ export function useAssistant(projectId: string, project: Project) {
     connected,
     connecting,
     providers,
+    checkingProviders,
+    updateRequired,
     agents,
     conversations,
     conversation,

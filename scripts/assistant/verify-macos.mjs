@@ -76,6 +76,20 @@ try {
     catch { if (Date.now() > until || child.exitCode !== null) throw new Error('Packaged server did not start: ' + logs); await new Promise(resolve => setTimeout(resolve, 100)); }
   }
   assert.equal((await fetch(address + '/providers')).status, 401);
+  const nonce = randomUUID();
+  const pendingResponse = await fetch(address + '/connections', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ nonce, agents: { providers: ['muse'], preferred: 'muse' } }) });
+  assert.equal(pendingResponse.status, 202);
+  const pending = await pendingResponse.json();
+  assert.deepEqual(await (await fetch(address + '/connections/' + pending.id, { headers: { Origin: origin } })).json(), { status: 'pending' });
+  const consentEnv = { ...env, PROJECT_CAD_ASSISTANT_DATA: join(temporary, 'runtime-data'), PROJECT_CAD_ASSISTANT_PORT: String(port) };
+  const before = JSON.parse((await execute(node(installed), [controller(installed), 'status'], { env: consentEnv })).stdout);
+  assert.equal(before.connections[0].id, pending.id);
+  assert.equal(before.agents, null);
+  await execute(node(installed), [controller(installed), 'approve-connection', pending.id], { env: consentEnv });
+  const approved = await (await fetch(address + '/connections/' + pending.id, { headers: { Origin: origin } })).json();
+  assert.equal(approved.status, 'connected'); assert.equal(approved.nonce, nonce); assert.ok(approved.token);
+  assert.equal((await fetch(address + '/providers', { headers: { Origin: origin, Authorization: 'Bearer ' + approved.token, 'x-project-cad-client': randomUUID() } })).status, 200);
+
   const connect = await fetch(address + '/connect?origin=' + encodeURIComponent(origin) + '&providers=muse&preferred=muse&nonce=' + randomUUID());
   const form = await connect.text();
   const csrf = form.match(/name="csrf" value="([^"]+)"/)?.[1];
@@ -101,7 +115,7 @@ try {
     assert.equal(stopped.running, false); assert.equal(stopped.managed, false);
     serviceEnv = undefined; backgroundService = 'passed: temporary service started and stopped';
   }
-  console.log(JSON.stringify({ nativeLauncher: 'passed', universalArchitectures: 'passed', checksums: 'passed', currentUserInstaller: 'passed', installAndUpdate: 'passed', corruptedUpdateRejected: 'passed', historyPreserved: 'passed', standaloneRuntimeAndPairing: 'passed', backgroundService, providers: providers.map(({ id, available, models }) => ({ id, available, models: models.length })) }, null, 2));
+  console.log(JSON.stringify({ nativeLauncher: 'passed', universalArchitectures: 'passed', checksums: 'passed', currentUserInstaller: 'passed', installAndUpdate: 'passed', corruptedUpdateRejected: 'passed', historyPreserved: 'passed', standaloneRuntimeAndPairing: 'passed', nativeInlineConsent: 'passed', backgroundService, providers: providers.map(({ id, available, models }) => ({ id, available, models: models.length })) }, null, 2));
 } finally {
   if (serviceEnv) await execute(node(installed), [controller(installed), 'stop'], { env: serviceEnv, timeout: 30000 }).catch(() => {});
   if (child && child.exitCode === null) { child.kill('SIGTERM'); await new Promise(resolve => child.once('exit', resolve)); }

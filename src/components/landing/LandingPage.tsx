@@ -100,11 +100,18 @@ export default function LandingPage() {
     replayDesign,
     sendDesign,
   } = useStoryPlayback(scrollYProgress, motionEnabled, visible, reduced);
-  useMotionValueEvent(design, "change", (value) => {
-    // Prepare the 3D scene after the prompt is sent, leaving the cursor and
-    // panel entrance free of geometry creation and shader compilation work.
-    if (!sceneRequested && value >= 0.64) setSceneRequested(true);
-  });
+  const prepareScene = () => {
+    // Prepare 3D only when the finished chat leads into Build. Staying in
+    // Design keeps geometry creation and shader compilation off the page.
+    if (
+      !sceneRequested &&
+      design.get() >= 1 &&
+      scrollYProgress.get() * STORY_END >= 0.27
+    )
+      setSceneRequested(true);
+  };
+  useMotionValueEvent(design, "change", prepareScene);
+  useMotionValueEvent(scrollYProgress, "change", prepareScene);
   const [tourStop, setTourStop] = useState(0);
   const normalizedProgress = useTransform(
     progress,

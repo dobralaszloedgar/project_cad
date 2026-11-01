@@ -1,0 +1,497 @@
+.help {
+  --accent: var(--assistant-brand, #286f5c);
+  --ink: var(--assistant-ink, #273b33);
+  --help-muted: var(--assistant-muted, #5f6d65);
+  --line: var(--assistant-line, #e1e7e3);
+  --help-surface: var(--assistant-surface, #fff);
+  --help-field: var(--assistant-field, #edf2ee);
+  --help-tint: color-mix(in srgb, var(--accent) 8%, var(--help-surface));
+  container: installation-guide / inline-size;
+  width: 100%;
+  min-width: 0;
+  margin: 16px 0;
+  border-block: 1px solid var(--line);
+  color: var(--ink);
+  text-align: left;
+}
+.help button,
+.help a,
+.help select {
+  -webkit-tap-highlight-color: transparent;
+}
+.help button,
+.help select {
+  cursor: pointer;
+  font: inherit;
+}
+.help button:focus-visible,
+.help a:focus-visible,
+.help select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.guideBody {
+  min-width: 0;
+}
+.loading,
+.versionHelp {
+  color: var(--help-muted);
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 0 0 20px;
+}
+.disclosure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 19px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: var(--ink);
+}
+.disclosure > svg:first-child {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.disclosure > span:first-of-type {
+  font-weight: 550;
+}
+.disclosure > svg:last-child {
+  margin-left: auto;
+}
+.guideLength {
+  margin-left: 3px;
+  color: var(--help-muted);
+  font-size: 12px;
+}
+.guideIntro {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 25px;
+  margin-bottom: 20px;
+}
+.guideIntro > p {
+  max-width: 570px;
+  margin: 0;
+  color: var(--help-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.platforms {
+  display: flex;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--help-field);
+  flex-shrink: 0;
+}
+.platforms button {
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--help-muted);
+  font-size: 12px;
+}
+.platforms button[aria-pressed="true"] {
+  background: var(--help-surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px #213e301a;
+}
+.viewOptions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 0 0 21px;
+}
+.viewOptions label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--help-muted);
+}
+.viewOptions select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--help-surface);
+  color: var(--ink);
+  min-height: 34px;
+  padding: 5px 25px 5px 9px;
+  font-size: 12px;
+  color-scheme: inherit;
+}
+.viewOptions > span {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--help-muted);
+}
+.walkthrough {
+  display: grid;
+  grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+}
+.player {
+  min-width: 0;
+  margin: 0;
+}
+.sceneToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  margin-bottom: 6px;
+}
+.sceneToolbar > span {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--help-muted);
+}
+.sceneToolbar button {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 7px 0 7px 5px;
+  color: var(--accent);
+  font-size: 11px;
+}
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  min-height: 300px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #e2e7ea;
+  isolation: isolate;
+}
+.nativeFrame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 720px;
+  height: 480px;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.actionOutline {
+  position: absolute;
+  z-index: 1;
+  border: 2px solid #2ec795;
+  border-radius: 7px;
+  pointer-events: none;
+}
+.cursorPosition {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+  transition: transform 40ms linear;
+}
+.cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  fill: #182c22;
+  color: #fff;
+  stroke-width: 1.6;
+  filter: drop-shadow(0 2px 2px #0004);
+}
+.clickRing {
+  position: absolute;
+  top: -13px;
+  left: -13px;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #ffd166;
+  border-radius: 50%;
+}
+.actionCaption {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 12px 0 6px;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.actionCaption svg {
+  flex-shrink: 0;
+  color: var(--accent);
+  margin-top: 2px;
+}
+.sceneCaption {
+  color: var(--help-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+.playerControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 15px;
+}
+.playButton {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 105px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--help-surface);
+  font-size: 12px !important;
+}
+.progress {
+  display: block;
+  appearance: none;
+  border: 0;
+  border-radius: 2px;
+  overflow: hidden;
+  width: 100%;
+  min-width: 20px;
+  height: 3px;
+  background: var(--line);
+  color: var(--accent);
+}
+.progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.progress::-webkit-progress-value {
+  background: var(--accent);
+}
+.progress::-moz-progress-bar {
+  background: var(--accent);
+}
+.time {
+  flex-shrink: 0;
+  color: var(--help-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.restart {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 36px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--help-muted);
+}
+.playbackNote {
+  color: var(--help-muted);
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 47px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.steps button {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+.steps button[aria-current="step"] {
+  background: var(--help-tint);
+}
+.steps button > span:last-child {
+  min-width: 0;
+}
+.stepNumber {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--help-muted);
+  font-size: 12px;
+}
+.steps button[aria-current="step"] .stepNumber {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--help-surface);
+}
+.steps strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 550;
+}
+.stepDescription {
+  display: block;
+  color: var(--help-muted);
+  font-size: 12px;
+  line-height: 1.65;
+  margin-top: 9px;
+  overflow-wrap: anywhere;
+}
+.trustNote {
+  display: flex;
+  gap: 9px;
+  align-items: start;
+  padding: 22px 0;
+  margin-top: 10px;
+}
+.trustNote > svg {
+  flex-shrink: 0;
+  color: var(--help-muted);
+  margin-top: 2px;
+}
+.trustNote p {
+  color: var(--help-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  max-width: 650px;
+  margin: 0;
+}
+.trustNote a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 11px;
+  margin-left: auto;
+  text-underline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .playButton:hover {
+    background: color-mix(in srgb, var(--accent) 85%, #000);
+  }
+  .steps button:hover,
+  .restart:hover {
+    background: var(--help-tint);
+  }
+  .disclosure:hover,
+  .sceneToolbar button:hover {
+    color: var(--accent);
+  }
+  .platforms button:hover {
+    color: var(--ink);
+  }
+}
+@container installation-guide (max-width: 850px) {
+  .walkthrough {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .steps {
+    margin-top: 4px;
+  }
+  .viewOptions > span {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+@container installation-guide (max-width: 520px) {
+  .disclosure {
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 13px !important;
+  }
+  .guideLength {
+    font-size: 10px;
+    margin-left: auto;
+  }
+  .disclosure > svg:last-child {
+    width: 14px;
+    margin-left: 0;
+  }
+  .guideIntro {
+    flex-direction: column-reverse;
+    gap: 15px;
+  }
+  .guideIntro p {
+    font-size: 12px;
+  }
+  .platforms {
+    width: 100%;
+  }
+  .platforms button {
+    flex: 1;
+    min-height: 38px;
+  }
+  .viewOptions {
+    gap: 12px;
+  }
+  .viewOptions label {
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .viewOptions select {
+    width: 100%;
+  }
+  .sceneToolbar {
+    align-items: start;
+  }
+  .sceneToolbar > span {
+    padding-top: 7px;
+  }
+  .stage {
+    min-height: 285px;
+  }
+  .playerControls {
+    gap: 9px;
+  }
+  .trustNote {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 19px 0;
+    margin-top: 5px;
+  }
+  .trustNote p {
+    flex: 1;
+    font-size: 11px;
+  }
+  .trustNote a {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 24px;
+  }
+}
+@container installation-guide (max-width: 340px) {
+  .guideLength {
+    display: none;
+  }
+  .disclosure > svg:last-child {
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cursorPosition {
+    display: none;
+  }
+}

@@ -7,13 +7,15 @@ import { useAssistant } from "@/assistant/client";
 import type { Project } from "@/domain/schema";
 import AssistantConnectionFlow from "../assistant/AssistantConnectionFlow";
 import { useAssistantDiscovery } from "../assistant/useAssistantDiscovery";
+import InstallHelpPreview from "./InstallHelpPreview";
 import styles from "./assistant-sandbox.module.css";
 
-type Scenario = "live" | "new" | "ready";
+type Scenario = "live" | "new" | "ready" | "install";
 const scenarios: { id: Scenario; label: string }[] = [
   { id: "live", label: "This computer" },
   { id: "new", label: "New installation" },
   { id: "ready", label: "Assistant detected" },
+  { id: "install", label: "Opening the installer" },
 ];
 const sandboxProject: Project = {
   version: 1,
@@ -90,8 +92,12 @@ function PreviewConnection({ initiallyReady }: { initiallyReady: boolean }) {
   );
 }
 
-export default function AssistantSandbox() {
-  const [scenario, setScenario] = useState<Scenario>("live");
+export default function AssistantSandbox({
+  initialScenario = "live",
+}: {
+  initialScenario?: Scenario;
+}) {
+  const [scenario, setScenario] = useState<Scenario>(initialScenario);
   const [revision, setRevision] = useState(0);
   return (
     <main className={styles.sandbox}>
@@ -111,11 +117,17 @@ export default function AssistantSandbox() {
           <span>Back to workspace</span>
         </Link>
       </header>
-      <div className={styles.canvas}>
+      <div
+        className={`${styles.canvas} ${scenario === "install" ? styles.installCanvas : ""}`}
+      >
         <div className={styles.sandboxHeading}>
           <div>
-            <p>ASSISTANT CONNECTION</p>
-            <h1>A little setup. Then you’re in.</h1>
+            {scenario !== "install" ? <p>ASSISTANT CONNECTION</p> : null}
+            <h1>
+              {scenario === "install"
+                ? "A hand with the first launch."
+                : "A little setup. Then you’re in."}
+            </h1>
           </div>
           <span>Choose agents → Set up → Connect</span>
         </div>
@@ -148,6 +160,8 @@ export default function AssistantSandbox() {
         </div>
         {scenario === "live" ? (
           <LiveConnection key={`live-${revision}`} />
+        ) : scenario === "install" ? (
+          <InstallHelpPreview key={`install-${revision}`} />
         ) : (
           <PreviewConnection
             key={`${scenario}-${revision}`}

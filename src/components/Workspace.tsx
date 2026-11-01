@@ -124,6 +124,9 @@ import UnitSettings from "./UnitSettings";
 import { useUnitSystem } from "./useUnitSystem";
 import ProjectFolderSetup from "./ProjectFolderSetup";
 import { useTheme } from "./useTheme";
+import { useCanvasSound } from "./useCanvasSound";
+import CanvasSoundSettings, { CanvasSoundToggle } from "./CanvasSoundControls";
+import { editSoundCue } from "@/lib/audio/edit-sound";
 import { isCloseKey, shortcutsBlocked } from "@/lib/keyboard";
 import {
   copySelection,
@@ -205,6 +208,7 @@ export default function Workspace({
   const { theme: palette, setTheme } = useTheme();
   const unitDisplay = useUnitSystem();
   const theme = palette.mode;
+  const sound = useCanvasSound();
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
   const [thermoDialog, setThermoDialog] = useState<
@@ -601,6 +605,12 @@ export default function Workspace({
       return false;
     }
   }
+  function edit(next: Project, label: string, run = false) {
+    if (!change(next, label, run)) return false;
+    const cue = editSoundCue(project, next);
+    if (cue) sound.play(cue);
+    return true;
+  }
   function add(kind: Kind, position?: { x: number; y: number }) {
     const id = availableEquipmentTag(kind, project.units);
     const unit = newUnit(
@@ -617,8 +627,8 @@ export default function Workspace({
           : thermoContext(settings).ids;
       unit.params.packedBed = defaultPackedBed(ids);
     }
-    change({ ...project, units: [...project.units, unit] }, `Add ${kind}`);
-    setSelected(id);
+    if (edit({ ...project, units: [...project.units, unit] }, `Add ${kind}`))
+      setSelected(id);
   }
   function run() {
     try {
@@ -1331,7 +1341,7 @@ export default function Workspace({
     if (!copy?.units.length) return;
     try {
       const next = pasteSelection(project, copy, offset);
-      if (change(next.project, label)) setSelection(next.selection);
+      if (edit(next.project, label)) setSelection(next.selection);
     } catch {
       setMessage(
         "Cannot paste here: the project allows up to 40 equipment and 80 streams, within the canvas bounds.",
@@ -1386,7 +1396,7 @@ export default function Workspace({
             pasteOffset.current = 40;
             if (
               key === "x" &&
-              change(deleteSelection(project, selection), "Cut selection")
+              edit(deleteSelection(project, selection), "Cut selection")
             )
               setSelection([]);
           }
@@ -1397,7 +1407,7 @@ export default function Workspace({
       } else if (key === "delete" || key === "backspace") {
         if (
           selection.length &&
-          change(deleteSelection(project, selection), "Delete selection")
+          edit(deleteSelection(project, selection), "Delete selection")
         )
           setSelection([]);
       } else if (key === "e" || key === "f2") {
@@ -1434,7 +1444,7 @@ export default function Workspace({
       onLocate={() => void locateProject(projectId)}
     />
   ) : null;
-  const projectDialogs = (
+  const folderSetup = (
     <>
       {ready && !folderSetupDone ? (
         <ProjectFolderSetup
@@ -1444,6 +1454,10 @@ export default function Workspace({
           }}
         />
       ) : null}
+    </>
+  );
+  const projectDialogs = (
+    <>
       {saveFolderDraft ? (
         <CreateProjectDialog
           seed={{
@@ -1511,6 +1525,7 @@ export default function Workspace({
     return (
       <main className="workspace" data-theme={theme} data-palette={palette.id}>
         {saveNotice}
+        {folderSetup}
         <ProjectsPage
           projects={savedProjects}
           roots={library?.roots ?? []}
@@ -1586,6 +1601,7 @@ export default function Workspace({
           <h1>{projectDisplayName({ fileName, workspace: state })}</h1>
         </div>
         <div className="header-actions">
+          <CanvasSoundToggle sound={sound} />
           {view !== "2D" && !isFullscreen ? (
             <div ref={setGraphicsSettingsContainer} />
           ) : null}
@@ -1639,6 +1655,7 @@ export default function Workspace({
         </div>
       </header>
       {saveNotice}
+      {folderSetup}
       <div className="editor-body" inert={!ready || projectBusy}>
         <section
           className={`canvas-panel${isViewportFullscreen ? " canvas-panel-fullscreen" : ""}`}
@@ -1761,6 +1778,7 @@ export default function Workspace({
                     <>
                       {drawer === "Settings" ? (
                         <>
+                          <CanvasSoundSettings sound={sound} />
                           <div className="preference-section">
                             <h3>Engineering units</h3>
                             <p>
@@ -1954,7 +1972,8 @@ export default function Workspace({
                 onInspect={inspect}
                 statuses={statuses}
                 onNavigateIssue={navigateIssue}
-                onChange={change}
+                onChange={edit}
+                onWireStart={() => sound.play("wire")}
                 onAdd={add}
                 onError={setMessage}
                 result={result}
@@ -2072,7 +2091,7 @@ export default function Workspace({
               selected && navigateIssue(selected, target)
             }
             onChange={(p, l) => {
-              change(p, l, true);
+              edit(p, l, true);
               if (
                 !p.units.some((n) => n.id === selected) &&
                 !p.edges.some((e) => e.id === selected)

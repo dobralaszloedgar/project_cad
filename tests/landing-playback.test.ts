@@ -6,6 +6,29 @@ import {
 } from "../src/components/landing/landing-playback";
 
 describe("landing story playback", () => {
+  it("keeps the eight-second chat and plays the shorter build and simulation in order", () => {
+    let state = initialPlayback();
+    const advance = (frames: number, target: number) => {
+      for (let i = 0; i < frames; i++)
+        state = advancePlayback(state, target, 1 / 60);
+    };
+    advance(479, STORY_END);
+    expect(state.design).toBeLessThan(1);
+    expect(state.progress).toBe(0);
+    advance(2, STORY_END);
+    expect(state.design).toBe(1);
+
+    state = { ...initialPlayback(), design: 1, progress: 0.53 };
+    advance(287, 0.53);
+    expect(state.construction).toBeLessThan(1);
+    expect(state.simulation).toBe(0);
+    advance(2, 0.53);
+    expect(state.construction).toBe(1);
+    advance(70, 0.53);
+    expect(state.simulation).toBeLessThan(1);
+    advance(3, 0.53);
+    expect(state.simulation).toBe(1);
+  });
   it("plays every construction step before unfolding, even when scrolling straight to the end", () => {
     let state = initialPlayback();
     const visited = new Set<number>();
