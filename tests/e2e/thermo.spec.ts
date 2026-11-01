@@ -42,7 +42,7 @@ test("three model choices, real flash, model change and saved settings", async (
     fullPage: true,
   });
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
@@ -146,6 +146,8 @@ test("nonideal mixer energy balance agrees in the browser and simulation API", a
   const row = page
     .locator(".stream-table tbody tr")
     .filter({ has: page.getByRole("button", { name: "mixed", exact: true }) });
-  await expect(row).toContainText(result.streams.mixed.temperature.toFixed(2));
+  await expect(row).toContainText(
+    (result.streams.mixed.temperature - 273.15).toFixed(2),
+  );
   await expect(row).toContainText("liquid");
 });

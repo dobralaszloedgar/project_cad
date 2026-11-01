@@ -1,7 +1,25 @@
 "use client";
-import { useEffect, useRef, type ReactNode, type RefObject } from "react";
+import {
+  useEffect,
+  useRef,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { X } from "lucide-react";
 import { isCloseKey } from "@/lib/keyboard";
+
+function isBackdrop(event: MouseEvent<HTMLDialogElement>) {
+  if (event.target !== event.currentTarget) return false;
+  const bounds = event.currentTarget.getBoundingClientRect();
+  return (
+    event.clientX < bounds.left ||
+    event.clientX >= bounds.right ||
+    event.clientY < bounds.top ||
+    event.clientY >= bounds.bottom
+  );
+}
+
 export default function Dialog({
   title,
   onClose,
@@ -16,6 +34,7 @@ export default function Dialog({
   initialFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const backdropPressed = useRef(false);
   useEffect(() => {
     const dialog = ref.current;
     dialog?.showModal();
@@ -65,8 +84,18 @@ export default function Dialog({
         event.preventDefault();
         onClose();
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      onPointerDownCapture={(event) => {
+        backdropPressed.current = event.button === 0 && isBackdrop(event);
+      }}
+      onPointerCancelCapture={() => {
+        backdropPressed.current = false;
+      }}
+      onClick={(event) => {
+        // A selection drag ending outside can target the dialog too. Require
+        // both ends of the gesture to be on the backdrop before dismissing.
+        const dismiss = backdropPressed.current && isBackdrop(event);
+        backdropPressed.current = false;
+        if (dismiss) onClose();
       }}
     >
       <div className="dialog-surface">

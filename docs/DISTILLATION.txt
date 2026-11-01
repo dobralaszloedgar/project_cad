@@ -1,0 +1,199 @@
+DISTILLATION — FUG AND MESH
+
+Open a distillation tower's Properties → Setup → Column calculation method.
+
+Agents and HTTP clients use the same schemas and solver. See AI_GUIDE.txt,
+GET /api/ai/guide and GET /api/capabilities for the complete contract. Agent
+update actions merge sparse distillation/hydraulics settings; a diameter-only
+edit preserves method, operating point, fluid properties and other geometry.
+POST /api/actions/preview returns a validated candidate project without saving;
+POST /api/simulate accepts that complete project and returns all tray results at
+equipment[columnId].distillation.hydraulics. In-app proposals still require
+Apply reviewed actions before saving, followed by a workspace run to refresh
+the 3D result. No hydraulic feedback into the separation solver is enabled.
+Choose Shortcut design (FUG) or Equilibrium stages (MESH), apply conditions,
+and run the simulation. The tower's Results tab reports the selected solver.
+Templates → Distillation · FUG shortcut / Distillation · MESH column provide
+complete benzene–toluene examples at 55 kPa without a database lookup.
+
+An omitted params.distillation retains the original single-contact/TP-flash
+behavior, so existing files and templates keep their previous calculations.
+Both new modes persist through project files, actions, revisions and reload.
+Switching between FUG and MESH preserves the inactive method's specifications.
+
+FUG
+Supply distinct adjacent light/heavy keys, relative volatilities for all active
+feed species, light-key recovery to distillate, heavy-key recovery to bottoms,
+feed liquid fraction q, column pressure and specified product temperatures.
+Reflux can be an operating L/D or a multiple (>1) of calculated minimum reflux.
+Recoveries refer to fractions of each feed component, not product purities.
+
+The TypeScript shortcut solver uses the following calculation sequence:
+- Normalize alpha to the heavy key; Fenske gives minimum equilibrium stages.
+- Hengstebeck–Geddes gives nonkey recoveries with stable log-odds evaluation.
+- Solve sum(alpha_i*z_i/(alpha_i-theta))=1-q between adjacent keys.
+- Rmin=sum(alpha_i*xD_i/(alpha_i-theta))-1; require positive Rmin and R>Rmin.
+- X=(R-Rmin)/(R+1); Y=1-exp((1+54.4X)/(11+117.2X)*(X-1)/sqrt(X)).
+  The stage estimate is ceil((Nmin+Y)/(1-Y)).
+Reported stages include the equilibrium reboiler and exclude the total condenser.
+Installed tray count controls appearance only in FUG. Feed q is an explicit
+assumption, not computed from feed temperature. No azeotrope prediction,
+stage profile, hydraulic rating, feed-tray design or separate end duties.
+Net equipment duty is only outlet-minus-feed enthalpy at the supplied product
+temperatures under the project's selected property model; it is labeled as such.
+
+MESH
+Specify 2–80 ideal equilibrium trays, feed tray counted from the top (1..N),
+top pressure, optional total pressure drop, operating reflux L/D, and distillate
+molar flow. Distillate must leave positive bottoms. Tray count drives both views
+and the solved stages; condenser and reboiler are additional end units.
+Feed pressure must reach the feed-tray pressure. Pressure varies linearly from
+condenser to reboiler. Only one feed and two liquid products are exposed.
+
+The Rust implementation solves simultaneous stage equations with sparse
+factorization. Its property adapter uses the shared Raoult or Modified
+UNIFAC 2.0 vapor-pressure, gas-Cp, latent-heat and excess-enthalpy calculations.
+The gas-only model cannot run MESH. All active component data and every stage
+must remain supported by the selected model (1–200 kPa for liquid models).
+The app's catalog limit remains 40 selected components. Absent components are
+removed from the numerical system and restored as exact zero product flows.
+
+Positive log-flow/composition variables and bounded temperatures feed a sparse
+Newton solve with backtracking and bounded damped least-squares fallback. The
+adapter uses colored finite differences for phase-property derivatives and
+exact flow derivatives. Material residuals are scaled by each species' feed,
+so trace species are not hidden by bulk flow. Energy scaling is numerical:
+40000 J/mol * feed rate; this is not a thermodynamic property. All stage and
+overall balances must pass; tolerances are capped at 1e-7. Default is 1e-8,
+with a tighter internal iteration target. The 200-evaluation default budget
+counts nonlinear trial evaluations, excluding Jacobian/final verification.
+
+Every accepted stage is independently checked with the existing TP flash of
+an equal-mole liquid/vapor blend. Phase compositions and enthalpies must agree.
+This checks VLE consistency without a tangent-plane stability search.
+There is no LLE/VLLE stability test, efficiency, hydraulic feedback, side draw,
+multiple-feed support, partial condenser, reaction equilibrium or mechanical
+design. Convergence is not experimental/industrial validation. Property and
+parameter warnings are retained, including estimated latent heat and UNIFAC
+parameter licensing. Missing data, dry stages, wrong duty signs, unsupported
+pressure, insufficient feed pressure or nonconvergence return errors.
+
+Results include component identities, feed data/enthalpy, stage T/P, liquid and
+vapor flows/compositions/enthalpies, stage and overall residuals, condenser and
+reboiler duties and solver identity. Positive duty adds heat. The condenser's
+liquid flow is reflux and its vapor composition is incipient equilibrium vapor;
+there is no condenser vapor outlet. Reboiler liquid flow is bottoms. Equipment
+duty is the sum of condenser and reboiler duties. Shared property provenance
+includes the rebuilt WebAssembly hash and the selected data/model identity.
+
+VERIFICATION
+tests/distillation.test.ts checks analytical binary and independently audited
+ternary FUG references, specified reflux response, invalid inputs, per-species
+and per-stage energy balances, real binary Raoult and Modified UNIFAC columns,
+catalog multicomponent/trace/absent species, pressure profiles, iteration failure
+and JSON/action compatibility. Rust mesh::tests independently eliminates the
+one-tray alpha=2 equations: xB^2+11*xB-4=0, for Newton/fallback and analytic/
+finite-difference Jacobians. tests/e2e/distillation.spec.ts covers desktop setup,
+method switching, result profiles, templates, applying edits and reload.
+
+Verification on Windows: 534 Vitest tests passed with the unrelated
+desktop-assistant packaging file excluded (its packaging test requires external
+RELEASE_REFERENCE_POLICY configuration); five native Rust tests and three
+focused desktop Playwright tests passed, including the existing tray-appearance
+test. Production build, TypeScript, repository lint and focused format checks
+passed. Both template cases also returned HTTP 200 and converged solver results
+through POST /api/simulate.
+Additional binary checks converged at 2, 20 and 40 trays. An 80-tray case reached
+the default 200-evaluation budget and correctly returned COLUMN_CONVERGENCE;
+the configured tray limit does not guarantee convergence for every design.
+
+Run npm test, npm run typecheck, npm run lint, and the focused Playwright file.
+Rebuild with npm run thermo:build (Docker), or run cargo fmt --check,
+cargo test --locked and cargo build --locked --release --target
+wasm32-unknown-unknown in rust/thermo, then node scripts/bundle-thermo.mjs
+from the repository root. Native builds must use rustc's --remap-path-prefix
+for the local Cargo registry and workspace paths; bundling rejects kernels
+that retain local user or drive paths. The kernel was built with Rust 1.94.1
+on Windows.
+
+EQUATION REFERENCES
+University of Waterloo, Distillation Design (FUG and MESH equations):
+https://chemengvirtual.uwaterloo.ca/distillation-lab/design.html
+BioSTEAM source, distillation (Hengstebeck–Geddes and explicit Gilliland fit):
+https://biosteam.readthedocs.io/en/latest/_modules/biosteam/units/distillation.html
+
+
+OPTIONAL SIEVE-TRAY HYDRAULIC RATING
+In MESH Setup enable Predict tray flooding and weeping. Set diameter and tray
+spacing, supply liquid density (kg/m3) and surface tension (N/m) at representative
+tray conditions, and edit the sieve preset under geometry. Apply and run.
+Results lists per-tray jet flooding, downcomer backup and weep onset, including
+unrated checks. 80% of either flooding limit is a warning; >=100% predicts flood.
+Actual hole velocity / predicted weep velocity <1 predicts weeping. Both flags
+can occur together. Convergence alone does not imply acceptable hydraulics.
+
+This is a POST-SOLVE rating of local exiting MESH tray traffic. No equilibrium
+stage, stream, efficiency, pressure profile, purity or duty is changed. The
+calculated hydraulic tray pressure drop is reported separately for diagnosis.
+FUG and single-contact modes have no per-tray rating. Disabled and omitted
+settings preserve previous simulation outputs. Missing properties produce an
+unavailable rating; out-of-correlation conditions produce partial results,
+never a false all-clear. This preliminary model needs comparison against
+vendor/experimental data before use for equipment design.
+
+Geometry is one-pass, chordal downcomer sieve trays. The downcomer segment has
+angle theta satisfying theta-sin(theta)=2*pi*f_dc; weir length=D*sin(theta/2).
+Net vapor area is A_t-A_dc; active area excludes both inlet seal and outlet
+area, A_t-2*A_dc; hole area is holeAreaFraction*activeArea. Defaults: diameter
+1.2 m, spacing 0.46 m, 12% downcomer, 10% hole area, 5 mm holes, 50 mm weir,
+40 mm under-apron clearance and discharge coefficient 0.75. These are editable
+geometry assumptions, not supplied material properties. Supported geometry:
+300-900 mm spacing, 3-12.7 mm holes and 10-15% open area. Clearance must not
+exceed weir height. Other tray types, multiple passes and fouling are unsupported.
+
+Liquid properties are explicit constants across trays; component molecular
+weights and each tray's T, P and composition give ideal-gas vapor density.
+Fair capacity uses Simevo's published natural-log polynomial fit and the
+(sigma/0.02)^0.2 correction, with sigma in N/m. Our implemented domain is
+0.01<=FLV<=2 and 300<=spacing<=900 mm; no extrapolation. Capacity is based on
+net area; open area restriction avoids applying the fit below 10% hole area.
+Francis weir crest =0.75*(QL/weirLength)^(2/3) m, QL in m3/s.
+Dry head =0.051*(holeVelocity/Co)^2*rhoV/rhoL m.
+Residual head =12.5/rhoL m; total tray head=dry+weir+crest+residual.
+Downcomer loss =0.166*(QL/min(A_dc,clearance*weirLength))^2 m.
+Backup =2*(weir+crest+totalTrayHead+downcomerLoss), using 50% liquid fraction.
+Backup flood fraction=backup/(spacing+weirHeight). Pressure=totalHead*rhoL*g.
+Eduljee weep velocity=[K2-0.9*(25.4-holeDiameter_mm)]/sqrt(rhoV).
+K2 uses approximate readings of Figure 8 from Minhas (2025):
+clear liquid mm: 15, 20, 30, 40, 50, 60, 80, 100, 110
+K2:             27.3,28.35,29.12,29.65,30.02,30.32,30.75,31,31.12
+Interpolation is linear and limited to 15-110 mm. No computed weep rate,
+entrainment rate, downcomer choke, dynamic holdup or separation penalty.
+
+In the project 3D view, configured diameter scales the schematic assembly
+radially; spacing changes tray elevations and shell height. Connected ports
+and routing use the same geometry. Active sieve geometry omits valve caps.
+Tray 1 is at the top. Rings show hydraulic status; droplets show weeping,
+upward carryover and deeper illustrated liquid show flooding. Visual levels
+beyond the limit are bounded illustrative effects, not transient predictions.
+Only a successful current simulation supplies hydraulic effects; incomplete
+ratings are identified and unavailable checks do not animate a guessed fault.
+
+REFERENCES
+Simevo, Sieve tray flooding correlation (2012), original polynomial fit:
+https://libpf.com/posts/2012-03-05-sieve-tray-flooding-correlation/
+NPTEL 103103027 module 7 lecture 2, eqs. 7.1-7.13 and their specified units:
+https://archive.nptel.ac.in/content/storage2/courses/103103027/module7/lec2/1.html
+https://archive.nptel.ac.in/content/storage2/courses/103103027/module7/lec2/2.html
+https://archive.nptel.ac.in/content/storage2/courses/103103027/module7/lec2/3.html
+M. A. Minhas, Entrainment Flooding and Weeping Velocities (2025), Figure 8:
+https://www.chemengonline.com/entrainment-flooding-and-weeping-velocities/
+
+VALIDATION
+Tests include hand-audited geometry, SI conversion and correlation points;
+diameter/spacing/open-area trends; invalid inputs; unsupported ranges;
+serialization; and exact equality of pre/post-rating separation outputs.
+3D tests check tray numbering, fault effects, dimensional ports and cache
+invalidation. Browser coverage exercises setup, all three operating regimes,
+3D display, reload persistence and disabling. These are implementation checks,
+not experimental validation of the correlations for a particular mixture.

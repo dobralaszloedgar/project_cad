@@ -8,12 +8,20 @@ import { componentNames } from "@/domain/thermo/catalog";
 import { defaultThermo } from "@/domain/thermo/registry";
 import EquipmentEditor from "./EquipmentEditor";
 import { STREAM_COLOR_LABELS, streamColor } from "./stream-colors";
+import { useUnitSystem } from "./useUnitSystem";
+import type {
+  EquipmentStatus,
+  EquipmentTarget,
+} from "@/domain/equipment-status";
 interface Props {
   project: Project;
   selected: string | null;
   result: Result | null;
   onChange: (p: Project, label: string) => void;
   onError: (m: string) => void;
+  issueTarget?: EquipmentTarget;
+  status?: EquipmentStatus;
+  onNavigateIssue?: (target: EquipmentTarget) => void;
 }
 function StreamInspector({
   project,
@@ -21,6 +29,7 @@ function StreamInspector({
   result,
   onChange,
 }: Pick<Props, "project" | "result" | "onChange"> & { edge: Connection }) {
+  const display = useUnitSystem();
   const names = componentNames(project.thermo ?? defaultThermo);
   const [firstComponent, secondComponent] = names;
   const ids = result?.provenance.chemicalIds ?? [];
@@ -152,32 +161,43 @@ function StreamInspector({
         {s ? (
           <dl className="facts">
             <dt>Molar flow</dt>
-            <dd>{flow(s).toFixed(4)} mol/s</dd>
+            <dd>{display.format(flow(s), "molarFlow", 4)}</dd>
             <dt>Temperature</dt>
-            <dd>{s.temperature.toFixed(2)} K</dd>
+            <dd>{display.format(s.temperature, "temperature", 2)}</dd>
             <dt>Pressure</dt>
-            <dd>{(s.pressure / 1000).toFixed(3)} kPa</dd>
+            <dd>{display.format(s.pressure, "pressure", 3)}</dd>
             {names.length === 2 ? (
               <>
                 <dt>
                   {firstComponent} / {secondComponent} flow
                 </dt>
                 <dd>
-                  {s.a.toFixed(3)} / {s.b.toFixed(3)} mol/s
+                  {display.value(s.a, "molarFlow").toFixed(3)} /{" "}
+                  {display.format(s.b, "molarFlow")}
                 </dd>
               </>
             ) : (
               names.map((name, i) => (
                 <Fragment key={name}>
                   <dt>{name} flow</dt>
-                  <dd>{componentFlows(s, ids)[ids[i]].toFixed(5)} mol/s</dd>
+                  <dd>
+                    {display.format(
+                      componentFlows(s, ids)[ids[i]],
+                      "molarFlow",
+                      5,
+                    )}
+                  </dd>
                 </Fragment>
               ))
             )}
             <dt>Ideal gas volume*</dt>
             <dd>
               {properties?.gasMolarVolume != null
-                ? `${(properties.gasMolarVolume * flow(s)).toFixed(5)} m³/s`
+                ? display.format(
+                    properties.gasMolarVolume * flow(s),
+                    "volumeFlow",
+                    5,
+                  )
                 : "Unavailable for liquid / mixed phase"}
             </dd>
             <dt>Phase</dt>
@@ -234,6 +254,9 @@ export default function Inspector({
   result,
   onChange,
   onError,
+  issueTarget,
+  status,
+  onNavigateIssue,
 }: Props) {
   const unit = project.units.find((n) => n.id === selected),
     edge = project.edges.find((e) => e.id === selected);
@@ -263,6 +286,9 @@ export default function Inspector({
       unit={unit}
       project={project}
       result={result}
+      issueTarget={issueTarget}
+      status={status}
+      onNavigateIssue={onNavigateIssue}
       onApply={(next) => {
         try {
           unitSchema.parse(next);

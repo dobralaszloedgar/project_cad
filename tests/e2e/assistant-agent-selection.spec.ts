@@ -18,7 +18,8 @@ test("chooses agents before setup and uses the selected default for the first ch
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/workspace");
+  // A ready example keeps folder onboarding from interrupting connector setup.
+  await page.goto("/workspace?example=heating");
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
@@ -85,7 +86,7 @@ test("chooses agents before setup and uses the selected default for the first ch
 test("cancelling approval keeps the selected agent and a retry connects it", async ({
   page,
 }) => {
-  await page.goto("/workspace");
+  await page.goto("/workspace?example=heating");
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();

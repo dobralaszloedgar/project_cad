@@ -43,7 +43,6 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     "Results",
     "Components",
     "Thermodynamics",
-    "Templates",
     "Toggle chat",
     "Storage settings",
     "Settings",

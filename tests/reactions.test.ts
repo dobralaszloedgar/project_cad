@@ -24,11 +24,21 @@ import { settingsFor } from "./helpers/catalog";
 const chemicals = sampleChemicals.slice(0, 2).map((c) => ({ ...c }));
 const initial = { A: 5, B: 0 };
 function config() {
-  const result = defaultPackedBed(["A", "B"], true);
+  const result = defaultPackedBed(["A", "B"]);
   result.flowModel = "constant-flow";
   result.volumetricFlow = 1;
-  result.reactions[0].rateConstant = 0.1;
-  result.reactions[0].activationEnergy = 0;
+  result.reactions = [
+    reactionSchema.parse({
+      id: "reaction-1",
+      name: "First-order conversion",
+      basisComponentId: "A",
+      stoichiometry: [
+        { componentId: "A", coefficient: -1 },
+        { componentId: "B", coefficient: 1 },
+      ],
+      rateConstant: 0.1,
+    }),
+  ];
   return result;
 }
 

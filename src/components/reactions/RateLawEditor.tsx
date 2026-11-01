@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Maximize2, Plus, X } from "lucide-react";
 import type { Chemical as ChemicalComponent } from "@/domain/thermo/data";
 import type { RateLaw, RateVariable } from "@/domain/reactions/rateLawSchema";
 import {
@@ -9,53 +9,93 @@ import {
   parameterUnit,
   rateFormula,
   rateLawIssues,
-  ratePreview,
+  rateParameterValues,
+  rateSymbolIssue,
+  renameRateSymbol,
 } from "@/domain/reactions/rateLaw";
 import { compileRateExpression } from "@/domain/reactions/rateExpression";
-import { RateMath, MathFormula } from "./RateMath";
+import { MathFormula } from "./RateMath";
 import { rateSymbolLatex } from "@/domain/reactions/rateExpression";
 import { EngineeringHelp } from "./ReactionHelp";
+import NumberInput from "../NumberInput";
+import { RatePreview } from "./RatePreview";
+
+function SymbolField({
+  symbol,
+  label,
+  law,
+  onChange,
+}: {
+  symbol: string;
+  label: string;
+  law: RateLaw;
+  onChange: (law: RateLaw) => void;
+}) {
+  const [draft, setDraft] = useState(symbol);
+  const issue = rateSymbolIssue(law, symbol, draft.trim());
+  const commit = () => {
+    if (!issue && draft.trim() !== symbol)
+      onChange(renameRateSymbol(law, symbol, draft.trim()));
+  };
+  return (
+    <label className="rate-symbol-field">
+      Symbol
+      <input
+        className="input input-sm"
+        aria-label={label}
+        value={draft}
+        maxLength={40}
+        spellCheck={false}
+        aria-invalid={!!issue}
+        ref={(node) => node?.setCustomValidity(issue ?? "")}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+        }}
+      />
+      {issue && (
+        <span className="rate-symbol-error" role="alert">
+          {issue}
+        </span>
+      )}
+    </label>
+  );
+}
 
 function NumberField({
   label,
   value,
   onChange,
   min,
+  max,
+  step = 0.1,
+  sample = false,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
   min?: number;
+  max?: number;
+  step?: number;
+  sample?: boolean;
 }) {
-  // Keep incomplete decimal/scientific input intact while the user types.
-  // Sending NaN marks the draft invalid without replacing e.g. "1e-" with "".
-  const [input, setInput] = useState({
-    value,
-    text: Number.isFinite(value) ? String(value) : "",
-  });
-  if (!Object.is(input.value, value))
-    setInput({ value, text: Number.isFinite(value) ? String(value) : "" });
   return (
-    <input
+    <NumberInput
       className="input input-sm"
-      type="text"
-      inputMode="decimal"
+      scientific
       required
+      // Sample arithmetic is independent of the equipment form's validation.
+      form={sample ? "rate-sample-values" : undefined}
       aria-label={label}
-      aria-invalid={
-        !Number.isFinite(value) || (min !== undefined && value < min)
-      }
-      value={input.text}
-      onChange={(e) => {
-        const text = e.target.value;
-        const parsed = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(
-          text.trim(),
-        )
-          ? Number(text)
-          : NaN;
-        setInput({ value: parsed, text });
-        onChange(parsed);
-      }}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onValueChange={onChange}
     />
   );
 }
@@ -66,6 +106,7 @@ export function RateLawEditor({
   basisName,
   onChange,
   reactionName,
+  temperature,
 }: {
   law: RateLaw;
   components: ChemicalComponent[];
@@ -73,12 +114,18 @@ export function RateLawEditor({
   basisName: string;
   onChange: (law: RateLaw) => void;
   reactionName?: string;
+  temperature: number;
 }) {
   const patch = (change: Partial<RateLaw>) => onChange({ ...law, ...change });
   const expressionRef = useRef<HTMLTextAreaElement>(null);
   const [expanded, setExpanded] = useState(false);
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const closeExpanded = () => {
+    setExpanded(false);
+    requestAnimationFrame(() => expandButton.current?.focus());
+  };
   const [samples, setSamples] = useState<Record<string, number>>({
-    T: 600,
+    T: temperature,
     P: 100000,
   });
   const issues = rateLawIssues(
@@ -126,11 +173,14 @@ export function RateLawEditor({
     });
     requestAnimationFrame(() => {
       field?.focus();
-      field?.setSelectionRange(start + text.length, start + text.length);
+      const cursor = text.includes("(")
+        ? start + text.indexOf("(") + 1
+        : start + text.length;
+      field?.setSelectionRange(cursor, cursor);
     });
   };
   const factors = (direction: "forward" | "reverse") => (
-    <div className="rate-group">
+    <div className="rate-factor-group">
       <h4>
         {direction === "forward"
           ? "Forward species factors"
@@ -189,7 +239,7 @@ export function RateLawEditor({
       <button
         type="button"
         className="btn btn-ghost btn-xs"
-        disabled={!law.variables.length}
+        disabled={!law.variables.length || law[direction].length >= 40}
         onClick={() =>
           patch({
             [direction]: [
@@ -231,15 +281,7 @@ export function RateLawEditor({
         );
       values[v.symbol] = value;
     }
-    for (const p of law.parameters)
-      values[p.symbol] =
-        p.value *
-        (p.activationEnergy === undefined
-          ? 1
-          : Math.exp(
-              (-p.activationEnergy / values.R) *
-                (1 / values.T - 1 / p.referenceTemperature!),
-            ));
+    Object.assign(values, rateParameterValues(law, values.T));
     const result = compileRateExpression(
       rateFormula(law),
       [...law.variables, ...law.parameters].map((v) => v.symbol),
@@ -250,34 +292,12 @@ export function RateLawEditor({
   }
   const content = (
     <div className="rate-law-editor">
-      <div className="rate-preview" aria-live="polite" aria-atomic="true">
-        <span className="rate-eyebrow">Live rate expression</span>
-        <div
-          className="rate-equation"
-          data-testid="rate-preview"
-          aria-label={ratePreview(law, components)}
-        >
-          <RateMath law={law} components={components} basisName={basisName} />
-        </div>
-        <p>
-          Net disappearance of {basisName} · {displayUnit(law.rateUnit)}
-        </p>
-        <p className="rate-preview-constants">
-          {law.parameters
-            .filter(
-              (p) =>
-                law.mode === "custom" ||
-                p.symbol === "kf" ||
-                (p.symbol === "kr" && law.reversible) ||
-                law.adsorption.some((a) => a.parameter === p.symbol),
-            )
-            .map(
-              (p) =>
-                `${p.symbol}${p.activationEnergy === undefined ? "" : "(Tref)"} = ${p.value}`,
-            )
-            .join(" · ")}
-        </p>
-      </div>
+      <RatePreview
+        law={law}
+        components={components}
+        basisName={basisName}
+        temperature={temperature}
+      />
       <div className="rate-editor-columns">
         <div className="rate-main-column">
           <div className="rate-two-columns">
@@ -321,11 +341,23 @@ export function RateLawEditor({
           <EngineeringHelp text="Use the units from your published rate law. Changing a basis or unit changes the numerical law; update its constants to match. Partial pressures are absolute, pᵢ = xᵢP." />
           <div className="rate-group">
             <h4>1. Choose species and their basis</h4>
-            <EngineeringHelp text="Mix bases in the same law. Inhibitors and catalysts can appear here without being consumed in the reaction." />
+            <EngineeringHelp text="Mix bases in the same law, including inhibitors absent from the reaction. Rename a symbol with Enter or by leaving its field; the equation and both drafts update together." />
             {law.variables.map((v, i) => (
               <div className="rate-species-card" key={v.symbol}>
                 <div className="rate-card-title">
-                  <code>{v.symbol}</code>
+                  <SymbolField
+                    symbol={v.symbol}
+                    label={`Rate species ${i + 1} symbol`}
+                    law={law}
+                    onChange={(next) => {
+                      const symbol = next.variables[i].symbol;
+                      setSamples({
+                        ...samples,
+                        [symbol]: samples[v.symbol] ?? 1,
+                      });
+                      onChange(next);
+                    }}
+                  />
                   <button
                     type="button"
                     className="btn btn-ghost btn-square btn-xs"
@@ -362,6 +394,11 @@ export function RateLawEditor({
                       })
                     }
                   >
+                    {!components.some((c) => c.id === v.componentId) && (
+                      <option value={v.componentId}>
+                        Select a project species
+                      </option>
+                    )}
                     {components.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -434,7 +471,7 @@ export function RateLawEditor({
             <button
               type="button"
               className="btn btn-ghost btn-xs"
-              disabled={!components.length}
+              disabled={!components.length || law.variables.length >= 40}
               onClick={addVariable}
             >
               <Plus size={12} />
@@ -475,7 +512,7 @@ export function RateLawEditor({
                   Include reverse reaction
                 </label>
                 {law.reversible && factors("reverse")}
-                <div className="rate-group">
+                <div className="rate-factor-group">
                   <h4>Adsorption / inhibition denominator</h4>
                   <EngineeringHelp text="Build (1 + K₁·aⁿ + K₂·bᵐ)ᵈ for Langmuir–Hinshelwood or inhibition kinetics. Each K·species term is dimensionless." />
                   {law.adsorption.map((a, i) => (
@@ -536,7 +573,11 @@ export function RateLawEditor({
                   <button
                     type="button"
                     className="btn btn-ghost btn-xs"
-                    disabled={!law.variables.length}
+                    disabled={
+                      !law.variables.length ||
+                      law.adsorption.length >= 40 ||
+                      law.parameters.length >= 40
+                    }
                     onClick={() => {
                       const parameter = nextSymbol("K");
                       patch({
@@ -563,7 +604,7 @@ export function RateLawEditor({
                       Denominator power
                       <NumberField
                         label="Denominator power"
-                        min={0}
+                        min={Number.MIN_VALUE}
                         value={law.denominatorPower}
                         onChange={(denominatorPower) =>
                           patch({ denominatorPower })
@@ -583,6 +624,7 @@ export function RateLawEditor({
                     className="textarea textarea-bordered"
                     aria-label="Custom rate expression"
                     spellCheck={false}
+                    maxLength={4000}
                     value={law.expression}
                     onChange={(e) => patch({ expression: e.target.value })}
                   />
@@ -600,6 +642,10 @@ export function RateLawEditor({
                     "exp()",
                     "log()",
                     "sqrt()",
+                    "abs()",
+                    "min(,)",
+                    "max(,)",
+                    "pow(,)",
                     " * ",
                     " / ",
                     "^()",
@@ -650,10 +696,48 @@ export function RateLawEditor({
                   });
                 return (
                   <div className="rate-parameter" key={p.symbol}>
+                    {!["kf", "kr"].includes(p.symbol) && (
+                      <div className="rate-card-title">
+                        <SymbolField
+                          symbol={p.symbol}
+                          label={`Parameter ${p.symbol} symbol`}
+                          law={law}
+                          onChange={onChange}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-square btn-xs"
+                          aria-label={`Remove parameter ${p.symbol}`}
+                          onClick={() =>
+                            patch({
+                              parameters: law.parameters.filter(
+                                (row) => row.symbol !== p.symbol,
+                              ),
+                              adsorption: law.adsorption.filter(
+                                (row) => row.parameter !== p.symbol,
+                              ),
+                            })
+                          }
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    )}
                     <label>
                       {p.symbol} · {parameterUnit(law, p.symbol)}
                       <NumberField
                         label={`Parameter ${p.symbol}`}
+                        min={
+                          law.mode === "table" &&
+                          (p.symbol === "kf" ||
+                            p.symbol === "kr" ||
+                            law.adsorption.some(
+                              (a) => a.parameter === p.symbol,
+                            ))
+                            ? 0
+                            : undefined
+                        }
+                        step={0.01}
                         value={p.value}
                         onChange={(value) => update({ value })}
                       />
@@ -662,6 +746,7 @@ export function RateLawEditor({
                       <input
                         type="checkbox"
                         className="checkbox checkbox-sm"
+                        aria-label={`${p.symbol} temperature dependence`}
                         checked={p.activationEnergy !== undefined}
                         onChange={(e) =>
                           update({
@@ -697,7 +782,8 @@ export function RateLawEditor({
                             <NumberField
                               label={`${p.symbol} reference temperature`}
                               value={p.referenceTemperature ?? 298.15}
-                              min={0}
+                              min={Number.MIN_VALUE}
+                              step={1}
                               onChange={(referenceTemperature) =>
                                 update({ referenceTemperature })
                               }
@@ -713,6 +799,7 @@ export function RateLawEditor({
               <button
                 type="button"
                 className="btn btn-ghost btn-xs"
+                disabled={law.parameters.length >= 40}
                 onClick={() =>
                   patch({
                     parameters: [
@@ -749,17 +836,42 @@ export function RateLawEditor({
               phase or dimensional consistency.
             </p>
             {[
-              { symbol: "T", label: "Temperature (K)" },
-              { symbol: "P", label: "Total pressure (Pa)" },
+              {
+                symbol: "T",
+                label: "Temperature (K)",
+                min: Number.MIN_VALUE,
+                max: undefined,
+                step: 1,
+              },
+              {
+                symbol: "P",
+                label: "Total pressure (Pa)",
+                min: Number.MIN_VALUE,
+                max: undefined,
+                step: 1000,
+              },
               ...law.variables.map((v) => ({
                 symbol: v.symbol,
                 label: variableName(v.symbol),
+                min: 0,
+                max:
+                  v.basis === "mole-fraction" || v.basis === "mass-fraction"
+                    ? 1
+                    : undefined,
+                step:
+                  v.basis === "mole-fraction" || v.basis === "mass-fraction"
+                    ? 0.01
+                    : 0.1,
               })),
             ].map((v) => (
               <label key={v.symbol}>
                 {v.label}
                 <NumberField
                   label={`Sample ${v.symbol}`}
+                  sample
+                  min={v.min}
+                  max={v.max}
+                  step={v.step}
                   value={samples[v.symbol] ?? 1}
                   onChange={(value) =>
                     setSamples({ ...samples, [v.symbol]: value })
@@ -782,10 +894,12 @@ export function RateLawEditor({
   return (
     <>
       <button
+        ref={expandButton}
         type="button"
         className="btn btn-ghost btn-sm"
         onClick={() => setExpanded(true)}
       >
+        <Maximize2 size={14} />
         Expand rate editor
       </button>
       {expanded ? (
@@ -795,7 +909,23 @@ export function RateLawEditor({
           ref={(node) => {
             if (node && !node.open) node.showModal();
           }}
-          onClose={() => setExpanded(false)}
+          onCancel={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeExpanded();
+          }}
+          onClose={(event) => {
+            event.stopPropagation();
+            closeExpanded();
+          }}
+          onKeyDown={(event) => {
+            // Enter in a rate field must not submit the outer equipment form.
+            if (
+              event.key === "Enter" &&
+              event.target instanceof HTMLInputElement
+            )
+              event.preventDefault();
+          }}
         >
           <div className="rate-dialog-heading">
             <div>
@@ -808,7 +938,7 @@ export function RateLawEditor({
             <button
               type="button"
               className="btn btn-sm"
-              onClick={() => setExpanded(false)}
+              onClick={closeExpanded}
             >
               Done editing
             </button>
@@ -816,8 +946,8 @@ export function RateLawEditor({
           <div className="rate-dialog-scroll">{content}</div>
           <div className="rate-dialog-footer">
             <span>
-              Changes stay in your draft. Apply changes in the inspector to
-              save.
+              Changes stay in your draft. Apply conditions in the equipment
+              editor to save.
             </span>
             <span>
               {issues.length

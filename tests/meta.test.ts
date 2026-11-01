@@ -6,6 +6,7 @@ import {
   META_URL,
 } from "../src/server/meta";
 import { reactorExample } from "../src/domain/examples";
+import { engineeringGuidance } from "../src/assistant/guide";
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -57,6 +58,7 @@ describe("Meta gateway contract (mock transport, no live inference)", () => {
     const body = JSON.parse(network.mock.calls[0][1].body);
     expect(body.model).toBe(META_MODEL);
     expect(body.store).toBe(false);
+    expect(body.instructions).toContain(engineeringGuidance);
     const evidence = JSON.parse(body.input).deterministicEvidence;
     expect(evidence.converged).toBe(true);
     expect(evidence.conversion).toBeCloseTo(0.7746003264, 8);

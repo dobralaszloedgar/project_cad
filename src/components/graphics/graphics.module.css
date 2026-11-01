@@ -9,6 +9,9 @@
   pointer-events: auto;
 }
 .settings summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: fit-content;
   margin-left: auto;
   padding: 6px 9px;
@@ -16,6 +19,33 @@
   border-radius: 6px;
   background: var(--surface, #fff);
   cursor: pointer;
+  list-style: none;
+}
+.settings summary::-webkit-details-marker {
+  display: none;
+}
+.icon {
+  display: none;
+}
+.inlineSettings {
+  position: relative;
+  top: auto;
+  right: auto;
+  max-width: none;
+  font-size: 12px;
+}
+.inlineSettings summary {
+  min-height: 34px;
+  padding: 0 7px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.inlineSettings summary:hover,
+.inlineSettings[open] summary {
+  background: var(--hover);
+  color: var(--accent);
 }
 .panel {
   width: 300px;
@@ -27,6 +57,13 @@
   background: var(--surface, #fff);
   box-shadow: 0 5px 20px #0002;
   line-height: 1.5;
+}
+.inlineSettings > .panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 260px;
+  max-width: calc(100vw - 24px);
 }
 .panel label,
 .panel strong,
@@ -71,4 +108,28 @@
 }
 .help p {
   margin: 10px 0;
+}
+@media (max-width: 760px) {
+  .inlineSettings summary {
+    padding: 0 3px;
+    font-size: 11px;
+  }
+  .inlineSettings > .panel {
+    position: fixed;
+    top: 52px;
+    right: 12px;
+  }
+}
+@media (max-width: 380px) {
+  .inlineSettings summary {
+    min-width: 30px;
+    justify-content: center;
+  }
+  .inlineSettings .icon {
+    display: block;
+  }
+  .inlineSettings .backend,
+  .inlineSettings .chevron {
+    display: none;
+  }
 }

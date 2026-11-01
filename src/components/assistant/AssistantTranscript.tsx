@@ -131,11 +131,16 @@ export default function AssistantTranscript({
                         ? ` · ${action.edge.source} → ${action.edge.target}`
                         : "id" in action
                           ? ` · ${action.id}`
-                          : ` · ${action.modelId}`}{" "}
+                          : "modelId" in action
+                            ? ` · ${action.modelId}`
+                            : ` · ${action.name}`}{" "}
                     {"params" in action ? (
                       <span className={styles.params}>
                         {Object.entries(action.params)
-                          .map(([key, value]) => `${key}: ${value}`)
+                          .map(
+                            ([key, value]) =>
+                              `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`,
+                          )
                           .join(", ")}
                       </span>
                     ) : null}

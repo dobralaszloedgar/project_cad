@@ -15,6 +15,7 @@ import {
 import BrandMark from "./BrandMark";
 import {
   chooseProjectDirectory,
+  projectFileName,
   supportsProjectFolders,
   validateProjectFolderName,
   type ProjectDirectoryHandle,
@@ -25,7 +26,7 @@ import {
   hasCompletedOnboarding,
   setDefaultProjectDirectory,
 } from "@/lib/project-preferences";
-import { createFolderProject } from "@/lib/storage";
+import { createProjectFile } from "@/lib/storage";
 import { checkpoint } from "@/lib/revisions";
 import { loadTemplate } from "@/domain/templates";
 import type { Project } from "@/domain/schema";
@@ -48,6 +49,12 @@ export default function Onboarding() {
   const locked = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
+  let destinationName = "Your project.pcad";
+  try {
+    destinationName = projectFileName(name);
+  } catch {
+    // Keep a placeholder until the project name is valid.
+  }
 
   useEffect(() => {
     let active = true;
@@ -142,7 +149,7 @@ export default function Onboarding() {
           startingPoint === "heating"
             ? { ...loadTemplate("heating")!, name: projectName }
             : { version: 1, name: projectName, units: [], edges: [] };
-        await createFolderProject(directory, projectName, {
+        await createProjectFile(directory, projectName, {
           version: 1,
           project,
           revisions: [checkpoint(project, "Created project")],
@@ -245,7 +252,7 @@ export default function Onboarding() {
             </h1>
             <p className={styles.intro}>
               {step === 0
-                ? "Choose a folder on this computer. Each project gets its own folder, and your changes save automatically."
+                ? "Choose a folder on this computer. Each project is saved as a .pcad file, and your changes save automatically."
                 : "Give it a name and choose a starting point. You can change the equipment and settings as you work."}
             </p>
             {step === 0 ? (
@@ -342,7 +349,7 @@ export default function Onboarding() {
                   ) : null}
                   <span id="project-destination" className={styles.destination}>
                     <FolderOpen size={14} />
-                    {directory?.name}/{name.trim() || "Your project"}
+                    {directory?.name}/{destinationName}
                   </span>
                 </div>
                 <fieldset

@@ -59,6 +59,13 @@ export function equipmentEnvelope(item: EquipmentInstance): Bounds {
     ],
   };
   const [min, max] = boxes[item.kind];
+  if (item.kind === "Distillation") {
+    const scale = columnLayout(item).radialScale;
+    for (const point of [min, max]) {
+      point[0] *= scale;
+      point[2] *= scale;
+    }
+  }
   const corners = [rotatePoint(min, item.turn), rotatePoint(max, item.turn)];
   return {
     min: min.map(

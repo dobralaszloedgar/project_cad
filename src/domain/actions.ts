@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { defaultThermo, thermoSchema } from "./thermo/registry";
 import { availableStreamName } from "./stream-names";
+import { distillationSchema } from "./equipment/distillation-schema";
+import { distillationPatchSchema } from "./equipment/distillation-patch-schema";
 import {
   unitSchema,
   edgeSchema,
@@ -17,7 +19,8 @@ const updateParamsSchema = z
     flow: paramsSchema.shape.flow.removeDefault().optional(),
     fractionA: paramsSchema.shape.fractionA.removeDefault().optional(),
     composition: paramsSchema.shape.composition,
-    packedBed: paramsSchema.shape.packedBed,
+    packedBed: paramsSchema.shape.packedBed.nullable(),
+    distillation: distillationPatchSchema.nullable().optional(),
     residenceTime: paramsSchema.shape.residenceTime.removeDefault().optional(),
     reactorMode: paramsSchema.shape.reactorMode.removeDefault().optional(),
     catalystMass: paramsSchema.shape.catalystMass.removeDefault().optional(),
@@ -39,7 +42,7 @@ const updateParamsSchema = z
       .removeDefault()
       .optional()
       .describe(
-        "Visible 3D column trays only; does not change the single equilibrium contact calculation.",
+        "Column trays in both views; also the number of equilibrium trays in MESH mode (excludes condenser/reboiler). Layout only for FUG and single flash.",
       ),
   })
   .strict();
@@ -50,10 +53,36 @@ export const actionSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("update"),
       id: z.string().max(64),
+      name: unitSchema.shape.name.optional(),
+      position: unitSchema.shape.position.optional(),
       params: updateParamsSchema,
     })
     .strict(),
   z.object({ type: z.literal("remove"), id: z.string().max(64) }).strict(),
+  z.object({ type: z.literal("disconnect"), id: edgeSchema.shape.id }).strict(),
+  z
+    .object({
+      type: z.literal("update_stream"),
+      id: edgeSchema.shape.id,
+      changes: z
+        .object({
+          name: edgeSchema.shape.name,
+          colorIndex: edgeSchema.shape.colorIndex,
+          source: edgeSchema.shape.source.optional(),
+          target: edgeSchema.shape.target.optional(),
+          sourcePort: edgeSchema.shape.sourcePort.optional(),
+          targetPort: edgeSchema.shape.targetPort.optional(),
+          color: edgeSchema.shape.color.removeDefault().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("rename_project"),
+      name: projectSchema.shape.name,
+    })
+    .strict(),
   z
     .object({ type: z.literal("set_thermo_model"), ...thermoSchema.shape })
     .strict(),
@@ -70,6 +99,9 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
     plan = planSchema.parse(rawPlan);
   for (const a of plan.actions) {
     switch (a.type) {
+      case "rename_project":
+        project.name = a.name;
+        break;
       case "set_thermo_model":
         project.thermo = {
           ...defaultThermo,
@@ -93,7 +125,41 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
       case "update": {
         const n = project.units.find((n) => n.id === a.id);
         if (!n) throw new Error(`Unknown equipment ${a.id}.`);
-        n.params = { ...n.params, ...a.params };
+        if (a.name !== undefined) n.name = a.name;
+        if (a.position !== undefined) n.position = a.position;
+        const { distillation, packedBed, ...params } = a.params;
+        n.params = { ...n.params, ...params };
+        if (packedBed !== undefined)
+          n.params.packedBed = packedBed ?? undefined;
+        if (distillation === null) delete n.params.distillation;
+        else if (distillation !== undefined) {
+          const { hydraulics, ...settings } = distillation;
+          const previous = n.params.distillation;
+          // Validate defaults and the liquid seal on the merged configuration.
+          n.params.distillation = distillationSchema.parse({
+            ...previous,
+            ...settings,
+            ...(hydraulics !== undefined
+              ? {
+                  hydraulics:
+                    hydraulics === null
+                      ? undefined
+                      : { ...previous?.hydraulics, ...hydraulics },
+                }
+              : {}),
+          });
+        }
+        break;
+      }
+      case "disconnect":
+        if (!project.edges.some((e) => e.id === a.id))
+          throw new Error(`Unknown stream ${a.id}.`);
+        project.edges = project.edges.filter((e) => e.id !== a.id);
+        break;
+      case "update_stream": {
+        const edge = project.edges.find((e) => e.id === a.id);
+        if (!edge) throw new Error(`Unknown stream ${a.id}.`);
+        Object.assign(edge, a.changes);
         break;
       }
       case "remove":

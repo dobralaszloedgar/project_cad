@@ -1,27 +1,39 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Eye, Focus, Pause, Play, Scan } from "lucide-react";
 import type { Project } from "@/domain/schema";
+import type { Result } from "@/domain/solver";
 import EquipmentScene, { type CameraView } from "./equipment-3d/EquipmentScene";
 import { buildProjectPlant } from "./equipment-3d/project-plant";
+import { projectCompositionColors } from "./equipment-3d/composition-colors";
+import { FLUID_PALETTES } from "./equipment-3d/fluid-palettes";
+import { useFluidPalette } from "./equipment-3d/useFluidPalette";
+import type { TrayHydraulicsResult } from "@/domain/equipment/tray-hydraulics";
+import "./tray-hydraulics.css";
 
 export default function Plant3D({
   project,
+  result = null,
   selected,
   onSelect,
   dark = false,
   canvasColor,
   initialPlaying = false,
+  graphicsSettingsContainer,
 }: {
   project: Project;
+  result?: Result | null;
   selected: string | null;
   onSelect: (id: string) => void;
   dark?: boolean;
   canvasColor?: string;
   initialPlaying?: boolean;
+  graphicsSettingsContainer?: HTMLElement | null;
 }) {
   const [transparent, setTransparent] = useState(true);
+  const [grid, setGrid] = useState(true);
+  const toggleGrid = useCallback(() => setGrid((value) => !value), []);
   const [playing, setPlaying] = useState(
     () =>
       initialPlaying &&
@@ -31,6 +43,11 @@ export default function Plant3D({
   const [reset, setReset] = useState(0);
   const [focus, setFocus] = useState(0);
   const [view, setView] = useState<CameraView>("perspective");
+  const { palette, setPalette } = useFluidPalette();
+  const compositionColors = useMemo(
+    () => projectCompositionColors(project, result, palette.id),
+    [project, result, palette.id],
+  );
   const layout = useMemo(() => {
     try {
       return buildProjectPlant(project);
@@ -38,6 +55,26 @@ export default function Plant3D({
       return null;
     }
   }, [project]);
+  const columnHydraulics = useMemo(() => {
+    const ratings: Record<string, TrayHydraulicsResult> = {};
+    if (!result?.converged) return ratings;
+    for (const unit of project.units) {
+      const column = result.equipment[unit.id]?.distillation;
+      const config = unit.params.distillation;
+      if (
+        config?.method === "mesh" &&
+        config.hydraulics?.enabled &&
+        column?.method === "mesh" &&
+        column.hydraulics &&
+        column.stages.length - 2 === unit.params.trayCount &&
+        JSON.stringify(config.hydraulics) ===
+          JSON.stringify(column.hydraulics.config)
+      )
+        ratings[unit.id] = column.hydraulics;
+    }
+    return ratings;
+  }, [project, result]);
+  const selectedHydraulics = selected ? columnHydraulics[selected] : undefined;
   return (
     <div
       className="plant-view"
@@ -50,13 +87,16 @@ export default function Plant3D({
           kind="Feed"
           mode="process"
           system={layout}
+          compositionColors={compositionColors}
+          columnHydraulics={columnHydraulics}
           trayCount={8}
           section={false}
           transparent={transparent}
           playing={playing}
           speed={speed}
           motionVisible
-          grid
+          grid={grid}
+          onToggleGrid={toggleGrid}
           view={view}
           rotate={false}
           reset={reset}
@@ -64,6 +104,7 @@ export default function Plant3D({
           selectedId={selected}
           dark={dark}
           canvasColor={canvasColor}
+          graphicsSettingsContainer={graphicsSettingsContainer}
           workspace
           onSelect={(_, id) => {
             if (id) onSelect(id);
@@ -75,12 +116,100 @@ export default function Plant3D({
           continue editing in 2D.
         </div>
       )}
+      {selectedHydraulics && (
+        <aside
+          className="plant-hydraulics-legend"
+          aria-label="3D tray hydraulics"
+        >
+          <strong>{selected} · Sieve tray hydraulics</strong>
+          <p>
+            {selectedHydraulics.status === "unavailable"
+              ? "Rating unavailable — supply fluid properties."
+              : `Highest flooding load: ${((selectedHydraulics.maxFloodFraction ?? 0) * 100).toFixed(1)}% · Tray ${selectedHydraulics.limitingTray}`}
+          </p>
+          {selectedHydraulics.stages.length > 0 && (
+            <p>
+              {
+                selectedHydraulics.stages.filter(
+                  (s) => s.weepRatio !== null && s.weepRatio < 1,
+                ).length
+              }{" "}
+              trays with predicted weeping
+              {" · "}
+              {
+                selectedHydraulics.stages.filter(
+                  (s) =>
+                    Math.max(
+                      s.jetFloodFraction ?? 0,
+                      s.downcomerFloodFraction,
+                    ) >= 1,
+                ).length
+              }{" "}
+              at a flooding limit
+              {selectedHydraulics.status === "partial"
+                ? " · incomplete rating"
+                : ""}
+            </p>
+          )}
+          <small>
+            Tray rings: green within limits · blue weeping · amber near flooding
+            · red flooding · gray incomplete.
+          </small>
+          <p>Top tray = 1. Open Properties → Results for each tray.</p>
+          <small>
+            Fluid motion illustrates predicted conditions; it is not a transient
+            flow simulation.
+          </small>
+        </aside>
+      )}
+      {layout &&
+      project.units.length > 0 &&
+      compositionColors.components.length > 0 ? (
+        <aside
+          className="plant-composition-legend"
+          aria-label="3D component colors"
+        >
+          <div className="plant-composition-heading">
+            <strong>Composition</strong>
+            <span>{compositionColors.components.length} chemicals</span>
+          </div>
+          <label className="plant-palette-select">
+            <span>Fluid palette</span>
+            <select
+              value={palette.id}
+              onChange={(event) => setPalette(event.target.value)}
+            >
+              {FLUID_PALETTES.map(({ id, name }) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="plant-palette-preview" aria-hidden="true">
+            {palette.colors.map((color) => (
+              <i key={color} style={{ backgroundColor: color }} />
+            ))}
+          </div>
+          <div className="plant-component-swatches">
+            {compositionColors.components.map(({ id, name, color }) => (
+              <span key={id} title={name}>
+                <i style={{ backgroundColor: color }} aria-hidden="true" />
+                {name}
+              </span>
+            ))}
+          </div>
+          <small>
+            Colors blend by mole fraction · gray = unknown or no flow
+          </small>
+        </aside>
+      ) : null}
       {layout && project.units.length > 0 ? (
         <div className="plant-controls" aria-label="3D display controls">
           <div className="tool-group">
             <button
               aria-label="Reset camera"
-              title="Fit plant (Home)"
+              title="Fit plant (F / Home)"
               onClick={() => setReset((value) => value + 1)}
             >
               <Scan size={15} />
@@ -88,7 +217,7 @@ export default function Plant3D({
             </button>
             <button
               aria-label="Focus selected equipment"
-              title="Focus selected equipment (F)"
+              title="Focus selected equipment (Shift+F)"
               disabled={!project.units.some((unit) => unit.id === selected)}
               onClick={() => setFocus((value) => value + 1)}
             >
@@ -156,12 +285,6 @@ export default function Plant3D({
           ) : null}
         </div>
       ) : null}
-      <div
-        className="navigation-hint"
-        title="Drag to orbit. Right/middle or Shift/Space + drag to pan. Scroll/pinch to zoom. Focus the canvas to use WASD to move, Q/E to move down/up, arrows to pan, Shift to move faster, F to focus, and Home to fit the plant."
-      >
-        Drag to orbit · Right-drag to pan · Scroll to zoom · WASD to move
-      </div>
     </div>
   );
 }

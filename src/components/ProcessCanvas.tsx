@@ -1,4 +1,5 @@
 "use client";
+import { useUnitSystem } from "./useUnitSystem";
 import {
   memo,
   useCallback,
@@ -13,6 +14,7 @@ import {
 } from "react";
 import { Hand, Maximize, Minus, Plus } from "lucide-react";
 import { shortcutsBlocked } from "@/lib/keyboard";
+import { keyboardPan } from "./canvas-navigation";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -25,6 +27,7 @@ import {
   BaseEdge,
   useReactFlow,
   useNodesInitialized,
+  useUpdateNodeInternals,
   useStore,
   useStoreApi,
   SelectionMode,
@@ -46,13 +49,18 @@ import {
   validateGraph,
 } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
+import { EquipmentStatusIndicator } from "./EquipmentStatusIndicator";
+import type {
+  EquipmentStatus,
+  EquipmentTarget,
+} from "@/domain/equipment-status";
 import {
   CANVAS_MIN_ZOOM,
   CANVAS_MAX_ZOOM,
   ZOOM_STEP,
   useCanvasWheelNavigation,
 } from "./useCanvasWheelNavigation";
-import { equipmentPort, streamPath } from "./flow-geometry";
+import { equipmentPort, equipmentSize, streamPath } from "./flow-geometry";
 import type { Result } from "@/domain/solver";
 import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
@@ -72,7 +80,13 @@ const subscribePointer = (onChange: () => void) => {
   return () => query.removeEventListener("change", onChange);
 };
 type EquipmentNode = Node<
-  { unit: Unit; connected: string[]; change?: string },
+  {
+    unit: Unit;
+    connected: string[];
+    change?: string;
+    status?: EquipmentStatus;
+    onNavigate?: (id: string, target: EquipmentTarget) => void;
+  },
   "equipment"
 >;
 // Keep equipment labels and the outer stream lanes clear of the floating toolbar.
@@ -81,13 +95,18 @@ const flowFitOptions = {
   minZoom: 0.05,
   maxZoom: 1.25,
 } satisfies FitViewOptions;
-function portGeometry(kind: Kind, output: boolean, index: number) {
-  const { x, y, position } = equipmentPort(kind, output, index);
+function portGeometry(unit: Unit, output: boolean, index: number) {
+  const { x, y, position } = equipmentPort(
+    unit.kind,
+    output,
+    index,
+    unit.params.trayCount,
+  );
   return {
     position,
     style: {
-      left: `${(x / 128) * 100}%`,
-      top: `${(y / 128) * 100}%`,
+      left: x,
+      top: y,
       right: "auto",
       bottom: "auto",
       transform: "translate(-50%, -50%)",
@@ -97,10 +116,15 @@ function portGeometry(kind: Kind, output: boolean, index: number) {
 const UnitNode = memo(function UnitNode({
   data,
   selected,
+  positionAbsoluteX,
+  positionAbsoluteY,
 }: NodeProps<EquipmentNode>) {
   const n = data.unit,
     p = ports(n.kind);
+  const size = equipmentSize(n.kind, n.params.trayCount);
+  const updateNodeInternals = useUpdateNodeInternals();
   const nodeRef = useRef<HTMLDivElement>(null);
+  const [labelBottom, setLabelBottom] = useState(-6);
   const [frame, setFrame] = useState({
     left: 0,
     top: 0,
@@ -108,7 +132,8 @@ const UnitNode = memo(function UnitNode({
     height: 128,
   });
   useLayoutEffect(() => {
-    const bounds = nodeRef.current?.querySelector("svg")?.getBBox();
+    const symbol = nodeRef.current?.querySelector("svg");
+    const bounds = symbol?.getBBox();
     if (!bounds?.width || !bounds.height) return;
     const padding = 3 + Math.min(bounds.width, bounds.height) * 0.1;
     setFrame({
@@ -117,18 +142,47 @@ const UnitNode = memo(function UnitNode({
       width: bounds.width + padding * 2,
       height: bounds.height + padding * 2,
     });
-  }, [n.kind]);
+    // Follow the visible drawing instead of the empty SVG margin. The reactor
+    // label sits beside its top inlet, so it can align with the vessel body.
+    const labelBounds =
+      n.kind === "PBR"
+        ? symbol?.querySelector<SVGGraphicsElement>(".pfd-body")?.getBBox()
+        : bounds;
+    setLabelBottom((labelBounds?.y ?? bounds.y) - 6);
+    updateNodeInternals(n.id);
+  }, [n.id, n.kind, n.params.trayCount, updateNodeInternals]);
   return (
     <div
       ref={nodeRef}
-      className={`equipment-node ${n.kind === "PBR" || n.kind === "Distillation" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
+      className={`equipment-node ${n.kind === "PBR" ? "bottom-outlet" : ""} ${selected ? "selected" : ""} ${data.change ?? ""}`}
+      style={size}
     >
       <div
         className="equipment-selection-frame"
         style={frame}
         aria-hidden="true"
       />
-      <span className="unit-tag">{n.id}</span>
+      <div className="unit-label" style={{ bottom: size.height - labelBottom }}>
+        <span className="unit-tag-row">
+          <span className="unit-tag" title={n.id}>
+            {n.id}
+          </span>
+          {data.status && data.onNavigate && (
+            <EquipmentStatusIndicator
+              unit={n}
+              status={data.status}
+              nodeRef={nodeRef}
+              x={positionAbsoluteX}
+              anchorTop={positionAbsoluteY + labelBottom - 46}
+              anchorBottom={positionAbsoluteY + frame.top + frame.height}
+              onNavigate={data.onNavigate}
+            />
+          )}
+        </span>
+        <span className="unit-name" title={n.name}>
+          {n.name}
+        </span>
+      </div>
       {p.inputs.map((id, i) => (
         <Handle
           key={id}
@@ -138,7 +192,7 @@ const UnitNode = memo(function UnitNode({
           title={`${n.id} · ${id === "in2" ? "Secondary inlet" : "Inlet"}`}
           isConnectable={n.kind === "Mixer" || !data.connected.includes(id)}
           isConnectableStart={false}
-          {...portGeometry(n.kind, false, i)}
+          {...portGeometry(n, false, i)}
           className="material-handle"
         />
       ))}
@@ -152,8 +206,7 @@ const UnitNode = memo(function UnitNode({
           aria-label={`${n.id} connect streams to mixer`}
         />
       )}
-      <EquipmentIcon kind={n.kind} size={128} />
-      <span className="unit-name">{n.name}</span>
+      <EquipmentIcon kind={n.kind} size={128} trayCount={n.params.trayCount} />
       {p.outputs.map((id, i) => (
         <Handle
           key={id}
@@ -163,7 +216,7 @@ const UnitNode = memo(function UnitNode({
           title={`${n.id} · ${id === "out2" ? "Secondary outlet" : "Outlet"}`}
           isConnectable={!data.connected.includes(id)}
           isConnectableEnd={false}
-          {...portGeometry(n.kind, true, i)}
+          {...portGeometry(n, true, i)}
           className="material-handle"
         />
       ))}
@@ -308,6 +361,8 @@ interface Props {
   selection: string[];
   onSelection: Dispatch<SetStateAction<string[]>>;
   onInspect: (id: string) => void;
+  statuses?: Record<string, EquipmentStatus>;
+  onNavigateIssue?: (id: string, target: EquipmentTarget) => void;
   onChange: (project: Project, label: string) => void;
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
   onWireStart?: () => void;
@@ -319,6 +374,7 @@ interface Props {
   presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
 }
 function Inner(props: Props) {
+  const display = useUnitSystem();
   const {
     project,
     selected,
@@ -334,6 +390,8 @@ function Inner(props: Props) {
     compositionColors,
     fitRequest = 0,
     presentation,
+    statuses,
+    onNavigateIssue,
   } = props;
   const rf = useReactFlow();
   const flowStore = useStoreApi();
@@ -378,20 +436,14 @@ function Inner(props: Props) {
         return;
       }
       const viewport = rf.getViewport();
-      const step = event.shiftKey ? 256 : 64;
       let handled = true;
       if (key.startsWith("arrow")) {
-        const delta = {
-          arrowleft: [step, 0],
-          arrowright: [-step, 0],
-          arrowup: [0, step],
-          arrowdown: [0, -step],
-        }[key];
+        const delta = keyboardPan(key, event.shiftKey);
         if (delta)
           void rf.setViewport({
             ...viewport,
-            x: viewport.x + delta[0],
-            y: viewport.y + delta[1],
+            x: viewport.x - delta[0],
+            y: viewport.y - delta[1],
           });
         else handled = false;
       } else if (["+", "=", "-"].includes(key))
@@ -409,7 +461,7 @@ function Inner(props: Props) {
           selection.includes(unit.id),
         );
         void rf.fitView({
-          padding: 0.2,
+          ...flowFitOptions,
           ...(event.shiftKey && chosen.length ? { nodes: chosen } : {}),
         });
       } else if (key === "p") setPanMode(true);
@@ -571,6 +623,8 @@ function Inner(props: Props) {
       data: {
         unit,
         connected: connected.get(unit.id) ?? [],
+        status: presentation ? undefined : statuses?.[unit.id],
+        onNavigate: presentation ? undefined : onNavigateIssue,
         change: changes?.added.some((n) => n.id === unit.id)
           ? "added"
           : changes?.changed.some((n) => n.id === unit.id)
@@ -578,7 +632,14 @@ function Inner(props: Props) {
             : undefined,
       },
     }));
-  }, [project.units, project.edges, changes]);
+  }, [
+    project.units,
+    project.edges,
+    changes,
+    statuses,
+    onNavigateIssue,
+    presentation,
+  ]);
   const nodes: EquipmentNode[] = useMemo(
     () =>
       baseNodes.map((node) => ({
@@ -606,8 +667,9 @@ function Inner(props: Props) {
         unit.kind,
         output,
         port.endsWith("2") ? 1 : 0,
+        unit.params.trayCount,
       );
-      // Edges attach to the outer edge of the eight-pixel connection handle.
+      // Edges attach to the outer edge of the nine-pixel connection handle.
       return {
         nodeId: id,
         side: geometry.position,
@@ -615,17 +677,17 @@ function Inner(props: Props) {
           position.x +
           geometry.x +
           (geometry.position === Position.Right
-            ? 4
+            ? 4.5
             : geometry.position === Position.Left
-              ? -4
+              ? -4.5
               : 0),
         y:
           position.y +
           geometry.y +
           (geometry.position === Position.Bottom
-            ? 4
+            ? 4.5
             : geometry.position === Position.Top
-              ? -4
+              ? -4.5
               : 0),
       };
     };
@@ -637,12 +699,13 @@ function Inner(props: Props) {
       }),
       project.units.map((unit) => {
         const position = positions[unit.id] ?? unit.position;
+        const verticalPorts = unit.kind === "PBR";
         return {
           id: unit.id,
-          x: position.x,
-          y: position.y - 28,
-          width: 128,
-          height: 186,
+          x: position.x - (verticalPorts ? 0 : 8),
+          y: position.y - 58,
+          width: verticalPorts ? 192 : 144,
+          height: equipmentSize(unit.kind, unit.params.trayCount).height + 58,
         };
       }),
     );
@@ -869,7 +932,7 @@ function Inner(props: Props) {
             edge.id;
           setHover(
             s
-              ? `${name} · ${flow(s).toFixed(3)} mol/s · ${s.temperature.toFixed(1)} K · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
+              ? `${name} · ${display.format(flow(s), "molarFlow")} · ${display.format(s.temperature, "temperature", 1)} · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
               : `${name} · Run to calculate`,
           );
         }}
@@ -962,7 +1025,7 @@ function Inner(props: Props) {
               title="Fit View"
               aria-label="Fit View"
               onClick={() =>
-                void rf.fitView({ padding: 0.2, duration: duration() })
+                void rf.fitView({ ...flowFitOptions, duration: duration() })
               }
             >
               <Maximize size={16} aria-hidden="true" />
@@ -981,15 +1044,6 @@ function Inner(props: Props) {
           </Controls>
         )}
       </ReactFlow>
-      {!presentation && (
-        <div className="navigation-hint">
-          {touch
-            ? "Drag to pan · Pinch to zoom"
-            : panning
-              ? "Drag to pan · V to select · Pinch to zoom"
-              : "Drag to select · Space + drag / scroll to pan · Pinch to zoom"}
-        </div>
-      )}
       {!presentation && hover ? (
         <div className="canvas-footnote">{hover}</div>
       ) : null}

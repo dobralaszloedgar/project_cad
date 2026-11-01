@@ -6,6 +6,7 @@ import {
   validateGraph,
 } from "./schema";
 import { availableStreamName } from "./stream-names";
+import { availableEquipmentTag } from "./equipment-tags";
 
 export type SelectionCopy = { units: Unit[]; edges: Connection[] };
 
@@ -42,12 +43,13 @@ export function pasteSelection(
   copy: SelectionCopy,
   offset = 40,
 ) {
-  const ids = new Map(
-    copy.units.map((unit) => [
-      unit.id,
-      `${unit.kind}-${crypto.randomUUID().slice(0, 8)}`,
-    ]),
-  );
+  const ids = new Map<string, string>();
+  const reserved: { id: string }[] = [...project.units, ...copy.units];
+  for (const unit of copy.units) {
+    const id = availableEquipmentTag(unit.kind, reserved);
+    ids.set(unit.id, id);
+    reserved.push({ id });
+  }
   const units = copy.units.map((unit) => ({
     ...structuredClone(unit),
     id: ids.get(unit.id)!,

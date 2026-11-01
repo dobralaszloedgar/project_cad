@@ -56,16 +56,16 @@ export const equipmentReferences: Record<
     name: "Johnson Screens · Reactor internals",
     url: "https://johnsonscreens.com/wp-content/uploads/2022/08/Internals-for-Down-Flow-Reactor_Eng.pdf",
     detail:
-      "Inlet distributor, stationary catalyst beds and open support screens.",
+      "Downflow distributor trays, support grids and outlet collector. Catalyst grains are enlarged for visibility; typical real pellets are 1–5 mm.",
     operation:
-      "In this liquid-feed example, distributor jets wet the fixed catalyst. Thin liquid films descend through the packing without moving the pellets.",
+      "Liquid spreads over each distributor, trickles through stationary catalyst and drains into the bottom collector.",
   },
   Distillation: {
     name: "Sulzer · Tray technology",
     url: "https://www.sulzer.com/en/shared/products/shell-tray-technology",
     detail:
-      "Valve trays and alternating downcomers. Reflux enters above the top tray; reboiler return enters below the bottom tray.",
+      "Valve trays, alternating downcomers and an elevated condenser/receiver. A hollow tee splits condensate into separately valved reflux and distillate branches. Reflux enters above the top tray; reboiler return enters below the bottom tray.",
     operation:
-      "Vapor forms fine bubbles in each tray’s liquid layer. Liquid spills through alternating downcomers; the reboiler boils and the condenser forms descending films.",
+      "Vapor bubbles through the tray liquid while liquid spills down alternating downcomers. Condensate collects in the receiver, then divides between reflux and distillate; the reboiler supplies boil-up below the bottom tray.",
   },
 };

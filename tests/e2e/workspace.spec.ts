@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "./test";
 import fs from "node:fs/promises";
+import { loadTemplateProject as template } from "./project-fixture";
 const output = "/tmp/project-cad-qa";
 test.beforeAll(async () => {
   await fs.mkdir(output, { recursive: true });
@@ -14,19 +15,6 @@ async function start(page: Page) {
 async function closeDialog(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.locator("dialog[open]")).toHaveCount(0);
-}
-async function template(page: Page, name: string) {
-  await page
-    .getByRole("button", { name: "Workspace menu", exact: true })
-    .click();
-  await page
-    .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Templates", exact: true })
-    .click();
-  await page
-    .getByRole("dialog", { name: "Start from a template" })
-    .getByRole("button", { name: new RegExp(name) })
-    .click();
 }
 async function edit(page: Page, id: string) {
   await page.locator(".react-flow__node").filter({ hasText: id }).click();
@@ -53,7 +41,11 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
   await expect(page.locator(".kpi").first()).toContainText("77.46%");
   await closeDialog(page);
   await edit(page, "R-101");
-  await page.getByLabel("Temperature (K)", { exact: true }).fill("500");
+  await page.getByRole("button", { name: "Add reaction", exact: true }).click();
+  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
+  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByLabel("Rate constant", { exact: true }).fill("0.01");
+  await page.getByLabel("Temperature (°C)", { exact: true }).fill("226.85");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await page.getByRole("tab", { name: "Results", exact: true }).click();
   await expect(page.locator(".equipment-result")).toContainText(
@@ -101,10 +93,10 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
   const download = await downloadPromise;
   const path = await download.path();
   const json = JSON.parse(await fs.readFile(path!, "utf8"));
-  expect(json.project.units).toHaveLength(6);
-  expect(json.revisions).toHaveLength(4);
+  expect(json.workspace.project.units).toHaveLength(6);
+  expect(json.workspace.revisions).toHaveLength(4);
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   expect(errors).toEqual([]);
@@ -117,6 +109,11 @@ test("3D and split views preserve topology and synchronized editing", async ({
   await expect(page.locator(".plant-view canvas")).toBeVisible();
   await expect(page.locator(".plant-label")).toHaveCount(6);
   await page.locator(".plant-label").filter({ hasText: "S-101" }).click();
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await expect(
+    page.locator(".plant-label").filter({ hasText: "S-101" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("e");
   await page.getByLabel("Secondary outlet fraction").fill("0.7");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await closeDialog(page);
@@ -136,7 +133,7 @@ test("simple templates, equipment validation, appearance and mobile editing", as
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
-  await expect(page.locator(".stream-table")).toContainText("400");
+  await expect(page.locator(".stream-table")).toContainText("126.85");
   await closeDialog(page);
   await template(page, "Raoult’s law separation");
   await page.getByRole("button", { name: "Run simulation" }).click();
@@ -208,7 +205,7 @@ test("manual editing supports connect, move, double-click, duplicate and delete"
   await page.mouse.move(box!.x + 90, box!.y + 60, { steps: 10 });
   await page.mouse.up();
   await feed.dblclick({ delay: 100 });
-  await expect(page.getByLabel("Molar flow (mol/s)")).toBeVisible();
+  await expect(page.getByLabel("Molar flow (kmol/h)")).toBeVisible();
   await page.getByRole("button", { name: "Duplicate", exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(3);
   await page
@@ -227,7 +224,10 @@ test("disabled or cross-origin AI requests are rejected", async ({
     .click();
   await expect(
     page.getByRole("button", { name: "Send message", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Connect local assistant", exact: true }),
+  ).toBeVisible();
   expect((await (await request.get("/api/ai")).json()).enabled).toBe(false);
   expect(
     (
@@ -285,7 +285,7 @@ test("clear local history requires confirmation and persists an empty project", 
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
   await expect(page.getByRole("status")).toContainText("cleared");
-  await expect(page.getByText("Saved on this device")).toBeVisible();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
   await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText(
     "Untitled process",

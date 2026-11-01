@@ -95,6 +95,8 @@ test("equipment gallery survives graphics recovery and remains selectable", asyn
 test("large examples start transparent and retain dynamic columns", async ({
   page,
 }) => {
+  test.setTimeout(180000);
+  const expectReady = expect.configure({ timeout: 30000 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/sandbox/equipment");
@@ -106,24 +108,27 @@ test("large examples start transparent and retain dynamic columns", async ({
   ] as const) {
     await page.getByRole("switch", { name: "Transparent shell" }).click();
     await systems.selectOption(id);
-    await expect(page.locator(".equipment-world-label")).toHaveCount(count);
-    await expect(
+    // Switching a full plant compiles cold materials on the software renderer.
+    await expectReady(page.locator(".equipment-world-label")).toHaveCount(
+      count,
+    );
+    await expectReady(
       page.getByRole("switch", { name: "Transparent shell" }),
     ).toHaveAttribute("aria-checked", "true");
-    await expect(
+    await expectReady(
       page.getByRole("switch", { name: "Section view" }),
     ).toHaveAttribute("aria-checked", "false");
   }
   await page.getByLabel("Number of trays").fill("12");
   await page.getByRole("button", { name: "Apply", exact: true }).click();
-  await expect(page.locator('[data-mode="process"]')).toHaveAttribute(
+  await expectReady(page.locator('[data-mode="process"]')).toHaveAttribute(
     "data-trays",
     "12",
   );
   await page
     .getByRole("combobox", { name: "Inspect equipment" })
     .selectOption("secondColumn");
-  await expect(page.locator("h1")).toHaveText("Distillation column");
-  await expect(page.getByLabel("Number of trays")).toHaveValue("12");
+  await expectReady(page.locator("h1")).toHaveText("Distillation column");
+  await expectReady(page.getByLabel("Number of trays")).toHaveValue("12");
   expect(errors).toEqual([]);
 });

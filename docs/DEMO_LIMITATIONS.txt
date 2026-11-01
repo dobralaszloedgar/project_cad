@@ -37,13 +37,21 @@ calculation, pressure drop, transport resistance, changing residence time with f
 kinetic regression, equilibrium reversal or mechanical sizing.
 Splitter: equal composition in both outlets. The secondary fraction is bounded
 0..0.95. It recycles A and B together, not selectively unreacted A.
-Distillation: one ideal binary equilibrium contact with fixed distillate cut d and
+Legacy distillation (no explicit FUG/MESH configuration): one ideal binary equilibrium contact with fixed distillate cut d and
 constant relative volatility alpha. Solve zA = d*yA + (1-d)*xA with
   yA = alpha*xA / (1 + (alpha-1)*xA).
 Bisection conserves component flows. It assumes equal outlet temperature and the
 same sensible enthalpy model; no latent heat, stage count, reflux, saturation
 properties, azeotropes, reboiler or condenser energy prediction. A zero modeled
 duty does NOT mean a real separation requires no energy.
+Explicit FUG and MESH modes now support multistage shortcut design and caloric
+equilibrium-stage calculations respectively. See DISTILLATION.txt. FUG has no
+stage profiles or separate end duties. MESH uses low-pressure VLE (Raoult or
+Modified UNIFAC), ideal trays, one feed, total condenser and kettle reboiler;
+no tray efficiency, side draws or liquid–liquid stability search. Optional
+post-solve sieve-tray hydraulics reports flooding/weeping from tower geometry
+and supplied liquid density/surface tension. It does not feed back into the
+separation, pressure profile or duties; see DISTILLATION.txt and AI_GUIDE.txt.
 
 Recycle: automatically tear a stream returning to a mixer, topologically solve,
 and use direct substitution for up to 500 iterations. Convergence requires the
@@ -58,7 +66,7 @@ mechanical CAD claims. A WebGL fallback preserves the 2D editor.
 
 Deferred: the planned approximately 2,000-chemical database; validated
 real-fluid models; selective recovery model; multiple recycle loops;
-multistage distillation; sketch import; image/segmentation AI; public AI hosting;
+industrial column hydraulics and efficiencies; sketch import; image/segmentation AI; public AI hosting;
 arbitrary pipe rerouting; full multi-selection UI; multitab edit
 conflict resolution.
 

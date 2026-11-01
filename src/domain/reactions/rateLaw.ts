@@ -2,6 +2,7 @@ import type { Chemical as ChemicalComponent } from "../thermo/data";
 import type { RateLaw, RateVariable } from "./rateLawSchema";
 import { compileRateExpression, reservedRateSymbols } from "./rateExpression";
 import { rateLawSchema } from "./rateLawSchema";
+import type { Reaction } from "./schema";
 
 export const basisOptions: {
   value: RateVariable["basis"];
@@ -86,6 +87,94 @@ export function defaultRateLaw(
     denominatorPower: 1,
     expression: "",
   };
+}
+
+/** The same law drives the equation preview and the packed-bed calculation. */
+export function reactionRateLaw(reaction: Reaction): RateLaw {
+  if (reaction.rateLaw) return reaction.rateLaw;
+  const law = defaultRateLaw(
+    reaction.basisComponentId,
+    true,
+    reaction.rateConstant,
+    reaction.order,
+  );
+  law.parameters[0] = {
+    ...law.parameters[0],
+    activationEnergy: reaction.activationEnergy,
+    referenceTemperature: reaction.referenceTemperature,
+  };
+  return law;
+}
+
+export function rateSymbolIssue(law: RateLaw, previous: string, next: string) {
+  if (previous === next) return undefined;
+  if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(next))
+    return "Use a letter followed by letters, digits or underscores (up to 40 characters).";
+  if (reservedRateSymbols.has(next)) return `${next} is reserved.`;
+  if ([...law.variables, ...law.parameters].some((row) => row.symbol === next))
+    return `${next} is already defined. Choose a unique symbol.`;
+  if (["kf", "kr"].includes(previous))
+    return "kf and kr are the table builder constants. Add a parameter for a custom name.";
+}
+
+/** Rename whole identifiers, including the inactive custom-expression draft. */
+export function renameRateSymbol(
+  law: RateLaw,
+  previous: string,
+  next: string,
+): RateLaw {
+  const issue = rateSymbolIssue(law, previous, next);
+  if (issue) throw new Error(issue);
+  const rename = (symbol: string) => (symbol === previous ? next : symbol);
+  return {
+    ...law,
+    variables: law.variables.map((row) => ({
+      ...row,
+      symbol: rename(row.symbol),
+    })),
+    parameters: law.parameters.map((row) => ({
+      ...row,
+      symbol: rename(row.symbol),
+    })),
+    forward: law.forward.map((row) => ({
+      ...row,
+      variable: rename(row.variable),
+    })),
+    reverse: law.reverse.map((row) => ({
+      ...row,
+      variable: rename(row.variable),
+    })),
+    adsorption: law.adsorption.map((row) => ({
+      ...row,
+      variable: rename(row.variable),
+      parameter: rename(row.parameter),
+    })),
+    // Match numbers before symbols so a variable named e cannot change 1e-3.
+    expression: law.expression.replace(
+      /(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[A-Za-z][A-Za-z0-9_]*/g,
+      rename,
+    ),
+  };
+}
+
+export function rateParameterValues(law: RateLaw, temperature: number) {
+  if (!Number.isFinite(temperature) || temperature <= 0)
+    throw new Error("Rate evaluation needs a positive temperature.");
+  return Object.fromEntries(
+    law.parameters.map((p) => {
+      const value =
+        p.value *
+        (p.activationEnergy === undefined
+          ? 1
+          : Math.exp(
+              (-p.activationEnergy / 8.31446261815324) *
+                (1 / temperature - 1 / p.referenceTemperature!),
+            ));
+      // The expression parser checks each value when used. Inactive table
+      // constants must not invalidate a law that does not reference them.
+      return [p.symbol, value];
+    }),
+  );
 }
 export function rateLawIssues(
   law: RateLaw,
@@ -231,15 +320,7 @@ export function rateVariableValues(
                 ? (masses[v.componentId] ?? 0) / mass
                 : 0;
   }
-  for (const p of law.parameters)
-    values[p.symbol] =
-      p.value *
-      (p.activationEnergy === undefined
-        ? 1
-        : Math.exp(
-            (-p.activationEnergy / values.R) *
-              (1 / state.temperature - 1 / p.referenceTemperature!),
-          ));
+  Object.assign(values, rateParameterValues(law, state.temperature));
   return values;
 }
 export function compileRateLaw(

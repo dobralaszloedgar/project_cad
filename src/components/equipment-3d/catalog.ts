@@ -111,28 +111,33 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     tag: "R-101",
     assembly: "Fixed-bed catalytic reactor",
     description:
-      "A vertical pressure vessel containing two packed catalyst beds and distribution plates.",
+      "A downflow pressure vessel with fine ceramic catalyst packing, liquid distributors and screened bed supports.",
     color: "#a67a43",
     height: 4.25,
     features: [
-      ["Catalyst beds", "Packed pellets in two supported sections"],
-      ["Pressure vessel", "Dished heads, flanges and support skirt"],
-      ["Instrumentation", "Temperature probes and pressure gauge"],
+      ["Catalyst beds", "Small ceramic pellets with inert support layers"],
+      [
+        "Liquid distribution",
+        "Perforated trays, fine screens and a bottom collector",
+      ],
+      ["Pressure vessel", "Dished heads, bolted cover and welded shell"],
     ],
-    section: "Reveal the catalyst pellets, bed supports and feed distributor.",
+    section:
+      "Inspect both catalyst beds, liquid distributors and outlet collector.",
   },
   Distillation: {
     title: "Distillation column",
     tag: "D-101",
     assembly: "Tray distillation system",
     description:
-      "A tray column with gravity reflux from an elevated condenser and a low-mounted reboiler.",
+      "A valve-tray column with an overhead condenser, reflux receiver, controlled reflux split and thermosiphon reboiler.",
     color: "#367f70",
     height: 6.95,
     features: [
       ["Column internals", "Eight trays with alternating downcomers"],
       ["Service access", "Two railed platforms and access ladder"],
       ["Thermal loop", "Overhead condenser and bottom reboiler"],
+      ["Reflux circuit", "Receiver, three-way tee and separate branch valves"],
     ],
     section: "Inspect the tray stack and the alternating liquid downcomers.",
   },

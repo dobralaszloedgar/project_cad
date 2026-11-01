@@ -201,6 +201,18 @@ function buildArrangement(project: Project): SystemExample {
     title: unit.name,
     position: [0, 0, 0],
     trayCount: unit.params.trayCount,
+    column:
+      unit.kind === "Distillation" && unit.params.distillation?.hydraulics
+        ? {
+            diameter: unit.params.distillation.hydraulics.diameter,
+            traySpacing: unit.params.distillation.hydraulics.traySpacing,
+            trayType: "sieve",
+            feedTray:
+              unit.params.distillation.method === "mesh"
+                ? unit.params.distillation.feedTray
+                : undefined,
+          }
+        : undefined,
     color:
       colors[
         (
@@ -223,10 +235,17 @@ function buildArrangement(project: Project): SystemExample {
   });
   let failure: unknown;
   const preferred = templateArrangement(equipment);
+  // Larger configured towers need wider bays as well as wider routing envelopes.
+  const geometryScale = Math.max(
+    1,
+    ...equipment.map((item) =>
+      item.kind === "Distillation" ? (item.column?.diameter ?? 1.2) / 1.2 : 1,
+    ),
+  );
   const candidates: { items: EquipmentInstance[]; site?: PlantSite }[] = [
     ...(preferred ? [preferred] : []),
     ...[1, 1.2, 1.5].map((spacing) =>
-      arrange(equipment, connections.length, spacing),
+      arrange(equipment, connections.length, spacing * geometryScale),
     ),
   ];
   for (const { items, site } of candidates) {
@@ -260,6 +279,10 @@ export function buildProjectPlant(project: Project): SystemExample {
       kind,
       name,
       params.trayCount,
+      params.distillation?.hydraulics?.diameter,
+      params.distillation?.hydraulics?.traySpacing,
+      params.distillation?.method,
+      params.distillation?.feedTray,
     ]),
     project.edges.map(
       ({ id, source, target, sourcePort, targetPort, color }) => [

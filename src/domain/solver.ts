@@ -17,6 +17,11 @@ import { thermoContext } from "./thermo/catalog";
 import { integratePackedBed, type BedPoint } from "./equipment/packed-bed";
 import { solvePackedBed, type PackedBedResult } from "./reactions/packed-bed";
 import {
+  solveFug,
+  solveMesh,
+  type DistillationResult,
+} from "./equipment/distillation";
+import {
   componentFlows,
   feedComposition,
   withComponentFlows,
@@ -47,6 +52,7 @@ export interface EquipmentResult {
   extent: number;
   profile?: BedPoint[];
   packedBed?: PackedBedResult;
+  distillation?: DistillationResult;
 }
 export interface Result {
   properties: Record<string, Properties>;
@@ -63,6 +69,18 @@ export interface Result {
   heatDuty: number;
   warnings: string[];
   tearId?: string;
+}
+/** Preserve the failing unit even when the underlying kernel only returns prose. */
+export class EquipmentSimulationError extends Error {
+  constructor(
+    public readonly unitId: string,
+    cause: unknown,
+  ) {
+    super(cause instanceof Error ? cause.message : "Simulation failed.", {
+      cause,
+    });
+    this.name = "EquipmentSimulationError";
+  }
 }
 export const flow = (s: Stream) =>
   s.components
@@ -370,6 +388,20 @@ export function operate(
       ];
       break;
     case "Distillation": {
+      if (p.distillation) {
+        const solved =
+          p.distillation.method === "mesh"
+            ? solveMesh(unit, mixed, settings)
+            : solveFug(unit, mixed, settings);
+        outputs = solved.outputs;
+        result.distillation = solved.result;
+        result.duty =
+          solved.result.method === "mesh"
+            ? solved.result.condenserDutyW + solved.result.reboilerDutyW
+            : outputs.reduce((sum, s) => sum + enthalpy(s, settings), 0) -
+              enthalpy(mixed, settings);
+        break;
+      }
       if (settings.modelId !== "ideal-gas") {
         const props = streamProperties(mixed, settings);
         const beta = props.vaporFraction;
@@ -535,7 +567,12 @@ export function simulate(
       const incoming = project.edges
         .filter((e) => e.target === n.id)
         .map((e) => (e.id === tear?.id ? guess : streams[e.id]));
-      const op = operate(n, incoming, settings);
+      let op: ReturnType<typeof operate>;
+      try {
+        op = operate(n, incoming, settings);
+      } catch (error) {
+        throw new EquipmentSimulationError(n.id, error);
+      }
       equipment[n.id] = op.result;
       for (const e of project.edges.filter((e) => e.source === n.id))
         streams[e.id] = op.outputs[e.sourcePort === "out2" ? 1 : 0];
@@ -619,7 +656,15 @@ export function simulate(
     result.warnings.push(
       "A splitter divides all components in the same proportions; it does not selectively separate chemicals.",
     );
-  if (project.units.some((n) => n.kind === "Distillation"))
+  for (const eq of Object.values(equipment)) {
+    if (eq.distillation) result.warnings.push(...eq.distillation.warnings);
+    if (eq.packedBed?.warnings) result.warnings.push(...eq.packedBed.warnings);
+  }
+  if (
+    project.units.some(
+      (n) => n.kind === "Distillation" && !n.params.distillation,
+    )
+  )
     result.warnings.push(
       settings.modelId === "ideal-gas"
         ? "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility of the first component to the remaining components (equal volatility). No stage count, latent heat or reboiler/condenser duties."

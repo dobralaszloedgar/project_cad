@@ -23,6 +23,8 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
+    "docs:ai-guide": "node --import tsx scripts/generate-ai-guide.ts",
+    "docs:ai-guide:check": "node --import tsx scripts/generate-ai-guide.ts --check",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",

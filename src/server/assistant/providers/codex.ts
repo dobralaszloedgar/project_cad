@@ -11,6 +11,7 @@ import { assistantInstructions } from "../../../assistant/tools";
 import { providerExecutable } from "../config";
 import { imageAttachments } from "../attachments";
 import { codexJson } from "./codex-json";
+import { codexSessionState } from "./tool-contract";
 import {
   currentProjectPrompt,
   type AssistantProvider,
@@ -210,7 +211,8 @@ export class CodexProvider implements AssistantProvider {
     }
   }
   async run(input: ProviderInput) {
-    const prompt = await currentProjectPrompt(input);
+    const sessionState = codexSessionState(input.conversation);
+    const prompt = sessionState.history + (await currentProjectPrompt(input));
     const rpc = new CodexRpc(input.cwd);
     let threadId = "",
       turnId = "";
@@ -266,10 +268,10 @@ export class CodexProvider implements AssistantProvider {
         developerInstructions: assistantInstructions,
         config,
       };
-      const thread = input.conversation.providerSession
+      const thread = sessionState.resume
         ? await rpc.request<{ thread: { id: string } }>("thread/resume", {
             ...common,
-            threadId: input.conversation.providerSession,
+            threadId: sessionState.resume,
             excludeTurns: true,
           })
         : await rpc.request<{ thread: { id: string } }>("thread/start", {
@@ -292,6 +294,7 @@ export class CodexProvider implements AssistantProvider {
           });
       threadId = thread.thread.id;
       input.session(threadId);
+      input.context(sessionState.context);
       rpc.onRequest = async (message) => {
         if (
           message.method !== "item/tool/call" ||

@@ -3,6 +3,7 @@ import { test, expect, type Page } from "./test";
 import { readFile } from "node:fs/promises";
 import { plantTemplate } from "../../src/domain/plant-templates";
 import type { Workspace } from "../../src/lib/revisions";
+import { parseProjectFile } from "../../src/lib/project-file";
 
 async function exported(page: Page): Promise<Workspace> {
   await page
@@ -17,7 +18,8 @@ async function exported(page: Page): Promise<Workspace> {
     .getByRole("button", { name: "Export project", exact: true })
     .click();
   const download = await pending;
-  return JSON.parse(await readFile((await download.path())!, "utf8"));
+  return parseProjectFile(await readFile((await download.path())!, "utf8"))
+    .workspace;
 }
 async function allVisible(page: Page) {
   return page.locator(".flow-wrapper").evaluate((container) => {

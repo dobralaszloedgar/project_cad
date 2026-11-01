@@ -12,6 +12,7 @@ import {
   getDefaultProjectDirectory,
   setDefaultProjectDirectory,
 } from "@/lib/project-preferences";
+import { connectProjectRoot } from "@/lib/storage";
 import styles from "./ProjectFolderSetup.module.css";
 
 export default function ProjectFolderSetup({
@@ -87,6 +88,7 @@ export default function ProjectFolderSetup({
       )
         throw new Error("Allow folder access or choose another folder.");
       await setDefaultProjectDirectory(selected);
+      await connectProjectRoot(selected);
       setDirectory(selected);
       onComplete();
       onConnected();
