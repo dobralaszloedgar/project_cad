@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { audioStartCount as starts, observeAudio } from "./sound-fixture";
+import { soundStyles } from "../../src/lib/audio/sound-design";
+import { SOUND_STORAGE_KEY } from "../../src/lib/audio/sound-preferences";
 
 test("sound is opt-in; each style and cue plays a real audio buffer", async ({
   page,
@@ -28,8 +30,18 @@ test("sound is opt-in; each style and cue plays a real audio buffer", async ({
     page.getByRole("button", { name: "Sound on", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
 
-  for (const style of ["Soft tactile", "Clean digital", "Warm wood"]) {
-    await page.getByRole("button", { name: new RegExp(style) }).click();
+  await page
+    .locator("summary")
+    .filter({ hasText: "Earlier sound options" })
+    .click();
+  for (const style of soundStyles) {
+    await page
+      .getByRole("button", {
+        name: new RegExp(
+          `^${style.collection === "original" ? style.name : `0[1-4].*${style.name}`}`,
+        ),
+      })
+      .click();
     const before = await starts(page);
     for (const cue of [
       "place component",
@@ -58,7 +70,16 @@ test("sound is opt-in; each style and cue plays a real audio buffer", async ({
   expect(await page.evaluate(() => window.__soundProbe.volumes.at(-1))).toBe(
     0.18,
   );
-  await page.getByRole("button", { name: /Soft tactile/ }).click();
+  await page
+    .getByRole("button", { name: /Felt keys/ })
+    .filter({
+      has: page.getByRole("heading", { name: "Felt keys", exact: true }),
+    })
+    .click();
+  await page
+    .locator("summary")
+    .filter({ hasText: "Earlier sound options" })
+    .click();
   await page
     .getByRole("button", { name: "Connect next pair", exact: true })
     .click();
@@ -174,7 +195,7 @@ test("mute and style changes cancel pending preview sounds", async ({
   await page
     .getByRole("button", { name: "Hear the sequence", exact: true })
     .click();
-  await page.getByRole("button", { name: /Clean digital/ }).click();
+  await page.getByRole("button", { name: /Porcelain/ }).click();
   const switchedStarts = await starts(page);
   await page.waitForTimeout(2400);
   expect(await starts(page)).toBe(switchedStarts);
@@ -206,12 +227,11 @@ test("mobile and keyboard users can add and connect without dragging", async ({
   await expect(
     page.getByRole("button", { name: "Sound on", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /Warm wood/ }).focus();
+  await page.getByRole("button", { name: /Water drop/ }).focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: /Warm wood/ })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(
+    page.getByRole("button", { name: /Water drop/ }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Add Mixer", exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(4);
   await page
@@ -223,4 +243,48 @@ test("mobile and keyboard users can add and connect without dragging", async ({
     fullPage: true,
     animations: "disabled",
   });
+});
+
+test("comparing the workspace sound preserves the chosen candidate and preference", async ({
+  page,
+}) => {
+  await observeAudio(page);
+  await page.addInitScript((key) => {
+    localStorage.setItem(
+      key,
+      JSON.stringify({ version: 1, enabled: true, volume: 18 }),
+    );
+  }, SOUND_STORAGE_KEY);
+  await page.goto("/sandbox/sound");
+  const comparison = page.getByRole("button", {
+    name: "Compare with Felt keys",
+    exact: true,
+  });
+  await expect(comparison).toBeDisabled();
+  await page.getByRole("button", { name: /Magnetic snap/ }).click();
+  expect(await page.evaluate(() => window.__soundProbe.contexts)).toBe(0);
+  await page.getByRole("button", { name: "Enable sound", exact: true }).click();
+  const candidate = await page.evaluate(() =>
+    window.__soundProbe.starts.at(-1),
+  );
+  const before = await starts(page);
+  await comparison.click();
+  expect(await starts(page)).toBe(before + 1);
+  const baseline = await page.evaluate(() => window.__soundProbe.starts.at(-1));
+  expect(baseline?.checksum).not.toBe(candidate?.checksum);
+  await expect(
+    page.getByRole("button", { name: /Magnetic snap/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("region", { name: "Practice canvas" }).getByRole("status"),
+  ).toContainText("Compare · Felt keys");
+  await page.getByRole("button", { name: /Magnetic snap/ }).click();
+  const replay = await page.evaluate(() => window.__soundProbe.starts.at(-1));
+  expect(replay?.checksum).toBe(candidate?.checksum);
+  expect(
+    await page.evaluate(
+      (key) => JSON.parse(localStorage.getItem(key)!),
+      SOUND_STORAGE_KEY,
+    ),
+  ).toEqual({ version: 1, enabled: true, volume: 18 });
 });

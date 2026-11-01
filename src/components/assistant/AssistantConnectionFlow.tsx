@@ -101,12 +101,17 @@ export default function AssistantConnectionFlow({
   }
   const [downloads, setDownloads] =
     useState<ReturnType<typeof assistantDownloads>>();
-  const [downloadError, setDownloadError] = useState(false);
+  const [downloadResult, setDownloadResult] = useState<{
+    attempt: number;
+    error: boolean;
+  }>();
   const [downloadStatus, setDownloadStatus] = useState<{
     url: string;
     available: boolean;
   }>();
   const [downloadAttempt, setDownloadAttempt] = useState(0);
+  const checkingManifest = downloadResult?.attempt !== downloadAttempt;
+  const downloadError = !checkingManifest && downloadResult?.error === true;
   const [selected, setSelected] = useState("");
   const [installing, setInstalling] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
@@ -153,11 +158,14 @@ export default function AssistantConnectionFlow({
   // Blob supports cross-origin HEAD requests. GitHub release links do not.
   const verifyDownload =
     !preview &&
+    !checkingManifest &&
+    !downloadError &&
     !!downloadUrl &&
     !needsNewInstaller &&
     new URL(downloadUrl).hostname.endsWith(".public.blob.vercel-storage.com");
   const checkingDownload =
     verifyDownload && downloadStatus?.url !== downloadUrl;
+  const checkingDownloads = checkingManifest || checkingDownload;
   const downloadUnavailable =
     verifyDownload &&
     downloadStatus?.url === downloadUrl &&
@@ -208,9 +216,11 @@ export default function AssistantConnectionFlow({
                 ) ?? available.installers[0]
               ).filename,
         );
+        setDownloadResult({ attempt: downloadAttempt, error: false });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setDownloadError(true);
+        if (!controller.signal.aborted)
+          setDownloadResult({ attempt: downloadAttempt, error: true });
       });
     return () => controller.abort();
   }, [downloadAttempt]);
@@ -251,7 +261,7 @@ export default function AssistantConnectionFlow({
     setInstalling(true);
   }
   function retryDownloads() {
-    setDownloadError(false);
+    if (checkingDownloads) return;
     setDownloadStatus(undefined);
     setDownloadAttempt((value) => value + 1);
   }
@@ -435,15 +445,50 @@ export default function AssistantConnectionFlow({
           ) : null}
 
           {stage === "download" ? (
-            <div className={styles.actions}>
-              {needsNewInstaller ? (
+            <div className={styles.actions} aria-busy={checkingDownloads}>
+              {checkingDownloads ? (
+                <div className={styles.notice} role="status">
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    disabled
+                  >
+                    <LoaderCircle size={15} className={styles.spinner} />
+                    {downloadAttempt > 0
+                      ? "Checking downloads…"
+                      : "Finding your download…"}
+                  </button>
+                </div>
+              ) : downloadError ? (
                 <div className={styles.notice} role="alert">
                   <p>
-                    The updated installer is not available yet. Your agent
-                    choices are saved. Check again shortly.
+                    We couldn’t check for installers. Try again. Your agent
+                    choices are saved.
                   </p>
-                  <button className={styles.secondary} onClick={retryDownloads}>
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    onClick={retryDownloads}
+                  >
                     <RefreshCw size={15} /> Retry downloads
+                  </button>
+                </div>
+              ) : needsNewInstaller ? (
+                <div className={styles.notice} role="status">
+                  <p>
+                    {downloadAttempt > 0
+                      ? "Checked again. The updated installer is still unavailable."
+                      : "The updated installer is not available yet."}{" "}
+                    This website needs version 0.1.4 or later; the available
+                    download is version {downloads?.version}. Your agent choices
+                    are saved.
+                  </p>
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    onClick={retryDownloads}
+                  >
+                    <RefreshCw size={15} /> Check for updates
                   </button>
                 </div>
               ) : downloadUnavailable ? (
@@ -452,11 +497,15 @@ export default function AssistantConnectionFlow({
                     Installer downloads are temporarily unavailable. Try again
                     shortly. Your agent choices are saved.
                   </p>
-                  <button className={styles.secondary} onClick={retryDownloads}>
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    onClick={retryDownloads}
+                  >
                     <RefreshCw size={15} /> Retry downloads
                   </button>
                 </div>
-              ) : download && !checkingDownload ? (
+              ) : download ? (
                 <>
                   <a
                     className={styles.primary}
@@ -513,21 +562,10 @@ export default function AssistantConnectionFlow({
                     ) : null}
                   </details>
                 </>
-              ) : downloadError ? (
-                <div className={styles.notice} role="alert">
-                  <p>
-                    We couldn’t load the installers. Try loading them again.
-                  </p>
-                  <button className={styles.secondary} onClick={retryDownloads}>
-                    <RefreshCw size={15} /> Retry downloads
-                  </button>
-                </div>
               ) : (
                 <button className={styles.primary} disabled>
                   <LoaderCircle size={16} className={styles.spinner} />
-                  {checkingDownload
-                    ? "Checking download…"
-                    : "Finding your download…"}
+                  Finding your download…
                 </button>
               )}
               <div className={styles.alreadyInstalled}>

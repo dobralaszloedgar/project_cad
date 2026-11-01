@@ -47,6 +47,7 @@ import {
 import {
   soundCues,
   soundStyles,
+  workspaceSound,
   type SoundCue,
   type SoundStyle,
 } from "@/lib/audio/sound-design";
@@ -73,6 +74,10 @@ const cueIcons = {
   connect: Waypoints,
   remove: Unplug,
 };
+const newStyles = soundStyles.filter((style) => style.collection === "new");
+const originalStyles = soundStyles.filter(
+  (style) => style.collection === "original",
+);
 
 function startingNodes(): EquipmentNode[] {
   return [
@@ -147,6 +152,10 @@ function SoundWave({ style }: { style: SoundStyle }) {
     soft: [3, 5, 8, 16, 28, 35, 28, 21, 15, 11, 8, 6, 4, 3, 2],
     digital: [2, 3, 31, 8, 19, 5, 35, 7, 23, 5, 14, 4, 8, 3, 2],
     wood: [3, 24, 34, 17, 8, 4, 20, 29, 14, 6, 3, 9, 5, 3, 2],
+    felt: [2, 6, 13, 22, 30, 33, 28, 22, 17, 12, 9, 6, 4, 3, 2],
+    porcelain: [2, 23, 35, 18, 29, 14, 22, 11, 15, 8, 10, 5, 6, 3, 2],
+    magnetic: [2, 6, 32, 35, 19, 8, 4, 20, 13, 6, 3, 2, 2, 2, 2],
+    droplet: [2, 7, 17, 30, 22, 12, 7, 16, 24, 18, 11, 7, 4, 3, 2],
   }[style];
   return (
     <svg
@@ -169,7 +178,7 @@ function SoundWave({ style }: { style: SoundStyle }) {
 }
 
 function Playground() {
-  const [style, setStyle] = useState<SoundStyle>("soft");
+  const [style, setStyle] = useState<SoundStyle>("felt");
   const [enabled, setEnabled] = useState(false);
   const [enabling, setEnabling] = useState(false);
   const [volume, setVolume] = useState(35);
@@ -190,6 +199,7 @@ function Playground() {
   const dragOrigin = useRef<{ x: number; y: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const flow = useReactFlow<EquipmentNode, Edge>();
+  const selectedStyle = soundStyles.find((option) => option.id === style)!;
 
   useEffect(
     () => () => {
@@ -212,15 +222,26 @@ function Playground() {
   }, []);
 
   const trigger = useCallback(
-    (cue: SoundCue, action: string) => {
+    (cue: SoundCue, action: string, previewStyle: SoundStyle = style) => {
       setLastAction(action);
       if (highlightTimer.current) clearTimeout(highlightTimer.current);
       setActiveCue(cue);
       highlightTimer.current = setTimeout(() => setActiveCue(null), 400);
-      player.current?.play(style, cue);
+      player.current?.play(previewStyle, cue);
     },
     [style],
   );
+
+  function chooseStyle(nextStyle: SoundStyle) {
+    stopSequence();
+    setStyle(nextStyle);
+    if (enabled)
+      trigger(
+        "place",
+        `Preview · ${soundStyles.find((option) => option.id === nextStyle)!.name}`,
+        nextStyle,
+      );
+  }
 
   async function toggleSound() {
     stopSequence();
@@ -355,7 +376,7 @@ function Playground() {
         <span className={styles.breadcrumb}>Sound sandbox</span>
         <span className={styles.previewBadge}>Preview</span>
         <Link
-          href="/"
+          href="/workspace"
           className={styles.backLink}
           aria-label="Back to workspace"
         >
@@ -372,8 +393,8 @@ function Playground() {
             </div>
             <h1>Sound for building.</h1>
             <p>
-              Try three subtle sound styles as you place components and wire
-              them together.
+              Four new textures for placing and connecting. Find the one that
+              feels right.
             </p>
           </div>
           <div className={styles.audioControls}>
@@ -428,19 +449,21 @@ function Playground() {
           aria-label="Choose a sound style"
         >
           <div className={styles.sectionLabel}>
-            <span>01</span>Choose a sound
+            <span>01</span>Explore the new sounds
+            <span className={styles.sectionNote}>
+              {enabled
+                ? "Select a sound to hear a placement. Click again to replay."
+                : "Enable sound, then select a card to listen."}
+            </span>
           </div>
-          <div className={styles.styleGrid}>
-            {soundStyles.map((option, index) => (
+          <div className={`${styles.styleGrid} ${styles.newStyles}`}>
+            {newStyles.map((option, index) => (
               <button
                 key={option.id}
                 type="button"
                 className={styles.styleCard}
                 aria-pressed={style === option.id}
-                onClick={() => {
-                  stopSequence();
-                  setStyle(option.id);
-                }}
+                onClick={() => chooseStyle(option.id)}
               >
                 <div className={styles.styleTop}>
                   <span className={styles.styleNumber}>0{index + 1}</span>
@@ -458,14 +481,61 @@ function Playground() {
                   <SoundWave style={option.id} />
                 </div>
                 <p>{option.description}</p>
-                {option.id === "soft" && (
-                  <span className={styles.recommended}>
-                    Suggested starting point
-                  </span>
-                )}
+                <span className={styles.listenHint}>
+                  <Play size={11} />
+                  {enabled ? "Listen to placement" : "Enable sound to listen"}
+                </span>
               </button>
             ))}
           </div>
+          <div className={styles.comparisonBar}>
+            <div>
+              <span className={styles.referenceDot} />
+              <strong>{workspaceSound.name}</strong>
+              <span>Your current workspace sound</span>
+            </div>
+            <button
+              type="button"
+              disabled={!enabled}
+              onClick={() => {
+                stopSequence();
+                trigger(
+                  "place",
+                  `Compare · ${workspaceSound.name}`,
+                  workspaceSound.id,
+                );
+              }}
+              aria-label={`Compare with ${workspaceSound.name}`}
+            >
+              <Play size={13} />
+              Listen to compare
+            </button>
+          </div>
+          <details className={styles.earlierStyles}>
+            <summary>
+              Earlier sound options
+              <span>Soft tactile, Clean digital, Warm wood</span>
+              <ChevronRight size={13} />
+            </summary>
+            <div className={styles.originalOptions}>
+              {originalStyles.map((option) => (
+                <button
+                  type="button"
+                  key={option.id}
+                  aria-pressed={style === option.id}
+                  onClick={() => chooseStyle(option.id)}
+                >
+                  <SoundWave style={option.id} />
+                  <span>{option.name}</span>
+                  {style === option.id ? (
+                    <Check size={13} />
+                  ) : (
+                    <Play size={11} />
+                  )}
+                </button>
+              ))}
+            </div>
+          </details>
         </section>
 
         <div className={styles.sectionLabel}>
@@ -631,8 +701,8 @@ function Playground() {
             aria-label="Preview individual sounds"
           >
             <div className={styles.cueHeading}>
-              <h2>Every little moment.</h2>
-              <span>Short sounds. Just enough feedback.</span>
+              <h2>{selectedStyle.name}</h2>
+              <span>Try each moment, or hear all four.</span>
             </div>
             <div className={styles.cueList}>
               {soundCues.map((cue) => {
@@ -684,7 +754,7 @@ function Playground() {
             <AudioLines size={14} />
             Sounds are previewed only in this sandbox.
           </span>
-          <Link href="/">
+          <Link href="/workspace">
             Made for your flow
             <ArrowUpRight size={14} />
           </Link>

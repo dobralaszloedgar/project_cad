@@ -10,7 +10,7 @@ import { SOUND_STORAGE_KEY } from "../../src/lib/audio/sound-preferences";
 
 const fixture: Project = {
   version: 1,
-  name: "Soft tactile workspace",
+  name: "Felt keys workspace",
   units: [
     newUnit("Feed", "F-101", 0, 100),
     newUnit("Heater", "H-101", 320, 100),
@@ -21,7 +21,7 @@ const fixture: Project = {
 
 async function expectCue(page: Page, cue: SoundCue) {
   const actual = await page.evaluate(() => window.__soundProbe.starts.at(-1)!);
-  const expected = createSoundSamples("soft", cue, actual.sampleRate);
+  const expected = createSoundSamples("felt", cue, actual.sampleRate);
   expect(actual.running).toBe(true);
   expect(actual.frames).toBe(expected.length);
   expect(actual.checksum).toBeCloseTo(
@@ -60,7 +60,7 @@ test.beforeEach(async ({ page }) => {
   await loadProject(page, fixture);
 });
 
-test("real library placement and movement use the exact approved Soft tactile cue", async ({
+test("real library placement and movement use the exact approved Felt keys cue", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -190,6 +190,7 @@ test("saved volume and mute survive reload without playing on page load", async 
   page,
 }, info) => {
   const panel = await settings(page);
+  await expect(panel.getByText("Felt keys", { exact: true })).toBeVisible();
   const toggle = panel.getByRole("switch", {
     name: "Canvas sounds",
     exact: true,

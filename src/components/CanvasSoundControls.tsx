@@ -1,4 +1,5 @@
 import { Play, Volume2, VolumeX } from "lucide-react";
+import { workspaceSound } from "@/lib/audio/sound-design";
 import type { CanvasSound } from "./useCanvasSound";
 import styles from "./CanvasSoundControls.module.css";
 
@@ -12,8 +13,8 @@ export function CanvasSoundToggle({ sound }: { sound: CanvasSound }) {
       title={
         sound.error ||
         (sound.enabled
-          ? "Soft tactile sounds on · Click to mute"
-          : "Enable Soft tactile sounds")
+          ? `${workspaceSound.name} sounds on · Click to mute`
+          : `Enable ${workspaceSound.name} sounds`)
       }
       onClick={() => sound.setEnabled(!sound.enabled)}
     >
@@ -46,7 +47,7 @@ export default function CanvasSoundSettings({ sound }: { sound: CanvasSound }) {
         </button>
       </div>
       <p>
-        <strong>Soft tactile</strong>
+        <strong>{workspaceSound.name}</strong>
         <br />
         Gentle taps when you place equipment, connect streams, or remove items.
       </p>

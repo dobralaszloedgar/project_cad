@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { SoundPlayer } from "@/lib/audio/sound-player";
-import type { SoundCue } from "@/lib/audio/sound-design";
+import { workspaceSound, type SoundCue } from "@/lib/audio/sound-design";
 import {
   DEFAULT_SOUND_PREFERENCES,
   soundPreferenceSnapshot,
@@ -56,7 +56,7 @@ export function useCanvasSound() {
     try {
       const current = (player.current ??= new SoundPlayer());
       if (current.isReady) {
-        current.play("soft", cue);
+        current.play(workspaceSound.id, cue);
         return;
       }
       // A saved preference resumes on the next edit, never automatically on load.
@@ -72,7 +72,7 @@ export function useCanvasSound() {
             return;
           }
           current.setVolume(latest.volume / 100);
-          current.play("soft", cue);
+          current.play(workspaceSound.id, cue);
         })
         .catch(failed);
     } catch {

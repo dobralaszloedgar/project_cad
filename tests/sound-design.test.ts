@@ -20,7 +20,7 @@ describe("sandbox sound design", () => {
             energy += sample * sample;
           }
           expect(duration).toBeGreaterThan(0.03);
-          expect(duration).toBeLessThan(0.25);
+          expect(duration).toBeLessThan(0.32);
           expect(peak).toBeGreaterThan(0.05);
           expect(peak).toBeLessThan(0.73);
           expect(Math.sqrt(energy / samples.length)).toBeGreaterThan(0.015);
@@ -39,7 +39,8 @@ describe("sandbox sound design", () => {
     );
     for (let i = 1; i < signals.length; i++) {
       const difference = signals[i].reduce(
-        (sum, sample, index) => sum + Math.abs(sample - signals[0][index]),
+        (sum, sample, index) =>
+          sum + Math.abs(sample - (signals[0][index] ?? 0)),
         0,
       );
       expect(difference / signals[i].length).toBeGreaterThan(0.02);
@@ -50,6 +51,34 @@ describe("sandbox sound design", () => {
       expect(energy(createSoundSamples(style.id, "wire", 48000))).toBeLessThan(
         energy(createSoundSamples(style.id, "place", 48000)) * 0.3,
       );
+    }
+  });
+
+  it("balances the new materials against Soft tactile without clipping or a DC offset", () => {
+    const energy = (samples: Float32Array) =>
+      samples.reduce((sum, sample) => sum + sample * sample, 0);
+    for (const rate of [44100, 48000]) {
+      for (const style of soundStyles.filter(
+        (option) => option.collection === "new",
+      )) {
+        for (const cue of soundCues) {
+          const samples = createSoundSamples(style.id, cue.id, rate);
+          const reference = createSoundSamples("soft", cue.id, rate);
+          const ratio = energy(samples) / energy(reference);
+          expect(ratio).toBeGreaterThan(0.75);
+          expect(ratio).toBeLessThan(1.05);
+          expect(
+            Math.abs(
+              samples.reduce((sum, sample) => sum + sample, 0) / samples.length,
+            ),
+          ).toBeLessThan(0.0001);
+          let nearPeak = 0;
+          for (const sample of samples)
+            if (Math.abs(sample) > 0.679) nearPeak++;
+          // Headroom comes from scaling the whole sound, not flattening its peaks.
+          expect(nearPeak / samples.length).toBeLessThan(0.005);
+        }
+      }
     }
   });
 });
