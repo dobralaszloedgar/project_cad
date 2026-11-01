@@ -1,8 +1,19 @@
+import { mockAssistantDownloads } from "./assistant-download-fixture";
 import { test, expect } from "./test";
-import { installAssistant } from "./assistant-fixture";
+import {
+  installAssistant,
+  approveAssistant,
+  pendingAssistantConnection,
+} from "./assistant-fixture";
 
 const healthUrl = "http://127.0.0.1:43118/health";
 test.beforeEach(async ({ page }) => {
+  await mockAssistantDownloads(page);
+  await page.route("https://*.public.blob.vercel-storage.com/**", (route) =>
+    route.request().method() === "HEAD"
+      ? route.fulfill({ status: 200 })
+      : route.fallback(),
+  );
   // Keep the independent folder prompt out of these assistant setup scenarios.
   await page.addInitScript(() => {
     Object.defineProperty(window, "showDirectoryPicker", {
@@ -88,14 +99,16 @@ test("download, setup and automatic detection lead into a real chat", async ({
   );
   await page
     .context()
-    .route("https://github.com/**/releases/download/**", (request) =>
-      request.fulfill({
-        contentType: "application/octet-stream",
-        headers: {
-          "Content-Disposition": 'attachment; filename="assistant-test.txt"',
-        },
-        body: "Test download, not an installer.",
-      }),
+    .route(
+      /https:\/\/(github\.com\/.*\/releases\/download|[^/]+\.public\.blob\.vercel-storage\.com)\//,
+      (request) =>
+        request.fulfill({
+          contentType: "application/octet-stream",
+          headers: {
+            "Content-Disposition": 'attachment; filename="assistant-test.txt"',
+          },
+          body: "Test download, not an installer.",
+        }),
     );
   try {
     await page.goto("/workspace");
@@ -122,17 +135,15 @@ test("download, setup and automatic detection lead into a real chat", async ({
     await expect(
       panel.getByRole("heading", { name: "Your assistant is ready" }),
     ).toBeVisible({ timeout: 7000 });
-    const popupPromise = page.waitForEvent("popup");
+
     await panel
       .getByRole("button", { name: "Connect assistant", exact: true })
       .click();
-    const popup = await popupPromise;
+
     await expect(
-      panel.getByRole("heading", { name: "Approve the connection" }),
+      panel.getByRole("heading", { name: "Approve in Project CAD Assistant" }),
     ).toBeVisible();
-    await popup
-      .getByRole("button", { name: "Connect assistant", exact: true })
-      .click();
+    await approveAssistant(page);
     await expect(panel.getByLabel("Process prompt")).toBeVisible();
     await expect(
       panel.getByRole("region", { name: "Assistant connection" }),
@@ -170,18 +181,16 @@ test("an installed assistant goes straight to connect and remembers the selected
     await expect(
       panel.getByRole("link", { name: /^Download for/ }),
     ).toHaveCount(0);
-    await expect(panel.getByText("Default: Claude Code")).toBeVisible();
-    const popupPromise = page.waitForEvent("popup");
+    await expect(panel.getByText("Claude Code", { exact: true })).toBeVisible();
+
     await panel
       .getByRole("button", { name: "Connect assistant", exact: true })
       .click();
-    const popup = await popupPromise;
-    await expect(popup.locator("body")).toContainText(
-      "Selected agents: Claude Code",
-    );
-    await popup
-      .getByRole("button", { name: "Connect assistant", exact: true })
-      .click();
+
+    expect((await pendingAssistantConnection(page)).agents.providers).toEqual([
+      "claude",
+    ]);
+    await approveAssistant(page);
     await expect(panel.getByLabel("Process prompt")).toBeVisible();
     await panel
       .getByRole("button", { name: "Assistant connection", exact: true })
@@ -206,16 +215,14 @@ test("an installed assistant goes straight to connect and remembers the selected
     await panel
       .getByLabel("Default agent", { exact: true })
       .selectOption("muse");
-    await panel.getByRole("button", { name: "Continue", exact: true }).click();
-    const updatePopupPromise = page.waitForEvent("popup");
     await panel
-      .getByRole("button", { name: "Connect assistant", exact: true })
+      .getByRole("button", { name: "Connect agents", exact: true })
       .click();
-    const updatePopup = await updatePopupPromise;
-    await expect(updatePopup.locator("body")).toContainText("Default: Muse");
-    await updatePopup
-      .getByRole("button", { name: "Connect assistant", exact: true })
-      .click();
+
+    expect((await pendingAssistantConnection(page)).agents.preferred).toBe(
+      "muse",
+    );
+    await approveAssistant(page);
     await expect(
       panel.getByRole("button", { name: "Choose provider and model" }),
     ).toContainText("Muse");

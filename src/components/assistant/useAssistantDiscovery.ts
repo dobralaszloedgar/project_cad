@@ -10,6 +10,7 @@ export function useAssistantDiscovery(enabled: boolean) {
   const [availability, setAvailability] =
     useState<AssistantAvailability>("checking");
   const [checking, setChecking] = useState(true);
+  const [outdated, setOutdated] = useState(false);
   const [previouslyDetected, setPreviouslyDetected] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const checkAgain = useCallback(() => {
@@ -46,6 +47,14 @@ export function useAssistantDiscovery(enabled: boolean) {
           health.version === ASSISTANT_VERSION;
         if (!controller.signal.aborted) {
           setAvailability(available ? "available" : "unavailable");
+          setOutdated(
+            available &&
+              !(
+                "capabilities" in health &&
+                Array.isArray(health.capabilities) &&
+                health.capabilities.includes("desktop-consent-v1")
+              ),
+          );
           if (available) setPreviouslyDetected(true);
         }
       } catch {
@@ -72,5 +81,5 @@ export function useAssistantDiscovery(enabled: boolean) {
     };
   }, [enabled, attempt]);
 
-  return { availability, checking, previouslyDetected, checkAgain };
+  return { availability, checking, previouslyDetected, outdated, checkAgain };
 }

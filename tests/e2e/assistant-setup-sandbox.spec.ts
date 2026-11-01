@@ -1,14 +1,27 @@
 import { test, expect } from "@playwright/test";
-import { installAssistant } from "./assistant-fixture";
-import downloads from "../../public/downloads/assistant/downloads.json" with { type: "json" };
+import { installAssistant, approveAssistant } from "./assistant-fixture";
+import {
+  downloads,
+  mockAssistantDownloads,
+} from "./assistant-download-fixture";
 
 const healthUrl = "http://127.0.0.1:43118/health";
 const route = "/sandbox/assistant";
-const readyHealth = { name: "Project CAD assistant", version: 1 };
+const readyHealth = {
+  name: "Project CAD assistant",
+  version: 1,
+  capabilities: ["desktop-consent-v1"],
+};
 
 // These cases cover the connection stages for a returning user. Fresh agent
 // selection is exercised in assistant-agent-selection.spec.ts.
 test.beforeEach(async ({ page }) => {
+  await mockAssistantDownloads(page);
+  await page.route("https://*.public.blob.vercel-storage.com/**", (route) =>
+    route.request().method() === "HEAD"
+      ? route.fulfill({ status: 200 })
+      : route.fallback(),
+  );
   await page.addInitScript(() => {
     localStorage.setItem(
       "project-cad.assistant-agents",
@@ -17,11 +30,62 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test("a blocked installer stays on downloads and retry recovers saved choices", async ({
+  page,
+}) => {
+  let blocked = true;
+  await page.route(healthUrl, (request) =>
+    request.fulfill({ status: 503, json: { error: "Not running" } }),
+  );
+  await page.route("https://*.public.blob.vercel-storage.com/**", (request) =>
+    request.fulfill({
+      status: blocked ? 403 : 200,
+      body: blocked ? "Your store is blocked" : "",
+    }),
+  );
+  await page.goto(route);
+  const notice = page
+    .getByRole("region", { name: "Assistant connection", exact: true })
+    .getByRole("alert");
+  await expect(notice).toContainText(
+    "Installer downloads are temporarily unavailable",
+  );
+  await expect(page.getByRole("link", { name: /^Download for/ })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("heading", { name: "A quick setup on your computer" }),
+  ).toHaveCount(0);
+  blocked = false;
+  await page
+    .getByRole("button", { name: "Retry downloads", exact: true })
+    .click();
+  await expect(page.getByRole("link", { name: /^Download for/ })).toBeVisible();
+  await expect(notice).toHaveCount(0);
+  await expect(page.getByText("Codex", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Choose your agents" }),
+  ).toHaveCount(0);
+  blocked = true;
+  await page.getByText("Other platforms", { exact: true }).click();
+  await page
+    .getByLabel("Choose your installer")
+    .selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
+  await expect(notice).toBeVisible();
+  blocked = false;
+  await page
+    .getByRole("button", { name: "Retry downloads", exact: true })
+    .click();
+  await expect(
+    page.getByRole("link", { name: /^Download for/ }),
+  ).toHaveAttribute("href", /ProjectCAD-Assistant-windows-arm64-Setup\.exe$/);
+});
+
 test("downloads directly from Vercel Blob and exposes public checksums", async ({
   page,
 }) => {
   const base =
-    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.2";
+    "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.4";
   await page.route(healthUrl, (request) =>
     request.fulfill({ status: 503, json: { error: "Not running" } }),
   );
@@ -29,7 +93,7 @@ test("downloads directly from Vercel Blob and exposes public checksums", async (
     request.fulfill({
       json: {
         ...downloads,
-        version: "0.1.2",
+        version: "0.1.4",
         release: undefined,
         distribution: { provider: "vercel-blob", baseUrl: base },
       },
@@ -164,17 +228,15 @@ test("an existing assistant skips installation and completes real approval", asy
     await expect(page.getByRole("link", { name: /^Download for/ })).toHaveCount(
       0,
     );
-    const popupPromise = page.waitForEvent("popup");
+
     await page
       .getByRole("button", { name: "Connect assistant", exact: true })
       .click();
-    const popup = await popupPromise;
+
     await expect(
-      page.getByRole("heading", { name: "Approve the connection" }),
+      page.getByRole("heading", { name: "Approve in Project CAD Assistant" }),
     ).toBeVisible();
-    await popup
-      .getByRole("button", { name: "Connect assistant", exact: true })
-      .click();
+    await approveAssistant(page);
     await expect(
       page.getByRole("heading", { name: "You’re all connected" }),
     ).toBeVisible();
@@ -191,25 +253,33 @@ test("an existing assistant skips installation and completes real approval", asy
   }
 });
 
-test("blocked popup shows a recoverable connection error", async ({ page }) => {
-  await page.route(healthUrl, (request) =>
-    request.fulfill({ json: readyHealth }),
-  );
-  await page.addInitScript(() => {
-    window.open = () => null;
-  });
-  await page.goto(route);
-  await page
-    .getByRole("button", { name: "Connect assistant", exact: true })
-    .click();
-  await expect(
-    page
-      .getByRole("region", { name: "Assistant connection" })
-      .getByRole("alert"),
-  ).toHaveText("Allow the connection popup, then try again.");
-  await expect(
-    page.getByRole("button", { name: "Connect assistant", exact: true }),
-  ).toBeEnabled();
+test("connection works with popups blocked and never opens another page", async ({
+  page,
+}) => {
+  const cleanup = await installAssistant(page);
+  try {
+    await page.addInitScript(() => {
+      window.open = () => {
+        throw new Error("Unexpected browser popup");
+      };
+    });
+    await page.goto(route);
+    const pagesBefore = page.context().pages().length;
+    await page
+      .getByRole("button", { name: "Connect assistant", exact: true })
+      .click();
+    await expect(
+      page.getByText("Waiting for your approval", { exact: true }),
+    ).toBeVisible();
+    await approveAssistant(page);
+    await expect(
+      page.getByRole("heading", { name: "You’re all connected" }),
+    ).toBeVisible();
+    expect(page.context().pages()).toHaveLength(pagesBefore);
+  } finally {
+    await page.close();
+    await cleanup();
+  }
 });
 
 test("unavailable installers can be retried and other platforms can be selected", async ({
@@ -222,14 +292,14 @@ test("unavailable installers can be retried and other platforms can be selected"
   await page.route("**/downloads/assistant/downloads.json", (request) =>
     unavailable
       ? request.fulfill({ status: 503, json: {} })
-      : request.continue(),
+      : request.fulfill({ json: downloads }),
   );
   await page.goto(route);
   await expect(
     page
       .getByRole("region", { name: "Assistant connection" })
       .getByRole("alert"),
-  ).toContainText("We couldn’t load the installers");
+  ).toContainText("We couldn’t check for installers");
   unavailable = false;
   await page.getByRole("button", { name: "Retry downloads" }).click();
   await expect(page.getByRole("link", { name: /^Download for/ })).toBeVisible();
@@ -350,4 +420,199 @@ test("mobile flow stays readable, fits the viewport, and respects reduced motion
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("an older connector offers an update before connecting and never offers an incompatible installer", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/connections")) requests.push(request.url());
+  });
+  await page.route(healthUrl, (route) =>
+    route.fulfill({
+      json: {
+        name: "Project CAD assistant",
+        version: 1,
+        capabilities: ["agent-selection-v1"],
+      },
+    }),
+  );
+  let published = false;
+  let delayCheck = false;
+  let completeCheck!: () => void;
+  const pendingCheck = new Promise<void>((resolve) => {
+    completeCheck = resolve;
+  });
+  let manifestRequests = 0;
+  await page.route("**/downloads/assistant/downloads.json", async (route) => {
+    manifestRequests++;
+    if (delayCheck) await pendingCheck;
+    await route.fulfill({
+      json: published
+        ? downloads
+        : {
+            ...downloads,
+            version: "0.1.3",
+            distribution: {
+              ...downloads.distribution,
+              baseUrl: downloads.distribution.baseUrl.replace("0.1.4", "0.1.3"),
+            },
+          },
+    });
+  });
+  await page.goto("/sandbox/assistant");
+  await expect(
+    page.getByRole("heading", { name: "Update Project CAD Assistant" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("The updated installer is not available yet.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Download for/ })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("button", { name: "Connect assistant", exact: true }),
+  ).toHaveCount(0);
+  expect(requests).toEqual([]);
+  const initialRequests = manifestRequests;
+  delayCheck = true;
+  await page.getByRole("button", { name: "Check for updates" }).click();
+  await expect(
+    page.getByRole("button", { name: "Checking downloads…" }),
+  ).toBeDisabled();
+  await expect.poll(() => manifestRequests).toBe(initialRequests + 1);
+  await expect(page.getByRole("link", { name: /^Download for/ })).toHaveCount(
+    0,
+  );
+  completeCheck();
+  await expect(
+    page.getByText(
+      "Checked again. The updated installer is still unavailable.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(/the available download is version 0\.1\.3/),
+  ).toBeVisible();
+  await expect(page.getByText("Codex", { exact: true })).toBeVisible();
+  published = true;
+  await page.getByRole("button", { name: "Check for updates" }).click();
+  await expect(page.getByRole("link", { name: /^Download for/ })).toBeVisible();
+  expect(page.context().pages()).toHaveLength(1);
+});
+
+test("a failed update check replaces stale results and recovers only when the new installer is reachable", async ({
+  page,
+}) => {
+  await page.route(healthUrl, (route) =>
+    route.fulfill({
+      json: {
+        name: "Project CAD assistant",
+        version: 1,
+        capabilities: ["agent-selection-v1"],
+      },
+    }),
+  );
+  let response: "old" | "failed" | "current" = "old";
+  await page.route("**/downloads/assistant/downloads.json", (route) =>
+    response === "failed"
+      ? route.fulfill({ status: 503, body: "Unavailable" })
+      : route.fulfill({
+          json:
+            response === "old"
+              ? {
+                  ...downloads,
+                  version: "0.1.3",
+                  distribution: {
+                    ...downloads.distribution,
+                    baseUrl: downloads.distribution.baseUrl.replace(
+                      "0.1.4",
+                      "0.1.3",
+                    ),
+                  },
+                }
+              : downloads,
+        }),
+  );
+  let blocked = true;
+  let finishAvailability!: () => void;
+  const pendingAvailability = new Promise<void>((resolve) => {
+    finishAvailability = resolve;
+  });
+  let pauseAvailability = false;
+  await page.route(
+    "https://*.public.blob.vercel-storage.com/**",
+    async (route) => {
+      if (pauseAvailability) await pendingAvailability;
+      await route.fulfill({ status: blocked ? 403 : 200 });
+    },
+  );
+  await page.goto("/sandbox/assistant");
+  await expect(
+    page.getByRole("button", { name: "Check for updates" }),
+  ).toBeVisible();
+  response = "failed";
+  await page.getByRole("button", { name: "Check for updates" }).click();
+  const alert = page
+    .getByRole("region", { name: "Assistant connection", exact: true })
+    .getByRole("alert");
+  await expect(alert).toContainText("We couldn’t check for installers");
+  await expect(
+    page.getByText("The updated installer is not available yet.", {
+      exact: false,
+    }),
+  ).toHaveCount(0);
+  response = "current";
+  await page.getByRole("button", { name: "Retry downloads" }).click();
+  await expect(alert).toContainText(
+    "Installer downloads are temporarily unavailable",
+  );
+  await expect(page.getByRole("link", { name: /^Download for/ })).toHaveCount(
+    0,
+  );
+  pauseAvailability = true;
+  blocked = false;
+  await page.getByRole("button", { name: "Retry downloads" }).click();
+  await expect(
+    page.getByRole("button", { name: "Checking downloads…" }),
+  ).toBeDisabled();
+  await expect(page.getByRole("link", { name: /^Download for/ })).toHaveCount(
+    0,
+  );
+  finishAvailability();
+  await expect(page.getByRole("link", { name: /^Download for/ })).toBeVisible();
+  await expect(alert).toHaveCount(0);
+  await expect(page.getByText("Codex", { exact: true })).toBeVisible();
+});
+
+test("declining in the connector keeps choices and reports a clear retryable result", async ({
+  page,
+}) => {
+  const cleanup = await installAssistant(page);
+  try {
+    await page.goto(route);
+    await page
+      .getByRole("button", { name: "Connect assistant", exact: true })
+      .click();
+    await approveAssistant(page, false);
+    await expect(
+      page
+        .getByRole("region", { name: "Assistant connection" })
+        .getByRole("alert"),
+    ).toHaveText(
+      "Connection declined in the assistant. Your agent choices are saved.",
+    );
+    await expect(
+      page.getByRole("button", { name: "Connect assistant", exact: true }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("heading", { name: "Choose your agents" }),
+    ).toHaveCount(0);
+  } finally {
+    await page.close();
+    await cleanup();
+  }
 });

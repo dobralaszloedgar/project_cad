@@ -55,11 +55,11 @@ export function advancePlayback(
   } else if (progress >= 0.3 && target >= 0.3) {
     construction = Math.min(
       1,
-      construction + Math.min(1 / 24, (dt * speed) / 9),
+      construction + Math.min(1 / 24, (dt * speed) / 4.8),
     );
     // Simulation is its own visible beat, after the last recycle connection.
     if (construction === 1 && state.construction === 1)
-      simulation = Math.min(1, simulation + dt / 2.4);
+      simulation = Math.min(1, simulation + dt / 1.2);
     if (simulation === 1) completedFor += dt;
   }
 

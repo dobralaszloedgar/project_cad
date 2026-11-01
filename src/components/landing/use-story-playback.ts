@@ -32,7 +32,7 @@ export function useStoryPlayback(
   }, [enabled]);
   useAnimationFrame((time) => {
     // Motion caps its supplied delta at 40 ms. Use its real timestamp so a
-    // slower WebGL frame doesn't stretch a nine-second build into a minute.
+    // slower WebGL frame doesn't stretch the build sequence into a minute.
     const seconds =
       previousTime.current === null ? 0 : (time - previousTime.current) / 1000;
     previousTime.current = time;

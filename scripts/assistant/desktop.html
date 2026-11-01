@@ -1,33 +1,455 @@
 <!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project CAD Assistant</title>
-<style nonce="__NONCE__">
-:root{font:15px system-ui,sans-serif;color:#263d36;background:#f3f6f4;color-scheme:light dark}*{box-sizing:border-box}[hidden]{display:none!important}input[type=checkbox]{accent-color:#28715c}body{margin:0;padding:40px 20px}main{max-width:680px;margin:auto;background:#fff;border:1px solid #dce4df;border-radius:20px;padding:32px;box-shadow:0 12px 40px #20382d0a}header,.row,.actions{display:flex;align-items:center;gap:12px}header{justify-content:space-between;margin-bottom:30px}.brand{font-size:24px;font-weight:650;color:#28715c}.badge{font-size:12px;padding:7px 10px;border-radius:30px;background:#e9f2ee}h1{font-size:25px;letter-spacing:-.7px;margin:0 0 12px}p{line-height:1.6;color:#65766f}.actions{flex-wrap:wrap;margin:22px 0}button{font:inherit;border:1px solid #d3ded7;background:#fff;color:#28483a;border-radius:8px;padding:10px 15px;cursor:pointer}button.primary{background:#28715c;border-color:#28715c;color:white}button:disabled{opacity:.5;cursor:wait}section{border-top:1px solid #e3e9e5;margin-top:24px;padding-top:18px}h2{font-size:15px;margin-bottom:20px}.row{justify-content:space-between;margin:20px 0}.row p{font-size:12px;margin:5px 0}.row strong{font-size:14px}details summary{cursor:pointer;font-weight:600}label{display:block;margin-top:18px;font-size:13px}input[type=url],input[type=password]{font:inherit;color:inherit;width:100%;padding:10px;border:1px solid #d3ded7;border-radius:7px;background:transparent;margin-top:7px}small{display:block;color:#65766f;margin-top:6px;line-height:1.5}#message{min-height:24px;font-size:13px;margin-top:20px}.error{color:#af3832!important}footer{display:flex;justify-content:space-between;align-items:center;margin-top:24px;font-size:11px;color:#65766f}footer button{font-size:12px;padding:7px 10px}@media(max-width:480px){body{padding:12px}main{padding:22px}header{gap:6px}.brand{font-size:19px}.row{gap:10px}}@media(prefers-color-scheme:dark){:root{background:#15221c;color:#e0eae5}main{background:#1b2b23;border-color:#34483c}.brand{color:#83c7ae}p,small,footer{color:#abbeb2}.badge{background:#294b3a}section{border-color:#34483c}button{background:#25392d;color:#dfe9e2;border-color:#496451}input[type=url],input[type=password]{border-color:#496451}}
-#agent-choices{border:0;padding:0;margin:0}#preferred{font:inherit;padding:8px;margin-left:12px}</style>
-<main><header><span class="brand">▧ &nbsp;Project CAD</span><span class="badge" id="state">Checking…</span></header>
-<p>Your local assistant</p><p id="progress">Step 1 of 3 · Agents</p>
-<div id="agents-step"><h1>Choose your agents</h1><p>Select one or more agents to use with Project CAD. You can change these later.</p>
-<fieldset id="agent-choices" aria-label="Agents to connect">
-<label class="row"><span><strong>Codex</strong><small>Use your ChatGPT or API sign-in.</small></span><input type="checkbox" value="codex"></label>
-<label class="row"><span><strong>Claude Code</strong><small>Use your Claude Code sign-in.</small></span><input type="checkbox" value="claude"></label>
-<label class="row"><span><strong>Muse</strong><small>Use your Muse API key.</small></span><input type="checkbox" value="muse"></label>
-</fieldset><label id="default-label">Default agent <select id="preferred"></select></label><div class="actions"><button id="choose" class="primary" disabled>Continue</button><button id="cancel-agents" hidden>Cancel</button></div></div>
-<div id="setup-step" hidden><h1>Set up your agents</h1><p>Set up the agents you selected. Existing installations can be reused.</p>
-<div class="row" data-agent-row="codex"><div><strong>Codex</strong><p>Complete sign-in in the window that opens.</p></div><button data-provider="codex">Set up</button></div>
-<div class="row" data-agent-row="claude"><div><strong>Claude Code</strong><p>Complete sign-in in the window that opens.</p></div><button data-provider="claude">Set up</button></div>
-<div class="row" data-agent-row="muse"><div><strong>Muse</strong><p id="muse-status">Add your API key.</p></div><button id="configure">Configure</button></div>
-<div class="actions"><button id="continue" class="primary">Continue to connection</button><button data-manage>Manage agents</button></div></div>
-<div id="connect-step" hidden><h1>Connect to Project CAD</h1><p id="selected-summary"></p><p>Open your project, open the assistant, and choose Connect assistant. Approve the website and your selected agents in the connection window.</p><div class="actions"><button class="primary" data-action="open">Open Project CAD</button><button id="back-setup">Back to agent setup</button><button data-manage>Manage agents</button></div></div>
-<section><details id="settings"><summary>Assistant settings</summary><label>Project CAD website<input id="website" type="url" placeholder="https://projectcad.vercel.app"></label><small>Use the website address, or localhost for local development.</small><label><input id="autostart" type="checkbox"> Start the assistant when I log in</label><label>Muse API key<input id="key" type="password" autocomplete="new-password" placeholder="Leave blank to keep the saved key"></label><small>Your key stays in this computer’s private assistant settings.</small><label><input id="clear-key" type="checkbox"> Remove the saved Muse key</label><div class="actions"><button id="save" class="primary">Save settings</button></div></details></section>
-<p id="message" role="status"></p><footer><div class="actions"><button id="toggle" data-action="start">Start assistant</button><button id="refresh">Refresh</button></div><button data-action="logs">Open logs</button></footer></main>
-<script nonce="__NONCE__">
-const $=id=>document.getElementById(id), names={codex:'Codex',claude:'Claude Code',muse:'Muse'};
-let initialized=false, savedAgents=null, stage='agents', busy=false;
-const chosen=()=>Array.from(document.querySelectorAll('#agent-choices input:checked')).map(input=>input.value);
-function renderStage(){for(const value of ['agents','setup','connect']) $(value+'-step').hidden=stage!==value;$('progress').textContent=stage==='agents'?'Step 1 of 3 · Agents':stage==='setup'?'Step 2 of 3 · Setup':'Step 3 of 3 · Connect';$('cancel-agents').hidden=!savedAgents;$('choose').disabled=busy||!chosen().length;}
-function choices(preferred=$('preferred').value){const ids=chosen();$('preferred').replaceChildren(...ids.map(id=>new Option(names[id],id)));$('preferred').value=ids.includes(preferred)?preferred:ids[0]||'';$('default-label').hidden=ids.length<2;renderStage();}
-function editAgents(){document.querySelectorAll('#agent-choices input').forEach(input=>input.checked=!!savedAgents?.providers.includes(input.value));choices(savedAgents?.preferred);stage='agents';renderStage();}
-async function refresh(){const response=await fetch('/api/state');const value=await response.json();if(!response.ok)throw Error(value.error||'Reopen Project CAD Assistant from your desktop.');savedAgents=value.agents;$('state').textContent=value.running?'Running on this computer':savedAgents?'Stopped':'Choose your agents';$('toggle').textContent=value.running?'Stop assistant':'Start assistant';$('toggle').dataset.action=value.running?'stop':'start';$('toggle').disabled=busy||!savedAgents||(value.running&&!value.managed);document.querySelectorAll('[data-agent-row]').forEach(row=>row.hidden=!savedAgents?.providers.includes(row.dataset.agentRow));document.querySelector('[data-provider=codex]').textContent=value.codexAvailable?'Sign in':'Set up';document.querySelector('[data-provider=claude]').textContent=value.claudeAvailable?'Sign in':'Set up';$('muse-status').textContent=value.museConfigured?'API key configured. Access is checked when you send a message.':'Add your API key.';$('selected-summary').textContent=savedAgents?savedAgents.providers.map(id=>names[id]).join(', ')+' · Default: '+names[savedAgents.preferred]:'';if(!initialized){$('website').value=value.websiteUrl;$('autostart').checked=value.startAtLogin;stage=savedAgents?'setup':'agents';document.querySelectorAll('#agent-choices input').forEach(input=>input.checked=!!savedAgents?.providers.includes(input.value));choices(savedAgents?.preferred);initialized=true;}if(value.message)message(value.message,true);renderStage();}
-function message(text,error=false){$('message').textContent=text;$('message').className=error?'error':'';}
-async function action(body){busy=true;document.querySelectorAll('button').forEach(button=>button.disabled=true);message(body.action==='signin'?'Preparing your agent. Missing software will be downloaded from its official package…':'Working…');try{const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json','X-Project-CAD-Desktop':'1'},body:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw Error(value.error);message(value.message||'Done.');if(body.action==='agents')stage='setup';if(body.action==='settings'){$('key').value='';$('clear-key').checked=false;$('settings').open=false;}}catch(error){message(error.message,true);}finally{busy=false;document.querySelectorAll('button').forEach(button=>button.disabled=false);await refresh().catch(error=>message(error.message,true));renderStage();}}
-document.querySelectorAll('[data-action]').forEach(button=>button.onclick=()=>action({action:button.dataset.action}));document.querySelectorAll('[data-provider]').forEach(button=>button.onclick=()=>action({action:'signin',provider:button.dataset.provider}));document.querySelectorAll('[data-manage]').forEach(button=>button.onclick=editAgents);document.querySelectorAll('#agent-choices input').forEach(input=>input.onchange=()=>choices());$('choose').onclick=()=>action({action:'agents',agents:{providers:chosen(),preferred:$('preferred').value}});$('continue').onclick=()=>{stage='connect';renderStage();};$('back-setup').onclick=$('cancel-agents').onclick=()=>{stage='setup';renderStage();};$('refresh').onclick=()=>refresh().catch(error=>message(error.message,true));$('configure').onclick=()=>{$('settings').open=true;$('key').focus();};$('save').onclick=()=>action({action:'settings',websiteUrl:$('website').value,startAtLogin:$('autostart').checked,museApiKey:$('key').value,clearMuseKey:$('clear-key').checked});refresh().catch(error=>message(error.message,true));
-</script></html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Project CAD Assistant</title>
+  <style nonce="__NONCE__">
+    :root {
+      font:
+        15px system-ui,
+        sans-serif;
+      color: #263d36;
+      background: #f3f6f4;
+      color-scheme: light dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    [hidden] {
+      display: none !important;
+    }
+    input[type="checkbox"] {
+      accent-color: #28715c;
+    }
+    body {
+      margin: 0;
+      padding: 40px 20px;
+    }
+    main {
+      max-width: 680px;
+      margin: auto;
+      background: #fff;
+      border: 1px solid #dce4df;
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 12px 40px #20382d0a;
+    }
+    header,
+    .row,
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header {
+      justify-content: space-between;
+      margin-bottom: 30px;
+    }
+    .brand {
+      font-size: 24px;
+      font-weight: 650;
+      color: #28715c;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 7px 10px;
+      border-radius: 30px;
+      background: #e9f2ee;
+    }
+    h1 {
+      font-size: 25px;
+      letter-spacing: -0.7px;
+      margin: 0 0 12px;
+    }
+    p {
+      line-height: 1.6;
+      color: #65766f;
+    }
+    .actions {
+      flex-wrap: wrap;
+      margin: 22px 0;
+    }
+    button {
+      font: inherit;
+      border: 1px solid #d3ded7;
+      background: #fff;
+      color: #28483a;
+      border-radius: 8px;
+      padding: 10px 15px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: #28715c;
+      border-color: #28715c;
+      color: white;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+    section {
+      border-top: 1px solid #e3e9e5;
+      margin-top: 24px;
+      padding-top: 18px;
+    }
+    h2 {
+      font-size: 15px;
+      margin-bottom: 20px;
+    }
+    .row {
+      justify-content: space-between;
+      margin: 20px 0;
+    }
+    .row p {
+      font-size: 12px;
+      margin: 5px 0;
+    }
+    .row strong {
+      font-size: 14px;
+    }
+    details summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    label {
+      display: block;
+      margin-top: 18px;
+      font-size: 13px;
+    }
+    input[type="url"],
+    input[type="password"] {
+      font: inherit;
+      color: inherit;
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #d3ded7;
+      border-radius: 7px;
+      background: transparent;
+      margin-top: 7px;
+    }
+    small {
+      display: block;
+      color: #65766f;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    #message {
+      min-height: 24px;
+      font-size: 13px;
+      margin-top: 20px;
+    }
+    .error {
+      color: #af3832 !important;
+    }
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      font-size: 11px;
+      color: #65766f;
+    }
+    footer button {
+      font-size: 12px;
+      padding: 7px 10px;
+    }
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+      main {
+        padding: 22px;
+      }
+      header {
+        gap: 6px;
+      }
+      .brand {
+        font-size: 19px;
+      }
+      .row {
+        gap: 10px;
+      }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        background: #15221c;
+        color: #e0eae5;
+      }
+      main {
+        background: #1b2b23;
+        border-color: #34483c;
+      }
+      .brand {
+        color: #83c7ae;
+      }
+      p,
+      small,
+      footer {
+        color: #abbeb2;
+      }
+      .badge {
+        background: #294b3a;
+      }
+      section {
+        border-color: #34483c;
+      }
+      button {
+        background: #25392d;
+        color: #dfe9e2;
+        border-color: #496451;
+      }
+      input[type="url"],
+      input[type="password"] {
+        border-color: #496451;
+      }
+    }
+  </style>
+  <main>
+    <header>
+      <span class="brand">▧ &nbsp;Project CAD</span
+      ><span class="badge" id="state">Checking…</span>
+    </header>
+    <p>Your local assistant</p>
+    <section id="approval" hidden>
+      <h1>Connect this website?</h1>
+      <p><code id="request-origin"></code></p>
+      <p id="request-agents"></p>
+      <p>
+        Allow access to the selected agents and this computer’s project
+        conversation history. Project changes still require your review.
+      </p>
+      <div class="actions">
+        <button id="approve" class="primary">Approve connection</button
+        ><button id="deny">Decline</button>
+      </div>
+    </section>
+    <div id="connect-step">
+      <h1>Connect from Project CAD</h1>
+      <p>
+        Choose your agents on the website, then connect. Connection requests
+        appear here.
+      </p>
+      <div class="actions">
+        <button class="primary" data-action="open">Open Project CAD</button>
+      </div>
+    </div>
+    <div id="setup-step" hidden>
+      <h1>Your agents</h1>
+      <p>
+        Agent choices are managed on the website. Existing sign-ins are reused.
+      </p>
+      <div class="row" data-agent-row="codex">
+        <div>
+          <strong>Codex</strong>
+          <p data-agent-detail="codex"></p>
+        </div>
+        <button data-provider="codex">Set up</button>
+      </div>
+      <div class="row" data-agent-row="claude">
+        <div>
+          <strong>Claude Code</strong>
+          <p data-agent-detail="claude"></p>
+        </div>
+        <button data-provider="claude">Set up</button>
+      </div>
+      <div class="row" data-agent-row="muse">
+        <div>
+          <strong>Muse</strong>
+          <p id="muse-status">Add your API key.</p>
+        </div>
+        <button id="configure">Configure</button>
+      </div>
+      <div class="actions">
+        <button class="primary" data-action="open">Open Project CAD</button>
+      </div>
+    </div>
+    <section>
+      <details id="settings">
+        <summary>Assistant settings</summary>
+        <label
+          >Project CAD website<input
+            id="website"
+            type="url"
+            placeholder="https://projectcad.vercel.app" /></label
+        ><small
+          >Use the website address, or localhost for local development.</small
+        ><label
+          ><input id="autostart" type="checkbox" /> Start the assistant when I
+          log in</label
+        ><label
+          >Muse API key<input
+            id="key"
+            type="password"
+            autocomplete="new-password"
+            placeholder="Leave blank to keep the saved key" /></label
+        ><small
+          >Your key stays in this computer’s private assistant settings.</small
+        ><label
+          ><input id="clear-key" type="checkbox" /> Remove the saved Muse
+          key</label
+        >
+        <div class="actions">
+          <button id="save" class="primary">Save settings</button>
+        </div>
+      </details>
+    </section>
+    <p id="message" role="status"></p>
+    <footer>
+      <div class="actions">
+        <button id="toggle" data-action="start">Start assistant</button
+        ><button id="refresh">Refresh</button>
+      </div>
+      <button data-action="logs">Open logs</button>
+    </footer>
+  </main>
+  <script nonce="__NONCE__">
+    const $ = (id) => document.getElementById(id),
+      names = { codex: "Codex", claude: "Claude Code", muse: "Muse" };
+    let initialized = false,
+      busy = false,
+      refreshing = false,
+      pendingConnection = null;
+    async function refresh() {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const response = await fetch("/api/state");
+        const value = await response.json();
+        if (!response.ok)
+          throw Error(
+            value.error || "Reopen Project CAD Assistant from your desktop.",
+          );
+        const agents = value.agents;
+        $("state").textContent = value.running
+          ? "Running on this computer"
+          : "Stopped";
+        $("toggle").textContent = value.running
+          ? "Stop assistant"
+          : "Start assistant";
+        $("toggle").dataset.action = value.running ? "stop" : "start";
+        $("toggle").disabled = busy || (value.running && !value.managed);
+        pendingConnection = value.connections?.[0] || null;
+        $("approval").hidden = !pendingConnection;
+        $("setup-step").hidden = !!pendingConnection || !agents;
+        $("connect-step").hidden = !!pendingConnection || !!agents;
+        if (pendingConnection) {
+          $("request-origin").textContent = pendingConnection.origin;
+          $("request-agents").textContent = pendingConnection.agents.providers
+            .map((id) => names[id])
+            .join(", ");
+        }
+        document
+          .querySelectorAll("[data-agent-row]")
+          .forEach(
+            (row) =>
+              (row.hidden = !agents?.providers.includes(row.dataset.agentRow)),
+          );
+        document.querySelectorAll("[data-agent-detail]").forEach((detail) => {
+          const isDefault =
+            agents?.providers.length > 1 &&
+            agents?.preferred === detail.dataset.agentDetail;
+          detail.textContent = isDefault ? "Default agent" : "";
+          detail.hidden = !isDefault;
+        });
+        document.querySelector("[data-provider=codex]").textContent =
+          value.codexAvailable ? "Manage sign-in" : "Set up";
+        document.querySelector("[data-provider=claude]").textContent =
+          value.claudeAvailable ? "Manage sign-in" : "Set up";
+        $("muse-status").textContent = value.museConfigured
+          ? "API key configured. Access is checked when you send a message."
+          : "Add your API key.";
+        if (!initialized) {
+          $("website").value = value.websiteUrl;
+          $("autostart").checked = value.startAtLogin;
+          initialized = true;
+        }
+        if (value.message) message(value.message, true);
+      } finally {
+        refreshing = false;
+      }
+    }
+    function message(text, error = false) {
+      $("message").textContent = text;
+      $("message").className = error ? "error" : "";
+    }
+    async function action(body) {
+      busy = true;
+      document
+        .querySelectorAll("button")
+        .forEach((button) => (button.disabled = true));
+      message(
+        body.action === "signin"
+          ? "Preparing your agent. Missing software will be downloaded from its official package…"
+          : "Working…",
+      );
+      try {
+        const response = await fetch("/api/action", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Project-CAD-Desktop": "1",
+          },
+          body: JSON.stringify(body),
+        });
+        const value = await response.json();
+        if (!response.ok) throw Error(value.error);
+        message(value.message || "Done.");
+        if (body.action === "settings") {
+          $("key").value = "";
+          $("clear-key").checked = false;
+          $("settings").open = false;
+        }
+      } catch (error) {
+        message(error.message, true);
+      } finally {
+        busy = false;
+        document
+          .querySelectorAll("button")
+          .forEach((button) => (button.disabled = false));
+        await refresh().catch((error) => message(error.message, true));
+      }
+    }
+    document
+      .querySelectorAll("[data-action]")
+      .forEach(
+        (button) =>
+          (button.onclick = () => action({ action: button.dataset.action })),
+      );
+    document
+      .querySelectorAll("[data-provider]")
+      .forEach(
+        (button) =>
+          (button.onclick = () =>
+            action({ action: "signin", provider: button.dataset.provider })),
+      );
+    $("approve").onclick = () =>
+      pendingConnection &&
+      action({ action: "approve-connection", id: pendingConnection.id });
+    $("deny").onclick = () =>
+      pendingConnection &&
+      action({ action: "deny-connection", id: pendingConnection.id });
+    $("refresh").onclick = () =>
+      refresh().catch((error) => message(error.message, true));
+    $("configure").onclick = () => {
+      $("settings").open = true;
+      $("key").focus();
+    };
+    $("save").onclick = () =>
+      action({
+        action: "settings",
+        websiteUrl: $("website").value,
+        startAtLogin: $("autostart").checked,
+        museApiKey: $("key").value,
+        clearMuseKey: $("clear-key").checked,
+      });
+    refresh().catch((error) => message(error.message, true));
+    setInterval(() => {
+      if (!busy && !document.hidden)
+        refresh().catch((error) => message(error.message, true));
+    }, 3000);
+    window.addEventListener("focus", () => {
+      if (!busy) refresh().catch((error) => message(error.message, true));
+    });
+  </script>
+</html>

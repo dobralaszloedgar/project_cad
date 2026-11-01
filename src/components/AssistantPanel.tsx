@@ -47,6 +47,8 @@ import {
 import AssistantSetup from "./AssistantSetup";
 import AssistantPopover from "./assistant/AssistantPopover";
 import AssistantTranscript from "./assistant/AssistantTranscript";
+import AssistantAgentStatus from "./assistant/AssistantAgentStatus";
+import AssistantError from "./assistant/AssistantError";
 import { useDictation } from "./assistant/useDictation";
 import styles from "./AssistantPanel.module.css";
 
@@ -119,7 +121,7 @@ export default function AssistantPanel({
     ),
   ]);
   const [active, setActive] = useState("draft");
-  const [setup, setSetup] = useState(false),
+  const [setup, setSetup] = useState<false | "agents" | "update">(false),
     [history, setHistory] = useState(false);
   const [query, setQuery] = useState(""),
     [archived, setArchived] = useState(false);
@@ -171,7 +173,11 @@ export default function AssistantPanel({
       ? commands.filter((command) => command.name.startsWith(tab.prompt))
       : [];
   const canSend =
-    assistant.connected && !!provider?.available && !!model && !readingFiles;
+    assistant.connected &&
+    !!assistant.agents?.providers.includes(settings.provider) &&
+    !!provider?.available &&
+    !!model &&
+    !readingFiles;
   const hasContent = !!tab.prompt.trim() || !!tab.files.length;
   const queueCount = tabs.reduce(
     (count, item) => count + (item.paused ? 0 : item.queue.length),
@@ -535,11 +541,20 @@ export default function AssistantPanel({
                   <button
                     className={styles.option}
                     onClick={() => {
-                      setSetup(true);
+                      setSetup("agents");
                       close();
                     }}
                   >
                     <Folder size={14} /> Manage agents
+                  </button>
+                  <button
+                    className={styles.option}
+                    onClick={() => {
+                      setSetup("update");
+                      close();
+                    }}
+                  >
+                    <RefreshCw size={14} /> Update assistant
                   </button>
                   <button
                     className={styles.option}
@@ -657,6 +672,7 @@ export default function AssistantPanel({
           <AssistantSetup
             assistant={assistant}
             open={open}
+            updating={setup === "update"}
             onBack={() => setSetup(false)}
           />
         </div>
@@ -821,6 +837,7 @@ export default function AssistantPanel({
                 chat={chat}
                 project={project}
                 appliedProposalIds={appliedProposalIds}
+                onUpdate={() => setSetup("update")}
                 onApply={onApply}
                 onError={(message) => {
                   setError(message);
@@ -840,10 +857,21 @@ export default function AssistantPanel({
             )}
           </div>
           <div className={styles.composerArea}>
+            <AssistantAgentStatus
+              id={settings.provider}
+              provider={provider}
+              selected={
+                !!assistant.agents?.providers.includes(settings.provider)
+              }
+              checking={assistant.checkingProviders}
+              onCheck={() => void assistant.refreshProviders()}
+              onManage={() => setSetup("agents")}
+            />
             {error || assistant.error ? (
-              <p className={styles.error} role="alert">
-                {error || assistant.error}
-              </p>
+              <AssistantError
+                message={error || assistant.error}
+                onUpdate={() => setSetup("update")}
+              />
             ) : null}
             {tab.queue.length ? (
               <div className={styles.queue} aria-label="Queued messages">
@@ -1281,12 +1309,6 @@ export default function AssistantPanel({
                 </AssistantPopover>
               </div>
             </div>
-            {!provider?.available ? (
-              <p className={styles.hint}>
-                {provider?.message ||
-                  "Refresh providers to load available models."}
-              </p>
-            ) : null}
             {!assistant.capabilities.includes("attachments-v1") ? (
               <p className={styles.hint}>
                 Update Project CAD Assistant to send files.

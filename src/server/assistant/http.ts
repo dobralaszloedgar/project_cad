@@ -15,6 +15,7 @@ import {
 } from "../../assistant/protocol";
 import { AssistantRuntime } from "./runtime";
 import { applicationOrigin } from "./config";
+import { ConnectionRequests } from "./connections";
 
 const escape = (value: string) =>
   value.replace(
@@ -46,10 +47,13 @@ export function createAssistantServer(
     port: number;
     origins: string[];
     selectAgents?: (agents: AgentSelection) => void;
+    connections?: ConnectionRequests;
   },
 ) {
   const origins = new Set(options.origins),
     tokens = new Map<string, string>();
+  const connections = options.connections;
+  const claimed = new Map<string, { token: string; expires: number }>();
   const pending = new Map<
     string,
     { origin: string; nonce: string; expires: number; agents: AgentSelection }
@@ -97,8 +101,74 @@ export function createAssistantServer(
         return json(res, 200, {
           name: "Project CAD assistant",
           version: ASSISTANT_VERSION,
-          capabilities: ["agent-selection-v1"],
+          capabilities: [
+            "agent-selection-v1",
+            ...(connections ? ["desktop-consent-v1"] : []),
+          ],
         });
+      if (
+        connections &&
+        (url.pathname === "/connections" ||
+          url.pathname.startsWith("/connections/"))
+      ) {
+        if (!origin || !origins.has(origin))
+          return json(res, 403, {
+            error:
+              "Enable this website in Project CAD Assistant settings, then connect again.",
+          });
+        for (const [id, entry] of claimed)
+          if (entry.expires <= Date.now()) claimed.delete(id);
+        if (url.pathname === "/connections" && req.method === "POST") {
+          if (!req.headers["content-type"]?.startsWith("application/json"))
+            return json(res, 400, {
+              error: "Expected a JSON connection request.",
+            });
+          const value = z
+            .object({ nonce: z.string().uuid(), agents: agentSelectionSchema })
+            .strict()
+            .parse(JSON.parse(await readBody(req, 4096)));
+          const request = connections.create(origin, value.nonce, value.agents);
+          return json(res, 202, { id: request.id, expires: request.expires });
+        }
+        const match = /^\/connections\/([a-f0-9]{64})(\/cancel)?$/.exec(
+          url.pathname,
+        );
+        const request = match ? connections.get(match[1]) : null;
+        if (!request || request.origin !== origin)
+          return json(res, 404, {
+            error:
+              "Connection request expired. Connect again from the website.",
+          });
+        if (match![2] && req.method === "POST") {
+          const previous = claimed.get(request.id);
+          if (previous) tokens.delete(previous.token);
+          claimed.delete(request.id);
+          connections.remove(request.id);
+          return json(res, 200, { cancelled: true });
+        }
+        if (!match![2] && req.method === "GET") {
+          if (request.status !== "approved")
+            return json(res, 200, { status: request.status });
+          let entry = claimed.get(request.id);
+          if (!entry) {
+            options.selectAgents?.(request.agents);
+            if (tokens.size >= 100) tokens.delete(tokens.keys().next().value!);
+            entry = {
+              token: randomBytes(32).toString("base64url"),
+              expires: request.expires,
+            };
+            tokens.set(entry.token, origin);
+            claimed.set(request.id, entry);
+          }
+          return json(res, 200, {
+            status: "connected",
+            token: entry.token,
+            nonce: request.nonce,
+            agents: request.agents,
+          });
+        }
+        return json(res, 405, { error: "Unsupported connection action." });
+      }
       if (url.pathname === "/connect" && req.method === "GET") {
         const target = url.searchParams.get("origin") || "",
           nonce = url.searchParams.get("nonce") || "";

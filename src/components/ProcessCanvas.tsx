@@ -372,6 +372,7 @@ interface Props {
   onNavigateIssue?: (id: string, target: EquipmentTarget) => void;
   onChange: (project: Project, label: string) => void;
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
+  onWireStart?: () => void;
   onError: (message: string) => void;
   result: Result | null;
   compositionColors: boolean;
@@ -388,6 +389,7 @@ function Inner(props: Props) {
     onInspect,
     onChange,
     onAdd,
+    onWireStart,
     onError,
     result,
     compare,
@@ -949,6 +951,9 @@ function Inner(props: Props) {
               ],
             }).length === 0
           );
+        }}
+        onConnectStart={() => {
+          if (!presentation && !panning) onWireStart?.();
         }}
         onConnect={(c) => {
           if (presentation) return;

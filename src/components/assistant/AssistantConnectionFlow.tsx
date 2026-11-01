@@ -27,6 +27,7 @@ import {
   savedAgentSelection,
 } from "@/assistant/selection";
 import type { AssistantAvailability } from "./useAssistantDiscovery";
+import AssistantInstallationHelp from "./AssistantInstallationHelp";
 import styles from "./AssistantConnectionFlow.module.css";
 
 type Props = {
@@ -43,6 +44,8 @@ type Props = {
   onCancel: () => void;
   initialAgents?: AgentSelection | null;
   manageAgents?: boolean;
+  updating?: boolean;
+  outdated?: boolean;
 };
 
 export default function AssistantConnectionFlow({
@@ -59,8 +62,11 @@ export default function AssistantConnectionFlow({
   onCancel,
   initialAgents,
   manageAgents = false,
+  updating: requestedUpdate = false,
+  outdated = false,
 }: Props) {
-  const [choosingAgents, setChoosingAgents] = useState(true);
+  const updating = requestedUpdate || outdated;
+  const [choosingAgents, setChoosingAgents] = useState(!updating);
   const [providers, setProviders] = useState<ProviderId[]>([]);
   const [preferred, setPreferred] = useState<ProviderId | "">("");
   const [hydrated, setHydrated] = useState(false);
@@ -72,7 +78,7 @@ export default function AssistantConnectionFlow({
       if (saved) {
         setProviders(saved.providers);
         setPreferred(saved.preferred);
-        setChoosingAgents(manageAgents);
+        setChoosingAgents(manageAgents && !updating);
       }
       setHydrated(true);
     });
@@ -95,8 +101,17 @@ export default function AssistantConnectionFlow({
   }
   const [downloads, setDownloads] =
     useState<ReturnType<typeof assistantDownloads>>();
-  const [downloadError, setDownloadError] = useState(false);
+  const [downloadResult, setDownloadResult] = useState<{
+    attempt: number;
+    error: boolean;
+  }>();
+  const [downloadStatus, setDownloadStatus] = useState<{
+    url: string;
+    available: boolean;
+  }>();
   const [downloadAttempt, setDownloadAttempt] = useState(0);
+  const checkingManifest = downloadResult?.attempt !== downloadAttempt;
+  const downloadError = !checkingManifest && downloadResult?.error === true;
   const [selected, setSelected] = useState("");
   const [installing, setInstalling] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
@@ -112,13 +127,17 @@ export default function AssistantConnectionFlow({
         ? "connected"
         : connecting
           ? "approval"
-          : ready
-            ? "connect"
-            : availability === "checking"
-              ? "checking"
-              : installing || (previouslyDetected && !showDownloads)
-                ? "setup"
-                : "download";
+          : updating
+            ? installing
+              ? "setup"
+              : "download"
+            : ready
+              ? "connect"
+              : availability === "checking"
+                ? "checking"
+                : installing || (previouslyDetected && !showDownloads)
+                  ? "setup"
+                  : "download";
   const step =
     stage === "agents"
       ? 0
@@ -128,6 +147,48 @@ export default function AssistantConnectionFlow({
   const download =
     downloads?.installers.find((file) => file.filename === selected) ??
     downloads?.installers[0];
+  const downloadUrl = download?.url;
+  // The inline approval protocol requires desktop release 0.1.4 or newer.
+  const version = downloads?.version.split(".").map(Number);
+  const needsNewInstaller =
+    !preview &&
+    !!version &&
+    version[0] === 0 &&
+    (version[1] < 1 || (version[1] === 1 && version[2] < 4));
+  // Blob supports cross-origin HEAD requests. GitHub release links do not.
+  const verifyDownload =
+    !preview &&
+    !checkingManifest &&
+    !downloadError &&
+    !!downloadUrl &&
+    !needsNewInstaller &&
+    new URL(downloadUrl).hostname.endsWith(".public.blob.vercel-storage.com");
+  const checkingDownload =
+    verifyDownload && downloadStatus?.url !== downloadUrl;
+  const checkingDownloads = checkingManifest || checkingDownload;
+  const downloadUnavailable =
+    verifyDownload &&
+    downloadStatus?.url === downloadUrl &&
+    !downloadStatus.available;
+
+  useEffect(() => {
+    if (stage !== "download" || !verifyDownload || !downloadUrl) return;
+    const controller = new AbortController();
+    void fetch(downloadUrl, {
+      method: "HEAD",
+      cache: "no-cache",
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]),
+    })
+      .then((response) => {
+        if (!controller.signal.aborted)
+          setDownloadStatus({ url: downloadUrl, available: response.ok });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setDownloadStatus({ url: downloadUrl, available: false });
+      });
+    return () => controller.abort();
+  }, [stage, verifyDownload, downloadUrl, downloadAttempt]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -146,15 +207,20 @@ export default function AssistantConnectionFlow({
             ? "linux"
             : "macos";
         setDownloads(available);
-        setSelected(
-          (
-            available.installers.find((file) => file.platform === platform) ??
-            available.installers[0]
-          ).filename,
+        setSelected((current) =>
+          available.installers.some((file) => file.filename === current)
+            ? current
+            : (
+                available.installers.find(
+                  (file) => file.platform === platform,
+                ) ?? available.installers[0]
+              ).filename,
         );
+        setDownloadResult({ attempt: downloadAttempt, error: false });
       })
       .catch(() => {
-        if (!controller.signal.aborted) setDownloadError(true);
+        if (!controller.signal.aborted)
+          setDownloadResult({ attempt: downloadAttempt, error: true });
       });
     return () => controller.abort();
   }, [downloadAttempt]);
@@ -167,25 +233,27 @@ export default function AssistantConnectionFlow({
   const titles = {
     agents: "Choose your agents",
     checking: "Looking for your assistant",
-    download: "Bring your AI into Project CAD",
+    download: updating
+      ? "Update Project CAD Assistant"
+      : "Bring your AI into Project CAD",
     setup: "A quick setup on your computer",
     connect: "Your assistant is ready",
-    approval: "Approve the connection",
+    approval: "Approve in Project CAD Assistant",
     connected: "You’re all connected",
   };
   const descriptions = {
     agents:
       "Select one or more agents to use with this project. You can change these later.",
     checking: "Checking for Project CAD Assistant on this computer…",
-    download: `Download Project CAD Assistant to use ${providers.map((id) => agentNames[id]).join(" and ")} in your workspace.`,
-    setup:
-      "Install the app and set up your selected agents, then come right back here. We’ll look for your assistant automatically.",
-    connect:
-      "Project CAD Assistant is running on this computer. Connect it to your workspace to get started.",
+    download: updating
+      ? "Install the latest assistant, reopen it, and reconnect here."
+      : "Install Project CAD Assistant on this computer to connect your agents.",
+    setup: "This page will detect the assistant when it’s running.",
+    connect: "Connect, then approve this website in the assistant app.",
     approval:
-      "In the window that just opened, choose “Connect assistant” to allow this website to connect.",
+      "In the assistant app, choose Approve connection. This page will continue automatically.",
     connected:
-      "Your local assistant is connected to Project CAD. You’re ready to start a conversation in your workspace.",
+      "Your agent choices are synced with the app. Complete any agent sign-in there, then start a conversation here.",
   };
 
   function startSetup() {
@@ -193,7 +261,8 @@ export default function AssistantConnectionFlow({
     setInstalling(true);
   }
   function retryDownloads() {
-    setDownloadError(false);
+    if (checkingDownloads) return;
+    setDownloadStatus(undefined);
     setDownloadAttempt((value) => value + 1);
   }
 
@@ -222,7 +291,11 @@ export default function AssistantConnectionFlow({
       ) : null}
       <div className={styles.panelBody}>
         <ol className={styles.steps} aria-label="Connection progress">
-          {["Agents", "Set up", "Connect"].map((label, index) => (
+          {[
+            "Agents",
+            updating ? "Update" : "Set up",
+            updating ? "Reconnect" : "Connect",
+          ].map((label, index) => (
             <li
               key={label}
               aria-current={index === step && !connected ? "step" : undefined}
@@ -260,13 +333,13 @@ export default function AssistantConnectionFlow({
             data-ready={ready || connected || undefined}
             aria-hidden="true"
           >
-            {stage === "checking" || stage === "approval" ? (
+            {stage === "checking" ? (
               <LoaderCircle size={29} className={styles.spinner} />
             ) : stage === "connected" ? (
               <CircleCheck size={31} strokeWidth={1.5} />
             ) : stage === "setup" ? (
               <PackageOpen size={30} strokeWidth={1.5} />
-            ) : stage === "connect" ? (
+            ) : stage === "connect" || stage === "approval" ? (
               <Plug size={30} strokeWidth={1.5} />
             ) : (
               <Monitor size={30} strokeWidth={1.5} />
@@ -340,10 +413,12 @@ export default function AssistantConnectionFlow({
                   if (selection) {
                     if (!preview) rememberAgentSelection(selection);
                     setChoosingAgents(false);
+                    if (ready && !updating) onConnect(selection);
                   }
                 }}
               >
-                Continue <ArrowRight size={16} />
+                {ready && !updating ? "Connect agents" : "Continue"}{" "}
+                <ArrowRight size={16} />
               </button>
             </div>
           ) : null}
@@ -354,28 +429,89 @@ export default function AssistantConnectionFlow({
             <div className={styles.agentSummary}>
               <span>
                 {providers.map((id) => agentNames[id]).join(", ")}
-                <small>Default: {agentNames[selection.preferred]}</small>
+                {providers.length > 1 ? (
+                  <small>Default: {agentNames[selection.preferred]}</small>
+                ) : null}
               </span>
-              <button
-                className={styles.textButton}
-                onClick={() => setChoosingAgents(true)}
-              >
-                Manage agents
-              </button>
+              {!updating ? (
+                <button
+                  className={styles.textButton}
+                  onClick={() => setChoosingAgents(true)}
+                >
+                  Manage agents
+                </button>
+              ) : null}
             </div>
           ) : null}
 
           {stage === "download" ? (
-            <div className={styles.actions}>
-              {download ? (
+            <div className={styles.actions} aria-busy={checkingDownloads}>
+              {checkingDownloads ? (
+                <div className={styles.notice} role="status">
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    disabled
+                  >
+                    <LoaderCircle size={15} className={styles.spinner} />
+                    {downloadAttempt > 0
+                      ? "Checking downloads…"
+                      : "Finding your download…"}
+                  </button>
+                </div>
+              ) : downloadError ? (
+                <div className={styles.notice} role="alert">
+                  <p>
+                    We couldn’t check for installers. Try again. Your agent
+                    choices are saved.
+                  </p>
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    onClick={retryDownloads}
+                  >
+                    <RefreshCw size={15} /> Retry downloads
+                  </button>
+                </div>
+              ) : needsNewInstaller ? (
+                <div className={styles.notice} role="status">
+                  <p>
+                    {downloadAttempt > 0
+                      ? "Checked again. The updated installer is still unavailable."
+                      : "The updated installer is not available yet."}{" "}
+                    This website needs version 0.1.4 or later; the available
+                    download is version {downloads?.version}. Your agent choices
+                    are saved.
+                  </p>
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    onClick={retryDownloads}
+                  >
+                    <RefreshCw size={15} /> Check for updates
+                  </button>
+                </div>
+              ) : downloadUnavailable ? (
+                <div className={styles.notice} role="alert">
+                  <p>
+                    Installer downloads are temporarily unavailable. Try again
+                    shortly. Your agent choices are saved.
+                  </p>
+                  <button
+                    key="retry-downloads"
+                    className={styles.secondary}
+                    onClick={retryDownloads}
+                  >
+                    <RefreshCw size={15} /> Retry downloads
+                  </button>
+                </div>
+              ) : download ? (
                 <>
                   <a
                     className={styles.primary}
                     data-connect-primary
                     href={download.url}
                     download
-                    target="_blank"
-                    rel="noopener noreferrer"
                     onClick={(event) => {
                       if (preview) event.preventDefault();
                       startSetup();
@@ -385,8 +521,14 @@ export default function AssistantConnectionFlow({
                   </a>
                   <p className={styles.fileInfo}>
                     {download.architecture} <span>·</span>{" "}
-                    {Math.ceil(download.bytes / 1_000_000)} MB <span>·</span> v
-                    {downloads?.version}
+                    {preview ? (
+                      "Simulated download"
+                    ) : (
+                      <>
+                        {Math.ceil(download.bytes / 1_000_000)} MB{" "}
+                        <span>·</span> v{downloads?.version}
+                      </>
+                    )}
                   </p>
                   <details className={styles.platforms}>
                     <summary>
@@ -420,19 +562,10 @@ export default function AssistantConnectionFlow({
                     ) : null}
                   </details>
                 </>
-              ) : downloadError ? (
-                <div className={styles.notice} role="alert">
-                  <p>
-                    We couldn’t load the installers. Try loading them again.
-                  </p>
-                  <button className={styles.secondary} onClick={retryDownloads}>
-                    <RefreshCw size={15} /> Retry downloads
-                  </button>
-                </div>
               ) : (
                 <button className={styles.primary} disabled>
-                  <LoaderCircle size={16} className={styles.spinner} /> Finding
-                  your download…
+                  <LoaderCircle size={16} className={styles.spinner} />
+                  Finding your download…
                 </button>
               )}
               <div className={styles.alreadyInstalled}>
@@ -472,7 +605,7 @@ export default function AssistantConnectionFlow({
                     <h3>Open Project CAD Assistant</h3>
                     <p>
                       {download?.platform === "macos"
-                        ? "You’ll find it in your Applications folder."
+                        ? "In Finder, choose Go → Home → Applications."
                         : download?.platform === "windows"
                           ? "You’ll find it in your Start menu."
                           : "Launch the assistant from its installed folder."}{" "}
@@ -483,25 +616,37 @@ export default function AssistantConnectionFlow({
                 <li>
                   <SlidersHorizontal size={18} />
                   <div>
-                    <h3>Set up your agents</h3>
+                    <h3>Return here to connect</h3>
                     <p>
-                      {providers.length
-                        ? providers
-                            .map((id) =>
-                              id === "muse"
-                                ? "Add your Muse API key in the app’s settings."
-                                : `Sign in to ${agentNames[id]}.`,
-                            )
-                            .join(" ")
-                        : "Sign in to Codex or Claude Code, or add your Muse key in the app’s settings."}
+                      Your agent choices will appear in the app after you
+                      approve the connection. Complete any sign-in there if
+                      needed.
                     </p>
                   </div>
                 </li>
               </ol>
-              <div className={styles.detection} role="status">
-                <span className={styles.searchDot} /> Looking for your
-                assistant…
-              </div>
+              {download ? (
+                <AssistantInstallationHelp
+                  key={download.filename}
+                  download={download}
+                />
+              ) : null}
+              {updating ? (
+                <button
+                  className={styles.primary}
+                  disabled={!ready || !selection}
+                  onClick={() => {
+                    if (selection) onConnect(selection);
+                  }}
+                >
+                  <Plug size={17} /> Reconnect assistant
+                </button>
+              ) : (
+                <div className={styles.detection} role="status">
+                  <span className={styles.searchDot} /> Looking for your
+                  assistant…
+                </div>
+              )}
               <button
                 className={styles.textButton}
                 disabled={checking}
@@ -536,8 +681,6 @@ export default function AssistantConnectionFlow({
                   <a
                     href={download.url}
                     download
-                    target="_blank"
-                    rel="noopener noreferrer"
                     onClick={(event) => {
                       if (preview) event.preventDefault();
                     }}
@@ -561,10 +704,7 @@ export default function AssistantConnectionFlow({
                   <Monitor size={20} />
                 </div>
                 <span>
-                  <strong>Project CAD Assistant</strong>
-                  <small>
-                    <i /> Running on this computer
-                  </small>
+                  <strong>Running on this computer</strong>
                 </span>
                 <CircleCheck size={18} />
               </div>
@@ -581,9 +721,6 @@ export default function AssistantConnectionFlow({
               >
                 <Plug size={17} /> Connect assistant <ArrowRight size={16} />
               </button>
-              <p className={styles.actionHint}>
-                You’ll approve the connection in a separate window.
-              </p>
             </div>
           ) : null}
 
@@ -619,12 +756,6 @@ export default function AssistantConnectionFlow({
           ) : null}
         </div>
       </div>
-      <footer className={styles.panelFooter}>
-        <span>Your AI, in your workspace.</span>
-        <span>
-          Codex <i /> Claude Code <i /> Muse
-        </span>
-      </footer>
     </section>
   );
 }

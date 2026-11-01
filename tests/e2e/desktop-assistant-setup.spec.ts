@@ -5,11 +5,11 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-test("desktop agent setup persists choices and completes real browser consent", async ({
+test("desktop receives website choices after consent without a second agent picker", async ({
   browser,
 }) => {
   test.setTimeout(60000);
-  const output = "/tmp/project-cad-connector-qa";
+  const output = "/tmp/project-cad-inline-setup-qa";
   await mkdir(output, { recursive: true });
   const temporary = await mkdtemp(join(tmpdir(), "project-cad-ui-"));
   const bundle = join(temporary, "bundle"),
@@ -89,32 +89,63 @@ test("desktop agent setup persists choices and completes real browser consent", 
     await page.goto((await command("ticket")).url);
     await expect(page).toHaveTitle("Project CAD Assistant");
     await expect(
-      page.getByRole("heading", { name: "Choose your agents" }),
+      page.getByRole("heading", { name: "Connect from Project CAD" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Continue", exact: true }),
-    ).toBeDisabled();
-    await page.locator("#agent-choices input[value=claude]").check();
-    await page.locator("#agent-choices input[value=muse]").check();
-    await page.getByLabel("Default agent").selectOption("claude");
+      page.getByRole("checkbox", { name: "Codex", exact: true }),
+    ).toHaveCount(0);
+    expect((await command("status")).running).toBe(true);
+    expect((await command("status")).agents).toBeNull();
     await page.screenshot({
-      path: join(output, "01-agent-selection.png"),
+      path: join(output, "01-waiting-for-website.png"),
       fullPage: true,
     });
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    const website = "https://projectcad.vercel.app";
+    const select = async (providers: string[], preferred: string) => {
+      const response = await fetch(endpoint + "/connections", {
+        method: "POST",
+        headers: { Origin: website, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nonce: crypto.randomUUID(),
+          agents: { providers, preferred },
+        }),
+      });
+      expect(response.status).toBe(202);
+      const value = await response.json();
+      await expect(
+        page.getByRole("heading", { name: "Connect this website?" }),
+      ).toBeVisible();
+      await expect(page.locator("#request-origin")).toHaveText(website);
+      return value.id as string;
+    };
+    const approve = async (id: string) => {
+      await page
+        .getByRole("button", { name: "Approve connection", exact: true })
+        .click();
+      const response = await fetch(`${endpoint}/connections/${id}`, {
+        headers: { Origin: website },
+      });
+      expect((await response.json()).status).toBe("connected");
+    };
+    const first = await select(["claude", "muse"], "claude");
+    expect((await command("status")).agents).toBeNull();
+    await page.screenshot({
+      path: join(output, "desktop-approval.png"),
+      fullPage: true,
+    });
+    await approve(first);
     await expect(
-      page.getByRole("heading", { name: "Set up your agents" }),
+      page.getByRole("heading", { name: "Your agents", exact: true }),
     ).toBeVisible();
     await expect(page.locator("[data-agent-row=codex]")).toBeHidden();
     await expect(page.locator("[data-agent-row=claude]")).toBeVisible();
     await expect(page.locator("[data-agent-row=muse]")).toBeVisible();
-    await expect(page.locator("#state")).toHaveText("Running on this computer");
     expect((await command("status")).agents).toEqual({
       providers: ["claude", "muse"],
       preferred: "claude",
     });
     await page.screenshot({
-      path: join(output, "02-selected-agent-setup.png"),
+      path: join(output, "02-synced-agent-setup.png"),
       fullPage: true,
     });
     await page.getByRole("button", { name: "Configure", exact: true }).click();
@@ -129,82 +160,53 @@ test("desktop agent setup persists choices and completes real browser consent", 
       "API key configured",
     );
     expect((await command("status")).agents.preferred).toBe("claude");
-    await page.getByRole("button", { name: "Continue to connection" }).click();
+    const changed = await select(["muse"], "muse");
+    // Requesting approval does not change the saved selection.
+    expect((await command("status")).agents.preferred).toBe("claude");
+    await approve(changed);
+    await expect(page.locator("[data-agent-row=claude]")).toBeHidden();
+    await expect(page.locator("[data-agent-row=muse]")).toBeVisible();
+    await page.reload();
     await expect(
-      page.getByRole("heading", {
-        name: "Connect to Project CAD",
-        exact: true,
-      }),
+      page.getByRole("heading", { name: "Your agents", exact: true }),
     ).toBeVisible();
+    await expect(page.locator("[data-agent-row=claude]")).toBeHidden();
+    expect(
+      JSON.parse(await readFile(join(data, "settings.json"), "utf8")).agents,
+    ).toEqual({ providers: ["muse"], preferred: "muse" });
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({
-      path: join(output, "03-ready-to-connect.png"),
+      path: join(output, "03-synced-agents-mobile.png"),
       fullPage: true,
     });
-    await page
-      .getByRole("button", { name: "Manage agents", exact: true })
-      .click();
-    await page.locator("#agent-choices input[value=claude]").uncheck();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(
-      page.getByRole("heading", { name: "Set up your agents" }),
-    ).toBeVisible();
+    const declined = await select(["codex"], "codex");
+    await page.getByRole("button", { name: "Decline", exact: true }).click();
+    expect(
+      (
+        await (
+          await fetch(`${endpoint}/connections/${declined}`, {
+            headers: { Origin: website },
+          })
+        ).json()
+      ).status,
+    ).toBe("denied");
     expect((await command("status")).agents).toEqual({
       providers: ["muse"],
       preferred: "muse",
     });
-    await page.reload();
-    await expect(page.locator("[data-agent-row=claude]")).toBeHidden();
-    await expect(page.locator("[data-agent-row=muse]")).toBeVisible();
-    // Exercise real local approval for the exact hosted website, without visiting it or signing in.
-    const approval = await browser.newPage({
-      viewport: { width: 680, height: 650 },
-    });
-    await approval.route("**/favicon.ico", (route) =>
-      route.fulfill({ status: 204 }),
-    );
-    const response = await approval.goto(
-      endpoint +
-        "/connect?" +
-        new URLSearchParams({
-          origin: "https://projectcad.vercel.app",
-          nonce: crypto.randomUUID(),
-          providers: "claude,muse",
-          preferred: "claude",
-        }),
-    );
-    expect(response!.status()).toBe(200);
-    await expect(
-      approval.getByRole("heading", { name: "Connect your agents" }),
-    ).toBeVisible();
-    await approval
-      .getByRole("button", { name: "Connect assistant", exact: true })
-      .click();
-    await expect(
-      approval.getByRole("heading", { name: "Connected", exact: true }),
-    ).toBeVisible();
-    expect(
-      JSON.parse(await readFile(join(data, "settings.json"), "utf8")).agents,
-    ).toEqual({ providers: ["claude", "muse"], preferred: "claude" });
-    const rejected = await approval.goto(
-      endpoint +
-        "/connect?" +
-        new URLSearchParams({
-          origin: "https://unconfigured.example",
-          nonce: crypto.randomUUID(),
-          providers: "muse",
-          preferred: "muse",
-        }),
-    );
-    expect(rejected!.status()).toBe(403);
-    await expect(
-      approval.getByRole("heading", {
-        name: "Enable this Project CAD website",
+    const rejected = await fetch(endpoint + "/connections", {
+      method: "POST",
+      headers: {
+        Origin: "https://unconfigured.example",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        nonce: crypto.randomUUID(),
+        agents: { providers: ["muse"], preferred: "muse" },
       }),
-    ).toBeVisible();
-    await approval.screenshot({
-      path: join(output, "04-origin-recovery.png"),
-      fullPage: true,
     });
+    expect(rejected.status).toBe(403);
+    expect((await rejected.json()).error).toContain("Enable this website");
     expect(errors).toEqual([]);
     const result = {
       passed: true,
@@ -214,19 +216,21 @@ test("desktop agent setup persists choices and completes real browser consent", 
       meaningfulContent: true,
       consoleErrors: errors,
       interactions: [
-        "empty selection blocked",
-        "multiple agents and default",
+        "fresh desktop listens without selecting or starting providers",
+        "website choices applied only after consent",
         "only selected setup rows",
         "private key saved without echo",
-        "manage agents",
+        "website changes sync without a second picker",
         "reload persistence",
         "hosted-origin approval",
-        "unsupported-origin recovery",
+        "unsupported-origin rejection",
+        "decline preserves existing choices",
+        "approval inside the existing connector window",
       ],
       screenshots: 4,
     };
     await writeFile(
-      join(output, "results.json"),
+      join(output, "desktop-results.json"),
       JSON.stringify(result, null, 2),
     );
     console.log(JSON.stringify(result, null, 2));

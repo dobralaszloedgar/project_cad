@@ -6,6 +6,7 @@ import type { Project } from "@/domain/schema";
 import { projectRevision } from "@/assistant/tools";
 import { fileSize } from "@/assistant/attachments";
 import AssistantMarkdown from "./AssistantMarkdown";
+import AssistantError from "./AssistantError";
 import styles from "../AssistantPanel.module.css";
 export default function AssistantTranscript({
   chat,
@@ -13,6 +14,7 @@ export default function AssistantTranscript({
   appliedProposalIds,
   onApply,
   onError,
+  onUpdate,
   decide,
 }: {
   chat: Conversation;
@@ -20,6 +22,7 @@ export default function AssistantTranscript({
   appliedProposalIds: string[];
   onApply: (proposal: Proposal) => Promise<string>;
   onError: (message: string) => void;
+  onUpdate?: () => void;
   decide: (
     proposal: Proposal,
     status: "applied" | "dismissed",
@@ -100,7 +103,9 @@ export default function AssistantTranscript({
               Working with the current project…
             </p>
           ) : null}
-          {run.error ? <p className={styles.error}>{run.error}</p> : null}
+          {run.error ? (
+            <AssistantError message={run.error} onUpdate={onUpdate} />
+          ) : null}
           {run.proposals.map((proposal) => (
             <div
               className={styles.proposal}
