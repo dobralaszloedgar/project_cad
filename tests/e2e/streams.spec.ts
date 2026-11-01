@@ -80,8 +80,16 @@ test("stream names, individual palette choices, themes and auto reset persist", 
   );
   await page.keyboard.press("Escape");
   await page
-    .getByRole("button", { name: "Color streams by composition" })
+    .getByRole("button", { name: "Workspace menu", exact: true })
     .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  const compositionColors = page
+    .getByRole("tabpanel", { name: "Workspace", exact: true })
+    .getByRole("switch", { name: "Color streams by composition" });
+  await compositionColors.uncheck();
   await expect.poll(() => stroke(first)).toBe("rgb(118, 70, 167)");
   const neutral = await page.locator("main.workspace").evaluate((workspace) => {
     const sample = document.createElement("span");
@@ -92,10 +100,9 @@ test("stream names, individual palette choices, themes and auto reset persist", 
     return color;
   });
   await expect.poll(() => stroke(second)).toBe(neutral);
-  await page
-    .getByRole("button", { name: "Color streams by composition" })
-    .click();
+  await compositionColors.check();
   await expect.poll(() => stroke(second)).toBe(neighbor);
+  await page.getByRole("button", { name: "Close Settings" }).click();
   await expect(page.locator(".save-status")).toContainText(
     "Saved on this device",
   );

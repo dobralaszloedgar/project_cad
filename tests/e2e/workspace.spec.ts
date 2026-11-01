@@ -28,6 +28,7 @@ async function preferences(page: Page) {
     .getByRole("button", { name: "Workspace menu", exact: true })
     .click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Storage", exact: true }).click();
 }
 test("reactor: calculate, edit, compare, restore, persist and export", async ({
   page,

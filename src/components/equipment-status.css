@@ -153,12 +153,6 @@
   font-weight: 500;
   cursor: pointer;
 }
-.equipment-setup-target {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
-}
 .equipment-setup-issues {
   padding: 12px;
   margin-bottom: 16px;

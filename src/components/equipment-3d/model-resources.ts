@@ -20,6 +20,7 @@ export function acquireEquipmentModel(
     section,
     transparent,
     layout?.trayCount,
+    layout?.condenserType,
     layout?.traySpacing,
     layout?.radialScale,
     layout?.feedY,

@@ -524,7 +524,6 @@ export default function EquipmentEditor({
     return (
       <ProjectComponents
         project={project}
-        onCancel={() => onEditingComponentsChange(false)}
         onApply={(next) => {
           const nextIds = thermoContext(next).ids;
           const choices = catalogChoices(settings);
@@ -542,7 +541,6 @@ export default function EquipmentEditor({
             ),
           }));
           onComponentsChange(next);
-          onEditingComponentsChange(false);
         }}
       />
     );

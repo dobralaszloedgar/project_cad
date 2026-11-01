@@ -50,7 +50,8 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await chooseComponent(page, "B", "108-88-3");
   await expect(
     page.getByRole("dialog", { name: "Project components", exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
+  await expect(page.getByText("Changes save automatically.")).toBeVisible();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );
@@ -109,12 +110,12 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await expect(
     page.getByRole("searchbox", { name: "Search chemical database" }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Apply components" })
-    .scrollIntoViewIfNeeded();
   await expect(
-    page.getByRole("button", { name: "Apply components" }),
-  ).toBeVisible();
+    page.getByRole("button", { name: /^(Apply components|Cancel)$/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Close Project components" }),
+  ).toBeInViewport();
   await page.screenshot({ path: "/tmp/project-cad-catalog-mobile.png" });
   expect(errors).toEqual([]);
 });
@@ -144,7 +145,7 @@ test("catalog service errors remain visible without replacing the current model"
   ).toContainText("temporarily unavailable");
   await expect(
     page.getByRole("button", { name: "Apply components" }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.locator(".model-button")).toContainText("Raoult");
 });
@@ -195,7 +196,7 @@ test("live catalog filters model coverage and supplies all three calculation mod
   expect(invalid.status()).toBe(422);
 });
 
-test("canceling a pending chemical selection does not apply it later", async ({
+test("closing a pending chemical selection does not apply it later", async ({
   page,
 }) => {
   await setup(page);
@@ -230,7 +231,9 @@ test("canceling a pending chemical selection does not apply it later", async ({
   const started = page.waitForRequest("**/api/chemicals/selection");
   await chooseComponent(page, "B", "7732-18-5");
   await started;
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Close Project components", exact: true })
+    .click();
   releaseResponse();
   await finished;
   await expect(page.locator(".model-button")).toContainText("Raoult");

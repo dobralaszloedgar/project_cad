@@ -73,8 +73,9 @@ test("missing connections hover, remain clickable and focus the exact port witho
   const editor = page.getByRole("dialog", { name: "Heater · H1", exact: true });
   await expect(editor).toBeVisible();
   await expect(editor.locator('[data-setup-port="out"]')).toBeFocused();
-  await expect(editor.locator('[data-setup-port="out"]')).toHaveClass(
-    /equipment-setup-target/,
+  await expect(editor.locator('[data-setup-port="out"]')).toHaveCSS(
+    "background-color",
+    "rgba(0, 0, 0, 0)",
   );
   expect(await node.evaluate((element) => element.style.transform)).toBe(
     originalPosition,
@@ -237,4 +238,47 @@ test("hover cards stay within the desktop canvas, keep their size at zoom and di
   );
   await symbol.hover();
   await expect(popup).toBeVisible();
+});
+
+test("a status card overlapping its equipment stays open under a stationary pointer", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/workspace?example=solution");
+  const dot = page.locator(
+    '.react-flow__node[data-id="D-201"] .equipment-status-dot',
+  );
+  const popup = await hoverStatus(page, "D-201");
+  const triggerBounds = (await dot.boundingBox())!;
+  const popupBounds = (await popup.boundingBox())!;
+  // The canvas edge forces the card over its trigger, transferring the hover
+  // without moving the mouse. It must not close and recreate itself repeatedly.
+  const pointer = {
+    x: triggerBounds.x + triggerBounds.width / 2,
+    y: triggerBounds.y + triggerBounds.height / 2,
+  };
+  expect(pointer.x).toBeGreaterThan(popupBounds.x);
+  expect(pointer.x).toBeLessThan(popupBounds.x + popupBounds.width);
+  expect(pointer.y).toBeGreaterThan(popupBounds.y);
+  expect(pointer.y).toBeLessThan(popupBounds.y + popupBounds.height);
+  expect(
+    await popup.evaluate(
+      (element) =>
+        new Promise<boolean>((resolve) => {
+          // Observe several complete enter/leave debounce cycles.
+          setTimeout(() => resolve(element.isConnected), 1600);
+        }),
+    ),
+  ).toBe(true);
+  await expect(dot).toHaveAttribute("aria-expanded", "true");
+
+  // The equipment and its portaled card form one continuous hover region.
+  await page
+    .locator('.react-flow__node[data-id="D-201"] .equipment-symbol')
+    .hover();
+  await expect(popup).toBeVisible();
+  await popup.getByRole("button", { name: "Open setup", exact: true }).hover();
+  await expect(popup).toBeVisible();
+  await page.locator(".project-heading h1").hover();
+  await expect(popup).toHaveCount(0);
 });

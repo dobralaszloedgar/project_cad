@@ -79,8 +79,15 @@
     transform: rotate(360deg);
   }
 }
-.components-dialog {
+.workspace-dialog.components-dialog {
   width: min(1040px, calc(100vw - 48px));
+  height: min(700px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+}
+.components-dialog .dialog-surface {
+  height: 100%;
+  max-height: none;
+  min-height: 0;
 }
 .components-dialog .dialog-header {
   padding: 24px 24px 20px;
@@ -90,17 +97,33 @@
   font-size: 21px;
 }
 .components-dialog .dialog-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
   padding: 0 24px 24px;
+}
+.project-components {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
 .components-workbench {
   display: grid;
+  flex: 1;
+  min-height: 0;
   grid-template-columns: minmax(0, 1.65fr) minmax(270px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
 }
 .chemical-browser,
 .selected-components {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   min-width: 0;
 }
 .selected-components {
@@ -109,6 +132,7 @@
 }
 .component-panel-heading {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -136,6 +160,7 @@
 }
 .chemical-search-tools {
   display: flex;
+  flex-shrink: 0;
   gap: 8px;
   padding: 0 20px 16px;
 }
@@ -189,14 +214,17 @@
   cursor: pointer;
 }
 .chemical-search-help {
+  flex-shrink: 0;
   margin: -6px 20px 12px;
   color: var(--muted);
   font-size: 10px;
   line-height: 1.5;
 }
 .chemical-results {
-  height: min(374px, 50dvh);
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   border-top: 1px solid var(--border);
 }
 .chemical-empty {
@@ -206,7 +234,7 @@
   align-items: center;
   justify-content: center;
   padding: 40px 22px;
-  min-height: 190px;
+  min-height: 100%;
   color: var(--muted);
   text-align: center;
 }
@@ -289,6 +317,7 @@
 }
 .chemical-pagination {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -310,12 +339,24 @@
   height: 25px;
 }
 .component-model {
-  padding: 0 20px 16px;
+  flex-shrink: 0;
+  padding: 0 20px 6px;
   color: var(--muted);
   font-size: 12px;
 }
+.component-save-status {
+  flex-shrink: 0;
+  padding: 0 20px 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
 .component-slots {
   display: grid;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   gap: 10px;
   padding: 0 20px 20px;
 }
@@ -351,21 +392,14 @@
   height: 25px;
 }
 .components-notice {
+  flex-shrink: 0;
   margin: 0 20px 20px;
   color: var(--muted);
   font-size: 12px;
 }
-.components-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 16px;
-}
 .components-error {
-  flex-basis: 100%;
-  padding-bottom: 6px;
+  flex-shrink: 0;
+  padding-top: 12px;
   color: var(--err);
   font-size: 12px;
 }
@@ -385,8 +419,12 @@
 }
 @media (max-width: 760px) {
   .thermo-dialog,
-  .components-dialog {
+  .workspace-dialog.components-dialog {
     width: calc(100vw - 20px);
+  }
+  .workspace-dialog.components-dialog {
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
   }
   .components-dialog .dialog-header {
     padding: 18px 18px 20px;
@@ -400,13 +438,11 @@
   }
   .components-workbench {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
   }
   .selected-components {
     border-left: 0;
     border-top: 1px solid var(--border);
-  }
-  .chemical-results {
-    height: 260px;
   }
   .component-panel-heading {
     padding: 16px 14px 12px;
@@ -448,7 +484,8 @@
   .chemical-add span {
     display: none;
   }
-  .component-model {
+  .component-model,
+  .component-save-status {
     padding-left: 14px;
   }
   .component-slots {

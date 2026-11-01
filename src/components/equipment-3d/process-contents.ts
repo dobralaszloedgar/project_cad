@@ -798,6 +798,7 @@ export function createProcessContents(
     }
     case "Distillation": {
       const layout = columnLayout(options);
+      const partial = layout.condenserType === "partial";
       c.group.scale.set(layout.radialScale, 1, layout.radialScale);
       c.group.userData.hydraulics = hydraulics;
       const overhead = columnOverhead(options);
@@ -822,8 +823,12 @@ export function createProcessContents(
         "reflux",
         "distillate",
       ] as const)
-        c.stream(overhead[branch], 0.039, 0.86, distillate).name =
-          `column-${branch}-flow`;
+        c.stream(
+          overhead[branch],
+          0.039,
+          partial && branch === "distillate" ? 0.42 : 0.86,
+          distillate,
+        ).name = `column-${branch}-flow`;
       c.tint(bottoms);
       c.stream(
         [
@@ -995,6 +1000,7 @@ export function createProcessContents(
         });
       c.bulk([1.52, top(5.47), 0], 0.203, 0.13);
       c.surface([1.52, top(5.535), 0], 0.203, 0.002, 0.015);
+      if (partial) c.vapor([1.52, top(5.6), 0], 0.34, 0.1, 0.16);
       break;
     }
   }

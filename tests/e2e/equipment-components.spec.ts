@@ -44,7 +44,7 @@ for (const { theme, width, height, background } of [
       name: "Project components",
       exact: true,
     });
-    for (const action of ["Escape", "Cancel", "Close"]) {
+    for (const action of ["Escape", "Close"]) {
       await add.click();
       await expect(page.locator("dialog[open]")).toHaveCount(1);
       await expect(editor).toHaveCount(0);
@@ -88,6 +88,11 @@ for (const { theme, width, height, background } of [
       await components
         .getByRole("button", { name: "Add acetone to project", exact: true })
         .click();
+    await expect(components.locator(".component-slot")).toHaveCount(3);
+    await expect(components).toBeVisible();
+    await components
+      .getByRole("button", { name: "Close Project components" })
+      .click();
     await expect(components).toHaveCount(0);
     await expect(editor).toBeVisible();
     await expect(page.locator("dialog[open]")).toHaveCount(1);

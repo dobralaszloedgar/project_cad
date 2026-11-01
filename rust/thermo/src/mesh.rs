@@ -158,7 +158,7 @@ fn integer(v: &Value, k: &str) -> Res<usize> {
         .map(|v| v as usize)
         .ok_or(format!("Invalid integer {k}"))
 }
-fn decode(u: &[f64], n: usize, m: usize, low: f64, high: f64, l0: f64) -> Decoded {
+fn decode(u: &[f64], n: usize, m: usize, low: f64, high: f64, l0: f64, v0: f64) -> Decoded {
     let width = 2 * n + 1;
     let offset = m * width;
     let mut xr = vec![];
@@ -184,7 +184,7 @@ fn decode(u: &[f64], n: usize, m: usize, low: f64, high: f64, l0: f64) -> Decode
         t.push(low + (high - low) * u[j * width + 2 * n]);
     }
     let mut l = vec![l0];
-    let mut v = vec![0.];
+    let mut v = vec![v0];
     l.extend(u[offset..offset + m - 1].iter().map(|v| v.exp()));
     v.extend(u[offset + m - 1..].iter().map(|v| v.exp()));
     Decoded {
@@ -210,6 +210,15 @@ where
     F: Fn(f64, f64, &[f64], &[f64]) -> Res<Props>,
 {
     let c = &req["column"];
+    let condenser_type = match c.get("condenserType") {
+        None => "total",
+        Some(value) => value.as_str().ok_or("Invalid condenser type")?,
+    };
+    require(
+        ["total", "partial"].contains(&condenser_type),
+        "Invalid condenser type",
+    )?;
+    let partial = condenser_type == "partial";
     let n = z.len();
     let trays = integer(c, "trayCount")?;
     let feed = integer(c, "feedTray")?;
@@ -281,6 +290,8 @@ where
         }
     }
     let dist = dist / rate;
+    let liquid_dist = if partial { 0. } else { dist };
+    let vapor_dist = if partial { dist } else { 0. };
     require(
         dist + sl.iter().sum::<f64>() + sv.iter().sum::<f64>() < 1.,
         "Side draws leave no positive bottoms",
@@ -298,7 +309,7 @@ where
     };
     let mut evaluate = |u: &[f64]| -> Res<Eval> {
         cache.residuals += 1;
-        let d = decode(u, n, m, low, high, l0);
+        let d = decode(u, n, m, low, high, l0, vapor_dist);
         let mut hl = vec![0.; m];
         let mut hv = vec![0.; m];
         let mut eq = vec![vec![0.; n]; m];
@@ -350,7 +361,7 @@ where
                     mat[j][i] += d.v[j + 1] * d.y[j + 1][i];
                 }
                 if j == 0 {
-                    mat[j][i] -= dist * d.x[0][i];
+                    mat[j][i] -= liquid_dist * d.x[0][i];
                 }
                 if j == feed {
                     mat[j][i] += z[i];
@@ -364,7 +375,7 @@ where
                 energy[j] += d.v[j + 1] * hv[j + 1];
             }
             if j == 0 {
-                energy[j] -= dist * hl[0];
+                energy[j] -= liquid_dist * hl[0];
             }
             if j == feed {
                 energy[j] += feed_h;
@@ -533,7 +544,16 @@ where
         let state = evaluate(&u)?;
         let complete = !reference && state.props.iter().all(|p| p.derivatives.is_some());
         if complete {
-            jac = analytic_jacobian(&state, z, &sl, &sv, dist, high - low, &row_map, &col_map);
+            jac = analytic_jacobian(
+                &state,
+                z,
+                &sl,
+                &sv,
+                liquid_dist,
+                high - low,
+                &row_map,
+                &col_map,
+            );
             analytic_steps += 1;
         } else {
             reference_steps += 1;
@@ -702,7 +722,8 @@ where
     let material = maxabs(&stage_material);
     let component = (0..n)
         .map(|i| {
-            ((dist * d.x[0][i]
+            ((liquid_dist * d.x[0][i]
+                + vapor_dist * d.y[0][i]
                 + d.l[m - 1] * d.x[m - 1][i]
                 + (0..m)
                     .map(|j| sl[j] * d.x[j][i] + sv[j] * d.y[j][i])
@@ -738,7 +759,7 @@ where
         "Column requires condenser cooling and reboiler heating",
     )?;
     let overall_energy = (rate * feed_h + qc + qr
-        - dist * rate * final_state.hl[0]
+        - rate * (liquid_dist * final_state.hl[0] + vapor_dist * final_state.hv[0])
         - rate
             * (d.l[m - 1] * final_state.hl[m - 1]
                 + (0..m)
@@ -751,8 +772,13 @@ where
     )?;
     let stages:Vec<_>=(0..m).map(|j|json!({"stage":j,"kind":if j==0{"condenser"}else if j==m-1{"reboiler"}else{"tray"},"temperatureK":d.t[j],"pressurePa":pressures[j],"liquidMolS":d.l[j]*rate,"vaporMolS":d.v[j]*rate,"liquidComposition":d.x[j],"vaporComposition":d.y[j],"liquidEnthalpy":final_state.hl[j],"vaporEnthalpy":final_state.hv[j],"residuals":{"material":stage_material[j],"equilibrium":maxabs(&final_state.eq[j]),"energy":if j>0&&j<m-1{final_state.energy[j].abs()/40000.}else{0.},"summation":maxabs(&final_state.sums[j])}})).collect();
     std::mem::drop(evaluate);
+    let solver_version = if partial {
+        "project-column-mesh-v2"
+    } else {
+        "project-column-mesh-v1"
+    };
     Ok(
-        json!({"solverVersion":"project-column-mesh-v1","iterations":iterations,"sideDraws":draws,"feedTray":feed,"feedMolS":rate,"feedComposition":z,"residuals":{"material":material,"component":component,"equilibrium":equilibrium,"energy":energy,"summation":summation,"overallEnergyW":overall_energy},"condenserDutyW":qc,"reboilerDutyW":qr,"distillateMolS":dist*rate,"bottomsMolS":d.l[m-1]*rate,"stages":stages,"diagnostics":{"propertyCalls":cache.calls,"propertyCacheHits":cache.hits,"residualCalls":cache.residuals,"sparseFactorizations":factors,"fallbackUsed":used_fallback,"analyticJacobianSteps":analytic_steps,"referenceJacobianSteps":reference_steps,"derivativeChecks":derivative_checks,"derivativeMaxToleranceRatio":derivative_max_ratio,"linearSolver":"sparse partial-pivot LU with stage-interleaved ordering","fallbackSolver":"bounded sparse damped least squares"}}),
+        json!({"solverVersion":solver_version,"condenserType":condenser_type,"iterations":iterations,"sideDraws":draws,"feedTray":feed,"feedMolS":rate,"feedComposition":z,"residuals":{"material":material,"component":component,"equilibrium":equilibrium,"energy":energy,"summation":summation,"overallEnergyW":overall_energy},"condenserDutyW":qc,"reboilerDutyW":qr,"distillateMolS":dist*rate,"bottomsMolS":d.l[m-1]*rate,"stages":stages,"diagnostics":{"propertyCalls":cache.calls,"propertyCacheHits":cache.hits,"residualCalls":cache.residuals,"sparseFactorizations":factors,"fallbackUsed":used_fallback,"analyticJacobianSteps":analytic_steps,"referenceJacobianSteps":reference_steps,"derivativeChecks":derivative_checks,"derivativeMaxToleranceRatio":derivative_max_ratio,"linearSolver":"sparse partial-pivot LU with stage-interleaved ordering","fallbackSolver":"bounded sparse damped least squares"}}),
     )
 }
 #[cfg(test)]
@@ -800,6 +826,53 @@ pub fn controlled(req: &Value) -> Res<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn analytical_partial_condenser() {
+        // Independent elimination at alpha=2, F=1, D=B=.5, R=2:
+        // yD=1-xB, x0=(1-xB)/(1+xB), x1=(xB+3*yB)/4,
+        // 1.5*y1=x0+.5*yD gives xB^4+19*xB^3+71*xB^2+17*xB-12=0.
+        let (mut low, mut high) = (0_f64, 1_f64);
+        for _ in 0..80 {
+            let b = (low + high) / 2.;
+            if b.powi(4) + 19. * b.powi(3) + 71. * b * b + 17. * b - 12. > 0. {
+                high = b;
+            } else {
+                low = b;
+            }
+        }
+        let xb = (low + high) / 2.;
+        for finite_differences in [false, true] {
+            for fallback in [false, true] {
+                let req = json!({
+                    "alpha":[2.,1.], "zs":[0.5,0.5], "feedH":0.,
+                    "temperatureRange":[280.,400.], "seedTemperature":330.,
+                    "unsupportedDerivatives":finite_differences, "forceFallback":fallback,
+                    "verifyJacobian":true,
+                    "column":{"condenserType":"partial","trayCount":1,"feedTray":1,
+                        "feedMolS":1.,"distillateMolS":0.5,"refluxRatio":2.,
+                        "pressurePa":101325.,"pressureDropPa":0.,"maxIterations":200,
+                        "tolerance":1e-9,"kTolerance":1e-9,"enthalpyTolerance":1e-9}
+                });
+                let result = controlled(&req).unwrap();
+                assert!(
+                    (result["stages"][2]["liquidComposition"][0]
+                        .as_f64()
+                        .unwrap()
+                        - xb)
+                        .abs()
+                        < 1e-8
+                );
+                assert!(
+                    (result["stages"][0]["vaporComposition"][0].as_f64().unwrap() - (1. - xb))
+                        .abs()
+                        < 1e-8
+                );
+                assert_eq!(result["stages"][0]["vaporMolS"], 0.5);
+                assert!((num(&result, "condenserDutyW").unwrap() + 40000.).abs() < 1e-4);
+                assert!((num(&result, "reboilerDutyW").unwrap() - 60000.).abs() < 1e-4);
+            }
+        }
+    }
     #[test]
     fn analytical_one_tray_column() {
         // Independent elimination of the binary stage equations, alpha=2,

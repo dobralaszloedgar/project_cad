@@ -107,7 +107,13 @@ async function read(
       throw new CatalogError("The hosted chemical catalog requires HTTPS.");
     const response = await fetch(new URL(`/rest/v1/rpc/${query.name}`, base), {
       method: "POST",
-      cache: "no-store",
+      // Persist immutable reference data across server restarts/instances.
+      // Only the latest-release pointer and model registry need short expiry.
+      cache: "force-cache",
+      next: {
+        revalidate:
+          (kind === "release" && !args[0]) || kind === "models" ? 60 : 3600,
+      },
       signal: AbortSignal.timeout(15000),
       headers: {
         "Content-Type": "application/json",

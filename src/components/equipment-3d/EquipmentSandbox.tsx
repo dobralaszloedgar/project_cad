@@ -20,6 +20,7 @@ import {
 import type { Kind } from "@/domain/schema";
 import { EquipmentIcon, EquipmentPanelIcon } from "@/components/EquipmentIcon";
 import NumberInput from "../NumberInput";
+import { useMotionPreference } from "../landing/use-motion-preference";
 import { equipmentCatalog, equipmentGroups } from "./catalog";
 import { equipmentReferences } from "./references";
 import type { CameraView, SceneMode } from "./EquipmentScene";
@@ -51,8 +52,9 @@ export default function EquipmentSandbox() {
   const [section, setSection] = useState(false);
   const [transparent, setTransparent] = useState(true);
   const [rotate, setRotate] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [motionVisible, setMotionVisible] = useState(false);
+  const reducedMotion = useMotionPreference();
+  const [playback, setPlayback] = useState<boolean>();
+  const playing = playback ?? !reducedMotion;
   const [speed, setSpeed] = useState(1);
   const [grid, setGrid] = useState(true);
   const toggleGrid = useCallback(() => setGrid((value) => !value), []);
@@ -265,16 +267,7 @@ export default function EquipmentSandbox() {
             <button
               className={styles.playButton}
               aria-pressed={playing}
-              onClick={() => {
-                if (!motionVisible && !section) setTransparent(true);
-                setMotionVisible(true);
-                setPlaying(!playing);
-              }}
-              title={
-                !motionVisible
-                  ? "Play equipment operation with visible internals"
-                  : undefined
-              }
+              onClick={() => setPlayback(!playing)}
             >
               {playing ? <Pause size={14} /> : <Play size={14} />}
               {playing ? "Pause operation" : "Play operation"}
@@ -313,7 +306,7 @@ export default function EquipmentSandbox() {
               rotate={rotate}
               playing={playing}
               speed={speed}
-              motionVisible={motionVisible}
+              motionVisible
               grid={grid}
               onToggleGrid={toggleGrid}
               view={view}

@@ -30,26 +30,20 @@ import {
   type ChemicalSearchField,
   type ChemicalSearchSort,
 } from "@/lib/chemical-search";
+import {
+  cachedChemicalSearch,
+  chemicalSearchKey,
+  loadChemicalSearch,
+  type ChemicalSearchPage,
+} from "@/lib/chemical-search-client";
 import "./thermo-settings.css";
-
-type SearchPage = {
-  release: string;
-  total: number;
-  catalogTotal: number;
-  results: ChemicalChoice[];
-};
-
-// Reopening the picker and revisiting a search should not repeat the lookup.
-const searchCache = new Map<string, { data: SearchPage; expires: number }>();
 
 export default function ProjectComponents({
   project,
   onApply,
-  onCancel,
 }: {
   project: Project;
   onApply: (settings: ThermoSettings) => void;
-  onCancel: () => void;
 }) {
   const current = project.thermo ?? defaultThermo;
   const [choices, setChoices] = useState<ComponentChoices>(() =>
@@ -66,56 +60,40 @@ export default function ProjectComponents({
   const debounce = useRef(false);
   const [lookup, setLookup] = useState<{
     key: string;
-    data?: SearchPage;
+    data?: ChemicalSearchPage;
     error?: string;
   } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<AbortController | null>(null);
-  const searchKey = JSON.stringify([
-    query.trim(),
+  const searchKey = chemicalSearchKey({
+    query,
     field,
     sort,
     page,
-    current.modelId,
+    model: current.modelId,
     release,
-  ]);
+  });
   const key = JSON.stringify([searchKey, retry]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
-    const controller = new AbortController();
-    const cached = searchCache.get(searchKey);
-    const cacheHit = cached && cached.expires > Date.now();
+    let active = true;
+    const cacheHit = cachedChemicalSearch(searchKey);
     const delay = cacheHit ? 0 : debounce.current ? 150 : 0;
     debounce.current = false;
     const timer = setTimeout(async () => {
       try {
-        if (cacheHit) {
-          setLookup({ key, data: cached.data });
-          return;
-        }
-        const params = new URLSearchParams({
-          query: query.trim(),
+        const data = await loadChemicalSearch({
+          query,
           field,
           sort,
-          page: String(page),
+          page,
           model: current.modelId,
-          ...(release ? { release } : {}),
+          release,
         });
-        const response = await fetch(`/api/chemicals?${params}`, {
-          signal: controller.signal,
-        });
-        const data = await response.json();
-        if (!response.ok)
-          throw new Error(data.error ?? "Could not connect to Supabase.");
-        if (!controller.signal.aborted) {
-          if (searchCache.size >= 64)
-            searchCache.delete(searchCache.keys().next().value!);
-          searchCache.set(searchKey, { data, expires: Date.now() + 60_000 });
-          setLookup({ key, data });
-        }
+        if (active) setLookup({ key, data });
       } catch (reason) {
-        if (!controller.signal.aborted)
+        if (active)
           setLookup({
             key,
             error:
@@ -127,7 +105,7 @@ export default function ProjectComponents({
     }, delay);
     return () => {
       clearTimeout(timer);
-      controller.abort();
+      active = false;
     };
   }, [
     query,
@@ -140,9 +118,10 @@ export default function ProjectComponents({
     searchKey,
     key,
   ]);
-  const loading = lookup?.key !== key;
-  const data = !loading ? lookup?.data : undefined;
-  const lookupError = !loading ? lookup?.error : undefined;
+  const data =
+    lookup?.key === key ? lookup.data : cachedChemicalSearch(searchKey);
+  const loading = !data && lookup?.key !== key;
+  const lookupError = lookup?.key === key ? lookup.error : undefined;
   const selectedCount = choices.filter(Boolean).length;
   const hasSynthetic = choices.some(
     (choice) => choice && ["A", "B"].includes(choice.id),
@@ -173,7 +152,11 @@ export default function ProjectComponents({
         nextRelease,
         controller.signal,
       );
-      if (!controller.signal.aborted) onApply(settings);
+      if (!controller.signal.aborted) {
+        onApply(settings);
+        setChoices(selected);
+        setRelease(settings.catalog?.release);
+      }
     } catch (reason) {
       if (!controller.signal.aborted)
         setError(
@@ -214,15 +197,22 @@ export default function ProjectComponents({
     }
   }
 
+  function removeChemical(index: number) {
+    if (request.current || saving) return;
+    const next = choices.map((choice, i) => (i === index ? undefined : choice));
+    if (
+      next.filter(Boolean).length >= 2 &&
+      !next.some((choice) => choice && ["A", "B"].includes(choice.id))
+    ) {
+      void saveComponents(next);
+    } else {
+      setChoices(next);
+      setError("");
+    }
+  }
+
   return (
-    <form
-      className="project-components"
-      aria-busy={saving}
-      onSubmit={(event) => {
-        event.preventDefault();
-        void saveComponents(choices);
-      }}
-    >
+    <div className="project-components" aria-busy={saving}>
       <div className="components-workbench">
         <section className="chemical-browser" aria-label="Chemical database">
           <header className="component-panel-heading">
@@ -437,6 +427,15 @@ export default function ProjectComponents({
             <span className="component-badge">{selectedCount} / 40</span>
           </header>
           <p className="component-model">{modelInfo(current.modelId).label}</p>
+          <p className="component-save-status" role="status">
+            {saving
+              ? "Saving changes…"
+              : hasSynthetic
+                ? "Replace both teaching species to save catalog chemicals."
+                : selectedCount < 2
+                  ? "Choose at least two chemicals to save the mixture."
+                  : "Changes save automatically."}
+          </p>
           <div className="component-slots">
             {choices.map((_, i) => (
               <div key={i} className="component-slot">
@@ -455,14 +454,7 @@ export default function ProjectComponents({
                       className="icon-button"
                       aria-label={`Remove ${choices[i]!.name} from project`}
                       disabled={saving}
-                      onClick={() => {
-                        setChoices((previous) =>
-                          previous.map((choice, index) =>
-                            index === i ? undefined : choice,
-                          ),
-                        );
-                        setError("");
-                      }}
+                      onClick={() => removeChemical(i)}
                     >
                       <X size={15} />
                     </button>
@@ -488,22 +480,11 @@ export default function ProjectComponents({
           )}
         </section>
       </div>
-      <footer className="components-footer">
-        {error && (
-          <p role="alert" className="components-error">
-            {error}
-          </p>
-        )}
-        <button className="btn" type="button" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          className="btn btn-primary"
-          disabled={saving || selectedCount < 2 || hasSynthetic}
-        >
-          {saving ? "Saving…" : "Apply components"}
-        </button>
-      </footer>
-    </form>
+      {error && (
+        <p role="alert" className="components-error">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

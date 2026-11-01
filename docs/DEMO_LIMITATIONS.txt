@@ -47,7 +47,8 @@ duty does NOT mean a real separation requires no energy.
 Explicit FUG and MESH modes now support multistage shortcut design and caloric
 equilibrium-stage calculations respectively. See DISTILLATION.txt. FUG has no
 stage profiles or separate end duties. MESH uses low-pressure VLE (Raoult or
-Modified UNIFAC), ideal trays, one feed, total condenser and kettle reboiler;
+Modified UNIFAC), ideal trays, one feed, a total or equilibrium partial condenser
+and kettle reboiler;
 no tray efficiency, side draws or liquid–liquid stability search. Optional
 post-solve sieve-tray hydraulics reports flooding/weeping from tower geometry
 and supplied liquid density/surface tension. It does not feed back into the

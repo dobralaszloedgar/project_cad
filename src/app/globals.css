@@ -7,7 +7,7 @@
 }
 @import "@xyflow/react/dist/style.css";
 :root {
-  /* Outlined hands remain readable on both light and dark canvases. */
+  /* Main's 20px vector hands keep their size and render at the display's DPI. */
   --cursor-grab: url("/cursors/grab.svg") 8 8, grab;
   --cursor-grabbing: url("/cursors/grabbing.svg") 8 8, grabbing;
   font-family: "Figtree Variable", sans-serif;
@@ -932,6 +932,21 @@ h3 {
      tooltips and hit targets; React Flow still enforces port direction. */
   pointer-events: all;
 }
+.material-handle::before {
+  /* Triple the grab radius without changing the visible dot or stream anchor. */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 27px;
+  height: 27px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+.material-handle.target {
+  /* A deliberate inlet drop takes priority over the equipment body. */
+  z-index: 5;
+}
 .equipment-node.bottom-outlet .unit-label {
   left: calc(50% + 12px);
   width: 116px;
@@ -939,25 +954,24 @@ h3 {
   align-items: flex-start;
   text-align: left;
 }
-.react-flow__handle.mixer-drop-handle {
-  left: 31.25%;
-  top: 21.875%;
+.react-flow__handle.equipment-drop-handle {
+  left: 0;
+  top: 0;
   right: auto;
   bottom: auto;
-  width: 37.5%;
-  height: 56.25%;
+  width: 100%;
+  height: 100%;
   transform: none;
   border: 0;
   border-radius: 0;
   background: transparent;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
   pointer-events: none;
   z-index: 4;
 }
-.react-flow__handle.mixer-drop-handle.connectionindicator {
+.react-flow__handle.equipment-drop-handle.connectionindicator {
   pointer-events: all;
 }
-.mixer-drop-handle.connectingto.valid ~ .equipment-symbol .pfd-body {
+.equipment-drop-handle.connectingto.valid ~ .equipment-symbol .pfd-body {
   fill: var(--active);
   stroke: var(--accent);
 }
@@ -1000,18 +1014,6 @@ h3 {
 }
 .react-flow__edge-path {
   stroke-linecap: round;
-}
-.canvas-footnote {
-  position: absolute;
-  bottom: 11px;
-  left: 58px;
-  color: var(--muted);
-  font-size: 10px;
-  pointer-events: none;
-  max-width: calc(100% - 140px);
-  background: color-mix(in srgb, var(--canvas) 90%, transparent);
-  padding: 4px 6px;
-  border-radius: 3px;
 }
 .wide {
   width: 100%;
@@ -1603,6 +1605,46 @@ h3 {
   gap: 10px;
   flex-wrap: wrap;
 }
+.settings-tabs {
+  flex-shrink: 0;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+.preference-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.preference-toggle input {
+  appearance: none;
+  flex-shrink: 0;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--muted);
+  cursor: pointer;
+}
+.preference-toggle input::before {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 2px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+.preference-toggle input:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.preference-toggle input:checked::before {
+  transform: translateX(14px);
+}
 .confirm-dialog {
   width: min(520px, calc(100vw - 36px));
 }
@@ -1669,10 +1711,6 @@ h3 {
 .plant-label.active {
   border-color: var(--accent);
   color: var(--accent);
-}
-.plant-view .canvas-footnote {
-  left: 130px;
-  bottom: 13px;
 }
 @media (max-width: 1280px) {
   .app-header {
@@ -1784,13 +1822,6 @@ h3 {
   }
   .sheet-tabs button svg {
     display: none;
-  }
-  .canvas-footnote {
-    display: block;
-    left: 52px;
-    bottom: 13px;
-    max-width: calc(100% - 125px);
-    font-size: 10px;
   }
   .desktop-canvas-hint {
     display: none;
@@ -1959,23 +1990,6 @@ h3 {
 }
 .canvas-edit-tools {
   margin-left: 0;
-}
-.composition-toggle {
-  pointer-events: auto;
-  width: 37px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-  color: var(--muted);
-  box-shadow: 0 2px 8px #1c2c230b;
-}
-.composition-toggle.active {
-  color: var(--accent);
-  background: var(--active);
 }
 .stream-flow-motion {
   animation: stream-flow 1.4s linear infinite;
@@ -3209,7 +3223,7 @@ h3 {
   }
 }
 
-/* Use native cursors except for the shared outlined drag hands. */
+/* Share the vector drag hands between the 2D canvas and 3D scene. */
 .workspace {
   --cursor-default: default;
   --cursor-pointer: pointer;

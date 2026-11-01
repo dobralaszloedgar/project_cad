@@ -30,6 +30,7 @@ export function EquipmentModel({
   liquidColor,
   compositionColors,
   trayCount = 8,
+  condenserType,
   column,
   hydraulics,
   ...props
@@ -40,6 +41,7 @@ export function EquipmentModel({
     liquidColor?: string;
     compositionColors?: EquipmentCompositionColors;
     trayCount?: number;
+    condenserType?: EquipmentModelOptions["condenserType"];
     column?: EquipmentModelOptions["column"];
     hydraulics?: TrayHydraulicsResult;
   }) {
@@ -59,6 +61,7 @@ export function EquipmentModel({
       transparent,
       {
         trayCount,
+        condenserType,
         column,
       },
     );
@@ -84,7 +87,16 @@ export function EquipmentModel({
       rotors.current = [];
       release();
     };
-  }, [kind, section, transparent, invalidate, clock, trayCount, column]);
+  }, [
+    kind,
+    section,
+    transparent,
+    invalidate,
+    clock,
+    trayCount,
+    condenserType,
+    column,
+  ]);
   // Composition edits replace only the fluid, preserving equipment, camera,
   // and animation time while the new material colors become visible.
   useLayoutEffect(() => {
@@ -95,7 +107,7 @@ export function EquipmentModel({
       section || transparent,
       clock,
       liquidColor,
-      { trayCount, column },
+      { trayCount, condenserType, column },
       compositionColors,
       hydraulics,
     );
@@ -115,6 +127,7 @@ export function EquipmentModel({
     clock,
     liquidColor,
     trayCount,
+    condenserType,
     column,
     hydraulics,
     compositionColors,

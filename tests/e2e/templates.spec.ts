@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { templates, templateSpecification } from "../../src/domain/templates";
-import { componentNames, mixtureName } from "../../src/domain/thermo/catalog";
+import { componentNames } from "../../src/domain/thermo/catalog";
 import { simulate } from "../../src/domain/solver";
 import { folderText, installFolderPicker } from "./folder-fixture";
 
@@ -66,7 +66,7 @@ test("every offered template loads its specifications and runs without a chemica
     await expect(page.locator(".project-heading h1")).toHaveText(project.name);
     await expect(
       page.getByRole("button", { name: "Project components", exact: true }),
-    ).toHaveAttribute("title", `Components: ${mixtureName(project.thermo!)}`);
+    ).toHaveAttribute("title", "Components");
     await page.getByRole("button", { name: "Run simulation" }).click();
     await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
     const names = componentNames(project.thermo!);
@@ -210,7 +210,7 @@ test("direct template links use the real-chemical recipe", async ({ page }) => {
   );
   await expect(
     page.getByRole("button", { name: "Project components", exact: true }),
-  ).toHaveAttribute("title", "Components: Benzene / toluene");
+  ).toHaveAttribute("title", "Components");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await expect(

@@ -99,6 +99,8 @@ export function equipmentIssueTarget(message: string): EquipmentTarget {
     return { section: "settings", field: "distillation.feedTray" };
   if (/distillate flow/i.test(message))
     return { section: "settings", field: "distillation.distillateFlow" };
+  if (/distillate temperature/i.test(message))
+    return { section: "settings", field: "distillation.distillateTemperature" };
   if (/relative volatility|volatilities|key volatility/i.test(message))
     return { section: "settings", field: "distillation.relativeVolatilities" };
   if (/light.*heavy.*key/i.test(message))

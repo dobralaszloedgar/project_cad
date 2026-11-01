@@ -38,9 +38,9 @@ test("equipment gallery survives graphics recovery and remains selectable", asyn
     .filter({ hasText: "Heater" })
     .click();
   await expect(page.locator("h1")).toHaveText("Heater");
-  await page
-    .getByRole("button", { name: "Play operation", exact: true })
-    .click();
+  await expect(
+    page.getByRole("button", { name: "Pause operation", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("switch", { name: "Transparent shell" }),
   ).toHaveAttribute("aria-checked", "true");

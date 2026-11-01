@@ -50,6 +50,21 @@ describe("Supabase component selection", () => {
       model: "modified-unifac-2.0",
     });
   });
+  it.each(["ideal-gas", "modified-unifac-2.0"] as const)(
+    "removes and reorders saved components offline with intact %s data",
+    async (model) => {
+      const saved = settingsFor(["71-43-2", "108-88-3", "7732-18-5"], model);
+      const fetcher = vi.fn();
+      vi.stubGlobal("fetch", fetcher);
+      const next = await resolveCatalogSettings(saved, [
+        saved.catalog!.chemicals[1],
+        saved.catalog!.chemicals[0],
+      ]);
+      expect(next).toEqual(settingsFor(["108-88-3", "71-43-2"], model));
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(saved.catalog!.chemicals).toHaveLength(3);
+    },
+  );
   it("rejects a response containing a different pair", async () => {
     const saved = settingsFor(["64-17-5", "7732-18-5"]);
     vi.stubGlobal(

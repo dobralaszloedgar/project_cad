@@ -679,6 +679,7 @@ function Studio({
                 rotation={[0, ((item.turn ?? 0) * Math.PI) / 2, 0]}
                 section={section}
                 trayCount={item.trayCount ?? trayCount}
+                condenserType={item.condenserType}
                 column={item.column}
                 hydraulics={columnHydraulics?.[item.id]}
                 liquidColor={

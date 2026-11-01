@@ -60,6 +60,7 @@ test("assistant opens from each dock, remembers its corner and stays inside the 
   }
   await page.reload();
   await expect(bubble).toBeVisible();
+  await bubble.click({ trial: true });
   await expect
     .poll(async () => (await bubble.boundingBox())!.x)
     .toBeCloseTo(canvas.x + 60, 0);
@@ -117,25 +118,53 @@ test("drag-to-hide can be restored from workspace settings", async ({
     page.getByRole("heading", { name: "Choose your agents" }),
   ).toBeVisible();
 });
-test("composition colors animate, can be disabled, and the 3D switch remains visible", async ({
+test("composition colors default on and persist through Workspace settings", async ({
   page,
-}) => {
+}, info) => {
+  async function openSettings() {
+    await page
+      .getByRole("button", { name: "Workspace menu", exact: true })
+      .click();
+    await page
+      .getByRole("navigation", { name: "Workspace", exact: true })
+      .getByRole("button", { name: "Settings", exact: true })
+      .click();
+    await expect(
+      page.getByRole("tab", { name: "Workspace", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+  }
   await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const rainbow = page.getByRole("button", {
-    name: "Color streams by composition",
-  });
-  await expect(rainbow).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("button", { name: "Color streams by composition" }),
+  ).toHaveCount(0);
   await expect(page.locator(".stream-flow-motion")).toHaveCount(6);
   await expect(page.locator(".stream-flow-motion").first()).toHaveCSS(
     "animation-name",
     "stream-flow",
   );
-  await rainbow.click();
+  await openSettings();
+  const compositionColors = page
+    .getByRole("tabpanel", { name: "Workspace", exact: true })
+    .getByRole("switch", { name: "Color streams by composition" });
+  await expect(compositionColors).toBeChecked();
+  await page.screenshot({ path: info.outputPath("workspace-settings.png") });
+  await compositionColors.uncheck();
   await expect(page.locator(".stream-flow-motion")).toHaveCount(0);
-  await rainbow.click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Run simulation" }),
+  ).toBeEnabled();
+  await expect(page.locator(".stream-flow-motion")).toHaveCount(0);
+  await openSettings();
+  await expect(compositionColors).not.toBeChecked();
+  await compositionColors.focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator(".stream-flow-motion")).toHaveCount(6);
+  await page.getByRole("button", { name: "Close Settings" }).click();
+  await page.reload();
   await expect(page.locator(".stream-flow-motion")).toHaveCount(6);
   await expect(
     page.getByRole("button", { name: "3D schematic", exact: true }),

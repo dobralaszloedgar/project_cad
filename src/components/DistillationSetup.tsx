@@ -81,9 +81,31 @@ export function DistillationSetup({
           <p className="equipment-help">
             {d.method === "fug"
               ? "Estimates stages and reflux. Recoveries refer to feed components."
-              : "One feed, total condenser, kettle reboiler. Both products are liquid."}
+              : "One feed, equilibrium trays and kettle reboiler."}
           </p>
           <div className="equipment-field-grid">
+            <label data-setup-field="distillation.condenserType">
+              Condenser type
+              <select
+                className="select"
+                aria-label="Condenser type"
+                value={d.condenserType}
+                onChange={(e) =>
+                  change({
+                    condenserType: e.target
+                      .value as DistillationConfig["condenserType"],
+                  })
+                }
+              >
+                <option value="total">Total condenser</option>
+                <option value="partial">Equilibrium condenser (partial)</option>
+              </select>
+              <span className="equipment-help">
+                {d.condenserType === "partial"
+                  ? "Vapor distillate and liquid reflux. Counts as an equilibrium stage."
+                  : "Liquid distillate and reflux. Does not count as an equilibrium stage."}
+              </span>
+            </label>
             <label>
               Column top pressure ({display.quantityLabel("pressure")})
               <EngineeringInput
@@ -172,7 +194,7 @@ export function DistillationSetup({
                     )}
                 {(["distillateTemperature", "bottomsTemperature"] as const).map(
                   (key) => (
-                    <label key={key}>
+                    <label key={key} data-setup-field={`distillation.${key}`}>
                       {key === "distillateTemperature"
                         ? "Distillate temperature"
                         : "Bottoms temperature"}
@@ -191,6 +213,12 @@ export function DistillationSetup({
                         required
                         onValueChange={(value) => change({ [key]: value })}
                       />
+                      {key === "distillateTemperature" &&
+                        d.condenserType === "partial" && (
+                          <span className="equipment-help">
+                            Must give vapor at the column top pressure.
+                          </span>
+                        )}
                     </label>
                   ),
                 )}

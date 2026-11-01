@@ -1,7 +1,9 @@
 import { normalizeTrayCount } from "../../domain/column-geometry";
+import type { CondenserType } from "../../domain/equipment/distillation-schema";
 export { columnTrayLimits } from "../../domain/column-geometry";
 export type EquipmentModelOptions = {
   trayCount?: number;
+  condenserType?: CondenserType;
   column?: {
     diameter: number;
     traySpacing: number;
@@ -34,6 +36,7 @@ export function columnLayout(options: EquipmentModelOptions = {}) {
   for (let y = 2.05; y < upperPlatform - 1.2; y += 2.4) platforms.push(y);
   platforms.push(upperPlatform);
   return {
+    condenserType: options.condenserType ?? "total",
     trayCount,
     traySpacing,
     radialScale,
@@ -48,8 +51,8 @@ export function columnLayout(options: EquipmentModelOptions = {}) {
   };
 }
 
-/** Every branch terminates at the SAME tee center. Rounding an elbow through
- * this point would pull the reflux off the product takeoff and leave a gap. */
+/** Total condensation splits liquid at the tee; partial condensation takes
+ * vapor from the receiver headspace and returns all receiver liquid as reflux. */
 export function columnOverhead(options: EquipmentModelOptions = {}) {
   const { topOffset } = columnLayout(options);
   const point = (x: number, y: number, z = 0): [number, number, number] => [
@@ -66,6 +69,14 @@ export function columnOverhead(options: EquipmentModelOptions = {}) {
     condensate: [point(1.52, 5.84), point(1.52, 5.7)],
     inlet: [point(1.52, 5.34), split],
     reflux: [split, point(0.54, 5.06)],
-    distillate: [split, point(2.1, 5.06)],
+    distillate:
+      options.condenserType === "partial"
+        ? [
+            point(1.72, 5.6),
+            point(1.94, 5.6),
+            point(1.94, 5.06),
+            point(2.1, 5.06),
+          ]
+        : [split, point(2.1, 5.06)],
   };
 }

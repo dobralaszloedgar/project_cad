@@ -215,7 +215,12 @@ export function EquipmentModelNotes({
             <Equation>{String.raw`L_{j-1}h_{j-1}+V_{j+1}H_{j+1}+F_jh_F+Q_j=L_jh_j+V_jH_j`}</Equation>
             <ul>
               <li>One feed; adiabatic equilibrium trays.</li>
-              <li>Saturated total condenser; kettle reboiler.</li>
+              <li>
+                {unit.params.distillation.condenserType === "partial"
+                  ? "Equilibrium partial condenser; vapor distillate."
+                  : "Saturated total condenser; liquid distillate."}{" "}
+                Kettle reboiler.
+              </li>
               <li>Selected equilibrium and enthalpy models.</li>
               <li>Hydraulics rated separately; no hydraulic feedback.</li>
               <li>

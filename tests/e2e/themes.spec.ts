@@ -17,7 +17,17 @@ async function themes(page: Page) {
   ).toBeVisible();
 }
 
-test("project-library palettes are also available from the workspace Themes tab", async ({
+async function workspaceThemes(page: Page) {
+  await page
+    .getByRole("button", { name: "Workspace menu", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Themes", exact: true })
+    .click();
+}
+
+test("project-library palettes are also available from the workspace pull-tab menu", async ({
   page,
 }, info) => {
   await projects(page);
@@ -33,20 +43,21 @@ test("project-library palettes are also available from the workspace Themes tab"
   await page
     .getByRole("button", { name: "Back to canvas", exact: true })
     .click();
-  const tab = page
-    .getByRole("navigation", { name: "Workspace panels" })
-    .getByRole("button", { name: "Themes", exact: true });
+  const pullTab = page.getByRole("button", {
+    name: "Workspace menu",
+    exact: true,
+  });
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-palette",
     THEMES.at(-1)!.id,
   );
-  await tab.click();
+  await workspaceThemes(page);
   const panel = page.getByRole("complementary", {
     name: "Themes",
     exact: true,
   });
   await expect(panel).toBeVisible();
-  await expect(tab).toHaveAttribute("aria-expanded", "true");
+  await expect(pullTab).toHaveAttribute("aria-expanded", "false");
   for (const theme of THEMES) {
     await panel.getByRole("radio", { name: theme.label, exact: true }).check();
     await expect(page.locator("main.workspace")).toHaveAttribute(
@@ -78,10 +89,10 @@ test("project-library palettes are also available from the workspace Themes tab"
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
-  await expect(tab).toBeFocused();
-  await expect(tab).toHaveAttribute("aria-expanded", "false");
+  await expect(pullTab).toBeFocused();
+  await expect(pullTab).toHaveAttribute("aria-expanded", "false");
   await page.setViewportSize({ width: 390, height: 844 });
-  await tab.click();
+  await workspaceThemes(page);
   await panel.getByRole("radio", { name: "Paper", exact: true }).check();
   expect(
     await panel.evaluate(
@@ -94,7 +105,9 @@ test("project-library palettes are also available from the workspace Themes tab"
   await page.screenshot({
     path: info.outputPath("workspace-themes-mobile.png"),
   });
-  await tab.click();
+  await panel
+    .getByRole("button", { name: "Close Themes", exact: true })
+    .click();
   await expect(panel).toHaveCount(0);
 });
 
@@ -129,10 +142,7 @@ test("theme preferences persist and sync between the workspace, library and brow
     "data-palette",
     "paper",
   );
-  await other
-    .getByRole("navigation", { name: "Workspace panels" })
-    .getByRole("button", { name: "Themes", exact: true })
-    .click();
+  await workspaceThemes(other);
   await other.getByRole("radio", { name: "Dark Blue", exact: true }).check();
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-palette",
@@ -172,7 +182,7 @@ test("invalid theme preferences and unavailable storage do not block library set
   await page
     .getByRole("button", { name: "Back to canvas", exact: true })
     .click();
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await workspaceThemes(page);
   await page.getByRole("radio", { name: "Paper", exact: true }).check();
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-palette",

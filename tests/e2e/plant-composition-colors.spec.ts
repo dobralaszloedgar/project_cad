@@ -26,8 +26,9 @@ test("3D composition colors update after feed edits while preserving the view", 
     "B",
   ]);
   await expect(
-    page.getByRole("button", { name: "Play flow", exact: true }),
+    page.getByRole("button", { name: "Pause flow", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Pause flow", exact: true }).click();
   const labels = page.locator(".plant-label");
   await expect(labels).toHaveCount(4);
   const positions = () =>
