@@ -7,6 +7,17 @@ export const metadata: Metadata = {
     "Preview the guided assistant download, setup, and connection flow.",
 };
 
-export default function AssistantSandboxPage() {
-  return <AssistantSandbox />;
+export default async function AssistantSandboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scenario?: string | string[] }>;
+}) {
+  const { scenario } = await searchParams;
+  return (
+    <AssistantSandbox
+      initialScenario={
+        scenario === "new" || scenario === "ready" ? scenario : "live"
+      }
+    />
+  );
 }

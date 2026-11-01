@@ -3,11 +3,11 @@ import { test as base, type Page } from "@playwright/test";
 export { expect, type Page, type Locator } from "@playwright/test";
 
 export async function dismissProjectFolderSetup(page: Page) {
-  const setup = page.getByRole("dialog", {
+  const setup = page.getByRole("region", {
     name: /^(Choose|Reconnect) project folder$/,
   });
   await page.addLocatorHandler(setup, async () => {
-    await setup.getByRole("button", { name: /^Close / }).click();
+    await setup.getByRole("button", { name: /^Dismiss folder/ }).click();
   });
 }
 

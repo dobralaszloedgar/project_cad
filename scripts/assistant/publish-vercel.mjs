@@ -130,7 +130,7 @@ Choose the installer for your system. macOS uses the universal .pkg (Apple silic
 
 On Linux, make the .run file executable with chmod +x, then run it as your normal user without sudo. Portable ZIP and tar.gz archives are available at the same download location.
 
-Open Project CAD Assistant, choose your agents and a default, then sign in to or configure those agents. Open https://projectcad.vercel.app, choose Connect assistant, and approve the website. Use Manage agents to change your choices later.
+Choose your agents in https://projectcad.vercel.app, then install and open Project CAD Assistant. Return to the website, choose Connect assistant, and approve the request inside the assistant app. Your choices appear in the desktop app automatically. Complete any agent sign-in or key setup there if needed. Use Manage agents in the website to change your choices later.
 
 The connector runs on your computer. Project files stay where you choose them. Conversation history and provider settings stay under .project-cad/assistant in your home folder. Vercel hosts the downloads; it does not run your local agents.
 

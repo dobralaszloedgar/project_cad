@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { AssistantStore } from "../src/server/assistant/store";
 import { AssistantRuntime } from "../src/server/assistant/runtime";
 import { createAssistantServer } from "../src/server/assistant/http";
+import { ConnectionRequests } from "../src/server/assistant/connections";
 import { CodexProvider } from "../src/server/assistant/providers/codex";
 import { ClaudeProvider } from "../src/server/assistant/providers/claude";
 import { MuseProvider } from "../src/server/assistant/providers/muse";
@@ -43,6 +44,7 @@ const origins = assistantOrigins(
 const server = createAssistantServer(runtime, {
   port,
   origins,
+  connections: new ConnectionRequests(root),
   selectAgents: (agents) => {
     settings = saveAssistantSettings(root, {
       ...loadAssistantSettings(root),

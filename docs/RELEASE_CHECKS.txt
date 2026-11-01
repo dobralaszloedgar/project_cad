@@ -22,3 +22,18 @@ The Vercel Blob publisher checks project files, all ten packages, checksum sidec
 The optional GitHub publisher additionally checks the current source history and public source commit. GitHub publishing requires committed source already present in the configured repository. New release tags target that exact source commit. A preexisting tag must resolve to the same commit. Run it with npm run assistant:publish:github.
 
 After publishing, run npm run assistant:verify-downloads to verify unauthenticated download access and checksums.
+
+Live Codex regression check (requires an existing sign-in; uses real inference):
+PROJECT_CAD_LIVE_CODEX=1 PLAYWRIGHT_PORT=3196 npx playwright test tests/e2e/assistant-codex-live.spec.ts
+
+This uses a temporary assistant database and an isolated browser project. It reads the website's project and capabilities, validates and simulates a proposed batch, then verifies the review/apply flow. The shared Codex transport emits large numeric bounds in exponent notation so app-server accepts the schemas without changing engineering limits. The desktop setup test also verifies that website-approved agents sync automatically without another selection screen.
+
+Inline setup release (Assistant 0.1.4+)
+
+Publish and verify the compatible desktop packages before deploying the website's inline connection flow. Discovery checks desktop-consent-v1; older connectors are offered an update. The website must not offer an older installer for this flow, and a blocked download store must be resolved before rollout. The checked-in download manifest remains on the last published release until public verification succeeds.
+
+Connection requests are private and short-lived. The website may request, poll, or cancel a connection. Approval or decline happens in the existing companion UI; the native app uses its private control command, while the portable UI requires its local session and same-origin action header. The website cannot approve itself. Legacy consent endpoints remain available to older websites during rollout.
+
+Run tests/assistant-connections.test.ts for origin binding, private approval, expiry, cancellation, and request limits. The desktop setup browser test exercises approval and decline in the real portable companion. assistant:verify exercises the new private native control command in a temporary packaged installation, plus installation integrity and preservation of existing data. assistant:verify-portable checks Windows/Linux archive contents and CPU architecture; native runtime testing on those operating systems is still separate.
+
+Website verification covers first installation, saved choices, agent changes, blocked and outdated installers, cancellation, rejection, no browser popup, automatic provider readiness, mobile layout, and dismissible folder setup. Folder setup is an inline banner and never auto-opens a file picker.

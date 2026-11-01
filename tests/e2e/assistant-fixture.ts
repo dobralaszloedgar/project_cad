@@ -11,9 +11,26 @@ import type {
 } from "../../src/server/assistant/providers/types";
 import type { ProviderId, AgentSelection } from "../../src/assistant/protocol";
 import { newUnit, type Project } from "../../src/domain/schema";
+import { ConnectionRequests } from "../../src/server/assistant/connections";
+
+const consentRequests = new WeakMap<Page, ConnectionRequests>();
+export async function pendingAssistantConnection(page: Page) {
+  const requests = consentRequests.get(page)!;
+  await expect.poll(() => requests.pending().length).toBeGreaterThan(0);
+  return requests.pending()[0]!;
+}
+export async function approveAssistant(page: Page, approved = true) {
+  const request = await pendingAssistantConnection(page);
+  consentRequests.get(page)!.decide(request.id, approved);
+}
 
 /** Real HTTP/runtime/store/project tools with a deterministic, inference-free provider. */
-export async function installAssistant(page: Page) {
+export async function installAssistant(
+  page: Page,
+  createAdapters?: (
+    root: string,
+  ) => Partial<Record<ProviderId, AssistantProvider>>,
+) {
   const root = mkdtempSync(join(tmpdir(), "project-cad-browser-assistant-"));
   const store = new AssistantStore(join(root, "history.sqlite"));
   const run = async (input: ProviderInput) => {
@@ -96,12 +113,16 @@ export async function installAssistant(page: Page) {
       },
     ]),
   ) as Record<ProviderId, AssistantProvider>;
+  Object.assign(adapters, createAdapters?.(root));
   let agents: AgentSelection | null = null;
   const runtime = new AssistantRuntime(store, adapters, root, () => agents);
+  const connections = new ConnectionRequests(root);
+  consentRequests.set(page, connections);
   const origin = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
   const server = createAssistantServer(runtime, {
     port: 0,
     origins: [origin],
+    connections,
     selectAgents: (selection) => {
       agents = selection;
     },
@@ -111,6 +132,7 @@ export async function installAssistant(page: Page) {
     server.listen(0, "127.0.0.1", resolve);
   });
   const endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  let closing = false;
   await page.context().route("http://127.0.0.1:43118/**", async (route) => {
     const request = route.request(),
       url = new URL(request.url());
@@ -118,13 +140,20 @@ export async function installAssistant(page: Page) {
     delete headers.host;
     if (url.pathname === "/connect" && request.method() === "POST")
       headers.origin = endpoint;
-    const response = await route.fetch({
-      url: endpoint + url.pathname + url.search,
-      headers,
-    });
-    await route.fulfill({ response });
+    try {
+      const response = await route.fetch({
+        url: endpoint + url.pathname + url.search,
+        headers,
+      });
+      await route.fulfill({ response });
+    } catch (error) {
+      if (!closing) throw error;
+    }
   });
   return async () => {
+    closing = true;
+    await page.context().close();
+    consentRequests.delete(page);
     runtime.close();
     await new Promise((resolve) => setTimeout(resolve, 20));
     server.closeAllConnections();
@@ -149,17 +178,13 @@ export async function connectAssistant(page: Page) {
   ) {
     for (const name of ["Codex", "Claude Code", "Muse"])
       await page.getByRole("checkbox", { name, exact: true }).check();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Connect agents", exact: true })
+      .click();
+  } else {
+    await page
+      .getByRole("button", { name: "Connect assistant", exact: true })
+      .click();
   }
-  await expect(
-    page.getByRole("heading", { name: "Your assistant is ready" }),
-  ).toBeVisible();
-  const popupPromise = page.waitForEvent("popup");
-  await page
-    .getByRole("button", { name: "Connect assistant", exact: true })
-    .click();
-  const popup = await popupPromise;
-  await popup
-    .getByRole("button", { name: "Connect assistant", exact: true })
-    .click();
+  await approveAssistant(page);
 }

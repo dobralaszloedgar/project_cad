@@ -10,10 +10,12 @@ export default function AssistantSetup({
   assistant,
   open,
   onBack,
+  updating = false,
 }: {
   assistant: AssistantClient;
   open: boolean;
   onBack: () => void;
+  updating?: boolean;
 }) {
   const discovery = useAssistantDiscovery(open && !assistant.connecting);
   return (
@@ -27,14 +29,16 @@ export default function AssistantSetup({
         {...discovery}
         embedded
         initialAgents={assistant.agents}
-        manageAgents={assistant.connected}
+        manageAgents={
+          assistant.connected && !updating && !assistant.updateRequired
+        }
+        updating={updating || assistant.updateRequired}
         connecting={assistant.connecting}
         connected={false}
         error={assistant.error}
         onCheck={discovery.checkAgain}
         onConnect={(agents) => {
-          assistant.connect(agents);
-          if (assistant.connected) onBack();
+          assistant.connect(agents, onBack);
         }}
         onCancel={assistant.cancelConnect}
       />

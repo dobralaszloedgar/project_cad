@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, X } from "lucide-react";
 import {
   chooseProjectDirectory,
   folderPermission,
@@ -12,8 +12,7 @@ import {
   getDefaultProjectDirectory,
   setDefaultProjectDirectory,
 } from "@/lib/project-preferences";
-import Dialog from "./Dialog";
-import styles from "./CreateProjectDialog.module.css";
+import styles from "./ProjectFolderSetup.module.css";
 
 export default function ProjectFolderSetup({
   onComplete,
@@ -29,7 +28,6 @@ export default function ProjectFolderSetup({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const locked = useRef(false);
-  const chooseButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!supportsProjectFolders()) {
@@ -40,6 +38,18 @@ export default function ProjectFolderSetup({
     async function checkFolder() {
       try {
         const saved = await getDefaultProjectDirectory();
+        let dismissed = false;
+        try {
+          dismissed =
+            localStorage.getItem("project-cad.folder-setup-dismissed") ===
+            "true";
+        } catch {
+          /* Remembering dismissal is optional. */
+        }
+        if (!saved && dismissed) {
+          if (active) onComplete();
+          return;
+        }
         const permission = saved ? await folderPermission(saved) : null;
         if (active) {
           if (saved && permission === "granted") {
@@ -94,52 +104,74 @@ export default function ProjectFolderSetup({
 
   if (!open) return null;
   return (
-    <Dialog
-      title={directory ? "Reconnect project folder" : "Choose project folder"}
-      className={styles.dialog}
-      initialFocusRef={chooseButton}
-      onClose={() => {
-        if (!locked.current) onComplete();
-      }}
+    <section
+      className={styles.notice}
+      aria-label={
+        directory ? "Reconnect project folder" : "Choose project folder"
+      }
+      aria-busy={busy}
     >
-      <div className={styles.form} aria-busy={busy}>
-        {directory ? (
-          <div className={styles.folderName}>
-            <FolderOpen size={20} aria-hidden="true" />
-            <span>{directory.name}</span>
-          </div>
-        ) : (
-          <p className={styles.hint}>New projects save here automatically.</p>
-        )}
+      <FolderOpen size={18} aria-hidden="true" />
+      <div className={styles.content}>
+        <strong>
+          {directory
+            ? `Reconnect ${directory.name}`
+            : "Save projects to a folder"}
+        </strong>
+        <p>
+          {directory
+            ? "Restore access to save changes on this computer."
+            : "Choose a folder for automatic saving, or keep working in this browser."}
+        </p>
         {error ? (
           <p className={styles.error} role="alert">
             {error}
           </p>
         ) : null}
-        <div className={styles.actions}>
-          {directory ? (
-            <button
-              className="btn"
-              disabled={busy}
-              onClick={() => void connect(true)}
-            >
-              Change folder
-            </button>
-          ) : null}
-          <button
-            ref={chooseButton}
-            className="btn btn-primary"
-            disabled={busy}
-            onClick={() => void connect(!directory)}
-          >
-            {busy
-              ? "Connecting…"
-              : directory
-                ? "Reconnect folder"
-                : "Choose folder"}
-          </button>
-        </div>
       </div>
-    </Dialog>
+      <div className={styles.actions}>
+        {directory ? (
+          <button
+            className="btn btn-sm"
+            disabled={busy}
+            onClick={() => void connect(true)}
+          >
+            Change folder
+          </button>
+        ) : null}
+        <button
+          className="btn btn-sm btn-primary"
+          disabled={busy}
+          onClick={() => void connect(!directory)}
+        >
+          {busy
+            ? "Connecting…"
+            : directory
+              ? "Reconnect folder"
+              : "Choose folder"}
+        </button>
+        <button
+          className="btn btn-sm"
+          aria-label={
+            directory ? "Dismiss folder reconnect" : "Dismiss folder setup"
+          }
+          disabled={busy}
+          onClick={() => {
+            try {
+              if (!directory)
+                localStorage.setItem(
+                  "project-cad.folder-setup-dismissed",
+                  "true",
+                );
+            } catch {
+              /* Dismiss even when browser storage is unavailable. */
+            }
+            onComplete();
+          }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </section>
   );
 }

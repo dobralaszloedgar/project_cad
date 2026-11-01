@@ -6,7 +6,7 @@ import {
 } from "./folder-fixture";
 
 const setup = (page: Page) =>
-  page.getByRole("dialog", { name: "Choose project folder", exact: true });
+  page.getByRole("region", { name: "Choose project folder", exact: true });
 
 async function chooseFolder(page: Page) {
   await setup(page)
@@ -53,7 +53,7 @@ test("first launch remembers one folder for creation, autosave, duplicates and l
   await expect(setup(page)).toBeVisible();
   await expect(
     setup(page).getByRole("button", { name: "Choose folder", exact: true }),
-  ).toBeFocused();
+  ).toBeVisible();
   await page.screenshot({ path: info.outputPath("folder-setup-desktop.png") });
   await chooseFolder(page);
   await library(page);
@@ -205,7 +205,7 @@ test("expired permission reconnects the remembered folder without another picker
   await create(page, "Existing study");
   await folderControls(page, { permission: "prompt", grant: "denied" });
   await page.reload();
-  const reconnect = page.getByRole("dialog", {
+  const reconnect = page.getByRole("region", {
     name: "Reconnect project folder",
     exact: true,
   });
@@ -300,4 +300,35 @@ test("browsers without folder access keep the existing workspace available", asy
     settings.getByRole("button", { name: "Choose folder", exact: true }),
   ).toBeDisabled();
   await expect(settings.getByRole("status")).toContainText("Chrome or Edge");
+});
+
+test("folder setup is nonblocking and dismissal survives a reload", async ({
+  page,
+}) => {
+  await installFolderPicker(page);
+  await page.goto("/workspace");
+  await expect(setup(page)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Equipment", exact: true }).click();
+  await page.getByTitle("Add Mixer", { exact: true }).click();
+  await expect(setup(page)).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "/tmp/project-cad-inline-setup-qa/folder-banner-mobile.png",
+  });
+  await setup(page)
+    .getByRole("button", { name: "Dismiss folder setup", exact: true })
+    .click();
+  await expect(setup(page)).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator(".workspace")).toBeVisible();
+  await expect(setup(page)).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem("folder-qa-picker-count")),
+  ).toBeNull();
 });

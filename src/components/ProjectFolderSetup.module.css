@@ -1,0 +1,50 @@
+.notice {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+}
+.notice > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.content strong {
+  font-weight: 600;
+}
+.content p {
+  margin: 3px 0 0;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.content .error {
+  color: #b2382d;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .notice {
+    padding: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .content {
+    flex-basis: calc(100% - 32px);
+  }
+  .actions {
+    margin-left: 30px;
+  }
+}

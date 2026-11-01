@@ -4,7 +4,6 @@ import SwiftUI
 private let accent = Color(red: 0.16, green: 0.43, blue: 0.35)
 private let dataDirectory = ProcessInfo.processInfo.environment["PROJECT_CAD_ASSISTANT_DATA"].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".project-cad/assistant", isDirectory: true)
 
-private let agentIDs = ["codex", "claude", "muse"]
 private let agentNames = ["codex": "Codex", "claude": "Claude Code", "muse": "Muse"]
 struct AgentSelection: Codable {
     var providers: [String]
@@ -33,6 +32,12 @@ struct CompanionStatus: Decodable {
     var museConfigured: Bool
     var message: String
     var agents: AgentSelection?
+    var connections: [PendingConnection]?
+}
+struct PendingConnection: Decodable {
+    var id: String
+    var origin: String
+    var agents: AgentSelection
 }
 
 func privateNode() -> URL {
@@ -69,39 +74,35 @@ final class CompanionModel: ObservableObject {
     @Published var message = "Starting the local assistant…"
     @Published var failure = false
     @Published var showSettings = false
-    @Published var stage = 0
-    @Published var chosenAgents: [String] = []
-    @Published var preferred = ""
+    private var refreshing = false
 
-    init() { loadSettings(); stage = settings.agents == nil ? 0 : 1; chosenAgents = settings.agents?.providers ?? []; preferred = settings.agents?.preferred ?? "" }
-    func editAgents() {
-        loadSettings()
-        chosenAgents = settings.agents?.providers ?? []
-        preferred = settings.agents?.preferred ?? ""
-        stage = 0
-    }
-    func toggleAgent(_ id: String, selected: Bool) {
-        if selected { if !chosenAgents.contains(id) { chosenAgents.append(id) } }
-        else { chosenAgents.removeAll { $0 == id } }
-        if !chosenAgents.contains(preferred) { preferred = chosenAgents.first ?? "" }
-    }
-    func saveAgents() {
-        guard !chosenAgents.isEmpty, chosenAgents.contains(preferred) else { return }
-        settings.agents = AgentSelection(providers: chosenAgents, preferred: preferred)
-        if save() { stage = 1 }
+    init() { loadSettings() }
+    func refresh() {
+        guard !busy, !refreshing, !showSettings else { return }
+        refreshing = true
+        DispatchQueue.global(qos: .utility).async {
+            let data = try? control(["status"])
+            DispatchQueue.main.async {
+                self.refreshing = false
+                guard !self.busy, !self.showSettings, let data,
+                      let status = try? JSONDecoder().decode(CompanionStatus.self, from: data) else { return }
+                self.status = status
+                self.settings.agents = status.agents
+            }
+        }
     }
     func loadSettings() {
         settings = CompanionSettings()
         let path = dataDirectory.appendingPathComponent("settings.json")
         if let data = try? Data(contentsOf: path), let value = try? JSONDecoder().decode(CompanionSettings.self, from: data) { settings = value }
     }
-    func perform(_ action: String, completion: ((Data) -> Void)? = nil) {
+    func perform(_ action: String, arguments: [String] = [], completion: ((Data) -> Void)? = nil) {
         guard !busy else { return }
         busy = true; failure = false
-        message = action == "stop" ? "Stopping the assistant…" : action == "status" ? "Checking the assistant…" : "Starting the assistant…"
+        message = action.contains("connection") ? "Saving your decision…" : action == "stop" ? "Stopping the assistant…" : action == "status" ? "Checking the assistant…" : "Starting the assistant…"
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let data = try control([action])
+                let data = try control([action] + arguments)
                 DispatchQueue.main.async {
                     self.busy = false
                     if let status = try? JSONDecoder().decode(CompanionStatus.self, from: data) { self.status = status; self.message = status.message; self.settings.agents = status.agents }
@@ -118,6 +119,7 @@ final class CompanionModel: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let path = dataDirectory.appendingPathComponent("settings.json")
+            if let data = try? Data(contentsOf: path), let latest = try? JSONDecoder().decode(CompanionSettings.self, from: data) { settings.agents = latest.agents }
             try JSONEncoder().encode(settings).write(to: path, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path)
             showSettings = false
@@ -142,7 +144,7 @@ final class CompanionModel: ObservableObject {
                     NSAppleScript(source: script)?.executeAndReturnError(&error)
                     self.busy = false
                     if let error { self.failure = true; self.message = "Could not open sign-in. \(error)" }
-                    else { self.message = "Complete \(provider == "codex" ? "Codex" : "Claude Code") sign-in, then refresh providers in Project CAD." }
+                    else { self.message = "Complete \(provider == "codex" ? "Codex" : "Claude Code") sign-in, then return to Project CAD." }
                 }
             } catch { DispatchQueue.main.async { self.busy = false; self.failure = true; self.message = error.localizedDescription } }
         }
@@ -165,31 +167,22 @@ struct CompanionView: View {
                 Spacer()
                 HStack(spacing: 6) { Circle().fill(model.status?.running == true ? accent : Color.secondary).frame(width: 7, height: 7); Text(model.status?.running == true ? "Running" : model.settings.agents == nil ? "Setup" : "Stopped").font(.caption) }
             }
-            Text("Step \(model.stage + 1) of 3 · \(model.stage == 0 ? "Agents" : model.stage == 1 ? "Setup" : "Connect")").font(.caption).foregroundStyle(.secondary)
-            if model.stage == 0 {
-                Text("Choose your agents").font(.title2.weight(.semibold))
-                Text("Select one or more agents to use with Project CAD. You can change these later.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                ForEach(agentIDs, id: \.self) { id in
-                    Toggle(isOn: Binding(get: { model.chosenAgents.contains(id) }, set: { model.toggleAgent(id, selected: $0) })) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(agentNames[id]!).fontWeight(.medium)
-                            Text(id == "codex" ? "Use your ChatGPT or API sign-in." : id == "claude" ? "Use your Claude Code sign-in." : "Use your Muse API key.").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }.toggleStyle(.checkbox).disabled(model.busy)
-                }
-                if model.chosenAgents.count > 1 {
-                    Picker("Default agent", selection: $model.preferred) {
-                        ForEach(model.chosenAgents, id: \.self) { id in Text(agentNames[id]!).tag(id) }
-                    }.disabled(model.busy)
-                }
+            if let request = model.status?.connections?.first {
+                Text("Connect this website?").font(.title2.weight(.semibold))
+                Text(request.origin).font(.body.weight(.medium)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                Text(request.agents.providers.map { agentNames[$0] ?? $0 }.joined(separator: ", ")).foregroundStyle(.secondary)
+                Text("Allow access to the selected agents and this computer’s project conversation history. Project changes still require your review.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    if model.settings.agents != nil { Button("Cancel") { model.stage = 1 }.disabled(model.busy) }
+                    Button("Decline") { model.perform("deny-connection", arguments: [request.id]) }.disabled(model.busy)
                     Spacer()
-                    Button("Continue", action: model.saveAgents).buttonStyle(.borderedProminent).tint(accent).disabled(model.chosenAgents.isEmpty || model.busy)
+                    Button("Approve connection") { model.perform("approve-connection", arguments: [request.id]) }.buttonStyle(.borderedProminent).tint(accent).disabled(model.busy)
                 }
-            } else if model.stage == 1 {
-                Text("Set up your agents").font(.title2.weight(.semibold))
-                Text("Set up the agents you selected. Existing installations can be reused.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else if model.settings.agents == nil {
+                Text("Connect from Project CAD").font(.title2.weight(.semibold))
+                Text("Choose your agents on the website, then connect. Connection requests appear here.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Your agents").font(.title2.weight(.semibold))
+                Text("Agent choices are managed on the website. Existing sign-ins are reused.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 ForEach(model.settings.agents?.providers ?? [], id: \.self) { id in
                     if id == "muse" {
                         HStack {
@@ -197,25 +190,14 @@ struct CompanionView: View {
                             Spacer(); Button("Configure") { model.showSettings = true }.disabled(model.busy)
                         }
                     } else {
-                        provider(agentNames[id]!, detail: "Complete sign-in in the window that opens.", available: id == "codex" ? model.status?.codexAvailable == true : model.status?.claudeAvailable == true) { model.setup(id) }
+                        provider(agentNames[id]!, detail: (model.settings.agents?.providers.count ?? 0) > 1 && model.settings.agents?.preferred == id ? "Default agent" : "", available: id == "codex" ? model.status?.codexAvailable == true : model.status?.claudeAvailable == true) { model.setup(id) }
                     }
                 }
-                HStack {
-                    Button("Manage agents", action: model.editAgents).disabled(model.busy)
-                    Spacer()
-                    Button("Continue to connection") { model.stage = 2 }.buttonStyle(.borderedProminent).tint(accent).disabled(model.busy)
-                }
-            } else {
-                Text("Connect to Project CAD").font(.title2.weight(.semibold))
-                Text((model.settings.agents?.providers ?? []).compactMap { agentNames[$0] }.joined(separator: ", ")).fontWeight(.medium)
-                if let preferred = model.settings.agents?.preferred { Text("Default: \(agentNames[preferred] ?? preferred)").font(.caption).foregroundStyle(.secondary) }
-                Text("Open your project, open the assistant, and choose Connect assistant. Approve the website and your selected agents in the connection window.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Button("Back to agent setup") { model.stage = 1 }.disabled(model.busy)
-                    Spacer()
-                    Button("Open Project CAD", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
-                }
             }
+            if model.status?.connections?.first == nil { HStack {
+                Spacer()
+                Button("Open Project CAD", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
+            } }
             Divider()
             HStack(alignment: .top, spacing: 10) {
                 if model.busy { ProgressView().controlSize(.small) }
@@ -225,14 +207,15 @@ struct CompanionView: View {
                 Button("Settings…") { model.showSettings = true }.disabled(model.busy)
                 Button("Open logs") { NSWorkspace.shared.open(dataDirectory.appendingPathComponent("logs")) }
                 Spacer()
-                if model.settings.agents != nil {
+                Group {
                     Button(model.status?.running == true ? "Stop assistant" : "Start assistant") { model.perform(model.status?.running == true ? "stop" : "start") }.disabled(model.busy || (model.status?.running == true && model.status?.managed == false))
                 }
                 Button { model.perform("status") } label: { Image(systemName: "arrow.clockwise") }.help("Refresh connection").disabled(model.busy)
             }
         }
         .padding(28).frame(width: 550).background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { model.perform(model.settings.agents == nil ? "status" : "start") }
+        .onAppear { model.perform("start") }
+        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in model.refresh() }
         .sheet(isPresented: $model.showSettings) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Assistant settings").font(.title2.weight(.semibold))
@@ -246,8 +229,8 @@ struct CompanionView: View {
     }
     func provider(_ title: String, detail: String, available: Bool, action: @escaping () -> Void) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) { Text(title).fontWeight(.medium); Text(detail).font(.caption).foregroundStyle(.secondary) }
-            Spacer(); Button(available ? "Sign in" : "Set up", action: action).disabled(model.busy)
+            VStack(alignment: .leading, spacing: 4) { Text(title).fontWeight(.medium); if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary) } }
+            Spacer(); Button(available ? "Manage sign-in" : "Set up", action: action).disabled(model.busy)
         }
     }
 }

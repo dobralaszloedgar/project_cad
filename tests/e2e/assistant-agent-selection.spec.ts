@@ -1,5 +1,9 @@
 import { test, expect } from "./test";
-import { installAssistant } from "./assistant-fixture";
+import {
+  installAssistant,
+  approveAssistant,
+  pendingAssistantConnection,
+} from "./assistant-fixture";
 
 let dispose: (() => Promise<void>) | undefined;
 test.beforeEach(async ({ page }) => {
@@ -22,7 +26,7 @@ test("chooses agents before setup and uses the selected default for the first ch
     page.getByRole("heading", { name: "Choose your agents" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Continue", exact: true }),
+    page.getByRole("button", { name: "Connect agents", exact: true }),
   ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Connect assistant", exact: true }),
@@ -36,24 +40,18 @@ test("chooses agents before setup and uses the selected default for the first ch
   await page.getByRole("checkbox", { name: "Muse", exact: true }).check();
   await page.getByLabel("Default agent", { exact: true }).selectOption("muse");
   await page.screenshot({
-    path: "/tmp/project-cad-connector-qa/05-website-agent-selection.png",
+    path: "/tmp/project-cad-inline-setup-qa/05-website-agent-selection.png",
   });
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Your assistant is ready" }),
-  ).toBeVisible();
-  const popupPromise = page.waitForEvent("popup");
   await page
-    .getByRole("button", { name: "Connect assistant", exact: true })
+    .getByRole("button", { name: "Connect agents", exact: true })
     .click();
-  const popup = await popupPromise;
-  await expect(popup.locator("body")).toContainText(
-    "Selected agents: Claude Code, Muse",
-  );
-  await expect(popup.locator("body")).toContainText("Default: Muse");
-  await popup
-    .getByRole("button", { name: "Connect assistant", exact: true })
-    .click();
+
+  expect((await pendingAssistantConnection(page)).agents).toEqual({
+    providers: ["claude", "muse"],
+    preferred: "muse",
+  });
+
+  await approveAssistant(page);
   const model = page.getByRole("button", { name: "Choose provider and model" });
   await expect(model).toContainText("Muse");
   await model.click();
@@ -76,7 +74,6 @@ test("chooses agents before setup and uses the selected default for the first ch
     .getByRole("group", { name: "Assistant provider" })
     .getByRole("button", { name: "Claude Code", exact: true })
     .click();
-  await page.keyboard.press("Escape");
   await expect(model).toContainText("Claude Code");
   await page
     .getByRole("button", { name: "New conversation", exact: true })
@@ -95,27 +92,24 @@ test("cancelling approval keeps the selected agent and a retry connects it", asy
   await page
     .getByRole("checkbox", { name: "Claude Code", exact: true })
     .check();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  let popupPromise = page.waitForEvent("popup");
   await page
-    .getByRole("button", { name: "Connect assistant", exact: true })
+    .getByRole("button", { name: "Connect agents", exact: true })
     .click();
-  await (await popupPromise).close();
+  await page
+    .getByRole("button", { name: "Cancel connection", exact: true })
+    .click();
   await expect(
-    page.getByRole("alert").filter({ hasText: "Connection window closed" }),
-  ).toContainText("Connection window closed");
-  await expect(
-    page.getByText("Default: Claude Code", { exact: true }),
+    page.getByRole("heading", { name: "Your assistant is ready" }),
   ).toBeVisible();
-  popupPromise = page.waitForEvent("popup");
+  await expect(
+    page.getByText("Waiting for your approval", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Claude Code", { exact: true })).toBeVisible();
+
   await page
     .getByRole("button", { name: "Connect assistant", exact: true })
     .click();
-  await (
-    await popupPromise
-  )
-    .getByRole("button", { name: "Connect assistant", exact: true })
-    .click();
+  await approveAssistant(page);
   await expect(
     page.getByRole("button", { name: "Choose provider and model" }),
   ).toContainText("Claude Code");

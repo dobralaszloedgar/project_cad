@@ -90,8 +90,12 @@ function PreviewConnection({ initiallyReady }: { initiallyReady: boolean }) {
   );
 }
 
-export default function AssistantSandbox() {
-  const [scenario, setScenario] = useState<Scenario>("live");
+export default function AssistantSandbox({
+  initialScenario = "live",
+}: {
+  initialScenario?: Scenario;
+}) {
+  const [scenario, setScenario] = useState<Scenario>(initialScenario);
   const [revision, setRevision] = useState(0);
   return (
     <main className={styles.sandbox}>

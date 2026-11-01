@@ -10,6 +10,7 @@ import {
 import { assistantInstructions } from "../../../assistant/tools";
 import { providerExecutable } from "../config";
 import { imageAttachments } from "../attachments";
+import { codexJson } from "./codex-json";
 import {
   currentProjectPrompt,
   type AssistantProvider,
@@ -103,7 +104,7 @@ class CodexRpc {
     );
   }
   private send(message: unknown) {
-    if (!this.closed) this.child.stdin.write(JSON.stringify(message) + "\n");
+    if (!this.closed) this.child.stdin.write(codexJson(message) + "\n");
   }
   request<T>(method: string, params: unknown): Promise<T> {
     if (this.closed)

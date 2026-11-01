@@ -880,6 +880,29 @@
   padding: 5px 6px 0;
   margin: 0;
 }
+.agentStatus {
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  border: 1px solid var(--assistant-line);
+  border-radius: 12px;
+  background: var(--assistant-surface);
+  color: var(--assistant-ink);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.agentStatus p {
+  margin: 5px 0 9px;
+  color: var(--assistant-muted);
+}
+.agentStatus details {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--assistant-muted);
+}
+.agentStatus summary {
+  cursor: pointer;
+}
 .fileList {
   display: flex;
   flex-wrap: wrap;
