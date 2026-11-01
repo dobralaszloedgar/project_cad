@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
 import { output } from "./artifacts.mjs";
 import {
+  installerPattern,
   sha256,
   validateManifest,
   verifyLocalArtifacts,
@@ -112,35 +113,16 @@ export async function prepareVercelRelease(directory, baseUrl) {
     {
       name: local.name,
       version: local.version,
-      files: local.files,
+      files: local.files.filter((file) => installerPattern.test(file.filename)),
       distribution: { provider: "vercel-blob", baseUrl },
     },
     { published: true },
   );
   const assets = [];
-  for (const file of local.files) {
+  for (const file of manifest.files) {
     assets.push({ ...file, path: join(directory, file.filename) });
-    const filename = `${file.filename}.sha256`;
-    const data = await readFile(join(directory, filename));
-    assets.push({ filename, data, bytes: data.length, sha256: sha256(data) });
   }
-  const instructions = `Project CAD Assistant ${manifest.version}
-
-Choose the installer for your system. macOS uses the universal .pkg (Apple silicon and Intel, macOS 13.5+). Windows uses x64 or ARM64 Setup.exe (Windows 11 / Server 2022+). Linux uses the matching .run file (desktop Linux, glibc 2.28+).
-
-On Linux, make the .run file executable with chmod +x, then run it as your normal user without sudo. Portable ZIP and tar.gz archives are available at the same download location.
-
-Choose your agents in https://projectcad.vercel.app, then install and open Project CAD Assistant. Return to the website, choose Connect assistant, and approve the request inside the assistant app. Your choices appear in the desktop app automatically. Complete any agent sign-in or key setup there if needed. Use Manage agents in the website to change your choices later.
-
-The connector runs on your computer. Project files stay where you choose them. Conversation history and provider settings stay under .project-cad/assistant in your home folder. Vercel hosts the downloads; it does not run your local agents.
-
-macOS packages are ad-hoc signed and not notarized. Windows installers are unsigned. Windows and Linux packages have been cross compiled and checked for archive integrity and CPU architecture, but have not been runtime-tested on those operating systems.
-
-Checksums: ${baseUrl}/SHA256SUMS.txt
-Package inventory: ${baseUrl}/downloads.json
-`;
   const generated = {
-    "INSTALL.txt": instructions,
     "SHA256SUMS.txt": manifest.files
       .map((file) => `${file.sha256}  ${file.filename}\n`)
       .join(""),
@@ -150,7 +132,7 @@ Package inventory: ${baseUrl}/downloads.json
     const data = Buffer.from(text);
     assets.push({ filename, data, bytes: data.length, sha256: sha256(data) });
   }
-  return { manifest, assets };
+  return { manifest, assets, sourceManifest: local };
 }
 
 async function main() {
@@ -201,7 +183,7 @@ async function main() {
     throw new Error(
       "Pass --base-url https://<store-id>.public.blob.vercel-storage.com/project-cad-assistant/v<version>.",
     );
-  const { manifest, assets } = await prepareVercelRelease(
+  const { manifest, assets, sourceManifest } = await prepareVercelRelease(
     values.directory,
     values["base-url"],
   );
@@ -214,7 +196,7 @@ async function main() {
     );
   const policy = await loadReferencePolicy();
   await checkSourceReferences(projectRoot, policy);
-  await checkPackageReferences(values.directory, manifest, policy);
+  await checkPackageReferences(values.directory, sourceManifest, policy);
   for (const file of assets.filter((item) => item.data))
     assertReferenceContent(file.data, file.filename, policy);
   if (values["dry-run"]) {

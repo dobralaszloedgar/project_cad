@@ -1,166 +1,135 @@
 import { expect, test } from "@playwright/test";
-import {
-  folderControls,
-  folderText,
-  installFolderPicker,
-} from "./folder-fixture";
+import { folderText, installFolderPicker } from "./folder-fixture";
+import { startNewProject, submitNewProject } from "./project-create-fixture";
 
-test("landing leads to folder setup, first project, and a remembered workspace", async ({
+test("landing opens the dashboard and asks for a folder only when creating a project", async ({
   page,
 }, info) => {
   await installFolderPicker(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Design.", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".canvas-panel")).toHaveCount(0);
-  await page.screenshot({
-    path: info.outputPath("landing.png"),
-    animations: "disabled",
-  });
   await page.getByRole("link", { name: "Open workspace", exact: true }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/workspace\?home=1$/);
   await expect(
-    page.getByRole("heading", { name: "A home for your projects." }),
+    page.getByRole("region", { name: "Project library" }),
   ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".project-card")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem("folder-qa-picker-count")),
+  ).toBeNull();
   await page.screenshot({
-    path: info.outputPath("onboarding-folder.png"),
+    path: info.outputPath("dashboard.png"),
     animations: "disabled",
   });
-  await page
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await expect(page.getByLabel("Project name", { exact: true })).toBeFocused();
-  await page.getByLabel("Project name", { exact: true }).fill("First process");
-  await expect(page.locator("#project-destination")).toHaveText(
-    "Laptop projects/First process.pcad",
-  );
-  await page.screenshot({
-    path: info.outputPath("onboarding-project.png"),
-    animations: "disabled",
-  });
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  const dialog = await startNewProject(page, "First process");
+  await expect(dialog).toContainText("No folder connected");
+  await submitNewProject(page);
   await expect(page).toHaveURL(/\/workspace$/);
   await expect(page.locator(".project-heading h1")).toHaveText("First process");
   await expect(page.locator(".save-status")).toContainText(
     "First process.pcad",
   );
-  await expect(
-    page.getByRole("dialog", { name: "Choose project folder" }),
-  ).toHaveCount(0);
   const saved = JSON.parse(await folderText(page, "First process"));
-  expect(saved.workspace.project.units.length).toBeGreaterThan(0);
-  await page.screenshot({ path: info.outputPath("first-workspace.png") });
-  await page.getByRole("button", { name: "Landing page", exact: true }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(
-    page.getByRole("heading", { name: "Design.", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("link", { name: "Open workspace", exact: true }).click();
-  await expect(page).toHaveURL(/\/workspace$/);
+  expect(saved.workspace.project.units).toHaveLength(0);
+  await page.reload();
   await expect(page.locator(".project-heading h1")).toHaveText("First process");
+  await page.getByRole("button", { name: "Landing page", exact: true }).click();
+  await page.getByRole("link", { name: "Open workspace", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Project library" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open First process", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "Project library" }),
+  ).toBeVisible();
+  const second = await startNewProject(page, "Second process");
+  await expect(
+    second.getByRole("button", { name: "New subfolder", exact: true }),
+  ).toBeVisible();
+  await submitNewProject(page);
+  await expect(page.locator(".project-heading h1")).toHaveText(
+    "Second process",
+  );
   expect(JSON.parse(await folderText(page, "First process")).projectId).toBe(
     saved.projectId,
   );
   expect(
     await page.evaluate(() => localStorage.getItem("folder-qa-picker-count")),
   ).toBe("1");
+  await page
+    .getByRole("button", { name: "Open projects", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Actions for Second process", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "Move to Trash", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Open Second process", exact: true }),
+  ).toHaveCount(0);
+  await expect(page).toHaveURL(/\/workspace\?home=1$/);
+  await page.reload();
+  await expect(
+    page.getByRole("region", { name: "Project library" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open First process", exact: true }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("cancelled selection, invalid names and denied permission remain recoverable", async ({
+test("old onboarding links open the dashboard without creating an example", async ({
   page,
 }) => {
   await installFolderPicker(page);
   await page.goto("/onboarding");
-  await folderControls(page, { cancel: "yes" });
-  await page
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
+  await expect(page).toHaveURL(/\/workspace\?home=1$/);
   await expect(
-    page.getByRole("heading", { name: "A home for your projects." }),
+    page.getByRole("region", { name: "Project library" }),
   ).toBeVisible();
-  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await page.getByLabel("Project name", { exact: true }).fill("Invalid/name");
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page.locator("#project-name-error")).toContainText(
-    "folder-safe name",
-  );
-  await page.getByLabel("Project name", { exact: true }).fill("Blank study");
-  await page.getByRole("radio", { name: /Blank flowsheet/ }).check();
-  await folderControls(page, { grant: "denied" });
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Allow folder access",
-  );
-  await folderControls(page, { grant: "granted" });
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/workspace$/);
-  expect(
-    JSON.parse(await folderText(page, "Blank study")).workspace.project.units,
-  ).toEqual([]);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".project-card")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Back to canvas", exact: true }),
+  ).toBeDisabled();
 });
 
-test("mobile browsers can explore an example without folder setup", async ({
+test("a mobile browser without folder access can browse the dashboard without a setup prompt", async ({
   page,
-}, info) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+}) => {
   await installFolderPicker(page, true);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(
-    page.getByRole("link", { name: "Open workspace", exact: true }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: info.outputPath("landing-mobile.png"),
-    animations: "disabled",
-  });
   await page.getByRole("link", { name: "Open workspace", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Choose folder", exact: true }),
+    page.getByRole("region", { name: "Project library" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const dialog = await startNewProject(page, "Mobile study");
+  await expect(dialog).toContainText("Use desktop Chrome or Edge");
+  await expect(
+    dialog.getByRole("button", { name: "Continue", exact: true }),
   ).toBeDisabled();
-  await expect(page.getByRole("status")).toContainText("Chrome or Edge");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page.screenshot({
-    path: info.outputPath("onboarding-mobile.png"),
-    animations: "disabled",
-  });
-  await page.getByRole("link", { name: "Explore an example first" }).click();
-  await expect(page).toHaveURL(/\/workspace\?example=heating$/);
-  await expect(page.locator(".canvas-panel")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("button", { name: "Templates", exact: true })
+    .click();
   await expect(
-    page.getByRole("dialog", { name: "Choose project folder" }),
-  ).toHaveCount(0);
-});
-
-test("old landing and example links lead to their new addresses", async ({
-  page,
-}) => {
-  await page.goto("/landing");
-  await expect(page).toHaveURL(/\/$/);
-  await expect(
-    page.getByRole("heading", { name: "Design.", exact: true }),
+    page.getByRole("dialog", { name: "Start from a template" }),
   ).toBeVisible();
-  await page.goto("/?example=heating&view=Split&arrange=1");
-  await expect(page).toHaveURL(/\/workspace\?example=heating&view=Split$/);
-  await expect(page.locator(".canvas-panel")).toBeVisible();
 });

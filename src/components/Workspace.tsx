@@ -123,7 +123,6 @@ import KeyboardHelp from "./KeyboardHelp";
 import ProjectStorageSettings from "./ProjectStorageSettings";
 import UnitSettings from "./UnitSettings";
 import { useUnitSystem } from "./useUnitSystem";
-import ProjectFolderSetup from "./ProjectFolderSetup";
 import ThemePicker from "./ThemePicker";
 import { useTheme } from "./useTheme";
 import { useCompositionColors } from "./useCompositionColors";
@@ -163,11 +162,13 @@ function blankProject(): Project {
 }
 export default function Workspace({
   exampleId,
+  initialScreen = "editor",
   initialView = "2D",
   initialPlayback = true,
   initialArrange = false,
 }: {
   exampleId?: string;
+  initialScreen?: "projects" | "editor";
   initialView?: "2D" | "3D" | "Split";
   initialPlayback?: boolean;
   initialArrange?: boolean;
@@ -181,8 +182,6 @@ export default function Workspace({
     revisions: [],
   }));
   const [ready, setReady] = useState(false);
-  const [folderSetupDone, setFolderSetupDone] = useState(Boolean(exampleId));
-  const finishFolderSetup = useCallback(() => setFolderSetupDone(true), []);
   const [storage, setStorage] = useState("Loading local project");
   const [selection, setSelection] = useState<string[]>([]);
   const selected = selection.at(-1) ?? null;
@@ -246,8 +245,12 @@ export default function Workspace({
       setDrawer(null);
   }, []);
   const { compositionColors, setCompositionColors } = useCompositionColors();
-  const [projectId, setProjectId] = useState("main");
-  const [showProjects, setShowProjects] = useState(false);
+  const [projectId, setProjectId] = useState(
+    initialScreen === "projects" ? "" : "main",
+  );
+  const [showProjects, setShowProjects] = useState(
+    initialScreen === "projects",
+  );
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [library, setLibrary] = useState<ProjectLibrary | null>(null);
   const libraryRefreshing = useRef(false);
@@ -446,7 +449,7 @@ export default function Workspace({
       ? (loadTemplate(exampleId) ?? plantTemplate(exampleId))
       : undefined;
     const opening = (async () => {
-      const directory = await getDefaultProjectDirectory();
+      const directory = await getDefaultProjectDirectory().catch(() => null);
       if (directory) await connectProjectRoot(directory);
       const scanned = await scanProjectLibrary();
       if (active) {
@@ -463,7 +466,9 @@ export default function Workspace({
         : loadActiveWorkspace(),
     );
     opening
-      .then(async ({ workspace: saved, projectId: id }) => {
+      .then(async ({ workspace: saved, projectId: activeId }) => {
+        // Opening the dashboard must not create a sample project in storage.
+        const id = initialScreen === "projects" && !saved ? "" : activeId;
         const info = await getProjectFolderInfo(id);
         if (!active) return;
         const initialProject = id
@@ -530,9 +535,16 @@ export default function Workspace({
     return () => {
       active = false;
     };
-  }, [exampleId, initialArrange, reportFolder, reportSaveError]);
+  }, [exampleId, initialArrange, initialScreen, reportFolder, reportSaveError]);
   useEffect(() => {
-    if (!ready || !persistenceReady || projectBusy || !projectId) return;
+    if (
+      !ready ||
+      !persistenceReady ||
+      projectBusy ||
+      !projectId ||
+      showProjects
+    )
+      return;
     if (
       lastSaved.current?.id === projectId &&
       lastSaved.current.workspace === state
@@ -560,6 +572,7 @@ export default function Workspace({
     persistenceReady,
     projectId,
     projectBusy,
+    showProjects,
     reportSaved,
     reportSaveError,
   ]);
@@ -567,6 +580,7 @@ export default function Workspace({
     function beforeUnload(event: BeforeUnloadEvent) {
       if (
         ready &&
+        !showProjects &&
         projectId &&
         (saveIssue ||
           lastSaved.current?.id !== projectId ||
@@ -578,7 +592,7 @@ export default function Workspace({
     }
     window.addEventListener("beforeunload", beforeUnload);
     return () => window.removeEventListener("beforeunload", beforeUnload);
-  }, [ready, saveIssue, projectId, state]);
+  }, [ready, saveIssue, projectId, state, showProjects]);
   function change(
     next: Project,
     label: string,
@@ -651,8 +665,10 @@ export default function Workspace({
       setSelected(id);
   }
   function run() {
+    sound.prepareSimulation();
     try {
       const calculated = calculate(project);
+      sound.playSimulation(calculated.converged ? "complete" : "attention");
       setMessage(
         calculated.converged
           ? "Calculated · review model limits in Results."
@@ -662,6 +678,7 @@ export default function Workspace({
       setWorkspaceMenuOpen(false);
       setDrawer("Results");
     } catch (e) {
+      sound.playSimulation("attention");
       setMessage(e instanceof Error ? e.message : "Simulation failed.");
     }
   }
@@ -907,6 +924,11 @@ export default function Workspace({
       await preserveCurrentProject();
       await refreshLibrarySnapshot();
       setShowProjects(true);
+      const url = new URL(window.location.href);
+      for (const key of ["example", "view", "play", "arrange"])
+        url.searchParams.delete(key);
+      url.searchParams.set("home", "1");
+      window.history.replaceState(window.history.state, "", url);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -1013,7 +1035,7 @@ export default function Workspace({
       setProjectBusy(false);
     }
   }
-  function resetEditor() {
+  function resetEditor({ keepDashboard = false } = {}) {
     editHistory.current = { past: [], future: [] };
     setDrawer(null);
     setWorkspaceMenuOpen(false);
@@ -1029,6 +1051,7 @@ export default function Workspace({
     setPlaybackOnOpen(true);
     const url = new URL(window.location.href);
     for (const key of ["example", "view", "play"]) url.searchParams.delete(key);
+    if (!keepDashboard) url.searchParams.delete("home");
     window.history.replaceState(window.history.state, "", url);
   }
   async function activateProject(entry: SavedProject) {
@@ -1073,11 +1096,22 @@ export default function Workspace({
               ],
       };
       const entry = await createProjectFile(parent, name, workspace);
+      // A saved file is still a success if remembering its location fails.
+      const remembered = await setDefaultProjectDirectory(parent).then(
+        () => true,
+        () => false,
+      );
       await activateProject(entry);
+      const notices = [];
       if (!savedToFile)
-        setMessage(
+        notices.push(
           `Changes to ${project.name} are kept in this browser. Open it from Projects to finish saving its file.`,
         );
+      if (!remembered)
+        notices.push(
+          "Project saved. This browser could not remember the folder for your next project.",
+        );
+      if (notices.length) setMessage(notices.join(" "));
       setCreateDraft(null);
     } finally {
       setProjectBusy(false);
@@ -1314,7 +1348,7 @@ export default function Workspace({
           lastSaved.current = { id, workspace };
           setProjectId(id);
           setState(workspace);
-          resetEditor();
+          resetEditor({ keepDashboard: true });
           reportFolder(
             id ? await getProjectFolderInfo(id).catch(() => null) : null,
           );
@@ -1466,18 +1500,6 @@ export default function Workspace({
       onLocate={() => void locateProject(projectId)}
     />
   ) : null;
-  const folderSetup = (
-    <>
-      {ready && !folderSetupDone ? (
-        <ProjectFolderSetup
-          onComplete={finishFolderSetup}
-          onConnected={() => {
-            void refreshProjectFiles();
-          }}
-        />
-      ) : null}
-    </>
-  );
   const projectDialogs = (
     <>
       {saveFolderDraft ? (
@@ -1500,7 +1522,12 @@ export default function Workspace({
           initialDirectory={createDraft.directory}
           onCreate={createProject}
           onClose={() => {
-            if (!projectBusy) setCreateDraft(null);
+            if (!projectBusy) {
+              setCreateDraft(null);
+              void refreshLibrarySnapshot().catch((error) =>
+                setProjectMessage(errorMessage(error)),
+              );
+            }
           }}
         />
       ) : null}
@@ -1546,8 +1573,6 @@ export default function Workspace({
   if (showProjects)
     return (
       <main className="workspace" data-theme={theme} data-palette={palette.id}>
-        {saveNotice}
-        {folderSetup}
         <ProjectsPage
           projects={savedProjects}
           roots={library?.roots ?? []}
@@ -1564,7 +1589,12 @@ export default function Workspace({
           onTrash={(entry) => void manageProjectTrash(entry, "trash")}
           onRestore={(entry) => void manageProjectTrash(entry, "restore")}
           onDelete={(entry) => manageProjectTrash(entry, "delete")}
-          onBack={() => setShowProjects(false)}
+          onBack={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("home");
+            window.history.replaceState(window.history.state, "", url);
+            setShowProjects(false);
+          }}
           onLanding={() => void openLanding()}
           palette={palette.id}
           onPalette={setTheme}
@@ -1573,7 +1603,7 @@ export default function Workspace({
           onConnectFolder={() => void connectFolder()}
           onLocate={(entry) => void locateProject(entry.id)}
           onNewFolder={newLibraryFolder}
-          busy={projectBusy}
+          busy={projectBusy || !ready}
           message={projectMessage}
         />
         {projectDialogs}
@@ -1677,7 +1707,6 @@ export default function Workspace({
         </div>
       </header>
       {saveNotice}
-      {folderSetup}
       <div className="editor-body" inert={!ready || projectBusy}>
         <section
           className={`canvas-panel${isViewportFullscreen ? " canvas-panel-fullscreen" : ""}`}
@@ -2069,7 +2098,6 @@ export default function Workspace({
                 statuses={statuses}
                 onNavigateIssue={navigateIssue}
                 onChange={edit}
-                onWireStart={() => sound.play("wire")}
                 onAdd={add}
                 onError={setMessage}
                 result={result}

@@ -105,6 +105,8 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
 test("3D and split views preserve topology and synchronized editing", async ({
   page,
 }) => {
+  // Software WebGL needs more time to render the plant during editing.
+  test.setTimeout(120000);
   await start(page);
   await chooseView(page, "3D schematic");
   await expect(page.locator(".plant-view canvas")).toBeVisible();
@@ -170,7 +172,10 @@ test("simple templates, equipment validation, appearance and mobile editing", as
   await expect(page.locator(".equipment-library")).toHaveCount(0);
   await edit(page, "D-201");
   await expect(
-    page.getByText(/The feed temperature and pressure determine/),
+    page.getByText(
+      "Flash at feed conditions. Outlet 1: vapor; outlet 2: liquid.",
+      { exact: true },
+    ),
   ).toBeVisible();
   await closeDialog(page);
   await page.screenshot({ path: `${output}/mobile.png`, fullPage: true });
@@ -246,7 +251,7 @@ test("disabled or cross-origin AI requests are rejected", async ({
     page.getByRole("button", { name: "Send message", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Connect local assistant", exact: true }),
+    page.getByRole("heading", { name: "Choose your agents", exact: true }),
   ).toBeVisible();
   expect((await (await request.get("/api/ai")).json()).enabled).toBe(false);
   expect(

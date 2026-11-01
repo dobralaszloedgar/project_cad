@@ -45,6 +45,7 @@ async function settings(page: Page) {
 }
 
 async function wire(page: Page, source: Locator, target: Locator) {
+  await settleCanvas(page);
   const from = (await source.boundingBox())!;
   const to = (await target.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
@@ -55,12 +56,37 @@ async function wire(page: Page, source: Locator, target: Locator) {
   await page.mouse.up();
 }
 
+async function settleCanvas(page: Page) {
+  let previous: string | null = null;
+  let stable = 0;
+  await expect
+    .poll(
+      async () => {
+        const current = await page
+          .locator(".react-flow__viewport")
+          .getAttribute("style");
+        stable = current === previous ? stable + 1 : 0;
+        previous = current;
+        return stable;
+      },
+      { intervals: [100], timeout: 10000 },
+    )
+    .toBeGreaterThanOrEqual(3);
+}
+
 test.beforeEach(async ({ page }) => {
+  // The shared workspace may be edited concurrently; freeze this loaded test page.
+  await page.routeWebSocket(/\/_next\/webpack-hmr/, () => {});
   await observeAudio(page);
   await loadProject(page, fixture);
+  await page.getByRole("button", { name: "Fit View", exact: true }).click();
+  await settleCanvas(page);
+  await expect(
+    page.getByRole("button", { name: "Mute canvas sounds", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });
 
-test("real library placement and movement use the exact approved Felt keys cue", async ({
+test("sound starts enabled; adding equipment uses Felt keys while movement stays silent", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -70,21 +96,38 @@ test("real library placement and movement use the exact approved Felt keys cue",
       errors.push(message.text());
   });
   expect(await page.evaluate(() => window.__soundProbe.contexts)).toBe(0);
+  expect(
+    await page.evaluate((key) => localStorage.getItem(key), SOUND_STORAGE_KEY),
+  ).toBeNull();
+  // Moving an existing object must not even initialize audio on a fresh visit.
+  const initialHeater = page.locator('.react-flow__node[data-id="H-101"]');
+  const initialBounds = (await initialHeater.boundingBox())!;
+  await page.mouse.move(
+    initialBounds.x + initialBounds.width / 2,
+    initialBounds.y + initialBounds.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    initialBounds.x + initialBounds.width / 2 + 60,
+    initialBounds.y + initialBounds.height / 2 + 35,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+  expect((await initialHeater.boundingBox())!.x).toBeGreaterThan(
+    initialBounds.x + 20,
+  );
+  expect(await audioStartCount(page)).toBe(0);
+  expect(await page.evaluate(() => window.__soundProbe.contexts)).toBe(0);
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Cooler", { exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(4);
-  expect(await audioStartCount(page)).toBe(0);
-  await page
-    .getByRole("button", { name: "Enable canvas sounds", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", { name: "Mute canvas sounds", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => audioStartCount(page)).toBe(1);
   await expectCue(page, "place");
+  expect(await page.evaluate(() => window.__soundProbe.volumes.at(-1))).toBe(1);
   let before = await audioStartCount(page);
   await page.getByTitle("Add Mixer", { exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(5);
-  expect(await audioStartCount(page)).toBe(before + 1);
+  await expect.poll(() => audioStartCount(page)).toBe(before + 1);
   await expectCue(page, "place");
 
   const transfer = await page.evaluateHandle(() => new DataTransfer());
@@ -104,6 +147,7 @@ test("real library placement and movement use the exact approved Felt keys cue",
   await page
     .getByRole("button", { name: "Close Equipment", exact: true })
     .click();
+  await settleCanvas(page);
   const heater = page.locator('.react-flow__node[data-id="H-101"]');
   const node = (await heater.boundingBox())!;
   before = await audioStartCount(page);
@@ -116,8 +160,8 @@ test("real library placement and movement use the exact approved Felt keys cue",
   );
   expect(await audioStartCount(page)).toBe(before);
   await page.mouse.up();
-  expect(await audioStartCount(page)).toBe(before + 1);
-  await expectCue(page, "place");
+  expect((await heater.boundingBox())!.x).toBeGreaterThan(node.x + 20);
+  expect(await audioStartCount(page)).toBe(before);
   before = await audioStartCount(page);
   await heater.click();
   expect(await audioStartCount(page)).toBe(before);
@@ -126,12 +170,9 @@ test("real library placement and movement use the exact approved Felt keys cue",
   expect(errors).toEqual([]);
 });
 
-test("wiring and deletion play once; invalid wires and no-op deletes stay quiet", async ({
+test("only completed connections play; wire pickup, invalid wires, and deletion stay quiet", async ({
   page,
 }) => {
-  await page
-    .getByRole("button", { name: "Enable canvas sounds", exact: true })
-    .click();
   let before = await audioStartCount(page);
   await wire(
     page,
@@ -139,7 +180,7 @@ test("wiring and deletion play once; invalid wires and no-op deletes stay quiet"
     page.getByLabel("H-101 inlet in", { exact: true }),
   );
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  expect(await audioStartCount(page)).toBe(before + 2);
+  await expect.poll(() => audioStartCount(page)).toBe(before + 1);
   await expectCue(page, "connect");
   before = await audioStartCount(page);
   // The heater's own occupied inlet is an invalid destination.
@@ -149,14 +190,15 @@ test("wiring and deletion play once; invalid wires and no-op deletes stay quiet"
     page.getByLabel("H-101 inlet in", { exact: true }),
   );
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  expect(await audioStartCount(page)).toBe(before + 1);
-  await expectCue(page, "wire");
+  expect(await audioStartCount(page)).toBe(before);
   await wire(
     page,
     page.getByLabel("H-101 outlet out", { exact: true }),
     page.getByLabel("P-101 inlet in", { exact: true }),
   );
   await expect(page.locator(".react-flow__edge")).toHaveCount(2);
+  expect(await audioStartCount(page)).toBe(before + 1);
+  await expectCue(page, "connect");
   const edgePoint = await page
     .locator(".react-flow__edge-interaction")
     .first()
@@ -171,8 +213,7 @@ test("wiring and deletion play once; invalid wires and no-op deletes stay quiet"
   before = await audioStartCount(page);
   await page.keyboard.press("Delete");
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  expect(await audioStartCount(page)).toBe(before + 1);
-  await expectCue(page, "remove");
+  expect(await audioStartCount(page)).toBe(before);
   before = await audioStartCount(page);
   await page.keyboard.press("Delete");
   expect(await audioStartCount(page)).toBe(before);
@@ -182,8 +223,7 @@ test("wiring and deletion play once; invalid wires and no-op deletes stay quiet"
     .click();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await expect(page.locator(".react-flow__edge")).toHaveCount(0);
-  expect(await audioStartCount(page)).toBe(before + 1);
-  await expectCue(page, "remove");
+  expect(await audioStartCount(page)).toBe(before);
 });
 
 test("saved volume and mute survive reload without playing on page load", async ({
@@ -191,11 +231,11 @@ test("saved volume and mute survive reload without playing on page load", async 
 }, info) => {
   const panel = await settings(page);
   await expect(panel.getByText("Felt keys", { exact: true })).toBeVisible();
+  await expect(panel.locator("output")).toHaveText("100%");
   const toggle = panel.getByRole("switch", {
     name: "Canvas sounds",
     exact: true,
   });
-  await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   await panel.getByRole("slider", { name: "Volume", exact: true }).fill("18");
   await expect(panel.locator("output")).toHaveText("18%");
@@ -252,13 +292,13 @@ test("audio failure cannot block editing", async ({ page }) => {
     } as unknown as typeof AudioContext;
   });
   await page.reload();
-  await page
-    .getByRole("button", { name: "Enable canvas sounds", exact: true })
+  const panel = await settings(page);
+  await panel
+    .getByRole("button", { name: "Preview sound", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Enable canvas sounds", exact: true }),
   ).toBeVisible();
-  const panel = await settings(page);
   await expect(panel.getByRole("alert")).toContainText("Couldn’t start audio");
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Cooler", { exact: true }).click();
@@ -277,14 +317,12 @@ test("a rejected placement makes no sound", async ({ page }) => {
       ),
     ),
   });
-  await page
-    .getByRole("button", { name: "Enable canvas sounds", exact: true })
-    .click();
   const before = await audioStartCount(page);
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Mixer", { exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(40);
   expect(await audioStartCount(page)).toBe(before);
+  expect(await page.evaluate(() => window.__soundProbe.contexts)).toBe(0);
 });
 
 test("mobile controls work with keyboard and synchronize mute across tabs", async ({
@@ -293,9 +331,14 @@ test("mobile controls work with keyboard and synchronize mute across tabs", asyn
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page
+    .getByRole("button", { name: "Mute canvas sounds", exact: true })
+    .focus();
+  await page.keyboard.press("Enter");
+  await page
     .getByRole("button", { name: "Enable canvas sounds", exact: true })
     .focus();
   await page.keyboard.press("Enter");
+  expect(await audioStartCount(page)).toBe(0);
   const panel = await settings(page);
   await panel.getByRole("slider", { name: "Volume", exact: true }).fill("25");
   await panel

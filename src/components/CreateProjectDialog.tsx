@@ -12,22 +12,33 @@ import {
 import Dialog from "./Dialog";
 import { getDefaultProjectDirectory } from "@/lib/project-preferences";
 import styles from "./CreateProjectDialog.module.css";
+import NewProjectDialog from "./NewProjectDialog";
 
-export default function CreateProjectDialog({
-  seed,
-  onCreate,
-  onClose,
-  saveLocation = false,
-  initialDirectory,
-  moving = false,
-}: {
+type Props = {
   seed: Project;
   onCreate: (name: string, directory: ProjectDirectoryHandle) => Promise<void>;
   onClose: () => void;
   saveLocation?: boolean;
   initialDirectory?: ProjectDirectoryHandle | null;
   moving?: boolean;
-}) {
+};
+
+export default function CreateProjectDialog(props: Props) {
+  return props.saveLocation || props.moving ? (
+    <ProjectFileDialog {...props} />
+  ) : (
+    <NewProjectDialog {...props} />
+  );
+}
+
+function ProjectFileDialog({
+  seed,
+  onCreate,
+  onClose,
+  saveLocation = false,
+  initialDirectory,
+  moving = false,
+}: Props) {
   const [name, setName] = useState(seed.name);
   const [directory, setDirectory] = useState<ProjectDirectoryHandle | null>(
     initialDirectory ?? null,

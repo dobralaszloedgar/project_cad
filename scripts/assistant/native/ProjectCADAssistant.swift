@@ -238,6 +238,25 @@ struct CompanionView: View {
 @main
 struct ProjectCADAssistant: App {
     init() {
+        if let option = CommandLine.arguments.firstIndex(of: "--quit-for-update") {
+            guard option + 1 < CommandLine.arguments.count else {
+                fputs("Choose the installed app to update.\n", stderr); exit(1)
+            }
+            let destination = URL(fileURLWithPath: CommandLine.arguments[option + 1]).standardizedFileURL.resolvingSymlinksInPath()
+            let previous = NSRunningApplication.runningApplications(withBundleIdentifier: "com.projectcad.assistant.app").filter {
+                $0.processIdentifier != ProcessInfo.processInfo.processIdentifier &&
+                $0.bundleURL?.standardizedFileURL.resolvingSymlinksInPath() == destination
+            }
+            for application in previous { application.terminate() }
+            let deadline = Date().addingTimeInterval(10)
+            while previous.contains(where: { !$0.isTerminated }) && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+            }
+            if previous.contains(where: { !$0.isTerminated }) {
+                fputs("Close Project CAD Assistant before updating.\n", stderr); exit(1)
+            }
+            exit(0)
+        }
         if CommandLine.arguments.contains("--diagnostics") {
             do { let output = try control(["doctor"]); FileHandle.standardOutput.write(output); exit(0) }
             catch { fputs("\(error.localizedDescription)\n", stderr); exit(1) }

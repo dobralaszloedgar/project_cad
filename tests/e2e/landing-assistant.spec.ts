@@ -22,7 +22,7 @@ for (const viewport of [
   { width: 390, height: 844 },
   { width: 320, height: 568 },
 ]) {
-  test(`assistant fits ${viewport.width}x${viewport.height} and opens onboarding on request`, async ({
+  test(`assistant fits ${viewport.width}x${viewport.height} and opens the dashboard on request`, async ({
     page,
   }, info) => {
     await page.setViewportSize(viewport);
@@ -76,9 +76,9 @@ for (const viewport of [
     await page
       .getByRole("link", { name: "Open workspace", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page).toHaveURL(/\/workspace\?home=1$/);
     await expect(
-      page.getByRole("heading", { name: "A home for your projects." }),
+      page.getByRole("region", { name: "Project library" }),
     ).toBeVisible();
     expect([...errors]).toEqual([]);
   });

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { assistantDownloads } from "../src/assistant/downloads";
 import {
   assertReleaseAssets,
+  installerPattern,
   sha256,
   validateManifest,
   verifyLocalArtifacts,
@@ -53,6 +54,9 @@ describe("assistant download distribution", () => {
   it("offers all five installers and checksums directly from a versioned public Blob store", async () => {
     const value = {
       ...manifest(),
+      files: manifest().files.filter((file) =>
+        installerPattern.test(file.filename),
+      ),
       release: undefined,
       distribution: {
         provider: "vercel-blob",
@@ -176,6 +180,59 @@ describe("assistant download distribution", () => {
     ).toThrow();
     value.files[0].architecture = "";
     expect(() => validateManifest(value)).toThrow();
+  });
+  it("requires all five installer targets in a reduced release", () => {
+    const full = manifest();
+    const value = {
+      ...full,
+      files: full.files.filter((file) => installerPattern.test(file.filename)),
+    };
+    expect(() => validateManifest(value, { published: true })).not.toThrow();
+    expect(() =>
+      validateManifest({ ...value, files: value.files.slice(1) }),
+    ).toThrow();
+    expect(() =>
+      validateManifest({
+        ...value,
+        files: [full.files[1], ...value.files.slice(1)],
+      }),
+    ).toThrow();
+    expect(() =>
+      validateManifest({
+        ...value,
+        files: [value.files[1], ...value.files.slice(1)],
+      }),
+    ).toThrow();
+  });
+  it("verifies a reduced release using its combined checksums without sidecars", async () => {
+    const directory = await temporary();
+    const value = {
+      ...manifest(),
+      files: manifest().files.filter((file) =>
+        installerPattern.test(file.filename),
+      ),
+    };
+    for (const file of value.files)
+      await writeFile(join(directory, file.filename), data);
+    const checksums = value.files
+      .map((file) => `${file.sha256}  ${file.filename}\n`)
+      .join("");
+    await writeFile(join(directory, "SHA256SUMS.txt"), checksums);
+    await expect(
+      verifyLocalArtifacts(directory, value),
+    ).resolves.toBeUndefined();
+    await writeFile(
+      join(directory, "SHA256SUMS.txt"),
+      checksums.replace(value.files[0].sha256, "0".repeat(64)),
+    );
+    await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
+      "Combined checksum",
+    );
+    await writeFile(join(directory, "SHA256SUMS.txt"), checksums);
+    await writeFile(join(directory, value.files[0].filename), "corrupted");
+    await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
+      "Checksum mismatch",
+    );
   });
   it("rejects corrupted local binaries and checksum sidecars", async () => {
     const directory = await temporary(),

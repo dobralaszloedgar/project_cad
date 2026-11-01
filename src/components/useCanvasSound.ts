@@ -9,6 +9,11 @@ import {
 } from "react";
 import { SoundPlayer } from "@/lib/audio/sound-player";
 import { workspaceSound, type SoundCue } from "@/lib/audio/sound-design";
+import type { SimulationOutcome } from "@/lib/audio/completion-sounds";
+import {
+  createSimulationSoundSamples,
+  workspaceSimulationSound,
+} from "@/lib/audio/simulation-sound";
 import {
   DEFAULT_SOUND_PREFERENCES,
   soundPreferenceSnapshot,
@@ -43,7 +48,7 @@ export function useCanvasSound() {
     }
   }, [preferences.enabled, preferences.volume]);
 
-  const play = useCallback((cue: SoundCue) => {
+  const playWhenReady = useCallback((action?: (audio: SoundPlayer) => void) => {
     const settings = soundPreferenceSnapshot();
     if (!settings.enabled || settings.volume === 0) return;
     const currentRequest = ++request.current;
@@ -56,10 +61,10 @@ export function useCanvasSound() {
     try {
       const current = (player.current ??= new SoundPlayer());
       if (current.isReady) {
-        current.play(workspaceSound.id, cue);
+        action?.(current);
         return;
       }
-      // A saved preference resumes on the next edit, never automatically on load.
+      // Resume only from an editor action, never automatically on load.
       void current
         .enable(settings.volume / 100)
         .then((ready) => {
@@ -72,32 +77,60 @@ export function useCanvasSound() {
             return;
           }
           current.setVolume(latest.volume / 100);
-          current.play(workspaceSound.id, cue);
+          action?.(current);
         })
         .catch(failed);
     } catch {
-      // Audio failure must never interrupt a successful CAD edit.
+      // Audio failure must never interrupt an edit or simulation.
       failed();
     }
   }, []);
 
-  const setEnabled = useCallback(
-    (enabled: boolean) => {
-      request.current++;
-      setError("");
-      updateSoundPreferences({ enabled });
-      if (enabled) play("place");
-      else player.current?.mute();
+  const play = useCallback(
+    (cue: SoundCue) => {
+      playWhenReady((audio) => audio.play(workspaceSound.id, cue));
     },
-    [play],
+    [playWhenReady],
   );
+
+  // Unlock audio during the run gesture, before a lengthy synchronous solve.
+  // This is silent; only the eventual result plays a cue.
+  const prepareSimulation = useCallback(() => playWhenReady(), [playWhenReady]);
+
+  const playSimulation = useCallback(
+    (outcome: SimulationOutcome) => {
+      playWhenReady((audio) => {
+        audio.stop();
+        audio.playGenerated(
+          `simulation:${workspaceSimulationSound.id}:${outcome}`,
+          (rate) => createSimulationSoundSamples(outcome, rate),
+        );
+      });
+    },
+    [playWhenReady],
+  );
+
+  const setEnabled = useCallback((enabled: boolean) => {
+    request.current++;
+    setError("");
+    updateSoundPreferences({ enabled });
+    if (!enabled) player.current?.mute();
+  }, []);
 
   const setVolume = useCallback((volume: number) => {
     updateSoundPreferences({ volume });
     player.current?.setVolume(soundPreferenceSnapshot().volume / 100);
   }, []);
 
-  return { ...preferences, error, play, setEnabled, setVolume };
+  return {
+    ...preferences,
+    error,
+    play,
+    prepareSimulation,
+    playSimulation,
+    setEnabled,
+    setVolume,
+  };
 }
 
 export type CanvasSound = ReturnType<typeof useCanvasSound>;

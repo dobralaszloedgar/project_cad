@@ -123,13 +123,10 @@ test("theme preferences persist and sync between the workspace, library and brow
     "data-palette",
     "nord",
   );
-  await page
-    .getByRole("button", { name: "Open projects", exact: true })
-    .click();
-  await expect(page.locator("main.workspace")).toHaveAttribute(
-    "data-palette",
-    "nord",
-  );
+  await expect(page).toHaveURL(/\/workspace\?home=1$/);
+  await expect(
+    page.getByRole("region", { name: "Project library" }),
+  ).toBeVisible();
   const other = await context.newPage();
   await other.goto("/workspace");
   await expect(other.locator("main.workspace")).toHaveAttribute(

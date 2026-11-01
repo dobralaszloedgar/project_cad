@@ -271,3 +271,226 @@
     padding: 9px;
   }
 }
+
+.newProject:global(.workspace-dialog) {
+  max-height: calc(100svh - 28px);
+  overflow: auto;
+}
+.locationCard {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 0;
+  background: var(--surface);
+}
+.parentFolder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  background: var(--canvas);
+  border: 0;
+  color: var(--ink);
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+.parentFolder > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.parentFolder > span:first-of-type {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.parentFolder .parentChange {
+  font-size: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.parentFolder:hover:not(:disabled) {
+  background: var(--hover);
+}
+.parentFolder:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+.newSubfolder {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: calc(100% - 24px);
+  min-height: 64px;
+  margin: 12px;
+  padding: 11px 12px;
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  color: var(--accent);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.newSubfolder:hover:not(:disabled),
+.newSubfolder[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-color: var(--accent);
+}
+.subfolderIcon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.newSubfolder > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.newSubfolder strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.newSubfolder small {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.newSubfolder > svg {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.newSubfolder[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}
+.inlineFolder {
+  margin: 0 12px 12px;
+  padding: 12px;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+}
+.inlineFolder > label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.inlineFolder :global(.input) {
+  width: 100%;
+  min-width: 0;
+}
+.parentNote {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.inlineActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.inlineActions :global(.btn) {
+  font-size: 11px;
+}
+.fileDestination {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  min-width: 0;
+}
+.fileDestination > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.fileDestination > div {
+  min-width: 0;
+}
+.fileDestination span {
+  display: block;
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+.fileDestination strong {
+  display: block;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.folderSuccess {
+  margin: 1px 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.folderSuccess svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+@media (max-width: 420px) {
+  .newProject :global(.dialog-header) {
+    padding: 18px 18px 10px;
+  }
+  .newProject :global(.dialog-body) {
+    padding: 8px 18px 18px;
+  }
+  .newSubfolder {
+    padding: 10px;
+    gap: 9px;
+  }
+  .inlineActions :global(.btn) {
+    padding: 0 9px;
+  }
+  .parentFolder {
+    padding: 12px;
+    gap: 8px;
+  }
+  .parentFolder > span:first-of-type {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .newSubfolder,
+  .newSubfolder > svg {
+    transition: none;
+  }
+}
+
+.textButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font-size: 12px;
+}
+.newSubfolder:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

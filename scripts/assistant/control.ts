@@ -21,7 +21,12 @@ import { installProvider } from "../../src/server/assistant/install-provider";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
 
 const execute = promisify(execFile);
-const label = "com.projectcad.assistant";
+// A separate label lets package verification exercise updates without stopping
+// the user's installed connector.
+const label =
+  process.env.PROJECT_CAD_ASSISTANT_SERVICE_LABEL || "com.projectcad.assistant";
+if (!/^com\.projectcad\.assistant(?:\.[a-zA-Z0-9-]+)*$/.test(label))
+  throw new Error("Invalid assistant service label.");
 const resources = fileURLToPath(new URL("../", import.meta.url));
 const root =
   process.env.PROJECT_CAD_ASSISTANT_DATA ||

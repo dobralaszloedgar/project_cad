@@ -5,6 +5,8 @@ import { assistantDownloadLocation } from "../../src/assistant/download-location
 
 export const artifactPattern =
   /^ProjectCAD-Assistant-(?:macos-universal\.(?:pkg|zip)|windows-(?:x64|arm64)(?:-Setup\.exe|\.zip)|linux-(?:x64|arm64)\.(?:run|tar\.gz))$/;
+export const installerPattern =
+  /^ProjectCAD-Assistant-(?:macos-universal\.pkg|windows-(?:x64|arm64)-Setup\.exe|linux-(?:x64|arm64)\.run)$/;
 export const repositoryPattern =
   /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const sha256 = (data) => createHash("sha256").update(data).digest("hex");
@@ -14,10 +16,10 @@ export function validateManifest(manifest, { published = false } = {}) {
     manifest?.name !== "Project CAD Assistant" ||
     !/^\d+\.\d+\.\d+$/.test(manifest.version) ||
     !Array.isArray(manifest.files) ||
-    manifest.files.length !== 10
+    ![5, 10].includes(manifest.files.length)
   ) {
     throw new Error(
-      "Expected the complete Project CAD Assistant release: ten packages across all five platform/CPU targets.",
+      "Expected the complete Project CAD Assistant release: five installers or ten packages across all five platform/CPU targets.",
     );
   }
   const names = new Set();
@@ -26,6 +28,7 @@ export function validateManifest(manifest, { published = false } = {}) {
       !file ||
       typeof file.filename !== "string" ||
       !artifactPattern.test(file.filename) ||
+      (manifest.files.length === 5 && !installerPattern.test(file.filename)) ||
       names.has(file.filename) ||
       !Number.isSafeInteger(file.bytes) ||
       file.bytes <= 0 ||
@@ -50,10 +53,21 @@ export function validateManifest(manifest, { published = false } = {}) {
 
 export async function verifyLocalArtifacts(directory, manifest) {
   validateManifest(manifest);
+  const installersOnly = manifest.files.length === 5;
+  if (installersOnly) {
+    const checksums = await readFile(join(directory, "SHA256SUMS.txt"), "utf8");
+    const expected = manifest.files
+      .map((file) => `${file.sha256}  ${file.filename}`)
+      .sort()
+      .join("\n");
+    if (checksums.trim().split(/\r?\n/).sort().join("\n") !== expected)
+      throw new Error("Combined checksum manifest mismatch: SHA256SUMS.txt");
+  }
   for (const file of manifest.files) {
     const data = await readFile(join(directory, file.filename));
     if (data.length !== file.bytes || sha256(data) !== file.sha256)
       throw new Error(`Checksum mismatch: ${file.filename}`);
+    if (installersOnly) continue;
     const checksum = await readFile(
       join(directory, `${file.filename}.sha256`),
       "utf8",

@@ -41,13 +41,21 @@ export class SoundPlayer {
   }
 
   play(style: SoundStyle, cue: SoundCue) {
+    return this.playGenerated(`${style}:${cue}`, (sampleRate) =>
+      createSoundSamples(style, cue, sampleRate),
+    );
+  }
+
+  playGenerated(
+    key: string,
+    render: (sampleRate: number) => Float32Array<ArrayBuffer>,
+  ) {
     const context = this.context;
     if (!this.enabled || !context || !this.gain || context.state !== "running")
       return false;
-    const key = `${style}:${cue}`;
     let buffer = this.buffers.get(key);
     if (!buffer) {
-      const samples = createSoundSamples(style, cue, context.sampleRate);
+      const samples = render(context.sampleRate);
       buffer = context.createBuffer(1, samples.length, context.sampleRate);
       buffer.copyToChannel(samples, 0);
       this.buffers.set(key, buffer);

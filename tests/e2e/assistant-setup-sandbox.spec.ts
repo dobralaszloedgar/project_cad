@@ -253,6 +253,48 @@ test("an existing assistant skips installation and completes real approval", asy
   }
 });
 
+test("a replaced connector clears the old browser session and reconnects with saved agents", async ({
+  page,
+}) => {
+  const cleanup = await installAssistant(page);
+  try {
+    await page.addInitScript(() =>
+      sessionStorage.setItem(
+        "project-cad.assistant-token",
+        "old-connector-session",
+      ),
+    );
+    await page.goto(route);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          sessionStorage.getItem("project-cad.assistant-token"),
+        ),
+      )
+      .toBeNull();
+    await expect(
+      page.getByRole("heading", { name: "Your assistant is ready" }),
+    ).toBeVisible();
+    await expect(page.getByText("Codex", { exact: true })).toBeVisible();
+    await page
+      .getByRole("button", { name: "Connect assistant", exact: true })
+      .click();
+    await approveAssistant(page);
+    await expect(
+      page.getByRole("heading", { name: "You’re all connected" }),
+    ).toBeVisible();
+    const token = await page.evaluate(() =>
+      sessionStorage.getItem("project-cad.assistant-token"),
+    );
+    expect(token).toBeTruthy();
+    expect(token).not.toBe("old-connector-session");
+    expect(page.context().pages()).toHaveLength(1);
+  } finally {
+    await page.close();
+    await cleanup();
+  }
+});
+
 test("connection works with popups blocked and never opens another page", async ({
   page,
 }) => {

@@ -398,5 +398,9 @@ export function createAssistantServer(
       });
     }
   });
+  // Consent belongs to this running connector, just like its in-memory tokens.
+  // Wait until we own the port: a second launch that fails to bind must not
+  // erase the live connector's pending approvals.
+  server.once("listening", () => connections?.clear());
   return server;
 }

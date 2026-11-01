@@ -124,6 +124,12 @@ async function control(action: string) {
   return value;
 }
 async function shutdownExisting() {
+  async function requireStoppedWorker() {
+    if (await assistantHealth())
+      throw new Error(
+        "Close the running Project CAD assistant before updating. Its previous session is still active.",
+      );
+  }
   try {
     await control("shutdown");
   } catch (error) {
@@ -136,6 +142,7 @@ async function shutdownExisting() {
       )
     )
       throw error;
+    await requireStoppedWorker();
     return;
   }
   for (let i = 0; i < 100; i++) {
@@ -146,8 +153,10 @@ async function shutdownExisting() {
         (r) => r.ok,
         () => false,
       ))
-    )
+    ) {
+      await requireStoppedWorker();
       return;
+    }
     await pause(100);
   }
   throw new Error(
