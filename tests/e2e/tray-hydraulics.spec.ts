@@ -16,7 +16,7 @@ test("sieve hydraulic setup, calculated states, 3D display, persistence and disa
     await page.getByRole("button", { name: "Properties", exact: true }).click();
   };
   await open();
-  await page.getByLabel("Predict tray flooding and weeping").check();
+  await page.getByLabel("Rate flooding and weeping").check();
   await page
     .getByLabel("Hydraulic liquid density", { exact: true })
     .fill("800");
@@ -84,16 +84,14 @@ test("sieve hydraulic setup, calculated states, 3D display, persistence and disa
   }
   await page.reload();
   await open();
-  await expect(
-    page.getByLabel("Predict tray flooding and weeping"),
-  ).toBeChecked();
+  await expect(page.getByLabel("Rate flooding and weeping")).toBeChecked();
   await expect(
     page.getByLabel("Tower internal diameter", { exact: true }),
   ).toHaveValue("0.7");
   await expect(
     page.getByLabel("Hydraulic liquid density", { exact: true }),
   ).toHaveValue("800");
-  await page.getByLabel("Predict tray flooding and weeping").uncheck();
+  await page.getByLabel("Rate flooding and weeping").uncheck();
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Run simulation" }).click();

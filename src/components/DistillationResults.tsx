@@ -59,6 +59,12 @@ export function DistillationResults({
       </h3>
       <dl className="equipment-result-values">
         {[
+          [
+            "Condenser type",
+            result.condenserType === "partial"
+              ? "Equilibrium condenser (partial)"
+              : "Total condenser",
+          ],
           ...metrics,
           [
             "Distillate flow",
@@ -74,16 +80,21 @@ export function DistillationResults({
       </dl>
       {result.method === "fug" ? (
         <p className="equipment-help">
-          Stage estimate includes the equilibrium reboiler and excludes the
-          total condenser. Installed trays and feed location do not constrain
-          FUG.
+          Stage estimate includes the equilibrium reboiler and{" "}
+          {result.condenserType === "partial"
+            ? "the equilibrium condenser"
+            : "excludes the total condenser"}
+          . Installed trays and feed location do not constrain FUG.
         </p>
       ) : (
         <>
           <p className="equipment-help">
             Tray numbering excludes condenser and reboiler. Condenser liquid
             flow is reflux; reboiler liquid flow is bottoms. Positive duty adds
-            heat.
+            heat.{" "}
+            {result.condenserType === "partial"
+              ? "Condenser vapor flow is the distillate product."
+              : "Distillate is liquid; condenser vapor composition is incipient vapor only."}
           </p>
           <div className="equipment-table-scroll">
             <table

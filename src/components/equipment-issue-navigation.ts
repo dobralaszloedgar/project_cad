@@ -1,6 +1,6 @@
 import type { EquipmentTarget } from "@/domain/equipment-status";
 
-/** Navigation only: reveal, focus and highlight without applying a draft. */
+/** Navigation only: reveal and focus without applying a draft. */
 export function revealEquipmentIssue(
   root: HTMLElement,
   target: EquipmentTarget,
@@ -39,7 +39,6 @@ export function revealEquipmentIssue(
       parent = parent.parentElement
     )
       if (parent instanceof HTMLDetailsElement) parent.open = true;
-    destination.classList.add("equipment-setup-target");
     const control = destination.matches("input, select, textarea, button")
       ? destination
       : destination.querySelector<HTMLElement>(
@@ -47,23 +46,16 @@ export function revealEquipmentIssue(
         );
     const focus = control ?? destination;
     const hadTabIndex = focus.hasAttribute("tabindex");
-    if (!control && !hadTabIndex) focus.tabIndex = -1;
+    if (!control && !hadTabIndex) {
+      focus.tabIndex = -1;
+      restoreTabIndex = () => focus.removeAttribute("tabindex");
+    }
     destination.scrollIntoView({ block: "center", behavior: "instant" });
     focus.focus({ preventScroll: true });
-    clearHighlight = () => {
-      destination.classList.remove("equipment-setup-target");
-      if (!control && !hadTabIndex) focus.removeAttribute("tabindex");
-      destination.removeEventListener("input", clearHighlight);
-      clearTimeout(timer);
-    };
-    destination.addEventListener("input", clearHighlight);
-    timer = setTimeout(clearHighlight, 6000);
   });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let clearHighlight = () => {};
+  let restoreTabIndex = () => {};
   return () => {
     cancelAnimationFrame(frame);
-    clearTimeout(timer);
-    clearHighlight();
+    restoreTabIndex();
   };
 }

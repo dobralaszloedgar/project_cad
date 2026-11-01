@@ -26,6 +26,7 @@ const d = distillationSchema.shape;
 export const distillationPatchSchema = z
   .object({
     method: d.method.removeDefault().optional(),
+    condenserType: d.condenserType.removeDefault().optional(),
     lightKey: d.lightKey,
     heavyKey: d.heavyKey,
     relativeVolatilities: d.relativeVolatilities.removeDefault().optional(),

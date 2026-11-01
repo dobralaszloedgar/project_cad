@@ -65,10 +65,29 @@ export function EquipmentStatusIndicator({
     setPinned(false);
     setDismissed(true);
   }, [cancel]);
-  const leave = useCallback(() => {
-    cancel();
-    leaveTimer.current = setTimeout(() => setHovered(false), 180);
-  }, [cancel]);
+  const leave = useCallback(
+    (event: { relatedTarget: EventTarget | null }) => {
+      cancel();
+      const next = event.relatedTarget;
+      // NodeToolbar renders outside the equipment's DOM subtree. Moving into
+      // an overlapping card must not count as leaving the shared hover region.
+      if (
+        next instanceof globalThis.Node &&
+        (nodeRef.current?.contains(next) || content.current?.contains(next))
+      )
+        return;
+      leaveTimer.current = setTimeout(() => {
+        // Native node events and React portal events can arrive in either order.
+        // Confirm the pointer has left both surfaces before hiding the card.
+        if (
+          !nodeRef.current?.matches(":hover") &&
+          !content.current?.matches(":hover")
+        )
+          setHovered(false);
+      }, 180);
+    },
+    [cancel, nodeRef],
+  );
   const enter = useCallback(() => {
     cancel();
     enterTimer.current = setTimeout(() => {
@@ -191,7 +210,10 @@ export function EquipmentStatusIndicator({
             aria-label={`${unit.id} equipment status`}
             className={`equipment-status-popover ${status.state}`}
             style={{ maxHeight: Math.max(0, canvasHeight - 84) }}
-            onMouseEnter={cancel}
+            onMouseEnter={() => {
+              cancel();
+              setHovered(true);
+            }}
             onMouseLeave={leave}
             onFocusCapture={() => setFocused(true)}
             onBlurCapture={(event) => {

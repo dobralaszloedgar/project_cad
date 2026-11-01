@@ -1,0 +1,261 @@
+{
+  "source": "Independent SciPy least_squares, direct composition/flow variables, chemicals DIPPR/TRCCp and quadrature",
+  "versions": {
+    "scipy": "1.18.0",
+    "chemicals": "1.5.0",
+    "numpy": "2.3.2"
+  },
+  "catalogSha256": "44704c5cdac9cf420cadfced028357ac2e6775484645df71e8593c7596e1c387",
+  "units": "K, Pa, mol/s, W, mole fractions; trays exclude condenser and reboiler",
+  "rows": [
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "trays": 2,
+      "feedTray": 1,
+      "reflux": 1.5,
+      "pressure": 55000.0,
+      "pressureDrop": 0.0,
+      "feedTemperature": 320.0,
+      "feedPressure": 80000.0,
+      "feedFlow": 10.0,
+      "feedComposition": [0.5, 0.5],
+      "distillateFlow": 5.0,
+      "condenserDuty": -414080.1578865367,
+      "reboilerDuty": 457845.26300069364,
+      "stages": [
+        {
+          "temperature": 339.66819642148425,
+          "pressure": 55000.0,
+          "liquidFlow": 7.5,
+          "vaporFlow": 0.0,
+          "liquidComposition": [0.7565762193417932, 0.2434237806582068],
+          "vaporComposition": [0.8964011995043837, 0.10359880049561716]
+        },
+        {
+          "temperature": 345.0836461433786,
+          "pressure": 55000.0,
+          "liquidFlow": 18.57285746430886,
+          "vaporFlow": 12.5,
+          "liquidComposition": [0.5332901918686055, 0.4667098081313945],
+          "vaporComposition": [0.756576219341801, 0.24342378065820658]
+        },
+        {
+          "temperature": 348.8832650685266,
+          "pressure": 55000.0,
+          "liquidFlow": 18.380124828899778,
+          "vaporFlow": 13.57285746430886,
+          "liquidComposition": [0.39919226613470893, 0.6008077338652911],
+          "vaporComposition": [0.6400718375068368, 0.359928162493169]
+        },
+        {
+          "temperature": 353.95936449762144,
+          "pressure": 55000.0,
+          "liquidFlow": 5.0,
+          "vaporFlow": 13.380124828899774,
+          "liquidComposition": [0.2434237806582069, 0.7565762193417931],
+          "vaporComposition": [0.45740117205614483, 0.5425988279438567]
+        }
+      ],
+      "residual": 1.3969838619232178e-14,
+      "evaluations": 9
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "trays": 6,
+      "feedTray": 3,
+      "reflux": 2.5,
+      "pressure": 55000.0,
+      "pressureDrop": 0.0,
+      "feedTemperature": 320.0,
+      "feedPressure": 80000.0,
+      "feedFlow": 10.0,
+      "feedComposition": [0.5, 0.5],
+      "distillateFlow": 5.0,
+      "condenserDuty": -564795.8641494793,
+      "reboilerDuty": 612034.9868662002,
+      "stages": [
+        {
+          "temperature": 336.1864589935287,
+          "pressure": 55000.0,
+          "liquidFlow": 12.5,
+          "vaporFlow": 0.0,
+          "liquidComposition": [0.924432137142395, 0.07556786285760497],
+          "vaporComposition": [0.9718884869865574, 0.028111513013442283]
+        },
+        {
+          "temperature": 338.4310615189929,
+          "pressure": 55000.0,
+          "liquidFlow": 12.27501854780709,
+          "vaporFlow": 17.5,
+          "liquidComposition": [0.8138082499241449, 0.1861917500758551],
+          "vaporComposition": [0.9244321371423952, 0.07556786285760518]
+        },
+        {
+          "temperature": 341.7590545042091,
+          "pressure": 55000.0,
+          "liquidFlow": 12.029050444891082,
+          "vaporFlow": 17.27501854780709,
+          "liquidComposition": [0.6653814136249745, 0.3346185863750255],
+          "vaporComposition": [0.8458267067819799, 0.15417329321802128]
+        },
+        {
+          "temperature": 345.60830726496124,
+          "pressure": 55000.0,
+          "liquidFlow": 23.079484700485267,
+          "vaporFlow": 17.02905044489108,
+          "liquidComposition": [0.5137655077401935, 0.48623449225980653],
+          "vaporComposition": [0.7414428253742015, 0.2585571746258051]
+        },
+        {
+          "temperature": 349.0387498595534,
+          "pressure": 55000.0,
+          "liquidFlow": 22.870625103965693,
+          "vaporFlow": 18.079484700485267,
+          "liquidComposition": [0.39404745198162144, 0.6059525480183785],
+          "vaporComposition": [0.6349519386982657, 0.3650480613017304]
+        },
+        {
+          "temperature": 353.2962235069805,
+          "pressure": 55000.0,
+          "liquidFlow": 22.735556665428277,
+          "vaporFlow": 17.870625103965693,
+          "liquidComposition": [0.26243201570016533, 0.7375679842998346],
+          "vaporComposition": [0.4831544606260332, 0.5168455393739672]
+        },
+        {
+          "temperature": 357.3738493686145,
+          "pressure": 55000.0,
+          "liquidFlow": 22.704986424779733,
+          "vaporFlow": 17.735556665428273,
+          "liquidComposition": [0.15118432059477893, 0.8488156794052211],
+          "vaporComposition": [0.31511267195687415, 0.6848873280431302]
+        },
+        {
+          "temperature": 360.4419190899124,
+          "pressure": 55000.0,
+          "liquidFlow": 5.0,
+          "vaporFlow": 17.70498642477973,
+          "liquidComposition": [0.07556786285760514, 0.9244321371423949],
+          "vaporComposition": [0.1725388858915186, 0.8274611141084818]
+        }
+      ],
+      "residual": 4.0745362639427185e-14,
+      "evaluations": 13
+    },
+    {
+      "ids": ["71-43-2", "108-88-3"],
+      "trays": 10,
+      "feedTray": 5,
+      "reflux": 3.0,
+      "pressure": 55000.0,
+      "pressureDrop": 5000.0,
+      "feedTemperature": 320.0,
+      "feedPressure": 80000.0,
+      "feedFlow": 10.0,
+      "feedComposition": [0.5, 0.5],
+      "distillateFlow": 5.0,
+      "condenserDuty": -639227.9933647283,
+      "reboilerDuty": 690556.2858911603,
+      "stages": [
+        {
+          "temperature": 335.1138483362783,
+          "pressure": 55000.0,
+          "liquidFlow": 15.0,
+          "vaporFlow": 0.0,
+          "liquidComposition": [0.9806162721649861, 0.019383727835013853],
+          "vaporComposition": [0.993086306111538, 0.006913693888473064]
+        },
+        {
+          "temperature": 335.9852266289875,
+          "pressure": 55454.545454545456,
+          "liquidFlow": 14.907262731645329,
+          "vaporFlow": 20.0,
+          "liquidComposition": [0.9470478819014487, 0.05295211809855127],
+          "vaporComposition": [0.9806162721649876, 0.019383727835014044]
+        },
+        {
+          "temperature": 337.4541064404463,
+          "pressure": 55909.09090909091,
+          "liquidFlow": 14.7445695061004,
+          "vaporFlow": 19.907262731645332,
+          "liquidComposition": [0.8842011147678825, 0.11579888523211745],
+          "vaporComposition": [0.9554790737523828, 0.04452092624760533]
+        },
+        {
+          "temperature": 339.83838901059517,
+          "pressure": 56363.63636363636,
+          "liquidFlow": 14.50996355254418,
+          "vaporFlow": 19.7445695061004,
+          "liquidComposition": [0.7813808406293298, 0.21861915937067022],
+          "vaporComposition": [0.908616728733868, 0.09138327126613172]
+        },
+        {
+          "temperature": 343.2225081054326,
+          "pressure": 56818.181818181816,
+          "liquidFlow": 14.2528431645309,
+          "vaporFlow": 19.509963552544175,
+          "liquidComposition": [0.6443812577554652, 0.3556187422445348],
+          "vaporComposition": [0.8324407595776815, 0.16755924042231332]
+        },
+        {
+          "temperature": 347.1167256011651,
+          "pressure": 57272.72727272727,
+          "liquidFlow": 25.341003378916476,
+          "vaporFlow": 19.25284316453089,
+          "liquidComposition": [0.5028211392026918, 0.4971788607973082],
+          "vaporComposition": [0.731702130713318, 0.26829786928667404]
+        },
+        {
+          "temperature": 350.85678846172385,
+          "pressure": 57727.27272727273,
+          "liquidFlow": 25.132547746654673,
+          "vaporFlow": 20.341003378916465,
+          "liquidComposition": [0.3823442472519504, 0.6176557527480496],
+          "vaporComposition": [0.6216543654605469, 0.37834563453946257]
+        },
+        {
+          "temperature": 355.240432990058,
+          "pressure": 58181.818181818184,
+          "liquidFlow": 25.011346770497052,
+          "vaporFlow": 20.132547746654666,
+          "liquidComposition": [0.25577984787981495, 0.744220152120185],
+          "vaporComposition": [0.472486966391223, 0.5275130336087769]
+        },
+        {
+          "temperature": 359.30145675480964,
+          "pressure": 58636.36363636364,
+          "liquidFlow": 24.996441659637274,
+          "vaporFlow": 20.011346770497042,
+          "liquidComposition": [0.1520458046748748, 0.8479541953251252],
+          "vaporComposition": [0.3148453677461019, 0.6851546322538942]
+        },
+        {
+          "temperature": 362.3556773436771,
+          "pressure": 59090.90909090909,
+          "liquidFlow": 25.037746456033474,
+          "vaporFlow": 19.996441659637263,
+          "liquidComposition": [0.08241338119273864, 0.9175866188072613],
+          "vaporComposition": [0.18521722564514845, 0.8147827743548531]
+        },
+        {
+          "temperature": 364.3499649732862,
+          "pressure": 59545.454545454544,
+          "liquidFlow": 25.087374200568664,
+          "vaporFlow": 20.037746456033464,
+          "liquidComposition": [0.041543548937026414, 0.9584564510629736],
+          "vaporComposition": [0.09814111122865458, 0.9018588887713449]
+        },
+        {
+          "temperature": 365.57281531272145,
+          "pressure": 60000.0,
+          "liquidFlow": 5.0,
+          "vaporFlow": 20.08737420056865,
+          "liquidComposition": [0.019383727835013527, 0.9806162721649865],
+          "vaporComposition": [0.04705940702797164, 0.952940592972025]
+        }
+      ],
+      "residual": 7.334165275096894e-14,
+      "evaluations": 40
+    }
+  ]
+}

@@ -21,6 +21,7 @@ type Segment = { a: RoutePoint; b: RoutePoint };
 const LANE = 24;
 const CLEARANCE = 8;
 const RADIUS = 5;
+const BEND_COST = 12;
 const directions: Record<Side, RoutePoint> = {
   left: { x: -1, y: 0 },
   right: { x: 1, y: 0 },
@@ -92,27 +93,95 @@ function obstacleLength({ a, b }: Segment, obstacle: RouteObstacle) {
   return a.x > left && a.x < right ? overlap(a.y, b.y, top, bottom) : 0;
 }
 
-/** Penalize shared runs much more than an isolated, readable crossing. */
-function congestion(segment: Segment, other: Segment) {
-  const { a, b } = segment,
-    { a: c, b: d } = other;
-  const horizontal = a.y === b.y;
-  if (horizontal === (c.y === d.y)) {
-    const distance = horizontal ? Math.abs(a.y - c.y) : Math.abs(a.x - c.x);
-    if (distance >= LANE) return 0;
-    const shared = horizontal
-      ? overlap(a.x, b.x, c.x, d.x)
-      : overlap(a.y, b.y, c.y, d.y);
-    return shared * (distance < 0.5 ? 1000 : 20 * (1 - distance / LANE));
+type IndexedRun = { coordinate: number; low: number; high: number };
+
+function lowerBound(runs: IndexedRun[], coordinate: number) {
+  let low = 0,
+    high = runs.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (runs[middle].coordinate < coordinate) low = middle + 1;
+    else high = middle;
   }
-  const h = horizontal ? segment : other,
-    v = horizontal ? other : segment;
-  return v.a.x > Math.min(h.a.x, h.b.x) &&
-    v.a.x < Math.max(h.a.x, h.b.x) &&
-    h.a.y > Math.min(v.a.y, v.b.y) &&
-    h.a.y < Math.max(v.a.y, v.b.y)
-    ? 60
-    : 0;
+  return low;
+}
+
+/** Only inspect lanes that can overlap or cross a candidate segment. */
+class CongestionIndex {
+  private horizontal: IndexedRun[] = [];
+  private vertical: IndexedRun[] = [];
+
+  constructor(occupied: Segment[]) {
+    for (const { a, b } of occupied) {
+      const horizontal = a.y === b.y;
+      (horizontal ? this.horizontal : this.vertical).push({
+        coordinate: horizontal ? a.y : a.x,
+        low: horizontal ? Math.min(a.x, b.x) : Math.min(a.y, b.y),
+        high: horizontal ? Math.max(a.x, b.x) : Math.max(a.y, b.y),
+      });
+    }
+    this.horizontal.sort((a, b) => a.coordinate - b.coordinate);
+    this.vertical.sort((a, b) => a.coordinate - b.coordinate);
+  }
+
+  adjacentLanes(horizontal: boolean) {
+    return (horizontal ? this.horizontal : this.vertical).flatMap((run) => [
+      run.coordinate - LANE,
+      run.coordinate + LANE,
+    ]);
+  }
+
+  sharesRun({ a, b }: Segment) {
+    const horizontal = a.y === b.y;
+    const runs = horizontal ? this.horizontal : this.vertical;
+    const coordinate = horizontal ? a.y : a.x;
+    const low = horizontal ? Math.min(a.x, b.x) : Math.min(a.y, b.y);
+    const high = horizontal ? Math.max(a.x, b.x) : Math.max(a.y, b.y);
+    for (
+      let i = lowerBound(runs, coordinate - 0.5);
+      i < runs.length && runs[i].coordinate < coordinate + 0.5;
+      i++
+    )
+      if (runs[i].high > low && runs[i].low < high) return true;
+    return false;
+  }
+
+  cost({ a, b }: Segment, grid = false) {
+    const horizontal = a.y === b.y;
+    const coordinate = horizontal ? a.y : a.x;
+    const low = horizontal ? Math.min(a.x, b.x) : Math.min(a.y, b.y);
+    const high = horizontal ? Math.max(a.x, b.x) : Math.max(a.y, b.y);
+    const parallel = horizontal ? this.horizontal : this.vertical;
+    const perpendicular = horizontal ? this.vertical : this.horizontal;
+    let cost = 0;
+    for (
+      let i = lowerBound(parallel, coordinate - LANE);
+      i < parallel.length && parallel[i].coordinate < coordinate + LANE;
+      i++
+    ) {
+      const other = parallel[i];
+      const distance = Math.abs(coordinate - other.coordinate);
+      const shared = Math.max(
+        0,
+        Math.min(high, other.high) - Math.max(low, other.low),
+      );
+      // Shared runs are much harder to read than isolated crossings.
+      cost += shared * (distance < 0.5 ? 1000 : 20 * (1 - distance / LANE));
+    }
+    for (
+      let i = lowerBound(perpendicular, low);
+      i < perpendicular.length && perpendicular[i].coordinate <= high;
+      i++
+    ) {
+      const other = perpendicular[i];
+      if (coordinate <= other.low || coordinate >= other.high) continue;
+      if (other.coordinate > low && other.coordinate < high) cost += 60;
+      // A grid can split a crossing in two. Charge half at each end so the
+      // search cannot make crossings free by inserting a vertex on a stream.
+      else if (grid) cost += 30;
+    }
+    return cost;
+  }
 }
 
 function roundedRoute(points: RoutePoint[]): StreamRoute {
@@ -153,10 +222,178 @@ function roundedRoute(points: RoutePoint[]): StreamRoute {
   return { points, path, label };
 }
 
+type SearchEntry = { state: number; score: number; cost: number };
+
+class RouteQueue {
+  private items: SearchEntry[] = [];
+
+  push(entry: SearchEntry) {
+    let index = this.items.length;
+    this.items.push(entry);
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (this.items[parent].score <= entry.score) break;
+      this.items[index] = this.items[parent];
+      index = parent;
+    }
+    this.items[index] = entry;
+  }
+
+  pop(): SearchEntry | undefined {
+    const first = this.items[0];
+    const last = this.items.pop();
+    if (last && this.items.length) {
+      let index = 0;
+      while (index * 2 + 1 < this.items.length) {
+        let child = index * 2 + 1;
+        if (
+          child + 1 < this.items.length &&
+          this.items[child + 1].score < this.items[child].score
+        )
+          child++;
+        if (last.score <= this.items[child].score) break;
+        this.items[index] = this.items[child];
+        index = child;
+      }
+      this.items[index] = last;
+    }
+    return first;
+  }
+}
+
+/** Search equipment boundaries when a short dogleg cannot find a clear lane. */
+function searchRoute(
+  source: RouteEndpoint,
+  target: RouteEndpoint,
+  start: RoutePoint,
+  end: RoutePoint,
+  obstacles: RouteObstacle[],
+  congestion: CongestionIndex,
+  xLanes: number[],
+  yLanes: number[],
+  maxScore: number,
+): RoutePoint[] | undefined {
+  const first = { a: source, b: start },
+    last = { a: end, b: target };
+  // A lead trapped inside another unit cannot be repaired by the middle route.
+  if (
+    obstacles.some(
+      (obstacle) =>
+        (obstacle.id !== source.nodeId &&
+          obstacleLength(first, obstacle) > 0) ||
+        (obstacle.id !== target.nodeId && obstacleLength(last, obstacle) > 0),
+    )
+  )
+    return;
+  const xs = [
+    ...new Set([
+      start.x,
+      end.x,
+      ...xLanes,
+      ...congestion.adjacentLanes(false),
+      ...obstacles.flatMap((o) => [o.x - CLEARANCE, o.x + o.width + CLEARANCE]),
+    ]),
+  ].sort((a, b) => a - b);
+  const ys = [
+    ...new Set([
+      start.y,
+      end.y,
+      ...yLanes,
+      ...congestion.adjacentLanes(true),
+      ...obstacles.flatMap((o) => [
+        o.y - CLEARANCE,
+        o.y + o.height + CLEARANCE,
+      ]),
+    ]),
+  ].sort((a, b) => a - b);
+  const directionIndex: Record<Side, number> = {
+    right: 0,
+    bottom: 1,
+    left: 2,
+    top: 3,
+  };
+  const steps = [
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+  ];
+  const cellCount = xs.length * ys.length;
+  const costs = new Float64Array(cellCount * 4).fill(Infinity);
+  const previous = new Int32Array(cellCount * 4).fill(-1);
+  // Each undirected grid edge is checked once, regardless of arrival direction.
+  const edgeCosts = new Float64Array(cellCount * 2).fill(-1);
+  const startCell = xs.indexOf(start.x) * ys.length + ys.indexOf(start.y);
+  const goal = xs.indexOf(end.x) * ys.length + ys.indexOf(end.y);
+  const initial = startCell * 4 + directionIndex[source.side];
+  const finalDirection = (directionIndex[target.side] + 2) % 4;
+  const leadCost =
+    length(source, start) +
+    length(end, target) +
+    congestion.cost(first) +
+    congestion.cost(last);
+  const limit = maxScore - leadCost;
+  const queue = new RouteQueue();
+  costs[initial] = 0;
+  queue.push({ state: initial, cost: 0, score: length(start, end) });
+  let entry: SearchEntry | undefined;
+  while ((entry = queue.pop())) {
+    const { state, cost, score } = entry;
+    if (score >= limit) break;
+    if (cost !== costs[state]) continue;
+    const cell = Math.floor(state / 4),
+      direction = state % 4;
+    if (cell === goal && direction !== (finalDirection + 2) % 4) {
+      const points: RoutePoint[] = [];
+      for (let cursor = state; cursor !== -1; cursor = previous[cursor]) {
+        const index = Math.floor(cursor / 4);
+        points.push({
+          x: xs[Math.floor(index / ys.length)],
+          y: ys[index % ys.length],
+        });
+      }
+      return points.reverse();
+    }
+    const x = Math.floor(cell / ys.length),
+      y = cell % ys.length;
+    const a = { x: xs[x], y: ys[y] };
+    for (let nextDirection = 0; nextDirection < steps.length; nextDirection++) {
+      if (nextDirection === (direction + 2) % 4) continue;
+      const [dx, dy] = steps[nextDirection];
+      const nx = x + dx,
+        ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= xs.length || ny >= ys.length) continue;
+      const nextCell = nx * ys.length + ny;
+      if (nextCell === goal && nextDirection === (finalDirection + 2) % 4)
+        continue;
+      const b = { x: xs[nx], y: ys[ny] };
+      const edge = Math.min(cell, nextCell) * 2 + (dx ? 0 : 1);
+      let edgeCost = edgeCosts[edge];
+      if (edgeCost < 0) {
+        const run = { a, b };
+        edgeCost = obstacles.some((o) => obstacleLength(run, o) > 0)
+          ? Infinity
+          : length(a, b) + congestion.cost(run, true);
+        edgeCosts[edge] = edgeCost;
+      }
+      const next = nextCell * 4 + nextDirection;
+      const nextCost =
+        cost + edgeCost + (direction === nextDirection ? 0 : BEND_COST);
+      const remaining =
+        length(b, end) +
+        (nextCell === goal && nextDirection !== finalDirection ? BEND_COST : 0);
+      if (nextCost >= costs[next] || nextCost + remaining >= limit) continue;
+      costs[next] = nextCost;
+      previous[next] = state;
+      queue.push({ state: next, cost: nextCost, score: nextCost + remaining });
+    }
+  }
+}
+
 /**
  * Route the displayed graph together in a stable order. Candidate lanes include
- * equipment boundaries and adjacent lanes of earlier streams. This is a bounded
- * visual heuristic: crowded/overlapping equipment can still force crossings.
+ * equipment boundaries and adjacent lanes of earlier streams, with a grid search
+ * for obstructed or shared runs. Overlapping equipment can still force crossings.
  * Nothing is persisted, and zoom/selection do not participate in the geometry.
  */
 export function routeStreams(
@@ -167,20 +404,23 @@ export function routeStreams(
   const ordered = [...connections].sort((a, b) =>
     a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
   );
+  const routeSegments = new Map<string, Segment[]>();
+  const searchedRoutes = new Set<string>();
   // A second pass lets earlier streams move out around later ones. In particular,
   // two backward connections can form nested loops instead of crossing twice.
   for (let pass = 0; pass < 2; pass++)
     for (const connection of ordered) {
-      const occupied = [...routes.entries()].flatMap(([id, route]) =>
-        id === connection.id ? [] : segments(route.points),
+      const occupied = [...routeSegments.entries()].flatMap(([id, runs]) =>
+        id === connection.id ? [] : runs,
       );
+      const congestion = new CongestionIndex(occupied);
       const existing = routes.get(connection.id);
       if (
         pass &&
         existing &&
-        !segments(existing.points).some((run) =>
-          occupied.some((other) => congestion(run, other) > 0),
-        )
+        !routeSegments
+          .get(connection.id)!
+          .some((run) => congestion.cost(run) > 0)
       )
         continue;
       const { source, target } = connection;
@@ -268,13 +508,23 @@ export function routeStreams(
             continue;
           cost += obstacleLength(run, obstacle) * 100000;
         }
-        for (const other of occupied) cost += congestion(run, other);
+        cost += congestion.cost(run);
         costs.set(key, cost);
         return cost;
       };
       let best: RoutePoint[] | undefined;
       let bestScore = Infinity;
       const consider = (middle: RoutePoint[]) => {
+        // Length alone is a lower bound; avoid allocating simplified candidates
+        // and scoring their segments when they cannot improve the current route.
+        let distance = 0;
+        let previous: RoutePoint = source;
+        for (const point of middle) {
+          distance += length(previous, point);
+          previous = point;
+        }
+        distance += length(previous, target);
+        if (distance >= bestScore) return;
         const points = simplify([source, ...middle, target]);
         const runs = segments(points);
         // Reject U-turns at ports and anywhere inside a route.
@@ -288,9 +538,7 @@ export function routeStreams(
           )
             return;
         }
-        let score =
-          (points.length - 2) * 12 +
-          runs.reduce((total, run) => total + length(run.a, run.b), 0);
+        let score = (points.length - 2) * BEND_COST + distance;
         if (score >= bestScore) return;
         for (let i = 0; i < runs.length; i++) {
           score += segmentCost(runs[i], i === 0, i === runs.length - 1);
@@ -322,12 +570,47 @@ export function routeStreams(
         for (const b of targetHorizontal ? targetLeads : [end])
           for (const y of yLanes)
             consider([a, { x: a.x, y }, { x: b.x, y }, b]);
+      // The bounded dogleg candidates are fast, but cannot weave between
+      // staggered units or escape a tall column outside their local lane range.
+      // Search also separates shared runs when another bend can open a lane.
+      if (
+        !best ||
+        (pass > 0 && searchedRoutes.has(connection.id)) ||
+        segments(best).some(
+          (run, index, runs) =>
+            congestion.sharesRun(run) ||
+            obstacles.some(
+              (obstacle) =>
+                !(
+                  (index === 0 && obstacle.id === source.nodeId) ||
+                  (index === runs.length - 1 && obstacle.id === target.nodeId)
+                ) && obstacleLength(run, obstacle) > 0,
+            ),
+        )
+      ) {
+        const detour = searchRoute(
+          source,
+          target,
+          start,
+          end,
+          obstacles,
+          congestion,
+          xLanes,
+          yLanes,
+          bestScore,
+        );
+        if (detour) {
+          consider(detour);
+          searchedRoutes.add(connection.id);
+        }
+      }
       // At least one orthogonal candidate exists even when equipment overlaps.
       const points =
         best ??
         simplify([source, start, { x: start.x, y: end.y }, end, target]);
       const route = roundedRoute(points);
       routes.set(connection.id, route);
+      routeSegments.set(connection.id, segments(points));
     }
   return routes;
 }

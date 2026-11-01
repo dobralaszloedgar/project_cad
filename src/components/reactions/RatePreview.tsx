@@ -35,7 +35,7 @@ export function RatePreview({
   return (
     <section className="rate-preview" aria-label="Live rate law">
       <div className="rate-preview-heading">
-        <span className="rate-eyebrow">Live rate expression</span>
+        <span className="rate-eyebrow">Rate expression</span>
         <div
           className="rate-preview-mode"
           role="group"
@@ -73,7 +73,6 @@ export function RatePreview({
       </div>
       <p>
         Net disappearance of {basisName} · {displayUnit(law.rateUnit)}
-        {law.rateUnit.includes("kg") && " · per kg catalyst"}
       </p>
       {!!parameters.length && (
         <p className="rate-preview-constants" aria-live="polite">

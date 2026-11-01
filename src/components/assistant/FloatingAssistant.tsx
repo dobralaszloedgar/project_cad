@@ -10,6 +10,7 @@ import { Check, MessageCircle, Minus, X } from "lucide-react";
 import { useAssistant } from "@/assistant/client";
 import type { Project } from "@/domain/schema";
 import type { Proposal } from "@/assistant/protocol";
+import { isSelectPickerOpen } from "@/lib/keyboard";
 import AssistantPanel from "../AssistantPanel";
 import { useAssistantDock } from "./useAssistantDock";
 import { useAssistantMorph } from "./useAssistantMorph";
@@ -181,6 +182,7 @@ export default function FloatingAssistant({
     const key = (event: KeyboardEvent) => {
       if (
         event.key === "Escape" &&
+        !isSelectPickerOpen(event) &&
         !event.defaultPrevented &&
         !root.current?.querySelector("[data-assistant-popover]") &&
         !document.querySelector("dialog[open]")

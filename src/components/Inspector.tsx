@@ -22,6 +22,8 @@ interface Props {
   issueTarget?: EquipmentTarget;
   status?: EquipmentStatus;
   onNavigateIssue?: (target: EquipmentTarget) => void;
+  editingComponents: boolean;
+  onEditingComponentsChange: (open: boolean) => void;
 }
 function StreamInspector({
   project,
@@ -257,6 +259,8 @@ export default function Inspector({
   issueTarget,
   status,
   onNavigateIssue,
+  editingComponents,
+  onEditingComponentsChange,
 }: Props) {
   const unit = project.units.find((n) => n.id === selected),
     edge = project.edges.find((e) => e.id === selected);
@@ -289,6 +293,11 @@ export default function Inspector({
       issueTarget={issueTarget}
       status={status}
       onNavigateIssue={onNavigateIssue}
+      editingComponents={editingComponents}
+      onEditingComponentsChange={onEditingComponentsChange}
+      onComponentsChange={(thermo) =>
+        onChange({ ...project, thermo }, "Change project components")
+      }
       onApply={(next) => {
         try {
           unitSchema.parse(next);

@@ -201,6 +201,7 @@ function buildArrangement(project: Project): SystemExample {
     title: unit.name,
     position: [0, 0, 0],
     trayCount: unit.params.trayCount,
+    condenserType: unit.params.distillation?.condenserType,
     column:
       unit.kind === "Distillation" && unit.params.distillation?.hydraulics
         ? {
@@ -279,6 +280,7 @@ export function buildProjectPlant(project: Project): SystemExample {
       kind,
       name,
       params.trayCount,
+      params.distillation?.condenserType,
       params.distillation?.hydraulics?.diameter,
       params.distillation?.hydraulics?.traySpacing,
       params.distillation?.method,

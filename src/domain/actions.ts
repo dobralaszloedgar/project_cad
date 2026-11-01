@@ -129,6 +129,15 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
         if (a.position !== undefined) n.position = a.position;
         const { distillation, packedBed, ...params } = a.params;
         n.params = { ...n.params, ...params };
+        if (n.missingInputs?.length) {
+          n.missingInputs = n.missingInputs.filter((field) =>
+            field === "composition"
+              ? params.composition === undefined &&
+                params.fractionA === undefined
+              : params[field] === undefined,
+          );
+          if (!n.missingInputs.length) delete n.missingInputs;
+        }
         if (packedBed !== undefined)
           n.params.packedBed = packedBed ?? undefined;
         if (distillation === null) delete n.params.distillation;

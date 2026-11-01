@@ -30,6 +30,7 @@ export function TrayHydraulicsSetup({
     <label key={key}>
       {label} ({display.quantityLabel(dimension)})
       <EngineeringInput
+        selectUnit
         aria-label={label}
         dimension={dimension}
         value={(h[key] as number) ?? NaN}
@@ -49,15 +50,12 @@ export function TrayHydraulicsSetup({
           checked={value?.enabled ?? false}
           onChange={(e) => change({ enabled: e.target.checked })}
         />
-        Predict tray flooding and weeping
+        Rate flooding and weeping
       </label>
       {value?.enabled && (
         <>
           <p className="equipment-help">
-            Single-pass sieve trays. Ratings use the calculated flows on each
-            tray. Diameter and spacing also update the 3D tower. Separation
-            results remain unchanged, including pressure, efficiency, purity and
-            duties.
+            Single-pass sieve trays. Rating only; separation is unchanged.
           </p>
           <div className="equipment-field-grid">
             {dimensional(
@@ -84,17 +82,14 @@ export function TrayHydraulicsSetup({
             )}
           </div>
           <p className="equipment-help">
-            Supply liquid properties for your mixture at representative tray
-            conditions; both are held constant across the tower. Vapor density
-            is calculated per tray. Intended for clean, nonfoaming liquids.
+            Use liquid properties at typical tray conditions, held constant
+            across the tower. Clean, nonfoaming liquids only.
           </p>
           <details>
-            <summary>Sieve tray geometry and assumptions</summary>
+            <summary>Tray geometry</summary>
             <p className="equipment-help">
-              The preset uses 5 mm holes, 10% open area, 12% downcomer area, a
-              50 mm weir and 40 mm clearance. Weir length follows the downcomer
-              chord. Edit these values to match the installed tray. Valve and
-              bubble-cap trays require different correlations.
+              Match the installed sieve tray. Weir length follows the downcomer
+              chord; valve and bubble-cap trays are unsupported.
             </p>
             <div className="equipment-field-grid">
               {dimensional(
@@ -150,10 +145,8 @@ export function TrayHydraulicsSetup({
               ))}
             </div>
             <p className="equipment-help">
-              Supported rating range: 0.3–0.9 m spacing and 10–15% hole area.
-              Weeping uses an approximate published graph; results outside
-              correlation limits are marked unrated. A hydraulic limit is an
-              estimate, not a guarantee.
+              Rating limits: 0.3–0.9 m spacing, 10–15% hole area. Weeping is
+              approximate; values outside correlation limits are unrated.
             </p>
           </details>
         </>

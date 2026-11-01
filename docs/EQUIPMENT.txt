@@ -118,7 +118,8 @@ Select Shortcut design (FUG) or Equilibrium stages (MESH) in the column Setup.
 FUG predicts minimum/operating reflux and theoretical stage estimates from
 key recoveries and supplied relative volatilities. MESH solves the material,
 equilibrium, summation and energy balances of installed equilibrium trays,
-a saturated total condenser and kettle reboiler. See DISTILLATION.txt for
+a selected total or equilibrium partial condenser and kettle reboiler. The
+condenser selection updates both 2D and 3D takeoff piping. See DISTILLATION.txt for
 specifications, supported thermodynamics, stage conventions and verification.
 The template library includes a ready-to-run benzene–toluene case for each.
 

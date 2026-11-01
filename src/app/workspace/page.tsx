@@ -17,7 +17,7 @@ export default async function Page({
     <Workspace
       exampleId={exampleId}
       initialView={initialView}
-      initialPlayback={query.play === "1"}
+      initialPlayback={query.play !== "0"}
       initialArrange={query.arrange === "1"}
     />
   );

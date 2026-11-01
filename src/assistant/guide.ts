@@ -20,8 +20,11 @@ Feed-to-Product path and all required ports must be connected before simulation.
 An incomplete but structurally valid graph may be previewed and saved.
 
 Projects support 2-40 components, 40 units and 80 streams. Feed composition maps
-component IDs to mole fractions summing to one. Legacy fractionA refers to the
-first two components. Stream components contains molar flows for all species;
+component IDs to nonnegative mole fractions or ratios, with a positive total.
+Ratios are normalized automatically for simulation. Legacy fractionA refers to
+the first two components. New feeds added in the UI track unspecified inputs in
+missingInputs; updating the corresponding params clears those entries. Simulation
+requires all missing inputs to be supplied. Stream components contains molar flows for all species;
 a and b are compatibility aliases for the first two, not additional flows.
 Use saved catalog component records and preserve their provenance. Model IDs:
 ideal-gas, ideal-solution (Raoult), modified-unifac-2.0. Synthetic demo A/B,
@@ -41,6 +44,11 @@ operation supports ideal gas only. The active mode determines which input is use
 DISTILLATION
 No params.distillation: legacy single contact (ideal gas) or TP flash (liquid
 model). Set method to fug or mesh to select an explicit column calculation.
+Set distillation.condenserType to total (default for older projects) or partial
+(equilibrium condenser). Total draws liquid distillate; partial draws vapor in
+equilibrium with liquid reflux. The selection also changes the 2D/3D overhead
+piping. In FUG, the specified distillateTemperature must support vapor for a
+partial condenser; stage estimates include that condenser and the reboiler.
 FUG needs adjacent lightKey/heavyKey IDs, supplied relativeVolatilities for every
 active feed component, lightRecovery, heavyRecovery and feedLiquidFraction q.
 Use refluxMode multiplier with refluxMultiplier, or ratio with refluxRatio.
@@ -49,7 +57,8 @@ product states. FUG estimates minimum/theoretical stages and minimum reflux;
 it has no stage profile, per-tray hydraulics or separate end duties.
 
 MESH needs Raoult or Modified UNIFAC with supported real chemicals, one feed,
-saturated total condenser and kettle reboiler. Ideal gas is unsupported.
+either a saturated total or equilibrium partial condenser, and kettle reboiler.
+Ideal gas is unsupported.
 params.trayCount is 2-80 equilibrium trays, excluding condenser/reboiler.
 params.pressure is top pressure; distillation.pressureDrop is the specified
 total pressure increase down the column. Set feedTray (1 is top, <= trayCount),
@@ -108,6 +117,8 @@ check method before accessing method-specific fields. MESH componentIds defines
 the ordering of every composition array. Stages include condenser, tray and
 reboiler kinds; hydraulic stages include physical trays only, numbered from top.
 MESH condenserDutyW/reboilerDutyW are separate duties; FUG lacks these fields.
+Results report condenserType. MESH condenser liquidMolS is reflux; vaporMolS
+is zero for total condensation or the vapor distillate rate for partial.
 
 The hydraulic object at equipment[id].distillation.hydraulics contains version,
 status (rated, partial or unavailable), resolved config, stages, limitingTray,

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { newUnit, projectSchema } from "../src/domain/schema";
 import { applyActions } from "../src/domain/actions";
-import { defaultDistillation } from "../src/domain/equipment/distillation-schema";
+import {
+  defaultDistillation,
+  distillationSchema,
+} from "../src/domain/equipment/distillation-schema";
 import {
   solveFug,
   type MeshResult,
@@ -23,6 +26,21 @@ function fug() {
 }
 
 describe("FUG shortcut port", () => {
+  it("counts the equilibrium condenser and requires vapor distillate at the specified temperature", () => {
+    const project = aromaticColumnTemplate("fug");
+    const config = project.units[1].params.distillation!;
+    config.condenserType = "partial";
+    config.distillateTemperature = 350;
+    const result = simulate(project);
+    expect(result.converged).toBe(true);
+    expect(result.streams.distillate.vaporFraction).toBe(1);
+    expect(result.equipment["D-201"].distillation!.condenserType).toBe(
+      "partial",
+    );
+    expect(Math.abs(result.energyResidual)).toBeLessThan(0.01);
+    config.distillateTemperature = 310;
+    expect(() => simulate(project)).toThrow(/distillate temperature/);
+  });
   it("matches the independent equimolar alpha=2 analytical reference", () => {
     const { result, outputs } = solveFug(fug(), feed, defaultThermo);
     expect(result.minimumStages).toBeCloseTo(8.49585502688717, 10);
@@ -99,7 +117,9 @@ function verifyStages(column: MeshResult, settings: ThermoSettings) {
       const outgoing =
         s.liquidMolS * s.liquidComposition[i] +
         s.vaporMolS * s.vaporComposition[i] +
-        (j === 0 ? column.distillateMolS * s.liquidComposition[i] : 0);
+        (j === 0 && column.condenserType !== "partial"
+          ? column.distillateMolS * s.liquidComposition[i]
+          : 0);
       expect(
         Math.abs(incoming - outgoing) / (F * column.feedComposition[i]),
       ).toBeLessThan(1e-7);
@@ -118,7 +138,9 @@ function verifyStages(column: MeshResult, settings: ThermoSettings) {
     const outgoingH =
       s.liquidMolS * s.liquidEnthalpy +
       s.vaporMolS * s.vaporEnthalpy +
-      (j === 0 ? column.distillateMolS * s.liquidEnthalpy : 0);
+      (j === 0 && column.condenserType !== "partial"
+        ? column.distillateMolS * s.liquidEnthalpy
+        : 0);
     expect(Math.abs(incomingH - outgoingH) / (40000 * F)).toBeLessThan(1e-7);
     // Independent property flash; no reliance on the solver-reported residuals.
     const blend = s.liquidComposition.map(
@@ -142,10 +164,86 @@ function verifyStages(column: MeshResult, settings: ThermoSettings) {
 }
 
 describe("simultaneous MESH with caloric VLE", () => {
-  it.each([0.2, 1e-8])(
-    "preserves all active catalog components including a %s fraction, and exact absent species",
-    (hexaneFraction) => {
+  it.each(["ideal-solution", "modified-unifac-2.0"] as const)(
+    "solves an equilibrium partial condenser with vapor distillate using %s",
+    (modelId) => {
       const project = aromaticColumnTemplate("mesh");
+      project.thermo!.modelId = modelId;
+      const total = simulate(project).equipment["D-201"]
+        .distillation as MeshResult;
+      project.units[1].params.distillation!.condenserType = "partial";
+      const solved = simulate(project);
+      expect(solved.converged).toBe(true);
+      const column = solved.equipment["D-201"].distillation as MeshResult;
+      const condenser = column.stages[0];
+      expect(column.condenserType).toBe("partial");
+      expect(condenser.vaporMolS).toBe(column.distillateMolS);
+      expect(condenser.liquidMolS / column.distillateMolS).toBeCloseTo(2.5, 10);
+      expect(condenser.vaporComposition[0]).toBeGreaterThan(
+        condenser.liquidComposition[0],
+      );
+      expect(condenser.vaporComposition[0]).toBeGreaterThan(
+        total.stages[0].liquidComposition[0],
+      );
+      expect(solved.streams.distillate.vaporFraction).toBe(1);
+      expect(solved.streams.bottoms.vaporFraction).toBe(0);
+      expect(solved.streams.distillate.a / column.distillateMolS).toBeCloseTo(
+        condenser.vaporComposition[0],
+        10,
+      );
+      expect(Math.abs(solved.massResidual)).toBeLessThan(1e-8);
+      expect(Math.abs(solved.energyResidual)).toBeLessThan(0.01);
+      expect(Math.abs(column.condenserDutyW)).toBeLessThan(
+        Math.abs(total.condenserDutyW),
+      );
+      verifyStages(column, project.thermo!);
+    },
+  );
+  it("defaults older files to total and preserves a partial condenser through sparse actions and JSON", () => {
+    expect(distillationSchema.parse({}).condenserType).toBe("total");
+    expect(() =>
+      distillationSchema.parse({ condenserType: "invalid" }),
+    ).toThrow();
+    const original = aromaticColumnTemplate("mesh");
+    const partial = applyActions(original, {
+      summary: "Use equilibrium condenser",
+      actions: [
+        {
+          type: "update",
+          id: "D-201",
+          params: { distillation: { condenserType: "partial" } },
+        },
+      ],
+    });
+    expect(partial.units[1].params.distillation).toEqual({
+      ...original.units[1].params.distillation,
+      condenserType: "partial",
+    });
+    const updated = applyActions(partial, {
+      summary: "Change reflux",
+      actions: [
+        {
+          type: "update",
+          id: "D-201",
+          params: { distillation: { refluxRatio: 3 } },
+        },
+      ],
+    });
+    expect(
+      projectSchema.parse(JSON.parse(JSON.stringify(updated))).units[1].params
+        .distillation!.condenserType,
+    ).toBe("partial");
+  });
+  it.each([
+    ["total", 0.2],
+    ["total", 1e-8],
+    ["partial", 0.2],
+    ["partial", 1e-8],
+  ] as const)(
+    "preserves active catalog components and exact absent species with a %s condenser and %s trace fraction",
+    (condenserType, hexaneFraction) => {
+      const project = aromaticColumnTemplate("mesh");
+      project.units[1].params.distillation!.condenserType = condenserType;
       project.thermo = settingsFor(
         ["71-43-2", "108-88-3", "110-54-3", "7727-37-9"],
         "ideal-solution",

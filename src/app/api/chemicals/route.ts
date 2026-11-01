@@ -34,7 +34,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       await searchChemicals(query, model, hash, options),
       {
-        headers: { "Cache-Control": "no-store" },
+        headers: {
+          "Cache-Control": hash
+            ? "public, max-age=3600, s-maxage=3600"
+            : "public, max-age=60, s-maxage=60",
+        },
       },
     );
   } catch (error) {

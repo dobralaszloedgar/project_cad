@@ -26,7 +26,7 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   ).toHaveCount(0);
   await expect(page.locator("main.workspace")).toHaveAttribute(
     "data-palette",
-    "light",
+    "nord",
   );
   await trigger.click();
   const modelDialog = page.getByRole("dialog", {
@@ -100,11 +100,11 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   await expect(dialog.getByRole("radio")).toHaveCount(0);
   await expect(
     dialog.getByRole("button", { name: "Apply components" }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
   await loadProject(page, solutionExample());
   await header.getByRole("button", { name: "Project components" }).click();
-  await expect(dialog.getByLabel("Component A", { exact: true })).toContainText(
+  await expect(dialog.locator(".component-slot").first()).toContainText(
     "71-43-2",
   );
   await dialog

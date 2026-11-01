@@ -19,7 +19,7 @@ export default function Plant3D({
   onSelect,
   dark = false,
   canvasColor,
-  initialPlaying = false,
+  initialPlaying = true,
   graphicsSettingsContainer,
 }: {
   project: Project;

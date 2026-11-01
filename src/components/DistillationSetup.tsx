@@ -51,7 +51,7 @@ export function DistillationSetup({
     <section className="equipment-section">
       <h3>Column calculation</h3>
       <label>
-        Calculation method
+        Method
         <select
           className="select"
           aria-label="Column calculation method"
@@ -71,7 +71,7 @@ export function DistillationSetup({
             });
           }}
         >
-          <option value="legacy">Single equilibrium contact / TP flash</option>
+          <option value="legacy">Single contact / TP flash</option>
           <option value="fug">Shortcut design (FUG)</option>
           <option value="mesh">Equilibrium stages (MESH)</option>
         </select>
@@ -80,13 +80,36 @@ export function DistillationSetup({
         <>
           <p className="equipment-help">
             {d.method === "fug"
-              ? "Fenske–Underwood–Gilliland estimates stages and reflux from key recoveries and supplied relative volatilities. Recoveries are fractions of feed components, not product purities."
-              : "Solve material, equilibrium, composition-sum and energy balances on each tray. One feed, a saturated total condenser, and a kettle reboiler; both products are liquid."}
+              ? "Estimates stages and reflux. Recoveries refer to feed components."
+              : "One feed, equilibrium trays and kettle reboiler."}
           </p>
           <div className="equipment-field-grid">
+            <label data-setup-field="distillation.condenserType">
+              Condenser type
+              <select
+                className="select"
+                aria-label="Condenser type"
+                value={d.condenserType}
+                onChange={(e) =>
+                  change({
+                    condenserType: e.target
+                      .value as DistillationConfig["condenserType"],
+                  })
+                }
+              >
+                <option value="total">Total condenser</option>
+                <option value="partial">Equilibrium condenser (partial)</option>
+              </select>
+              <span className="equipment-help">
+                {d.condenserType === "partial"
+                  ? "Vapor distillate and liquid reflux. Counts as an equilibrium stage."
+                  : "Liquid distillate and reflux. Does not count as an equilibrium stage."}
+              </span>
+            </label>
             <label>
               Column top pressure ({display.quantityLabel("pressure")})
               <EngineeringInput
+                selectUnit
                 aria-label="Column top pressure"
                 data-setup-field="pressure"
                 dimension="pressure"
@@ -151,9 +174,9 @@ export function DistillationSetup({
                     }
                   >
                     <option value="multiplier">
-                      Multiple of minimum reflux
+                      Minimum reflux multiplier
                     </option>
-                    <option value="ratio">Operating reflux ratio L/D</option>
+                    <option value="ratio">Reflux ratio L/D</option>
                   </select>
                 </label>
                 {d.refluxMode === "multiplier"
@@ -171,12 +194,13 @@ export function DistillationSetup({
                     )}
                 {(["distillateTemperature", "bottomsTemperature"] as const).map(
                   (key) => (
-                    <label key={key}>
+                    <label key={key} data-setup-field={`distillation.${key}`}>
                       {key === "distillateTemperature"
                         ? "Distillate temperature"
                         : "Bottoms temperature"}
                       {` (${display.quantityLabel("temperature")})`}
                       <EngineeringInput
+                        selectUnit
                         aria-label={
                           key === "distillateTemperature"
                             ? "Distillate temperature"
@@ -189,6 +213,12 @@ export function DistillationSetup({
                         required
                         onValueChange={(value) => change({ [key]: value })}
                       />
+                      {key === "distillateTemperature" &&
+                        d.condenserType === "partial" && (
+                          <span className="equipment-help">
+                            Must give vapor at the column top pressure.
+                          </span>
+                        )}
                     </label>
                   ),
                 )}
@@ -212,6 +242,7 @@ export function DistillationSetup({
                 <label>
                   Distillate molar flow ({display.quantityLabel("molarFlow")})
                   <EngineeringInput
+                    selectUnit
                     aria-label="Distillate molar flow"
                     dimension="molarFlow"
                     value={d.distillateFlow}
@@ -227,6 +258,7 @@ export function DistillationSetup({
                   Total column pressure drop (
                   {display.quantityLabel("pressureDifference")})
                   <EngineeringInput
+                    selectUnit
                     aria-label="Total column pressure drop"
                     dimension="pressureDifference"
                     value={d.pressureDrop}
@@ -243,10 +275,8 @@ export function DistillationSetup({
             <>
               <h4>Relative volatilities</h4>
               <p className="equipment-help">
-                Supply every active component. Values are normalized to the
-                heavy key; keys must be adjacent in volatility order. Feed q and
-                product temperatures are supplied assumptions. No
-                condenser/reboiler duty is predicted.
+                Enter each active component, relative to the heavy key. Choose
+                adjacent keys.
               </p>
               <div
                 className="equipment-field-grid"
@@ -257,7 +287,7 @@ export function DistillationSetup({
                     key={id}
                     data-setup-field={`distillation.relativeVolatilities.${id}`}
                   >
-                    Relative volatility · {catalog.get(id).name}
+                    {catalog.get(id).name}
                     <NumberInput
                       aria-label={`Relative volatility ${catalog.get(id).name}`}
                       value={d.relativeVolatilities[id] ?? ""}
@@ -280,16 +310,13 @@ export function DistillationSetup({
             <>
               {settings.modelId === "ideal-gas" && (
                 <p className="equipment-help" role="status">
-                  MESH requires liquid thermodynamics. Select Raoult’s law or
-                  Modified UNIFAC 2.0 and real chemicals in project
-                  Thermodynamics before calculating.
+                  Select Raoult’s law or Modified UNIFAC 2.0 with real
+                  components.
                 </p>
               )}
               <p className="equipment-help">
-                The tray count below is the number of ideal equilibrium trays.
-                Pressure increases linearly to the reboiler; the feed must reach
-                its tray pressure. Every stage needs supported VLE and caloric
-                data within 1–200 kPa.
+                Stage pressure: 1–200 kPa. Feed pressure must reach its tray
+                pressure.
               </p>
               <details>
                 <summary>Solver settings</summary>
@@ -311,9 +338,7 @@ export function DistillationSetup({
                   )}
                 </div>
                 <p className="equipment-help">
-                  Acceptance never exceeds 1e-7. Failed convergence returns an
-                  error. No efficiencies, hydraulic feedback, side draws or
-                  liquid–liquid stability search.
+                  Accepted residuals are capped at 1e-7.
                 </p>
               </details>
               <TrayHydraulicsSetup

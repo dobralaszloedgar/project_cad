@@ -6,6 +6,7 @@ import { catalogSnapshotSchema } from "../../src/domain/thermo/data";
 import { settingsFor } from "../helpers/catalog";
 import { catalogFixture, chooseComponent } from "./catalog-fixture";
 import type { ModelId } from "../../src/domain/thermo/registry";
+import { parseWorkspaceImport } from "../../src/lib/project-file";
 
 const live = process.env.CATALOG_LIVE_TESTS === "1";
 async function setup(page: Page) {
@@ -37,9 +38,20 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
     .getByRole("button", { name: "Project components", exact: true })
     .click();
 
+  await page
+    .getByRole("button", { name: /^Remove .* from project$/ })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: /^Remove .* from project$/ })
+    .first()
+    .click();
   await chooseComponent(page, "A", "71-43-2");
   await chooseComponent(page, "B", "108-88-3");
-  await page.getByRole("button", { name: "Apply components" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Project components", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Changes save automatically.")).toBeVisible();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );
@@ -65,12 +77,11 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
     .click();
   const download = await pending;
   const fs = await import("node:fs/promises");
-  const envelope = JSON.parse(
+  const { project } = parseWorkspaceImport(
     await fs.readFile((await download.path())!, "utf8"),
   );
-  const project = envelope.project ?? envelope;
-  expect(project.thermo.mixture).toBe("catalog");
-  const snapshot = catalogSnapshotSchema.parse(project.thermo.catalog);
+  expect(project.thermo?.mixture).toBe("catalog");
+  const snapshot = catalogSnapshotSchema.parse(project.thermo?.catalog);
   expect(snapshot.chemicals.map((c) => c.id)).toEqual(["71-43-2", "108-88-3"]);
   const response = await request.post("/api/simulate", { data: project });
   expect(response.status()).toBe(200);
@@ -91,7 +102,7 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await page
     .getByRole("button", { name: "Project components", exact: true })
     .click();
-  await expect(page.getByLabel("Component A", { exact: true })).toContainText(
+  await expect(page.locator(".component-slot").first()).toContainText(
     "benzene",
   );
   await page.screenshot({ path: "/tmp/project-cad-catalog-desktop.png" });
@@ -99,12 +110,12 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await expect(
     page.getByRole("searchbox", { name: "Search chemical database" }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Apply components" })
-    .scrollIntoViewIfNeeded();
   await expect(
-    page.getByRole("button", { name: "Apply components" }),
-  ).toBeVisible();
+    page.getByRole("button", { name: /^(Apply components|Cancel)$/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Close Project components" }),
+  ).toBeInViewport();
   await page.screenshot({ path: "/tmp/project-cad-catalog-mobile.png" });
   expect(errors).toEqual([]);
 });
@@ -123,7 +134,7 @@ test("catalog service errors remain visible without replacing the current model"
     .getByRole("button", { name: "Project components", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Remove component A", exact: true })
+    .getByRole("button", { name: "Remove Benzene from project", exact: true })
     .click();
 
   await page
@@ -134,7 +145,7 @@ test("catalog service errors remain visible without replacing the current model"
   ).toContainText("temporarily unavailable");
   await expect(
     page.getByRole("button", { name: "Apply components" }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.locator(".model-button")).toContainText("Raoult");
 });
@@ -185,7 +196,7 @@ test("live catalog filters model coverage and supplies all three calculation mod
   expect(invalid.status()).toBe(422);
 });
 
-test("canceling a pending chemical selection does not apply it later", async ({
+test("closing a pending chemical selection does not apply it later", async ({
   page,
 }) => {
   await setup(page);
@@ -208,19 +219,28 @@ test("canceling a pending chemical selection does not apply it later", async ({
   await page
     .getByRole("button", { name: "Project components", exact: true })
     .click();
+  await page
+    .getByRole("button", { name: /^Remove .* from project$/ })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: /^Remove .* from project$/ })
+    .first()
+    .click();
   await chooseComponent(page, "A", "64-17-5");
-  await chooseComponent(page, "B", "7732-18-5");
   const started = page.waitForRequest("**/api/chemicals/selection");
-  await page.getByRole("button", { name: "Apply components" }).click();
+  await chooseComponent(page, "B", "7732-18-5");
   await started;
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Close Project components", exact: true })
+    .click();
   releaseResponse();
   await finished;
   await expect(page.locator(".model-button")).toContainText("Raoult");
   await page
     .getByRole("button", { name: "Project components", exact: true })
     .click();
-  await expect(page.getByLabel("Component A", { exact: true })).toContainText(
+  await expect(page.locator(".component-slot").first()).toContainText(
     "71-43-2",
   );
 });
