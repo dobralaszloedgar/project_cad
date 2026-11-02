@@ -149,6 +149,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       providers: ["muse"],
       preferred: "muse",
     });
+    expect((await fetch(origin)).status).toBe(403);
     expect((await fetch(origin + "/api/state")).status).toBe(403);
     expect(
       (

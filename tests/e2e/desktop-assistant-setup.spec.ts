@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-test("Muse connector fits one screen and returns to the original project tab", async ({
+test("Muse connector opens from the hosted website and returns to the original project tab", async ({
   browser,
 }) => {
   test.setTimeout(60000);
@@ -105,7 +105,9 @@ test("Muse connector fits one screen and returns to the original project tab", a
         },
       });
     });
-    const projectUrl = "http://127.0.0.1:3000/workspace?example=heating";
+    // A loopback project URL is same-site with the desktop controller and hides
+    // cookie failures during the hosted website's cross-site redirect chain.
+    const projectUrl = "https://projectcad.vercel.app/workspace?example=heating";
     await page.route(projectUrl, (route) =>
       route.fulfill({
         contentType: "text/html",
@@ -183,7 +185,10 @@ test("Muse connector fits one screen and returns to the original project tab", a
     await connector
       .getByLabel("CAD projects folder")
       .fill(join(temporary, "cad-projects"));
+    const saved = connector.waitForResponse(origin + "/api/action");
     await connector.getByRole("button", { name: "Save settings" }).click();
+    const savedResponse = await saved;
+    expect(savedResponse.status(), await savedResponse.text()).toBe(200);
     await expect(connector.locator("#access-summary")).toContainText("Sandbox");
     expect(
       JSON.parse(await readFile(join(data, "settings.json"), "utf8")),

@@ -677,9 +677,12 @@ async function serve() {
         if (sessions.size > 20) sessions.clear();
         const session = randomBytes(32).toString("base64url");
         sessions.set(session, Date.now() + 12 * 3600000);
+        // The hosted project opens this top-level redirect across sites. Strict
+        // withholds the new cookie on the redirect to /, rejecting a valid launch.
+        // Lax allows that GET; actions still require the local Origin and header.
         response.writeHead(303, {
           Location: "/",
-          "Set-Cookie": `pcad_desktop=${session}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`,
+          "Set-Cookie": `pcad_desktop=${session}; HttpOnly; SameSite=Lax; Path=/; Max-Age=43200`,
         });
         response.end();
         return;
