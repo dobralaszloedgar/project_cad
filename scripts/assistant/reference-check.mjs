@@ -20,22 +20,30 @@ import {
 const execute = promisify(execFile);
 const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
 
-async function verifiedWindowsNodeHashes(output, manifest, temporary) {
-  const architectures = new Set(
-    manifest.files
-      .filter((file) => file.platform === "windows")
-      .flatMap((file) =>
-        file.architecture === "universal"
-          ? ["x64", "arm64"]
-          : [file.architecture],
-      ),
+async function verifiedRuntimeHashes(output, manifest, temporary) {
+  const targets = new Set(
+    manifest.files.flatMap((file) =>
+      (file.architecture === "universal"
+        ? ["x64", "arm64"]
+        : [file.architecture]
+      ).map((architecture) => `${file.platform}-${architecture}`),
+    ),
   );
   const pins = JSON.parse(
     await readFile(new URL("./releases.json", import.meta.url), "utf8"),
   );
   const hashes = new Set();
-  for (const architecture of architectures) {
-    const pin = pins.node.targets[`win32-${architecture}`];
+  for (const target of targets) {
+    const [platform, architecture] = target.split("-");
+    const pin =
+      platform === "macos"
+        ? {
+            filename: `node-v${pins.node.version}-darwin-${architecture}.tar.gz`,
+            sha256: pins.node.sha256[architecture],
+          }
+        : pins.node.targets[
+            `${platform === "windows" ? "win32" : platform}-${architecture}`
+          ];
     let data;
     try {
       data = await readFile(join(output, "cache", pin.filename));
@@ -53,18 +61,13 @@ async function verifiedWindowsNodeHashes(output, manifest, temporary) {
       throw new Error(`Pinned runtime checksum mismatch: ${architecture}`);
     const archive = join(temporary, pin.filename);
     await writeFile(archive, data);
+    const member = `${pin.filename.replace(/\.zip$|\.tar\.gz$/g, "")}/${platform === "windows" ? "node.exe" : "bin/node"}`;
     await execute(
       process.platform === "win32" ? "tar.exe" : "tar",
-      ["-xf", archive, "-C", temporary],
+      ["-xf", archive, "-C", temporary, member],
       { timeout: 60000 },
     );
-    hashes.add(
-      sha256(
-        await readFile(
-          join(temporary, pin.filename.replace(/\.zip$/, ""), "node.exe"),
-        ),
-      ),
-    );
+    hashes.add(sha256(await readFile(join(temporary, member))));
   }
   return hashes;
 }
@@ -80,7 +83,7 @@ export async function checkPackageReferences(
   const temporary = await mkdtemp(join(tmpdir(), "project-cad-release-check-"));
   const results = [];
   try {
-    const verifiedNodeHashes = await verifiedWindowsNodeHashes(
+    const verifiedNodeHashes = await verifiedRuntimeHashes(
       output,
       manifest,
       temporary,
@@ -111,7 +114,11 @@ export async function checkPackageReferences(
           const marker = Buffer.from("\n__PROJECT_CAD_ARCHIVE__\n"),
             index = data.indexOf(marker);
           if (index < 0) throw new Error("Installer payload is missing.");
-          assertReferenceContent(data.subarray(0, index), file.filename, policy);
+          assertReferenceContent(
+            data.subarray(0, index),
+            file.filename,
+            policy,
+          );
           archive = join(temporary, file.filename + ".tar.gz");
           await writeFile(archive, data.subarray(index + marker.length));
         }

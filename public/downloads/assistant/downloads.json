@@ -1,37 +1,29 @@
 {
   "name": "Project CAD Assistant",
-  "version": "0.1.8",
+  "version": "0.1.9",
+  "platforms": [
+    "windows",
+    "linux"
+  ],
   "files": [
-    {
-      "platform": "macos",
-      "architecture": "universal",
-      "filename": "ProjectCAD-Assistant-macos-universal.pkg",
-      "bytes": 82999455,
-      "sha256": "a4bb2055f6f50f5e64f79dd4cff83552e613a9a60f6a837b6b655c64752186ff",
-      "minimumMacOS": "13.5",
-      "signed": false,
-      "notarized": false,
-      "version": "0.1.5"
-    },
     {
       "platform": "linux",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-linux-universal.run",
-      "bytes": 96115051,
-      "sha256": "afb0b8ed7e9abc67f4fb00ebf908fc39d87c2c0e794f4953d9c47ea4bdae93e9",
-      "version": "0.1.5"
+      "bytes": 97476351,
+      "sha256": "779bf5b06e43fe462c8532511990a1f76b31ddd8616a2aeec73a3570565c5cd4"
     },
     {
       "platform": "windows",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-windows-universal-Setup.exe",
-      "bytes": 45537349,
-      "sha256": "3f6eedf89dc42143e1d1ffbf548f5b9f2be4cf2dbc659e51b98331b3a28f7f56",
+      "bytes": 46420683,
+      "sha256": "464e3667c083cc2964d69466d61eb4ecacb09f29185dd32cec4490f2a9822fa2",
       "signed": false
     }
   ],
-  "distribution": {
-    "provider": "vercel-blob",
-    "baseUrl": "https://jqpg7vfhhw3wuxy8.public.blob.vercel-storage.com/project-cad-assistant/v0.1.8"
+  "release": {
+    "repository": "dobralaszloedgar/project_cad",
+    "tag": "v0.1.9"
   }
 }

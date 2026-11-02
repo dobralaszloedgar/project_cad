@@ -228,7 +228,9 @@ export async function checkDirectoryReferences(
         // Exempt content only when it is byte-for-byte the pinned official runtime.
         if (
           entry.isFile() &&
-          /(^|\/)runtime\/node\.exe$/.test(label.replaceAll("\\", "/")) &&
+          /(^|\/)runtime\/(?:arm64\/|x64\/)?node(?:\.exe)?$/.test(
+            label.replaceAll("\\", "/"),
+          ) &&
           verifiedNodeHashes.has(
             createHash("sha256")
               .update(await readFile(path))

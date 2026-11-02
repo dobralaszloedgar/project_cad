@@ -17,35 +17,38 @@ const policy = validateReferencePolicy({
 });
 
 describe("release reference policy", () => {
-  it("exempts only exact verified upstream Node bytes at the runtime path", async () => {
-    const root = await mkdtemp(join(tmpdir(), "project-cad-runtime-policy-"));
-    const data = Buffer.from("RetiredExample upstream locale data");
-    const verifiedNodeHashes = new Set([
-      createHash("sha256").update(data).digest("hex"),
-    ]);
-    try {
-      await mkdir(join(root, "runtime"));
-      const runtime = join(root, "runtime", "node.exe");
-      await writeFile(runtime, data);
-      await expect(checkDirectoryReferences(root, policy)).rejects.toThrow(
-        "P01",
-      );
-      await expect(
-        checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
-      ).resolves.toEqual({ files: 1 });
-      await writeFile(join(root, "application.exe"), data);
-      await expect(
-        checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
-      ).rejects.toThrow("P01");
-      await rm(join(root, "application.exe"));
-      await writeFile(runtime, Buffer.concat([data, Buffer.from("changed")]));
-      await expect(
-        checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
-      ).rejects.toThrow("P01");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
+  it.each(["node.exe", "node", "arm64/node", "x64/node"])(
+    "exempts only exact verified upstream Node bytes at the runtime path: %s",
+    async (name) => {
+      const root = await mkdtemp(join(tmpdir(), "project-cad-runtime-policy-"));
+      const data = Buffer.from("RetiredExample upstream locale data");
+      const verifiedNodeHashes = new Set([
+        createHash("sha256").update(data).digest("hex"),
+      ]);
+      try {
+        const runtime = join(root, "runtime", name);
+        await mkdir(join(runtime, ".."), { recursive: true });
+        await writeFile(runtime, data);
+        await expect(checkDirectoryReferences(root, policy)).rejects.toThrow(
+          "P01",
+        );
+        await expect(
+          checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
+        ).resolves.toEqual({ files: 1 });
+        await writeFile(join(root, "application.exe"), data);
+        await expect(
+          checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
+        ).rejects.toThrow("P01");
+        await rm(join(root, "application.exe"));
+        await writeFile(runtime, Buffer.concat([data, Buffer.from("changed")]));
+        await expect(
+          checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
+        ).rejects.toThrow("P01");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("detects mixed-case text and both UTF-16 byte orders", () => {
     for (const data of [
