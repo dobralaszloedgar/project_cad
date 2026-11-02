@@ -67,9 +67,9 @@ test("a blocked installer stays on downloads and retry recovers saved choices", 
     page.getByRole("heading", { name: "Choose your agents" }),
   ).toHaveCount(0);
   blocked = true;
-  await page.getByText("Other platforms", { exact: true }).click();
+
   await page
-    .getByLabel("Choose your installer")
+    .getByLabel("Operating system", { exact: true })
     .selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
   await expect(notice).toBeVisible();
   blocked = false;
@@ -115,13 +115,13 @@ test("downloads directly from Vercel Blob and exposes public checksums", async (
     "href",
     `${base}/ProjectCAD-Assistant-macos-universal.pkg`,
   );
-  await page.getByText("Other platforms", { exact: true }).click();
+
   await expect(page.locator("#assistant-installer option")).toHaveCount(5);
   await expect(
     page.getByRole("link", { name: "Download checksums" }),
   ).toHaveAttribute("href", `${base}/SHA256SUMS.txt`);
   await page
-    .getByLabel("Choose your installer")
+    .getByLabel("Operating system", { exact: true })
     .selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
   await expect(download).toHaveAttribute(
     "href",
@@ -136,6 +136,69 @@ test("downloads directly from Vercel Blob and exposes public checksums", async (
     page.getByRole("heading", { name: "A quick setup on your computer" }),
   ).toBeVisible();
 });
+
+for (const platform of ["windows", "linux"]) {
+  test(`universal releases show three platforms and download the combined ${platform} installer`, async ({
+    page,
+  }) => {
+    await page.route(healthUrl, (request) =>
+      request.fulfill({ status: 503, json: { error: "Not running" } }),
+    );
+    const files = [
+      downloads.files.find(
+        (file) => file.filename === "ProjectCAD-Assistant-macos-universal.pkg",
+      )!,
+      ...["windows", "linux"].map((platform) => ({
+        platform,
+        architecture: "universal",
+        filename: `ProjectCAD-Assistant-${platform}-universal${platform === "windows" ? "-Setup.exe" : ".run"}`,
+        bytes: 48000000,
+        sha256: "0".repeat(64),
+      })),
+    ];
+    await page.route("**/downloads/assistant/downloads.json", (request) =>
+      request.fulfill({ json: { ...downloads, files } }),
+    );
+    await page
+      .context()
+      .route(
+        `${downloads.distribution.baseUrl}/ProjectCAD-Assistant-*`,
+        (request) =>
+          request.fulfill({
+            contentType: "application/octet-stream",
+            headers: {
+              "Content-Disposition":
+                'attachment; filename="assistant-universal-test.txt"',
+            },
+            body: "Browser test download. This is not an installer.",
+          }),
+      );
+    await page.goto(route);
+
+    await expect(page.locator("#assistant-installer option")).toHaveCount(3);
+    const file = files.find((item) => item.platform === platform)!;
+    await page
+      .getByLabel("Operating system", { exact: true })
+      .selectOption(file.filename);
+    await expect(
+      page.getByRole("link", { name: /^Download for/ }),
+    ).toHaveAttribute(
+      "href",
+      `${downloads.distribution.baseUrl}/${file.filename}`,
+    );
+    await expect(
+      page.locator("#assistant-installer option:checked"),
+    ).toContainText("x64 + ARM64");
+    const downloaded = page.waitForEvent("download");
+    await page.getByRole("link", { name: /^Download for/ }).click();
+    expect((await downloaded).suggestedFilename()).toBe(
+      "assistant-universal-test.txt",
+    );
+    await expect(
+      page.getByRole("heading", { name: "A quick setup on your computer" }),
+    ).toBeVisible();
+  });
+}
 
 test("a GitHub download leads to setup and detects the newly opened app", async ({
   page,
@@ -345,9 +408,9 @@ test("unavailable installers can be retried and other platforms can be selected"
   unavailable = false;
   await page.getByRole("button", { name: "Retry downloads" }).click();
   await expect(page.getByRole("link", { name: /^Download for/ })).toBeVisible();
-  await page.getByText("Other platforms", { exact: true }).click();
+
   await page
-    .getByLabel("Choose your installer")
+    .getByLabel("Operating system", { exact: true })
     .selectOption("ProjectCAD-Assistant-windows-arm64-Setup.exe");
   await expect(
     page.getByRole("link", { name: "Download for Windows" }),

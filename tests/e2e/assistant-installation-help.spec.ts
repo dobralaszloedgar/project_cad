@@ -1,5 +1,8 @@
 import type { Page } from "@playwright/test";
-import { mockAssistantDownloads } from "./assistant-download-fixture";
+import {
+  mockAssistantDownloads,
+  universalDownloads,
+} from "./assistant-download-fixture";
 import { test, expect } from "./test";
 
 const healthUrl = "http://127.0.0.1:43118/health";
@@ -40,8 +43,9 @@ async function downloadInstaller(page: Page, filename?: string) {
   await panel.getByRole("checkbox", { name: "Codex", exact: true }).check();
   await panel.getByRole("button", { name: "Continue", exact: true }).click();
   if (filename) {
-    await panel.getByText("Other platforms", { exact: true }).click();
-    await panel.getByLabel("Choose your installer").selectOption(filename);
+    await panel
+      .getByLabel("Operating system", { exact: true })
+      .selectOption(filename);
   }
   const download = page.waitForEvent("download");
   await panel.getByRole("link", { name: /^Download for/ }).click();
@@ -115,10 +119,15 @@ test("macOS help loads on request, plays inline and disappears when the assistan
   await expect(help).toHaveCount(0);
 });
 
-for (const architecture of ["x64", "arm64"]) {
+for (const architecture of ["x64", "arm64", "universal"]) {
   test(`Windows ${architecture} help follows the selected installer even on a Mac browser`, async ({
     page,
   }) => {
+    if (architecture === "universal") {
+      await page.route("**/downloads/assistant/downloads.json", (request) =>
+        request.fulfill({ json: universalDownloads }),
+      );
+    }
     const filename = `ProjectCAD-Assistant-windows-${architecture}-Setup.exe`;
     const panel = await downloadInstaller(page, filename);
     await panel.getByRole("button", { name: /Installer won’t open/ }).click();
@@ -128,6 +137,14 @@ for (const architecture of ["x64", "arm64"]) {
     await expect(
       panel.getByRole("list", { name: "Installation steps" }),
     ).toContainText(filename);
+    if (architecture === "universal") {
+      await expect(
+        panel.getByRole("list", { name: "Installation steps" }),
+      ).toContainText("automatically installs the correct version");
+      await expect(
+        panel.getByRole("list", { name: "Installation steps" }),
+      ).not.toContainText("different installers");
+    }
     await expect(panel.getByLabel("macOS version")).toHaveCount(0);
     await expect(
       panel.getByRole("combobox", { name: "Installer", exact: true }),

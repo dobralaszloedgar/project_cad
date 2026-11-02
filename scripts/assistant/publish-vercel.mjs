@@ -7,7 +7,7 @@ import { parseArgs } from "node:util";
 import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
 import { output } from "./artifacts.mjs";
 import {
-  installerPattern,
+  preferredInstallers,
   sha256,
   validateManifest,
   verifyLocalArtifacts,
@@ -113,7 +113,7 @@ export async function prepareVercelRelease(directory, baseUrl) {
     {
       name: local.name,
       version: local.version,
-      files: local.files.filter((file) => installerPattern.test(file.filename)),
+      files: preferredInstallers(local.files),
       distribution: { provider: "vercel-blob", baseUrl },
     },
     { published: true },

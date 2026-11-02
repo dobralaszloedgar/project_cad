@@ -314,7 +314,6 @@
   align-self: center;
   width: 100%;
 }
-.platforms summary,
 .troubleshooting summary {
   display: flex;
   justify-content: center;
@@ -325,11 +324,9 @@
   cursor: pointer;
   list-style: none;
 }
-.platforms summary::-webkit-details-marker,
 .troubleshooting summary::-webkit-details-marker {
   display: none;
 }
-.platforms[open] summary svg,
 .troubleshooting[open] summary svg {
   transform: rotate(180deg);
 }
@@ -338,7 +335,7 @@
   text-align: left;
   color: var(--muted);
   font-size: 11px;
-  margin: 14px 0 6px;
+  margin: 0 0 6px;
 }
 .platforms select {
   width: 100%;
@@ -348,6 +345,12 @@
   color: var(--ink);
   background: var(--connection-surface);
   font-size: 12px;
+}
+.platformHint {
+  margin-top: 6px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 11px;
 }
 .alreadyInstalled {
   display: flex;

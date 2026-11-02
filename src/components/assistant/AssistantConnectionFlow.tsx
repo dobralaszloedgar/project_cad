@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 import { assistantDownloads } from "@/assistant/downloads";
 import {
+  assistantPlatformNames,
+  detectAssistantPlatform,
+  type AssistantPlatform,
+} from "@/assistant/platform";
+import {
   agentNames,
   type AgentSelection,
   type ProviderId,
@@ -113,6 +118,7 @@ export default function AssistantConnectionFlow({
   const checkingManifest = downloadResult?.attempt !== downloadAttempt;
   const downloadError = !checkingManifest && downloadResult?.error === true;
   const [selected, setSelected] = useState("");
+  const [detectedPlatform, setDetectedPlatform] = useState<AssistantPlatform>();
   const [installing, setInstalling] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
   const content = useRef<HTMLDivElement>(null);
@@ -144,9 +150,9 @@ export default function AssistantConnectionFlow({
       : stage === "setup" || stage === "download" || stage === "checking"
         ? 1
         : 2;
-  const download =
-    downloads?.installers.find((file) => file.filename === selected) ??
-    downloads?.installers[0];
+  const download = downloads?.installers.find(
+    (file) => file.filename === selected,
+  );
   const downloadUrl = download?.url;
   // The inline approval protocol requires desktop release 0.1.4 or newer.
   const version = downloads?.version.split(".").map(Number);
@@ -201,20 +207,14 @@ export default function AssistantConnectionFlow({
         const available = assistantDownloads(await response.json());
         if (!available) throw new Error("Downloads unavailable");
         if (controller.signal.aborted) return;
-        const platform = /Windows/i.test(navigator.userAgent)
-          ? "windows"
-          : /Linux/i.test(navigator.userAgent)
-            ? "linux"
-            : "macos";
+        const platform = detectAssistantPlatform(navigator);
+        setDetectedPlatform(platform);
         setDownloads(available);
         setSelected((current) =>
           available.installers.some((file) => file.filename === current)
             ? current
-            : (
-                available.installers.find(
-                  (file) => file.platform === platform,
-                ) ?? available.installers[0]
-              ).filename,
+            : (available.installers.find((file) => file.platform === platform)
+                ?.filename ?? ""),
         );
         setDownloadResult({ attempt: downloadAttempt, error: false });
       })
@@ -446,6 +446,36 @@ export default function AssistantConnectionFlow({
 
           {stage === "download" ? (
             <div className={styles.actions} aria-busy={checkingDownloads}>
+              {downloads ? (
+                <div className={styles.platforms}>
+                  <label htmlFor="assistant-installer">Operating system</label>
+                  <select
+                    id="assistant-installer"
+                    aria-describedby="assistant-platform-hint"
+                    value={selected}
+                    onChange={(event) => setSelected(event.target.value)}
+                  >
+                    {!download ? (
+                      <option value="" disabled>
+                        Choose your operating system
+                      </option>
+                    ) : null}
+                    {downloads.installers.map((file) => (
+                      <option key={file.filename} value={file.filename}>
+                        {file.name} · {file.architecture}
+                      </option>
+                    ))}
+                  </select>
+                  <p
+                    id="assistant-platform-hint"
+                    className={styles.platformHint}
+                  >
+                    {detectedPlatform
+                      ? `Detected ${assistantPlatformNames[detectedPlatform]}. Change it if needed.`
+                      : "Choose the operating system of the computer you’ll install on."}
+                  </p>
+                </div>
+              ) : null}
               {checkingDownloads ? (
                 <div className={styles.notice} role="status">
                   <button
@@ -530,25 +560,8 @@ export default function AssistantConnectionFlow({
                       </>
                     )}
                   </p>
-                  <details className={styles.platforms}>
-                    <summary>
-                      Other platforms <ChevronDown size={13} />
-                    </summary>
-                    <label htmlFor="assistant-installer">
-                      Choose your installer
-                    </label>
-                    <select
-                      id="assistant-installer"
-                      value={download.filename}
-                      onChange={(event) => setSelected(event.target.value)}
-                    >
-                      {downloads?.installers.map((file) => (
-                        <option key={file.filename} value={file.filename}>
-                          {file.name} · {file.architecture}
-                        </option>
-                      ))}
-                    </select>
-                    {downloads?.releaseUrl || downloads?.checksumsUrl ? (
+                  {downloads?.releaseUrl || downloads?.checksumsUrl ? (
+                    <div className={styles.platforms}>
                       <a
                         href={downloads.releaseUrl ?? downloads.checksumsUrl}
                         target="_blank"
@@ -559,13 +572,12 @@ export default function AssistantConnectionFlow({
                           : "Download checksums"}{" "}
                         <ExternalLink size={12} />
                       </a>
-                    ) : null}
-                  </details>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <button className={styles.primary} disabled>
-                  <LoaderCircle size={16} className={styles.spinner} />
-                  Finding your download…
+                  Choose an operating system
                 </button>
               )}
               <div className={styles.alreadyInstalled}>
