@@ -11,7 +11,15 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, Pause, Play } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
+  Monitor,
+  Pause,
+  Play,
+  X,
+} from "lucide-react";
 import {
   motion,
   MotionConfig,
@@ -71,8 +79,21 @@ function EntryLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-export default function LandingPage() {
+export default function LandingPage({
+  isPhone,
+  workspaceBlocked,
+}: {
+  isPhone: boolean;
+  workspaceBlocked: boolean;
+}) {
   const root = useRef<HTMLElement>(null);
+  const [workspaceNoticeVisible, setWorkspaceNoticeVisible] =
+    useState(workspaceBlocked);
+  const openWorkspace = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!isPhone) return;
+    event.preventDefault();
+    setWorkspaceNoticeVisible(true);
+  };
   const cadBridge = useMemo(() => createCadBridge(), []);
   const { scrollYProgress } = useScroll({
     target: root,
@@ -200,7 +221,12 @@ export default function LandingPage() {
           sceneUnavailable ? "unavailable" : sceneReady ? "live" : "preparing"
         }
       >
-        <Link className={styles.skipLink} href="/workspace?home=1">
+        <Link
+          className={styles.skipLink}
+          href="/workspace?home=1"
+          prefetch={isPhone ? false : undefined}
+          onClick={openWorkspace}
+        >
           Skip the story and open workspace
         </Link>
         <div
@@ -250,11 +276,34 @@ export default function LandingPage() {
               ))}
             </nav>
             {/* Full navigation releases the landing WebGL context before setup. */}
-            <a href="/workspace?home=1" className={styles.workspaceLink}>
+            <a
+              href="/workspace?home=1"
+              className={styles.workspaceLink}
+              onClick={openWorkspace}
+            >
               Open workspace
               <ArrowUpRight size={16} />
             </a>
           </header>
+
+          {workspaceNoticeVisible ? (
+            <div className={styles.workspaceNotice} role="status">
+              <Monitor size={22} aria-hidden="true" />
+              <p>
+                <strong>Please use a PC to open the workspace.</strong>
+                <span>
+                  You can keep exploring the landing page on your phone.
+                </span>
+              </p>
+              <button
+                type="button"
+                aria-label="Dismiss workspace message"
+                onClick={() => setWorkspaceNoticeVisible(false)}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
 
           {graphicsInfo?.software && !sceneUnavailable ? (
             <AccelerationNotice className={styles.graphicsNotice} />

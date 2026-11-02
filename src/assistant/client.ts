@@ -5,6 +5,7 @@ import { executeProjectTool } from "./tools";
 import type { ChatAttachment } from "./attachments";
 import {
   ASSISTANT_ENDPOINT,
+  MUSE_AGENTS,
   agentSelectionSchema,
   type AgentSelection,
   type AssistantSnapshot,
@@ -15,7 +16,7 @@ import {
   type AssistantMode,
   type Proposal,
 } from "./protocol";
-import { rememberAgentSelection, savedAgentSelection } from "./selection";
+import { rememberAgentSelection } from "./selection";
 
 const tokenKey = "project-cad.assistant-token";
 let browserIdentity: Promise<string> | undefined;
@@ -100,7 +101,7 @@ export function useAssistant(projectId: string, project: Project) {
     token: string;
     promise: Promise<void>;
   } | null>(null);
-  const [agents, setAgents] = useState<AgentSelection | null>(null);
+  const [agents, setAgents] = useState<AgentSelection | null>(MUSE_AGENTS);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversation, setConversation] = useState<Conversation>();
   const [activeConversation, setActiveConversation] = useState<Conversation>();
@@ -115,6 +116,20 @@ export function useAssistant(projectId: string, project: Project) {
   const projectRef = useRef(project);
   const pairCleanup = useRef<(() => void) | null>(null);
   const pairOpen = useRef<(() => Promise<void>) | null>(null);
+  const connectorWindow = useRef<Window | null>(null);
+  useEffect(() => {
+    const returnToProject = (event: MessageEvent) => {
+      if (
+        event.source !== connectorWindow.current ||
+        !/^http:\/\/127\.0\.0\.1:\d+$/.test(event.origin) ||
+        event.data?.type !== "project-cad-return"
+      )
+        return;
+      window.focus();
+    };
+    window.addEventListener("message", returnToProject);
+    return () => window.removeEventListener("message", returnToProject);
+  }, []);
   const [openingApproval, setOpeningApproval] = useState(false);
   const retry = useRef<{
     chatId: string;
@@ -167,7 +182,8 @@ export function useAssistant(projectId: string, project: Project) {
       "/providers?refresh=1",
     )
       .then((value) => {
-        if (providerRequest.current === pending) setProviders(value);
+        if (providerRequest.current === pending)
+          setProviders(value.filter((provider) => provider.id === "muse"));
       })
       .catch((failure) => {
         if (providerRequest.current === pending) report(failure);
@@ -225,6 +241,13 @@ export function useAssistant(projectId: string, project: Project) {
             (id ? `&conversationId=${encodeURIComponent(id)}` : ""),
         );
         if (!alive) return;
+        if (!value.capabilities?.includes("muse-connector-v1")) {
+          setUpdateRequired(true);
+          setConnected(false);
+          setToken("");
+          sessionStorage.removeItem(tokenKey);
+          return;
+        }
         if (hadPollError) {
           setError("");
           hadPollError = false;
@@ -234,11 +257,11 @@ export function useAssistant(projectId: string, project: Project) {
         setCapabilities(value.capabilities ?? []);
         if (value.agents) {
           setAgents((previous) =>
-            JSON.stringify(previous) === JSON.stringify(value.agents)
+            JSON.stringify(previous) === JSON.stringify(MUSE_AGENTS)
               ? previous
-              : value.agents!,
+              : MUSE_AGENTS,
           );
-          rememberAgentSelection(value.agents);
+          rememberAgentSelection();
         }
         setActiveConversation(value.activeConversation);
         setActivity(value.activity);
@@ -313,14 +336,22 @@ export function useAssistant(projectId: string, project: Project) {
     };
   }, [token, clientId, projectId, path, report]);
   function connect(selection?: AgentSelection, onConnected?: () => void) {
-    const chosen = agentSelectionSchema.safeParse(
-      selection ?? agents ?? savedAgentSelection(),
-    );
+    const chosen = agentSelectionSchema.safeParse(MUSE_AGENTS);
     if (!chosen.success) {
       setError("Choose your agents before connecting.");
       return;
     }
     pairCleanup.current?.();
+    // Reserve the same named window during the click, before asynchronous work.
+    // Its opener lets the connector focus this exact project tab afterward.
+    const windowName = `project-cad-muse-connector-${clientId}`;
+    let popup = window.open(
+      "about:blank",
+      windowName,
+      "popup,width=680,height=620",
+    );
+    let approvalUrl = "";
+    connectorWindow.current = popup;
     setConnecting(true);
     setError("");
     const nonce = crypto.randomUUID();
@@ -339,6 +370,7 @@ export function useAssistant(projectId: string, project: Project) {
     };
     const cancel = () => {
       cleanup();
+      if (popup && !popup.closed) popup.close();
       if (id)
         void fetch(`${ASSISTANT_ENDPOINT}/connections/${id}/cancel`, {
           method: "POST",
@@ -358,6 +390,20 @@ export function useAssistant(projectId: string, project: Project) {
       setOpeningApproval(true);
       setError("");
       try {
+        if (approvalUrl) {
+          if (popup && !popup.closed) popup.location.href = approvalUrl;
+          else
+            popup = window.open(
+              approvalUrl,
+              windowName,
+              "popup,width=680,height=620",
+            );
+          connectorWindow.current = popup;
+          if (popup) {
+            popup.focus();
+            return;
+          }
+        }
         const response = await fetch(
           `${ASSISTANT_ENDPOINT}/connections/${id}/open`,
           {
@@ -418,7 +464,7 @@ export function useAssistant(projectId: string, project: Project) {
         }
         if (stopped) return;
         setAgents(accepted.data);
-        rememberAgentSelection(accepted.data);
+        rememberAgentSelection();
         sessionStorage.setItem(tokenKey, value.token);
         setToken(value.token);
         setError("");
@@ -443,7 +489,11 @@ export function useAssistant(projectId: string, project: Project) {
       credentials: "omit",
       signal,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nonce, agents: chosen.data }),
+      body: JSON.stringify({
+        nonce,
+        agents: chosen.data,
+        browserWindow: !!popup,
+      }),
     })
       .then(async (response) => {
         if (stopped) return;
@@ -460,6 +510,14 @@ export function useAssistant(projectId: string, project: Project) {
         if (typeof value.id !== "string" || !/^[a-f0-9]{64}$/.test(value.id))
           throw new Error("The connection request was invalid. Try again.");
         id = value.id;
+        if (popup && !popup.closed) {
+          if (
+            value.windowUrl === `${ASSISTANT_ENDPOINT}/connections/${id}/window`
+          ) {
+            approvalUrl = value.windowUrl;
+            popup.location.href = approvalUrl;
+          } else popup.close();
+        }
         void poll();
       })
       .catch((failure) => {

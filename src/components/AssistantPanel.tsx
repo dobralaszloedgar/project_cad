@@ -71,7 +71,7 @@ type ChatTab = {
   paused: boolean;
 };
 const initialSettings: Settings = {
-  provider: "codex",
+  provider: "muse",
   model: "",
   mode: "review",
 };
@@ -538,7 +538,7 @@ export default function AssistantPanel({
                     className={styles.option}
                     onClick={() => void assistant.refreshProviders()}
                   >
-                    <RefreshCw size={14} /> Refresh providers
+                    <RefreshCw size={14} /> Refresh models
                   </button>
                   <button
                     className={styles.option}
@@ -547,7 +547,7 @@ export default function AssistantPanel({
                       close();
                     }}
                   >
-                    <Folder size={14} /> Manage agents
+                    <Folder size={14} /> Connector settings
                   </button>
                   <button
                     className={styles.option}
@@ -1144,30 +1144,6 @@ export default function AssistantPanel({
                 {(close) => (
                   <>
                     <h3>Model</h3>
-                    <div
-                      className={styles.providerOptions}
-                      role="group"
-                      aria-label="Assistant provider"
-                    >
-                      {(
-                        assistant.agents?.providers ??
-                        assistant.providers.map((item) => item.id)
-                      ).map((id) => (
-                        <button
-                          key={id}
-                          aria-pressed={settings.provider === id}
-                          onClick={() =>
-                            changeSettings({
-                              provider: id,
-                              model: "",
-                              reasoning: undefined,
-                            })
-                          }
-                        >
-                          {agentNames[id]}
-                        </button>
-                      ))}
-                    </div>
                     <div role="group" aria-label="Assistant model">
                       {provider?.models.map((item) => (
                         <button
@@ -1192,7 +1168,7 @@ export default function AssistantPanel({
                     ) : null}
                     <button
                       className={styles.option}
-                      aria-label="Refresh providers"
+                      aria-label="Refresh models"
                       onClick={() => void assistant.refreshProviders()}
                     >
                       <RefreshCw size={13} /> Refresh models

@@ -58,7 +58,7 @@ export default function DesignChatPanel({
     id: "landing-demo",
     projectId: "landing-demo",
     title: "Reaction & recycle",
-    provider: "codex",
+    provider: "muse",
     model: "demo",
     mode: "review",
     createdAt: "2026-01-01T00:00:00Z",

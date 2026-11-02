@@ -123,8 +123,6 @@ async function status() {
     startAtLogin: settings.startAtLogin,
     agents: settings.agents,
     connections: new ConnectionRequests(root).pending(),
-    codexAvailable: !!providerExecutable("codex"),
-    claudeAvailable: !!providerExecutable("claude"),
     museAvailable: !!providerExecutable("muse"),
     message: !settings.agents
       ? "Return to Project CAD and connect. Your selected agents will appear here."
@@ -256,7 +254,7 @@ async function main() {
     (command === "install-provider" ||
       command === "prepare-provider" ||
       command === "provider-status") &&
-    (provider === "codex" || provider === "claude" || provider === "muse")
+    provider === "muse"
   ) {
     if (!loadAssistantSettings(root).agents?.providers.includes(provider))
       throw new Error(

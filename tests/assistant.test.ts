@@ -9,7 +9,7 @@ import type {
   ProviderInput,
 } from "../src/server/assistant/providers/types";
 import { currentProjectPrompt } from "../src/server/assistant/providers/types";
-import type { ProviderId, StoredConversation } from "../src/assistant/protocol";
+import type { ProviderId } from "../src/assistant/protocol";
 import { executeProjectTool, projectRevision } from "../src/assistant/tools";
 import { heatingExample } from "../src/domain/examples";
 import { projectSchema } from "../src/domain/schema";
@@ -67,7 +67,7 @@ function setup(
     runtime.create(owner, {
       projectId: owner.projectId,
       projectName: "Test",
-      provider: "codex",
+      provider: "muse",
       model: "test-model",
       mode,
     });

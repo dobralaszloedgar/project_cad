@@ -57,11 +57,11 @@ function fixture() {
   return { root, runtime, status, select };
 }
 
-it("starts without selected agents, preserves legacy settings, and accepts the exact hosted origin", () => {
+it("automatically selects Muse, migrates legacy settings, and accepts the exact hosted origin", () => {
   const { root } = fixture();
   expect(loadAssistantSettings(root)).toMatchObject({
     websiteUrl: PROJECT_CAD_ORIGIN,
-    agents: null,
+    agents: { providers: ["muse"], preferred: "muse" },
   });
   writeFileSync(
     join(root, "settings.json"),
@@ -77,7 +77,10 @@ it("starts without selected agents, preserves legacy settings, and accepts the e
     preferred: "claude",
   } as AgentSelection;
   saveAssistantSettings(root, { ...previous, agents });
-  expect(loadAssistantSettings(root)).toEqual({ ...previous, agents });
+  expect(loadAssistantSettings(root)).toEqual({
+    ...previous,
+    agents: { providers: ["muse"], preferred: "muse" },
+  });
   const origins = assistantOrigins(previous.websiteUrl);
   expect(origins).toContain(PROJECT_CAD_ORIGIN);
   expect(origins).toContain("http://127.0.0.1:3000");
@@ -158,8 +161,8 @@ it("saves selections only after local approval and gives rejected origins a read
   );
   const endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   const nonce = crypto.randomUUID();
-  const url = (origin = PROJECT_CAD_ORIGIN, preferred = "claude") =>
-    `${endpoint}/connect?${new URLSearchParams({ origin, nonce, providers: "claude,muse", preferred })}`;
+  const url = (origin = PROJECT_CAD_ORIGIN, preferred = "muse") =>
+    `${endpoint}/connect?${new URLSearchParams({ origin, nonce, providers: "muse", preferred })}`;
   const rejected = await fetch(url("https://unconfigured.example"));
   expect(rejected.status).toBe(403);
   expect(rejected.headers.get("content-type")).toContain("text/html");
@@ -170,9 +173,12 @@ it("saves selections only after local approval and gives rejected origins a read
   expect(errorPage).not.toContain('"token":');
   expect((await fetch(url(PROJECT_CAD_ORIGIN, "codex"))).status).toBe(400);
   const consent = await (await fetch(url())).text();
-  expect(consent).toContain("Claude Code, Muse");
+  expect(consent).toContain("Muse Code");
   expect(select).not.toHaveBeenCalled();
-  expect(loadAssistantSettings(root).agents).toBeNull();
+  expect(loadAssistantSettings(root).agents).toEqual({
+    providers: ["muse"],
+    preferred: "muse",
+  });
   const csrf = consent.match(/name="csrf" value="([a-f0-9]+)"/)![1];
   const approve = (origin: string) =>
     fetch(endpoint + "/connect", {
@@ -186,10 +192,7 @@ it("saves selections only after local approval and gives rejected origins a read
   expect((await approve(PROJECT_CAD_ORIGIN)).status).toBe(403);
   expect(select).not.toHaveBeenCalled();
   const approved = await (await approve(endpoint)).text();
-  const agents: AgentSelection = {
-    providers: ["claude", "muse"],
-    preferred: "claude",
-  };
+  const agents: AgentSelection = { providers: ["muse"], preferred: "muse" };
   expect(select).toHaveBeenCalledExactlyOnceWith(agents);
   expect(loadAssistantSettings(root).agents).toEqual(agents);
   const token = approved.match(/"token":"([\w-]+)"/)![1];
@@ -204,7 +207,7 @@ it("saves selections only after local approval and gives rejected origins a read
   expect(state.agents).toEqual(agents);
   expect(
     await (await fetch(endpoint + "/providers", { headers })).json(),
-  ).toMatchObject([{ id: "claude" }, { id: "muse" }]);
+  ).toMatchObject([{ id: "muse" }]);
   expect(await (await approve(endpoint)).text()).toContain(
     "Connection expired",
   );

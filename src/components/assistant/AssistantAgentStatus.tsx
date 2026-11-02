@@ -41,7 +41,7 @@ export default function AssistantAgentStatus({
       </strong>
       <p>
         {!selected
-          ? "Enable this agent in Manage agents to continue this conversation, or start a new conversation with your current selection."
+          ? "Start a new Muse conversation. Your previous conversation is saved."
           : !provider && checking
             ? "Checking your agent’s sign-in and available models…"
             : provider?.available
@@ -50,7 +50,7 @@ export default function AssistantAgentStatus({
       </p>
       {!selected ? (
         <button className={styles.textButton} onClick={onManage}>
-          Manage agents
+          Connector settings
         </button>
       ) : (
         <button

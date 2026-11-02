@@ -42,6 +42,7 @@ vi.mock("@muse-code/sdk", () => ({
                   displayLabel: "Spark",
                   isDefault: true,
                   variants: ["low", "high"],
+                  reasoningEffortVariants: [{ tier: "high" }],
                 },
                 {
                   modelId: "wonder",
@@ -110,7 +111,9 @@ function input(mode = "review") {
   roots.push(cwd);
   const controller = new AbortController(),
     text = vi.fn(),
-    call = vi.fn(async () => ({ name: "fixture" }));
+    call = vi.fn<(name: unknown, args: unknown) => Promise<{ name: string }>>(
+      async () => ({ name: "fixture" }),
+    );
   const conversation = {
     model: "wonder",
     reasoning: "medium",
@@ -185,6 +188,26 @@ it("closes a running Muse host when cancelled", async () => {
   );
   controller.abort();
   await expect(running).rejects.toThrow(/disconnected|abort/i);
+});
+it("refreshes the website AI guide on every turn, including a resumed session", async () => {
+  const { value, call } = input();
+  let version = "latest-guide-one";
+  call.mockImplementation(async (name?: unknown) => ({
+    name: name === "get_guide" ? version : "project",
+  }));
+  const provider = new MuseProvider(value.cwd);
+  await provider.run(value);
+  version = "latest-guide-two";
+  await provider.run(value);
+  const turns = fake.commands.filter(
+    (command) => command.method === "turn/start",
+  );
+  expect(JSON.stringify(turns[0])).toContain("latest-guide-one");
+  expect(JSON.stringify(turns[1])).toContain("latest-guide-two");
+  expect(JSON.stringify(turns[1])).not.toContain("latest-guide-one");
+  expect(call.mock.calls.filter(([name]) => name === "get_guide")).toHaveLength(
+    2,
+  );
 });
 it("protects project MCP tools, validates JSON plans and withholds write proposals in read-only mode", async () => {
   const { value, call } = input("read-only");

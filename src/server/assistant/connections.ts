@@ -20,6 +20,7 @@ const requestSchema = z.object({
   agents: agentSelectionSchema,
   expires: z.number(),
   openRevision: z.number().int().nonnegative().default(0),
+  browserWindow: z.boolean().default(false),
 });
 export type ConnectionRequest = z.infer<typeof requestSchema>;
 
@@ -81,7 +82,12 @@ export class ConnectionRequests {
       .map((id) => this.get(id))
       .filter((request) => request?.status === "pending");
   }
-  create(origin: string, nonce: string, agents: AgentSelection) {
+  create(
+    origin: string,
+    nonce: string,
+    agents: AgentSelection,
+    browserWindow = false,
+  ) {
     if (this.pending().length >= 20)
       throw new Error(
         "Too many pending connections. Cancel one in the assistant and try again.",
@@ -91,6 +97,7 @@ export class ConnectionRequests {
       origin,
       nonce,
       agents,
+      browserWindow,
       expires: Date.now() + 120000,
     });
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });

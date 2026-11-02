@@ -1,18 +1,11 @@
 import type { ProviderId } from "../../assistant/protocol";
 import { providerExecutable } from "./config";
 import { installProvider } from "./install-provider";
-import { CodexProvider } from "./providers/codex";
-import { ClaudeProvider } from "./providers/claude";
 import { MuseProvider } from "./providers/muse";
 
 export function providerStatus(id: ProviderId, root: string) {
-  return (
-    id === "codex"
-      ? new CodexProvider(root)
-      : id === "claude"
-        ? new ClaudeProvider(root)
-        : new MuseProvider(root)
-  ).status();
+  if (id !== "muse") throw new Error("Only Muse Code is supported.");
+  return new MuseProvider(root).status();
 }
 export type SetupState = {
   phase: "checking" | "installing" | "signing-in" | "ready" | "error";
@@ -31,7 +24,10 @@ export class ProviderSetup {
   ) {}
   ensure(providers: ProviderId[]) {
     for (const id of providers)
-      if (!this.states[id] || this.states[id]?.phase === "ready")
+      if (
+        id === "muse" &&
+        (!this.states[id] || this.states[id]?.phase === "ready")
+      )
         void this.prepare(id);
   }
   prepare(id: ProviderId): Promise<void> {
@@ -43,12 +39,11 @@ export class ProviderSetup {
   }
   private async setup(id: ProviderId) {
     try {
+      if (id !== "muse") throw new Error("Only Muse Code is supported.");
       const installed = !!providerExecutable(id);
       this.states[id] = {
         phase: installed ? "checking" : "installing",
-        message: installed
-          ? "Checking sign-in…"
-          : "Downloading and verifying the official app…",
+        message: installed ? "Checking sign-in…" : "Installing Muse…",
       };
       const result = await installProvider(id, this.resources, this.root);
       this.states[id] = { phase: "checking", message: "Checking sign-in…" };
@@ -56,14 +51,14 @@ export class ProviderSetup {
       if (status.available) {
         this.states[id] = {
           phase: "ready",
-          message: "Signed in · ready to use",
+          message: "Ready",
         };
         return;
       }
       await this.login(id, result.path);
       this.states[id] = {
         phase: "signing-in",
-        message: "Finish sign-in in the window we opened.",
+        message: "Finish sign-in in the opened window.",
       };
     } catch (error) {
       this.states[id] = {
@@ -84,7 +79,7 @@ export class ProviderSetup {
         if (status.available)
           this.states[id] = {
             phase: "ready",
-            message: "Signed in · ready to use",
+            message: "Ready",
           };
       }
     } finally {

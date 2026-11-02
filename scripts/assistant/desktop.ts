@@ -308,7 +308,7 @@ async function openTarget(target: string) {
     );
 }
 async function signIn(provider: ProviderId, executable: string) {
-  const args = provider === "claude" ? ["auth", "login"] : ["login"];
+  const args = ["login"];
   if (process.platform === "win32") {
     const file = join(root, `signin-${provider}.ps1`);
     await writeFile(
@@ -531,8 +531,6 @@ async function serve() {
       connections: new ConnectionRequests(root).pending(),
       museAvailable: !!providerExecutable("muse"),
       providerSetup: setup.states,
-      codexAvailable: !!providerExecutable("codex"),
-      claudeAvailable: !!providerExecutable("claude"),
       canUninstall:
         process.platform === "win32" &&
         (await exists(join(resources, "uninstall-windows.ps1"))) &&
@@ -678,7 +676,7 @@ async function serve() {
         return json(200, {
           message:
             value.action === "approve-connection"
-              ? "Connection approved. Return to your project."
+              ? "Connected."
               : "Connection declined.",
         });
       }
@@ -706,10 +704,7 @@ async function serve() {
           message: "Settings saved. Reconnect the assistant in Project CAD.",
         });
       }
-      if (
-        value.action === "signin" &&
-        ["codex", "claude", "muse"].includes(value.provider)
-      ) {
+      if (value.action === "signin" && value.provider === "muse") {
         if (
           !loadAssistantSettings(root).agents?.providers.includes(
             value.provider,

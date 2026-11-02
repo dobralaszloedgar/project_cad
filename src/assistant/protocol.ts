@@ -31,6 +31,10 @@ export const agentSelectionSchema = z
     "Choose at least one agent and a default from your selection.",
   );
 export type AgentSelection = z.infer<typeof agentSelectionSchema>;
+export const MUSE_AGENTS: AgentSelection = {
+  providers: ["muse"],
+  preferred: "muse",
+};
 export const modeSchema = z.enum(["review", "read-only"]);
 export type AssistantMode = z.infer<typeof modeSchema>;
 export const projectIdSchema = z.string().min(1).max(100);

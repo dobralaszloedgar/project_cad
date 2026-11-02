@@ -2,468 +2,267 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Project CAD Assistant</title>
     <style nonce="__NONCE__">
       :root {
-        color-scheme: light dark;
-        --bg: #f4f5f2;
-        --surface: #fff;
-        --text: #202c28;
-        --muted: #65716b;
-        --line: #e4e9e5;
-        --accent: #276f58;
-        --tint: #edf5ef;
-        --warn: #93681d;
-        --error: #b54139;
+        color-scheme: dark light;
+        --bg: #131c18;
+        --surface: #1c2821;
+        --line: #314138;
+        --ink: #e7eee9;
+        --muted: #a3b2a8;
+        --accent: #79baa0;
       }
       * {
         box-sizing: border-box;
       }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font:
-          14px/1.5 system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
-      }
-      button,
-      input {
-        font: inherit;
-      }
-      button {
-        cursor: pointer;
-      }
-      button:disabled {
-        cursor: wait;
-        opacity: 0.55;
-      }
-      button:focus-visible,
-      a:focus-visible,
-      summary:focus-visible,
-      input:focus-visible {
-        outline: 3px solid #65a58d;
-        outline-offset: 4px;
-      }
       [hidden] {
         display: none !important;
       }
-      main {
-        max-width: 720px;
-        margin: 44px auto;
-        padding: 0 24px;
+      body {
+        margin: 0;
+        min-height: 100svh;
+        padding: clamp(16px, 5vh, 48px) 20px;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.45 system-ui,
+          sans-serif;
       }
-      header {
+      main {
+        width: min(100%, 580px);
+      }
+      header,
+      .agent,
+      .actions,
+      footer {
         display: flex;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 36px;
+        gap: 14px;
       }
-      .brand {
+      header {
+        margin-bottom: 28px;
+      }
+      .logo {
         width: 42px;
         height: 42px;
         flex: none;
       }
-      .brand-name {
-        font-size: 17px;
-        font-weight: 650;
-        letter-spacing: -0.4px;
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: -0.5px;
       }
-      .eyebrow {
-        font-size: 10px;
-        letter-spacing: 1.6px;
-        text-transform: uppercase;
+      h2 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+      p {
+        margin: 4px 0 0;
+      }
+      .small,
+      .detail {
         color: var(--muted);
-        font-weight: 600;
+        font-size: 13px;
       }
       .connection {
         margin-left: auto;
-        border: 1px solid var(--line);
-        background: var(--surface);
-        padding: 6px 10px;
-        border-radius: 100px;
-        font-size: 12px;
+        color: var(--muted);
         display: flex;
-        align-items: center;
         gap: 7px;
+        align-items: center;
+        font-size: 12px;
+        white-space: nowrap;
       }
       .dot {
         width: 7px;
         height: 7px;
         border-radius: 50%;
-        background: #a1aaa5;
+        background: #cf9064;
       }
-      .connection[data-running="true"] .dot {
-        background: #3b946d;
+      [data-running="true"] .dot {
+        background: var(--accent);
       }
-      h1 {
-        font-size: 30px;
-        line-height: 1.2;
-        letter-spacing: -1.1px;
-        font-weight: 600;
-        margin: 0 0 10px;
-      }
-      p {
-        margin: 0;
-        color: var(--muted);
-      }
-      .intro {
-        margin-bottom: 24px;
-        max-width: 540px;
-      }
-      .card {
+      .card,
+      .approval {
         border: 1px solid var(--line);
-        border-radius: 16px;
-        background: var(--surface);
-        overflow: hidden;
-      }
-      .card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 17px 20px;
-        border-bottom: 1px solid var(--line);
-      }
-      h2 {
-        font-size: 13px;
-        font-weight: 650;
-        margin: 0;
-      }
-      .small {
-        font-size: 12px;
-        color: var(--muted);
-      }
-      .agent {
-        display: flex;
-        align-items: center;
-        gap: 13px;
+        border-radius: 14px;
         padding: 20px;
-      }
-      .agent + .agent {
-        border-top: 1px solid var(--line);
-      }
-      .agent-icon {
-        width: 42px;
-        height: 42px;
-        border-radius: 12px;
-        background: var(--bg);
-        display: grid;
-        place-items: center;
-        flex: none;
-      }
-      .agent-icon svg {
-        width: 23px;
-        height: 23px;
-      }
-      .muse-icon {
-        color: #547ed3;
-      }
-      .claude-icon {
-        color: #be7854;
-      }
-      .agent-copy {
-        min-width: 0;
-        flex: 1;
-      }
-      .agent-name {
-        font-size: 14px;
-        font-weight: 650;
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .default {
-        font-size: 10px;
-        font-weight: 500;
-        color: var(--accent);
-        background: var(--tint);
-        border-radius: 4px;
-        padding: 1px 5px;
-      }
-      .detail {
-        font-size: 12px;
-        margin-top: 3px;
-        overflow-wrap: anywhere;
-      }
-      .agent[data-phase="ready"] .detail {
-        color: var(--accent);
-      }
-      .agent[data-phase="error"] .detail {
-        color: var(--error);
-      }
-      button {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 8px 12px;
         background: var(--surface);
-        color: var(--text);
-        font-weight: 500;
-        font-size: 12px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        transition: background 0.15s;
-      }
-      button:hover {
-        background: var(--bg);
-      }
-      button svg {
-        width: 15px;
-        height: 15px;
-        flex: none;
-      }
-      .primary {
-        background: var(--accent);
-        color: white;
-        border-color: var(--accent);
-        font-size: 13px;
-        padding: 11px 16px;
-      }
-      .primary:hover {
-        filter: brightness(1.08);
-        background: var(--accent);
-      }
-      .actions {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-top: 22px;
-      }
-      .actions .small {
-        max-width: 280px;
-      }
-      .empty {
-        padding: 24px 20px;
-      }
-      .empty strong {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: 600;
-      }
-      .guide {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 22px;
-        margin: 30px 0;
-      }
-      .step-number {
-        display: block;
-        color: var(--accent);
-        font-size: 11px;
-        font-weight: 600;
-        margin-bottom: 5px;
-      }
-      .guide strong {
-        display: block;
-        font-size: 12px;
-        font-weight: 600;
-        margin-bottom: 4px;
-      }
-      .guide p {
-        font-size: 12px;
       }
       .approval {
-        background: var(--tint);
-        border: 1px solid #c8ddce;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 22px;
-      }
-      .approval h2 {
-        font-size: 17px;
-        margin-bottom: 8px;
+        margin-bottom: 14px;
       }
       .approval p {
-        font-size: 13px;
-      }
-      .approval strong {
-        color: var(--text);
         overflow-wrap: anywhere;
+        color: var(--muted);
+        font-size: 13px;
       }
       .approval .actions {
         margin-top: 16px;
       }
-      .approval button {
-        background: transparent;
+      .agent-icon {
+        width: 40px;
+        height: 40px;
+        color: #9cb4f7;
+        background: var(--bg);
+        border-radius: 10px;
+        padding: 8px;
+        flex: none;
       }
-      .approval .primary {
-        background: var(--accent);
+      .agent-copy {
+        flex: 1;
+        min-width: 0;
       }
-      details {
-        border-top: 1px solid var(--line);
-        padding: 17px 0;
+      .agent-name {
+        font-weight: 650;
       }
-      summary {
-        list-style: none;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 12px;
-        color: var(--muted);
+      [data-phase="ready"] .detail {
+        color: var(--accent);
       }
-      summary::-webkit-details-marker {
-        display: none;
-      }
-      summary svg {
-        width: 15px;
-        height: 15px;
-      }
-      summary .chevron {
-        margin-left: auto;
-        transition: transform 0.15s;
-      }
-      details[open] .chevron {
-        transform: rotate(180deg);
-      }
-      .settings-fields {
-        padding: 18px 0 5px;
-        display: grid;
-        gap: 16px;
-      }
-      label {
-        font-size: 12px;
-        display: block;
-      }
-      input[type="url"] {
-        display: block;
-        width: 100%;
-        margin-top: 6px;
+      button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 550;
         border: 1px solid var(--line);
         border-radius: 8px;
-        padding: 9px 11px;
-        background: var(--surface);
-        color: var(--text);
-      }
-      .checkbox {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .checkbox input {
-        accent-color: var(--accent);
-      }
-      .settings-fields button {
-        justify-self: start;
-      }
-      footer {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        border-top: 1px solid var(--line);
-        padding: 14px 0;
-        color: var(--muted);
-        font-size: 11px;
-      }
-      footer button {
+        padding: 9px 13px;
+        color: var(--ink);
         background: transparent;
-        border: 0;
-        padding: 5px;
-        font-size: 11px;
-        color: var(--muted);
+        cursor: pointer;
       }
-      footer .right {
-        margin-left: auto;
+      button:hover {
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+      button:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      .primary {
+        background: var(--accent);
+        color: #10291f;
+        border-color: transparent;
+      }
+      .primary:hover {
+        background: color-mix(in srgb, var(--accent) 85%, white);
+      }
+      .return {
+        width: 100%;
+        margin-top: 18px;
+        padding: 12px;
+        font-size: 14px;
       }
       #message {
-        font-size: 12px;
-        margin: 15px 0;
+        color: var(--muted);
+        font-size: 13px;
         overflow-wrap: anywhere;
+        margin-top: 12px;
+        max-height: 90px;
+        overflow: auto;
       }
       #message:empty {
         display: none;
       }
       #message.error {
-        color: var(--error);
+        color: #f4b49a;
       }
-      .spinning {
-        animation: spin 1.5s linear infinite;
+      details {
+        border-top: 1px solid var(--line);
+        margin-top: 24px;
+        padding-top: 16px;
       }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
+      summary {
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--muted);
       }
-      @media (prefers-color-scheme: dark) {
+      .settings-fields {
+        display: grid;
+        gap: 12px;
+        padding-top: 14px;
+        max-height: 220px;
+        overflow: auto;
+      }
+      label {
+        display: grid;
+        gap: 5px;
+        font-size: 13px;
+      }
+      input[type="url"] {
+        width: 100%;
+        font: inherit;
+        background: var(--bg);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        padding: 9px;
+        border-radius: 7px;
+      }
+      .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      input {
+        accent-color: var(--accent);
+      }
+      footer {
+        margin-top: 14px;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      footer button {
+        font-size: 12px;
+        border: 0;
+        color: var(--muted);
+        padding: 0;
+      }
+      @media (prefers-color-scheme: light) {
         :root {
-          --bg: #141b18;
-          --surface: #1c2520;
-          --text: #e6ece6;
-          --muted: #9aa99f;
-          --line: #303e35;
-          --accent: #73b79a;
-          --tint: #25382d;
-          --error: #ef9b8c;
-        }
-        .primary,
-        .approval .primary {
-          color: #14291f;
-        }
-        .approval {
-          border-color: #3a5444;
-        }
-        .muse-icon {
-          color: #8eabef;
-        }
-        .claude-icon {
-          color: #d7a281;
+          --bg: #f5f8f6;
+          --surface: #fff;
+          --line: #dbe4de;
+          --ink: #233c30;
+          --muted: #657b6d;
+          --accent: #79baa0;
         }
       }
-      @media (max-width: 540px) {
-        main {
-          margin: 24px auto;
-          padding: 0 18px;
+      @media (max-height: 650px) {
+        body {
+          padding-block: 16px;
         }
         header {
-          margin-bottom: 28px;
+          margin-bottom: 18px;
         }
-        .connection {
-          font-size: 10px;
+        details {
+          margin-top: 18px;
         }
-        h1 {
-          font-size: 26px;
-        }
-        .agent {
-          padding: 16px 14px;
-          gap: 10px;
-        }
-        .agent-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 9px;
-        }
-        .agent button {
-          max-width: 110px;
-          font-size: 11px;
-          padding: 7px 9px;
-        }
-        .guide {
-          gap: 12px;
-        }
-        .actions {
-          align-items: flex-start;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .actions .small {
-          max-width: none;
-        }
-        .card-head {
-          padding: 14px;
-        }
-        .brand-name {
-          font-size: 15px;
+        .settings-fields {
+          max-height: 130px;
         }
       }
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          transition: none !important;
-          animation: none !important;
+      @media (max-width: 420px) {
+        body {
+          padding-inline: 14px;
+        }
+        header {
+          gap: 10px;
+        }
+        .connection {
+          font-size: 11px;
+        }
+        .card {
+          padding: 16px;
+        }
+        .agent {
+          flex-wrap: wrap;
         }
       }
     </style>
@@ -471,13 +270,8 @@
   <body>
     <main>
       <header>
-        <svg
-          class="brand"
-          viewBox="0 0 128 128"
-          role="img"
-          aria-label="Project CAD"
-        >
-          <rect x="5" y="5" width="118" height="118" rx="29" fill="#28715c" />
+        <svg class="logo" viewBox="0 0 128 128" aria-hidden="true">
+          <rect width="128" height="128" rx="30" fill="#276f5b" />
           <g fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round">
             <rect x="28" y="28" width="27" height="27" rx="5" />
             <rect x="73" y="73" width="27" height="27" rx="5" />
@@ -485,20 +279,13 @@
           </g>
         </svg>
         <div>
-          <div class="brand-name">Project CAD</div>
-          <div class="eyebrow">Assistant connector</div>
+          <h1>Project CAD</h1>
+          <p class="small">Muse connector</p>
         </div>
         <div class="connection" id="connection">
           <span class="dot"></span><span id="state">Starting…</span>
         </div>
       </header>
-      <div class="intro">
-        <h1>Your agents. Your workspace.</h1>
-        <p>
-          Connect the agents on this computer to Project CAD. Use your existing
-          accounts and choose your model in the project.
-        </p>
-      </div>
       <section
         class="approval"
         id="approval"
@@ -506,199 +293,63 @@
         aria-labelledby="approval-title"
       >
         <h2 id="approval-title">Connect this website?</h2>
-        <p>
-          <strong id="request-origin"></strong> wants to use
-          <strong id="request-agents"></strong> on this computer. Project
-          changes still need your review.
-        </p>
+        <p id="request-origin"></p>
         <div class="actions">
           <button class="primary" id="approve">Approve connection</button
           ><button id="deny">Decline</button>
         </div>
       </section>
-      <section class="card" aria-labelledby="agents-title">
-        <div class="card-head">
-          <h2 id="agents-title">Your agents</h2>
-          <span class="small" id="agent-summary"
-            >Choose agents in your project</span
+      <section class="card" aria-label="Muse Code">
+        <div class="agent" data-agent-row="muse">
+          <svg
+            class="agent-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            aria-hidden="true"
           >
-        </div>
-        <div id="connect-step" class="empty">
-          <strong>Start from your project</strong>
-          <p>
-            Open the assistant in Project CAD, choose your agents, and connect.
-            We’ll install anything missing and open sign-in for you.
-          </p>
-        </div>
-        <div id="setup-step" hidden>
-          <div class="agent" data-agent-row="codex">
-            <div class="agent-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
-              >
-                <path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 20" />
-              </svg>
-            </div>
-            <div class="agent-copy">
-              <div class="agent-name">
-                Codex
-                <span class="default" data-agent-detail="codex" hidden
-                  >Default</span
-                >
-              </div>
-              <p class="detail" data-status="codex">Checking sign-in…</p>
-            </div>
-            <button data-provider="codex">Set up</button>
+            <path
+              d="m12 2 2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6Z"
+            />
+          </svg>
+          <div class="agent-copy">
+            <div class="agent-name">Muse Code</div>
+            <p class="detail" data-status="muse">Preparing Muse…</p>
           </div>
-          <div class="agent" data-agent-row="claude">
-            <div class="agent-icon claude-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12 2v20M2 12h20M5 5l14 14M5 19 19 5M3 8l18 8M8 3l8 18M3 16l18-8M8 21l8-18"
-                />
-              </svg>
-            </div>
-            <div class="agent-copy">
-              <div class="agent-name">
-                Claude Code
-                <span class="default" data-agent-detail="claude" hidden
-                  >Default</span
-                >
-              </div>
-              <p class="detail" data-status="claude">Checking sign-in…</p>
-            </div>
-            <button data-provider="claude">Set up</button>
-          </div>
-          <div class="agent" data-agent-row="muse">
-            <div class="agent-icon muse-icon">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
-              >
-                <path
-                  d="m12 2 2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6Z"
-                />
-              </svg>
-            </div>
-            <div class="agent-copy">
-              <div class="agent-name">
-                Muse Code
-                <span class="default" data-agent-detail="muse" hidden
-                  >Default</span
-                >
-              </div>
-              <p class="detail" data-status="muse">Checking sign-in…</p>
-            </div>
-            <button data-provider="muse">Set up</button>
-          </div>
+          <button id="signin" data-provider="muse">Checking…</button>
         </div>
       </section>
-      <div class="actions">
-        <button class="primary" data-action="open">
-          Open Project CAD
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            aria-hidden="true"
-          >
-            <path d="M5 12h14m-6-6 6 6-6 6" />
-          </svg>
-        </button>
-        <p class="small" id="next-step">
-          Connect from your project to get started.
-        </p>
-      </div>
+      <button class="primary return" id="return">Return to project →</button>
       <div id="message" role="status" aria-live="polite"></div>
-      <div class="guide" aria-label="How it works">
-        <div>
-          <span class="step-number">01 / CONNECT</span
-          ><strong>Choose your agents</strong>
-          <p>In your project, open the assistant and connect.</p>
-        </div>
-        <div>
-          <span class="step-number">02 / SIGN IN</span
-          ><strong>Use your account</strong>
-          <p>Missing apps install automatically. Sign in once.</p>
-        </div>
-        <div>
-          <span class="step-number">03 / CREATE</span
-          ><strong>Pick a model and chat</strong>
-          <p>Choose a model in Project CAD. Review changes before applying.</p>
-        </div>
-      </div>
       <details id="settings">
-        <summary>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            aria-hidden="true"
-          >
-            <path d="M4 7h16M4 17h16M8 4v6m8 4v6" /></svg
-          >Connection settings<svg
-            class="chevron"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-            aria-hidden="true"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </summary>
+        <summary>Settings</summary>
         <div class="settings-fields">
           <label
-            >Project CAD website<input
-              id="website"
-              type="url"
-              placeholder="https://projectcad.vercel.app"
-              required /></label
-          ><label class="checkbox"
-            ><input id="autostart" type="checkbox" />Start the connector when I
-            log in</label
-          ><button id="save">Save settings</button>
-          <p class="small">
-            If the website can’t connect, allow local network access in its
-            browser permissions. Keep the connector running.
-          </p>
+            >Project CAD website<input id="website" type="url" required
+          /></label>
+          <label class="checkbox"
+            ><input id="autostart" type="checkbox" />Start at login</label
+          >
+          <button id="save">Save settings</button>
           <button id="uninstall" data-action="uninstall" hidden>
             Uninstall connector…
           </button>
-          <p id="uninstall-note" class="small" hidden>
-            Your projects, conversations, settings, and sign-ins will be kept.
-          </p>
         </div>
       </details>
       <footer>
-        <span>Runs on this computer</span
-        ><button class="right" id="refresh">Refresh status</button
-        ><button data-action="logs">Open logs</button
+        <button id="refresh">Refresh</button
+        ><button data-action="logs">Logs</button
         ><button id="toggle" data-action="start">Start connector</button>
       </footer>
     </main>
     <script nonce="__NONCE__">
-      const $ = (id) => document.getElementById(id),
-        names = { codex: "Codex", claude: "Claude Code", muse: "Muse Code" };
+      const $ = (id) => document.getElementById(id);
       let initialized = false,
         busy = false,
         refreshing = false,
-        pendingConnection = null;
+        pendingConnection = null,
+        projectOrigin = "";
       function message(text, error = false) {
         $("message").textContent = text;
         $("message").className = error ? "error" : "";
@@ -709,17 +360,9 @@
         try {
           const response = await fetch("/api/state", { cache: "no-store" });
           const value = await response.json();
-          if (!response.ok)
-            throw Error(
-              value.error || "Reopen Project CAD Assistant from your desktop.",
-            );
-          const agents = value.agents,
-            states = value.providerSetup || {};
+          if (!response.ok) throw Error(value.error || "Reopen the connector.");
           $("uninstall").hidden = !value.canUninstall;
-          $("uninstall-note").hidden = !value.canUninstall;
-          $("state").textContent = value.running
-            ? "Connector running"
-            : "Connector stopped";
+          $("state").textContent = value.running ? "Running" : "Stopped";
           $("connection").dataset.running = String(value.running);
           $("toggle").textContent = value.running
             ? "Stop connector"
@@ -728,55 +371,27 @@
           $("toggle").disabled = busy || (value.running && !value.managed);
           pendingConnection = value.connections?.[0] || null;
           $("approval").hidden = !pendingConnection;
-          $("setup-step").hidden = !agents;
-          $("connect-step").hidden = !!agents;
           if (pendingConnection) {
             $("request-origin").textContent = pendingConnection.origin;
-            $("request-agents").textContent = pendingConnection.agents.providers
-              .map((id) => names[id])
-              .join(", ");
+            projectOrigin = pendingConnection.origin;
           }
-          let ready = 0;
-          document.querySelectorAll("[data-agent-row]").forEach((row) => {
-            const id = row.dataset.agentRow,
-              state = states[id],
-              selected = agents?.providers.includes(id);
-            row.hidden = !selected;
-            row.dataset.phase = state?.phase || "checking";
-            const button = row.querySelector("button"),
-              detail = row.querySelector("[data-status]");
-            detail.textContent = state?.message || "Checking sign-in…";
-            row.querySelector("[data-agent-detail]").hidden = !(
-              agents?.providers.length > 1 && agents.preferred === id
-            );
-            button.disabled =
-              busy ||
-              state?.phase === "checking" ||
-              state?.phase === "installing";
-            button.textContent =
-              state?.phase === "ready"
-                ? "Check sign-in"
-                : state?.phase === "signing-in"
-                  ? "Reopen sign-in"
-                  : state?.phase === "installing"
-                    ? "Installing…"
-                    : state?.phase === "checking"
-                      ? "Checking…"
-                      : state?.phase === "error"
-                        ? "Try again"
-                        : value[id + "Available"]
-                          ? "Sign in"
-                          : "Install & sign in";
-            if (selected && state?.phase === "ready") ready++;
-          });
-          $("agent-summary").textContent = agents
-            ? `${ready} of ${agents.providers.length} ready`
-            : "Choose agents in your project";
-          $("next-step").textContent = !agents
-            ? "Connect from your project to get started."
-            : ready === agents.providers.length
-              ? "Ready. Return to your project and choose a model."
-              : "Finish sign-in when prompted. We’ll detect it automatically.";
+          if (!projectOrigin) projectOrigin = new URL(value.websiteUrl).origin;
+          const state = value.providerSetup?.muse,
+            row = document.querySelector("[data-agent-row=muse]");
+          row.dataset.phase = state?.phase || "checking";
+          row.querySelector("[data-status]").textContent =
+            state?.message || "Preparing Muse…";
+          $("signin").hidden = state?.phase === "ready";
+          $("signin").disabled =
+            busy || !state || ["checking", "installing"].includes(state.phase);
+          $("signin").textContent =
+            state?.phase === "signing-in"
+              ? "Sign in"
+              : state?.phase === "error"
+                ? "Retry"
+                : state?.phase === "installing"
+                  ? "Installing…"
+                  : "Checking…";
           if (!initialized) {
             $("website").value = value.websiteUrl;
             $("autostart").checked = value.startAtLogin;
@@ -790,7 +405,7 @@
       async function action(body) {
         busy = true;
         document.querySelectorAll("button").forEach((b) => (b.disabled = true));
-        message(body.action === "signin" ? "Checking your agent…" : "");
+        message("");
         try {
           const response = await fetch("/api/action", {
             method: "POST",
@@ -802,7 +417,8 @@
           });
           const value = await response.json();
           if (!response.ok) throw Error(value.error || "Please try again.");
-          message(value.message || "");
+          if (!["approve-connection", "signin"].includes(body.action))
+            message(value.message || "");
           if (body.action === "settings") $("settings").open = false;
         } catch (error) {
           message(error.message, true);
@@ -819,29 +435,34 @@
         .forEach(
           (b) => (b.onclick = () => action({ action: b.dataset.action })),
         );
-      document
-        .querySelectorAll("[data-provider]")
-        .forEach(
-          (b) =>
-            (b.onclick = () =>
-              action({ action: "signin", provider: b.dataset.provider })),
-        );
+      $("signin").onclick = () =>
+        action({ action: "signin", provider: "muse" });
       $("approve").onclick = () =>
         pendingConnection &&
         action({ action: "approve-connection", id: pendingConnection.id });
       $("deny").onclick = () =>
         pendingConnection &&
         action({ action: "deny-connection", id: pendingConnection.id });
+      $("return").onclick = () => {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(
+            { type: "project-cad-return" },
+            projectOrigin,
+          );
+          window.opener.focus();
+        } else {
+          action({ action: "open" });
+        }
+      };
       $("refresh").onclick = () =>
         refresh().catch((error) => message(error.message, true));
-      $("save").onclick = () => {
-        if ($("website").reportValidity())
-          action({
-            action: "settings",
-            websiteUrl: $("website").value,
-            startAtLogin: $("autostart").checked,
-          });
-      };
+      $("save").onclick = () =>
+        $("website").reportValidity() &&
+        action({
+          action: "settings",
+          websiteUrl: $("website").value,
+          startAtLogin: $("autostart").checked,
+        });
       refresh().catch((error) => message(error.message, true));
       setInterval(() => {
         if (!busy && !document.hidden)

@@ -4,7 +4,7 @@ import SwiftUI
 private let accent = Color(red: 0.16, green: 0.43, blue: 0.35)
 private let dataDirectory = ProcessInfo.processInfo.environment["PROJECT_CAD_ASSISTANT_DATA"].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".project-cad/assistant", isDirectory: true)
 
-private let agentNames = ["codex": "Codex", "claude": "Claude Code", "muse": "Muse Code"]
+private let agentNames = ["muse": "Muse Code"]
 struct AgentSelection: Codable {
     var providers: [String]
     var preferred: String
@@ -13,7 +13,7 @@ struct CompanionSettings: Codable {
     var websiteUrl = "https://projectcad.vercel.app"
     var startAtLogin = true
     var museApiKey = ""
-    var agents: AgentSelection?
+    var agents: AgentSelection? = AgentSelection(providers: ["muse"], preferred: "muse")
     enum CodingKeys: String, CodingKey { case websiteUrl, startAtLogin, museApiKey, agents }
     init() {}
     init(from decoder: Decoder) throws {
@@ -21,14 +21,12 @@ struct CompanionSettings: Codable {
         websiteUrl = try values.decodeIfPresent(String.self, forKey: .websiteUrl) ?? websiteUrl
         startAtLogin = try values.decodeIfPresent(Bool.self, forKey: .startAtLogin) ?? startAtLogin
         museApiKey = try values.decodeIfPresent(String.self, forKey: .museApiKey) ?? museApiKey
-        agents = try values.decodeIfPresent(AgentSelection.self, forKey: .agents)
+        agents = AgentSelection(providers: ["muse"], preferred: "muse")
     }
 }
 struct CompanionStatus: Decodable {
     var running: Bool
     var managed: Bool
-    var codexAvailable: Bool
-    var claudeAvailable: Bool
     var museAvailable: Bool
     var message: String
     var agents: AgentSelection?
@@ -97,7 +95,7 @@ final class CompanionModel: ObservableObject {
                 self.status = status
                 self.readyAgents.formUnion(signedIn)
                 self.waitingSignIns.subtract(signedIn)
-                if !signedIn.isEmpty && self.waitingSignIns.isEmpty { self.message = "Ready. Return to Project CAD and choose a model." }
+                if !signedIn.isEmpty && self.waitingSignIns.isEmpty { self.message = "Ready." }
                 self.settings.agents = status.agents
                 self.prepareNextAgent()
             }
@@ -150,17 +148,17 @@ final class CompanionModel: ObservableObject {
         readyAgents.remove(provider)
         waitingSignIns.remove(provider)
         busy = true; failure = false
-        message = "Preparing \(agentNames[provider] ?? provider). Missing software will be downloaded from its official package."
+        message = "Preparing Muse…"
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let result = try control(["prepare-provider", provider])
                 guard let value = try JSONSerialization.jsonObject(with: result) as? [String: Any], let binary = value["path"] as? String else { throw NSError(domain: "ProjectCAD", code: 1) }
                 if value["ready"] as? Bool == true {
-                    DispatchQueue.main.async { self.readyAgents.insert(provider); self.busy = false; self.message = "Ready. Choose your model in Project CAD."; self.prepareNextAgent() }
+                    DispatchQueue.main.async { self.readyAgents.insert(provider); self.busy = false; self.message = "Ready."; self.prepareNextAgent() }
                     return
                 }
                 let quote = "'" + binary.replacingOccurrences(of: "'", with: "'\\''") + "'"
-                let command = quote + (provider == "claude" ? " auth login" : " login")
+                let command = quote + " login"
                 let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
                 let script = "tell application \"Terminal\"\nactivate\ndo script \"\(escaped)\"\nend tell"
                 DispatchQueue.main.async {
@@ -174,8 +172,38 @@ final class CompanionModel: ObservableObject {
         }
     }
     func openProject() {
-        if let url = URL(string: settings.websiteUrl) { NSWorkspace.shared.open(url) }
+        guard let url = URL(string: settings.websiteUrl),
+              let application = NSWorkspace.shared.urlForApplication(toOpen: url),
+              let bundle = Bundle(url: application)?.bundleIdentifier else { return }
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first
+        let target = (url.scheme ?? "https") + "://" + (url.host ?? "") + (url.port.map { ":\($0)" } ?? "") + "/workspace"
+        let escaped = target.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        if running != nil && ["com.apple.Safari", "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser"].contains(bundle) {
+            let select = bundle == "com.apple.Safari" ? "set current tab of w to tab i of w" : "set active tab index of w to i"
+            let script = """
+            tell application id "\(bundle)"
+                repeat with w in windows
+                    repeat with i from 1 to count of tabs of w
+                        if (URL of tab i of w) starts with "\(escaped)" then
+                            \(select)
+                            set index of w to 1
+                            activate
+                            return true
+                        end if
+                    end repeat
+                end repeat
+                return false
+            end tell
+            """
+            var error: NSDictionary?
+            if NSAppleScript(source: script)?.executeAndReturnError(&error).booleanValue == true { return }
+            // If automation is unavailable, activate the existing browser rather
+            // than opening another project tab.
+            if error != nil { running?.activate(options: [.activateAllWindows]); return }
+        } else if let running { running.activate(options: [.activateAllWindows]); return }
+        NSWorkspace.shared.open(url)
     }
+
 }
 
 struct CompanionView: View {
@@ -186,7 +214,7 @@ struct CompanionView: View {
                 Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 42, height: 42)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Project CAD").font(.system(size: 25, weight: .semibold))
-                    Text("Your local assistant").foregroundStyle(.secondary)
+                    Text("Muse connector").foregroundStyle(.secondary)
                 }
                 Spacer()
                 HStack(spacing: 6) { Circle().fill(model.status?.running == true ? accent : Color.secondary).frame(width: 7, height: 7); Text(model.status?.running == true ? "Running" : model.settings.agents == nil ? "Setup" : "Stopped").font(.caption) }
@@ -195,25 +223,18 @@ struct CompanionView: View {
                 Text("Connect this website?").font(.title2.weight(.semibold))
                 Text(request.origin).font(.body.weight(.medium)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 Text(request.agents.providers.map { agentNames[$0] ?? $0 }.joined(separator: ", ")).foregroundStyle(.secondary)
-                Text("Allow access to the selected agents and this computer’s project conversation history. Project changes still require your review.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
                 HStack {
                     Button("Decline") { model.perform("deny-connection", arguments: [request.id]) }.disabled(model.busy)
                     Spacer()
                     Button("Approve connection") { model.perform("approve-connection", arguments: [request.id]) }.buttonStyle(.borderedProminent).tint(accent).disabled(model.busy)
                 }
-            } else if model.settings.agents == nil {
-                Text("Connect from Project CAD").font(.title2.weight(.semibold))
-                Text("Choose your agents on the website, then connect. Connection requests appear here.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Your agents").font(.title2.weight(.semibold))
-                Text("Agent choices are managed on the website. Existing sign-ins are reused.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                ForEach(model.settings.agents?.providers ?? [], id: \.self) { id in
-                    provider(agentNames[id]!, detail: model.readyAgents.contains(id) ? "Signed in · ready to use" : "Installs automatically and opens sign-in when needed", available: model.readyAgents.contains(id)) { model.setup(id) }
-                }
+                provider("Muse Code", detail: model.readyAgents.contains("muse") ? "Ready" : "Preparing Muse…", available: model.readyAgents.contains("muse")) { model.setup("muse") }
             }
             if model.status?.connections?.first == nil { HStack {
                 Spacer()
-                Button("Open Project CAD", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
+                Button("Return to project", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
             } }
             Divider()
             HStack(alignment: .top, spacing: 10) {
@@ -246,7 +267,7 @@ struct CompanionView: View {
     func provider(_ title: String, detail: String, available: Bool, action: @escaping () -> Void) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) { Text(title).fontWeight(.medium); if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary) } }
-            Spacer(); Button(available ? "Check sign-in" : "Set up / sign in", action: action).disabled(model.busy)
+            Spacer(); if !available { Button("Sign in", action: action).disabled(model.busy) }
         }
     }
 }

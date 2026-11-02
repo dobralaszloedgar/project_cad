@@ -141,7 +141,10 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     }
     expect(token, logs).not.toBe("");
     expect((await command("status")).running).toBe(true);
-    expect((await command("status")).agents).toBeNull();
+    expect((await command("status")).agents).toEqual({
+      providers: ["muse"],
+      preferred: "muse",
+    });
     expect((await fetch(origin + "/api/state")).status).toBe(403);
     expect(
       (
@@ -161,7 +164,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     expect(page.headers.get("content-security-policy")).toContain(
       "frame-ancestors 'none'",
     );
-    expect(await page.text()).toContain("Assistant connector");
+    expect(await page.text()).toContain("Muse connector");
     // A fresh installation listens for consent, but cannot launch any provider.
     const endpoint = `http://127.0.0.1:${assistantPort}`;
     const consent = await (
@@ -176,7 +179,10 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
           }),
       )
     ).text();
-    expect((await command("status")).agents).toBeNull();
+    expect((await command("status")).agents).toEqual({
+      providers: ["muse"],
+      preferred: "muse",
+    });
     const csrf = consent.match(/name="csrf" value="([a-f0-9]+)"/)![1];
     expect(
       (
@@ -205,7 +211,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       body: JSON.stringify({ action: "signin", provider: "codex" }),
     });
     expect(unselected.status).toBe(400);
-    expect(await unselected.text()).toContain("Choose this agent");
+    expect(await unselected.text()).toContain("Unknown desktop action");
     const save = (requestOrigin: string) =>
       fetch(origin + "/api/action", {
         method: "POST",

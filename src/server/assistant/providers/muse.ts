@@ -111,11 +111,10 @@ export class MuseProvider implements AssistantProvider {
           id: model.modelId,
           name: model.displayLabel,
           default: model.isDefault,
-          reasoning: model.reasoningEffortVariants?.length
-            ? model.reasoningEffortVariants.map((e) => e.tier)
-            : Array.isArray(model.variants)
-              ? model.variants
-              : [],
+          // Described tiers can be only a subset. `variants` is the full list.
+          reasoning: Array.isArray(model.variants)
+            ? model.variants
+            : (model.reasoningEffortVariants?.map((e) => e.tier) ?? []),
         })),
       };
     } catch (error) {
@@ -132,6 +131,10 @@ export class MuseProvider implements AssistantProvider {
     }
   }
   async run(input: ProviderInput) {
+    input.signal.throwIfAborted();
+    // Read through the connected website on every turn, including resumed
+    // sessions, so an older installed connector cannot supply a stale guide.
+    const guide = await input.call("get_guide", {});
     input.signal.throwIfAborted();
     const prompt = await currentProjectPrompt(input);
     const bridge = await projectMcp(input);
@@ -173,12 +176,10 @@ export class MuseProvider implements AssistantProvider {
         .object({ session: z.object({ sessionId: z.string() }) })
         .parse(opened).session.sessionId;
       const history = !input.conversation.providerSession
-        ? input.conversation.runs
-            ?.slice(-12)
-            .map((run) => ({
-              request: run.prompt,
-              response: run.text.slice(-6000),
-            }))
+        ? input.conversation.runs?.slice(-12).map((run) => ({
+            request: run.prompt,
+            response: run.text.slice(-6000),
+          }))
         : [];
       input.session(sessionId);
       const commandId = client.connection.mintCommandId();
@@ -249,7 +250,7 @@ export class MuseProvider implements AssistantProvider {
           input: [
             {
               type: "text",
-              text: `${assistantInstructions}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
+              text: `${assistantInstructions}\n\nCurrent Project CAD AI guide (refreshed for this turn; supersedes earlier guides):\n${JSON.stringify(guide)}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
             },
             ...imageAttachments(input.attachments).map((file) => ({
               type: "image",

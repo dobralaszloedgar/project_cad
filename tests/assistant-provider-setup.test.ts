@@ -56,7 +56,7 @@ afterEach(async () => {
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
-it.each(["codex", "muse"] as const)(
+it.each(["muse"] as const)(
   "installs missing %s, opens sign-in once, and detects completed login",
   async (id) => {
     fake.installed = false;
@@ -75,7 +75,7 @@ it.each(["codex", "muse"] as const)(
     expect(setup.states[id]?.phase).toBe("ready");
   },
 );
-it.each(["codex", "muse"] as const)(
+it.each(["muse"] as const)(
   "reuses %s authentication without opening login",
   async (id) => {
     const login = vi.fn(async () => {});

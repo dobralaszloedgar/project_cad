@@ -16,7 +16,8 @@ export class ApprovalNotifier {
     if (this.opening) return;
     const pending = this.requests
       .pending()
-      .filter((request) => request !== null);
+      .filter((request) => request !== null)
+      .filter((request) => !request.browserWindow || request.openRevision > 0);
     const ids = new Set(pending.map((request) => request.id));
     for (const id of this.notified.keys())
       if (!ids.has(id)) this.notified.delete(id);

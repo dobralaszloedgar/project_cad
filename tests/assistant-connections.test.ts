@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { request as httpRequest } from "node:http";
 import { ConnectionRequests } from "../src/server/assistant/connections";
 import { createAssistantServer } from "../src/server/assistant/http";
 import { AssistantRuntime } from "../src/server/assistant/runtime";
@@ -11,7 +12,7 @@ import type { AssistantProvider } from "../src/server/assistant/providers/types"
 
 const origin = "https://projectcad.vercel.app";
 const otherOrigin = "https://another-project.example";
-const agents: AgentSelection = { providers: ["codex"], preferred: "codex" };
+const agents: AgentSelection = { providers: ["muse"], preferred: "muse" };
 const cleanup: (() => void | Promise<void>)[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -45,6 +46,8 @@ async function fixture(seed?: (requests: ConnectionRequests) => void) {
     origins: [origin, otherOrigin],
     connections: requests,
     desktopOpen: true,
+    desktopWindow: async () =>
+      "http://127.0.0.1:43119/open?ticket=private-ticket",
     selectAgents,
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -94,6 +97,46 @@ it("discards old pending and approved connection requests when the replacement s
   expect(
     (await (await request(`/connections/${fresh.id}`)).json()).status,
   ).toBe("connected");
+});
+it("keeps the desktop ticket out of fetch responses and only redirects a top-level window", async () => {
+  const { request, requests, endpoint } = await fixture();
+  const response = await request("/connections", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      nonce: crypto.randomUUID(),
+      agents,
+      browserWindow: true,
+    }),
+  });
+  const pending = await response.json();
+  expect(pending.windowUrl).toMatch(/\/connections\/[a-f0-9]{64}\/window$/);
+  const route = `/connections/${pending.id}/window`;
+  const blocked = await request(route);
+  expect(blocked.status).toBe(403);
+  expect(blocked.headers.get("access-control-allow-origin")).toBeNull();
+  expect(await blocked.text()).not.toContain("private-ticket");
+  const headers = {
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Dest": "document",
+  };
+  // Undici deliberately overwrites Sec-Fetch-Mode; use raw HTTP to model the
+  // browser navigation (the real redirect is also covered in Playwright).
+  const navigate = () =>
+    new Promise<{ status?: number; location?: string }>((resolve) => {
+      httpRequest(endpoint + route, { headers }, (response) => {
+        response.resume();
+        resolve({
+          status: response.statusCode,
+          location: response.headers.location,
+        });
+      }).end();
+    });
+  const navigation = await navigate();
+  expect(navigation.status).toBe(303);
+  expect(navigation.location).toContain("private-ticket");
+  requests.decide(pending.id, true);
+  expect((await navigate()).status).toBe(403);
 });
 
 it("preserves the live connector's approvals when a second instance cannot bind", async () => {

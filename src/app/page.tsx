@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import LandingPage from "@/components/landing/LandingPage";
+import { isPhoneRequest } from "@/lib/workspace-device";
 
 export const metadata: Metadata = {
   title: "Project CAD – Design, build, explore",
@@ -13,9 +15,10 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const query = await searchParams;
+  const [query, requestHeaders] = await Promise.all([searchParams, headers()]);
+  const isPhone = isPhoneRequest(requestHeaders);
   // Keep existing example links working at the new editor address.
-  if (typeof query.example === "string") {
+  if (!isPhone && typeof query.example === "string") {
     const params = new URLSearchParams();
     for (const key of ["example", "view", "play", "arrange"]) {
       const value = query[key];
@@ -23,5 +26,14 @@ export default async function Page({
     }
     redirect(`/workspace?${params}`);
   }
-  return <LandingPage />;
+  return (
+    <LandingPage
+      isPhone={isPhone}
+      workspaceBlocked={
+        isPhone &&
+        (query.workspace === "desktop-required" ||
+          typeof query.example === "string")
+      }
+    />
+  );
 }

@@ -5,9 +5,8 @@ import { AssistantStore } from "../src/server/assistant/store";
 import { AssistantRuntime } from "../src/server/assistant/runtime";
 import { createAssistantServer } from "../src/server/assistant/http";
 import { ConnectionRequests } from "../src/server/assistant/connections";
-import { CodexProvider } from "../src/server/assistant/providers/codex";
-import { ClaudeProvider } from "../src/server/assistant/providers/claude";
 import { MuseProvider } from "../src/server/assistant/providers/muse";
+import { desktopWindow } from "../src/server/assistant/desktop-window";
 import {
   assistantOrigins,
   loadAssistantSettings,
@@ -23,8 +22,6 @@ const store = new AssistantStore(join(root, "conversations.sqlite"));
 const runtime = new AssistantRuntime(
   store,
   {
-    codex: new CodexProvider(root),
-    claude: new ClaudeProvider(root),
     muse: new MuseProvider(root),
   },
   root,
@@ -42,6 +39,10 @@ const server = createAssistantServer(runtime, {
   origins,
   connections: new ConnectionRequests(root),
   desktopOpen: process.env.PROJECT_CAD_DESKTOP_MANAGED === "1",
+  desktopWindow:
+    process.env.PROJECT_CAD_DESKTOP_MANAGED === "1"
+      ? () => desktopWindow(root)
+      : undefined,
   selectAgents: (agents) => {
     settings = saveAssistantSettings(root, {
       ...loadAssistantSettings(root),

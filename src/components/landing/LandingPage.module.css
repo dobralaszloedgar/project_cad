@@ -209,6 +209,52 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+.workspaceNotice {
+  position: absolute;
+  z-index: 30;
+  bottom: max(76px, calc(env(safe-area-inset-bottom) + 60px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(460px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 8px 32px #142b241a;
+}
+.workspaceNotice > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.workspaceNotice p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.workspaceNotice strong,
+.workspaceNotice span {
+  display: block;
+}
+.workspaceNotice strong {
+  font-weight: 600;
+}
+.workspaceNotice span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.workspaceNotice button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 44px;
+  margin-left: auto;
+  cursor: pointer;
+}
 .chapter {
   position: absolute;
   inset: 0;

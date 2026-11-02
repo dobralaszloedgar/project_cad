@@ -13,6 +13,7 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
   agentSelectionSchema,
+  MUSE_AGENTS,
   PROJECT_CAD_ORIGIN,
   type ProviderId,
 } from "../../assistant/protocol";
@@ -22,7 +23,11 @@ export const settingsSchema = z
     websiteUrl: z.string().url().default(PROJECT_CAD_ORIGIN),
     startAtLogin: z.boolean().default(true),
     museApiKey: z.string().max(10000).default(""),
-    agents: agentSelectionSchema.nullable().default(null),
+    // Migrate existing selections while preserving the user's other settings.
+    agents: agentSelectionSchema
+      .nullable()
+      .optional()
+      .transform(() => MUSE_AGENTS),
   })
   .strict();
 

@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { buildAssistant } from "../../scripts/assistant/build.mjs";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-test("desktop receives website choices after consent without a second agent picker", async ({
+test("Muse connector fits one screen and returns to the original project tab", async ({
   browser,
 }) => {
   test.setTimeout(60000);
@@ -88,166 +88,84 @@ test("desktop receives website choices after consent without a second agent pick
     await page.route("**/favicon.ico", (route) =>
       route.fulfill({ status: 204 }),
     );
-    await page.goto((await command("ticket")).url);
-    await expect(page).toHaveTitle("Project CAD Assistant");
-    await expect(
-      page.getByText("Start from your project", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("checkbox", { name: "Codex", exact: true }),
-    ).toHaveCount(0);
-    expect((await command("status")).running).toBe(true);
-    expect((await command("status")).agents).toBeNull();
-    await page.screenshot({
-      path: join(output, "01-waiting-for-website.png"),
-      fullPage: true,
-    });
-    const website = "https://projectcad.vercel.app";
-    const select = async (providers: string[], preferred: string) => {
-      const response = await fetch(endpoint + "/connections", {
-        method: "POST",
-        headers: { Origin: website, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nonce: crypto.randomUUID(),
-          agents: { providers, preferred },
-        }),
-      });
-      expect(response.status).toBe(202);
+    const context = page.context();
+    await context.grantPermissions(["local-network-access"]);
+    await context.route(origin + "/api/state", async (route) => {
+      const response = await route.fetch();
       const value = await response.json();
-      await expect(
-        page.getByRole("heading", { name: "Connect this website?" }),
-      ).toBeVisible();
-      await expect(page.locator("#request-origin")).toHaveText(website);
-      return value.id as string;
-    };
-    const approve = async (id: string) => {
-      await page
-        .getByRole("button", { name: "Approve connection", exact: true })
-        .click();
-      await expect
-        .poll(
-          async () =>
-            (
-              await (
-                await fetch(`${endpoint}/connections/${id}`, {
-                  headers: { Origin: website },
-                })
-              ).json()
-            ).status,
-        )
-        .toBe("connected");
-    };
-    const first = await select(["claude", "muse"], "claude");
-    expect((await command("status")).agents).toBeNull();
-    await page.screenshot({
-      path: join(output, "desktop-approval.png"),
-      fullPage: true,
+      await route.fulfill({
+        response,
+        json: {
+          ...value,
+          providerSetup: { muse: { phase: "ready", message: "Ready" } },
+        },
+      });
     });
-    await approve(first);
-    await expect(
-      page.getByRole("heading", { name: "Your agents", exact: true }),
-    ).toBeVisible();
-    await expect(page.locator("[data-agent-row=codex]")).toBeHidden();
-    await expect(page.locator("[data-agent-row=claude]")).toBeVisible();
-    await expect(page.locator("[data-agent-row=muse]")).toBeVisible();
-    expect((await command("status")).agents).toEqual({
-      providers: ["claude", "muse"],
-      preferred: "claude",
-    });
-    await page.screenshot({
-      path: join(output, "02-synced-agent-setup.png"),
-      fullPage: true,
-    });
-    await expect(page.getByLabel("Muse API key")).toHaveCount(0);
-    await page.getByText("Connection settings", { exact: true }).click();
-    await page.getByLabel("Start the connector when I log in").uncheck();
-    await page
-      .getByRole("button", { name: "Save settings", exact: true })
-      .click();
-    await expect(page.locator("#settings")).not.toHaveAttribute("open");
-    expect((await command("status")).agents.preferred).toBe("claude");
-    const changed = await select(["muse"], "muse");
-    // Requesting approval does not change the saved selection.
-    expect((await command("status")).agents.preferred).toBe("claude");
-    await approve(changed);
-    await expect(page.locator("[data-agent-row=claude]")).toBeHidden();
-    await expect(page.locator("[data-agent-row=muse]")).toBeVisible();
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Your agents", exact: true }),
-    ).toBeVisible();
-    await expect(page.locator("[data-agent-row=claude]")).toBeHidden();
-    expect(
-      JSON.parse(await readFile(join(data, "settings.json"), "utf8")).agents,
-    ).toEqual({ providers: ["muse"], preferred: "muse" });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({
-      path: join(output, "03-synced-agents-mobile.png"),
-      fullPage: true,
-    });
-    await page.emulateMedia({ colorScheme: "dark" });
-    await page.screenshot({
-      path: join(output, "04-dark-mobile.png"),
-      fullPage: true,
-    });
-    const declined = await select(["codex"], "codex");
-    await page.getByRole("button", { name: "Decline", exact: true }).click();
-    await expect
-      .poll(
-        async () =>
-          (
-            await (
-              await fetch(`${endpoint}/connections/${declined}`, {
-                headers: { Origin: website },
-              })
-            ).json()
-          ).status,
-      )
-      .toBe("denied");
-    expect((await command("status")).agents).toEqual({
-      providers: ["muse"],
-      preferred: "muse",
-    });
-    const rejected = await fetch(endpoint + "/connections", {
-      method: "POST",
-      headers: {
-        Origin: "https://unconfigured.example",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        nonce: crypto.randomUUID(),
-        agents: { providers: ["muse"], preferred: "muse" },
+    const projectUrl = "http://127.0.0.1:3000/workspace?example=heating";
+    await page.route(projectUrl, (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: `
+      <button id="connect">Connect Muse</button><p id="returned"></p>
+      <script>
+      addEventListener('message', event => { if(event.data?.type === 'project-cad-return') document.querySelector('#returned').textContent = 'Returned'; });
+      document.querySelector('#connect').onclick = async () => {
+        const popup = window.open('about:blank', 'muse-test-connector');
+        const response = await fetch('${endpoint}/connections', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce:crypto.randomUUID(),agents:{providers:['muse'],preferred:'muse'},browserWindow:true})});
+        const request = await response.json();
+        popup.location.href = request.windowUrl;
+      };
+      </script>`,
       }),
-    });
-    expect(rejected.status).toBe(403);
-    expect((await rejected.json()).error).toContain("Enable this website");
-    expect(errors).toEqual([]);
-    const result = {
-      passed: true,
-      url: origin,
-      viewport: "1100×950",
-      pageIdentity: true,
-      meaningfulContent: true,
-      consoleErrors: errors,
-      interactions: [
-        "fresh desktop listens without selecting or starting providers",
-        "website choices applied only after consent",
-        "only selected setup rows",
-        "sign-in replaces the obsolete API key form",
-        "website changes sync without a second picker",
-        "reload persistence",
-        "hosted-origin approval",
-        "unsupported-origin rejection",
-        "decline preserves existing choices",
-        "approval inside the existing connector window",
-      ],
-      screenshots: 4,
-    };
-    await writeFile(
-      join(output, "desktop-results.json"),
-      JSON.stringify(result, null, 2),
     );
-    console.log(JSON.stringify(result, null, 2));
+    await page.goto(projectUrl);
+    const opened = page.waitForEvent("popup");
+    await page.getByRole("button", { name: "Connect Muse" }).click();
+    const connector = await opened;
+    await connector.waitForURL(origin + "/", { timeout: 15000 }).catch(() => {
+      throw Error(JSON.stringify({ url: connector.url(), errors, processLog }));
+    });
+    connector.on("pageerror", (error) => errors.push(error.message));
+    await expect(
+      connector.getByRole("heading", { name: "Connect this website?" }),
+    ).toBeVisible();
+    await expect(connector.locator("[data-agent-row]")).toHaveCount(1);
+    await expect(connector.locator("body")).not.toContainText(
+      /Codex|Claude|Your agents/,
+    );
+    for (const viewport of [
+      { width: 1366, height: 768 },
+      { width: 680, height: 620 },
+      { width: 390, height: 600 },
+    ]) {
+      await connector.setViewportSize(viewport);
+      expect(
+        await connector.evaluate(() => ({
+          height: document.documentElement.scrollHeight,
+          width: document.documentElement.scrollWidth,
+        })),
+      ).toEqual({ height: viewport.height, width: viewport.width });
+    }
+    await connector.setViewportSize({ width: 680, height: 620 });
+    await connector.screenshot({ path: join(output, "muse-approval.png") });
+    await connector
+      .getByRole("button", { name: "Approve connection", exact: true })
+      .click();
+    await expect(connector.locator("#approval")).toBeHidden();
+    await expect(connector.locator("[data-status=muse]")).toHaveText("Ready");
+    await connector.screenshot({ path: join(output, "muse-ready.png") });
+    const count = context.pages().length;
+    await connector.getByRole("button", { name: "Return to project" }).click();
+    await expect(page.locator("#returned")).toHaveText("Returned");
+    expect(page.url()).toBe(projectUrl);
+    expect(context.pages()).toHaveLength(count);
+    expect(
+      await connector.evaluate(() => !!window.opener && !window.opener.closed),
+    ).toBe(true);
+    await connector.getByText("Settings", { exact: true }).click();
+    await connector.screenshot({ path: join(output, "muse-settings.png") });
+    expect(errors).toEqual([]);
+    await context.close();
   } finally {
     if (token) await command("shutdown").catch(() => {});
     if (child.exitCode === null)

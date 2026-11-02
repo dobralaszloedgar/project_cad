@@ -54,7 +54,8 @@ export function useAssistantDiscovery(enabled: boolean) {
               !(
                 "capabilities" in health &&
                 Array.isArray(health.capabilities) &&
-                health.capabilities.includes("desktop-consent-v1")
+                health.capabilities.includes("desktop-consent-v1") &&
+                health.capabilities.includes("muse-connector-v1")
               ),
           );
           if (available) setPreviouslyDetected(true);

@@ -22,15 +22,8 @@ import {
   detectAssistantPlatform,
   type AssistantPlatform,
 } from "@/assistant/platform";
-import {
-  agentNames,
-  type AgentSelection,
-  type ProviderId,
-} from "@/assistant/protocol";
-import {
-  rememberAgentSelection,
-  savedAgentSelection,
-} from "@/assistant/selection";
+import { MUSE_AGENTS, type AgentSelection } from "@/assistant/protocol";
+import { rememberAgentSelection } from "@/assistant/selection";
 import type { AssistantAvailability } from "./useAssistantDiscovery";
 import AssistantInstallationHelp from "./AssistantInstallationHelp";
 import styles from "./AssistantConnectionFlow.module.css";
@@ -69,26 +62,16 @@ export default function AssistantConnectionFlow({
   onCancel,
   onOpenApproval,
   openingApproval = false,
-  initialAgents,
-  manageAgents = false,
   updating: requestedUpdate = false,
   outdated = false,
 }: Props) {
   const updating = requestedUpdate || outdated;
-  const [choosingAgents, setChoosingAgents] = useState(!updating);
-  const [providers, setProviders] = useState<ProviderId[]>([]);
-  const [preferred, setPreferred] = useState<ProviderId | "">("");
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
-      const saved = initialAgents ?? (preview ? null : savedAgentSelection());
-      if (saved) {
-        setProviders(saved.providers);
-        setPreferred(saved.preferred);
-        setChoosingAgents(manageAgents && !updating);
-      }
+      if (!preview) rememberAgentSelection();
       setHydrated(true);
     });
     return () => {
@@ -97,17 +80,7 @@ export default function AssistantConnectionFlow({
     // Restore browser storage after hydration; drafts are owned by this flow.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const selection: AgentSelection | null =
-    providers.length && preferred && providers.includes(preferred)
-      ? { providers, preferred }
-      : null;
-  function toggleAgent(id: ProviderId) {
-    const next = providers.includes(id)
-      ? providers.filter((value) => value !== id)
-      : [...providers, id];
-    setProviders(next);
-    if (!preferred || !next.includes(preferred)) setPreferred(next[0] ?? "");
-  }
+  const selection = MUSE_AGENTS;
   const [downloads, setDownloads] =
     useState<ReturnType<typeof assistantDownloads>>();
   const [downloadResult, setDownloadResult] = useState<{
@@ -131,40 +104,34 @@ export default function AssistantConnectionFlow({
   const ready = availability === "available";
   const stage = !hydrated
     ? "checking"
-    : choosingAgents
-      ? "agents"
-      : connected
-        ? "connected"
-        : connecting
-          ? "approval"
-          : updating
-            ? installing
-              ? "setup"
-              : "download"
-            : ready
-              ? "connect"
-              : availability === "checking"
-                ? "checking"
-                : installing || (previouslyDetected && !showDownloads)
-                  ? "setup"
-                  : "download";
+    : connected
+      ? "connected"
+      : connecting
+        ? "approval"
+        : updating
+          ? installing
+            ? "setup"
+            : "download"
+          : ready
+            ? "connect"
+            : availability === "checking"
+              ? "checking"
+              : installing || (previouslyDetected && !showDownloads)
+                ? "setup"
+                : "download";
   const step =
-    stage === "agents"
-      ? 0
-      : stage === "setup" || stage === "download" || stage === "checking"
-        ? 1
-        : 2;
+    stage === "setup" || stage === "download" || stage === "checking" ? 0 : 1;
   const download = downloads?.installers.find(
     (file) => file.filename === selected,
   );
   const downloadUrl = download?.url;
-  // The inline approval protocol requires desktop release 0.1.4 or newer.
+  // Muse-only setup and the return-to-project window ship in 0.1.8.
   const version = downloads?.version.split(".").map(Number);
   const needsNewInstaller =
     !preview &&
     !!version &&
     version[0] === 0 &&
-    (version[1] < 1 || (version[1] === 1 && version[2] < 4));
+    (version[1] < 1 || (version[1] === 1 && version[2] < 8));
   // Blob supports cross-origin HEAD requests. GitHub release links do not.
   const verifyDownload =
     !preview &&
@@ -180,6 +147,48 @@ export default function AssistantConnectionFlow({
     verifyDownload &&
     downloadStatus?.url === downloadUrl &&
     !downloadStatus.available;
+  const automaticDownload = useRef(false);
+  useEffect(() => {
+    if (
+      preview ||
+      stage !== "download" ||
+      automaticDownload.current ||
+      !downloadUrl ||
+      !detectedPlatform ||
+      checkingDownloads ||
+      downloadError ||
+      downloadUnavailable ||
+      needsNewInstaller ||
+      showDownloads
+    )
+      return;
+    automaticDownload.current = true;
+    const key = `project-cad.connector-download:${downloadUrl}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "started");
+    } catch {
+      /* Downloads also work with browser storage disabled. */
+    }
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = download?.filename ?? "";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    queueMicrotask(() => setInstalling(true));
+  }, [
+    preview,
+    stage,
+    downloadUrl,
+    download?.filename,
+    detectedPlatform,
+    checkingDownloads,
+    downloadError,
+    downloadUnavailable,
+    needsNewInstaller,
+    showDownloads,
+  ]);
 
   useEffect(() => {
     if (stage !== "download" || !verifyDownload || !downloadUrl) return;
@@ -235,29 +244,22 @@ export default function AssistantConnectionFlow({
   }, [stage]);
 
   const titles = {
-    agents: "Choose your agents",
     checking: "Looking for your assistant",
-    download: updating
-      ? "Update Project CAD Assistant"
-      : "Bring your AI into Project CAD",
-    setup: "A quick setup on your computer",
-    connect: "Your assistant is ready",
+    download: updating ? "Update Project CAD Assistant" : "Connect Muse",
+    setup: "Open your download",
+    connect: "Muse connector is ready",
     approval: "Approve in Project CAD Assistant",
     connected: "You’re all connected",
   };
   const descriptions = {
-    agents:
-      "Select one or more agents to use with this project. You can change these later.",
     checking: "Checking for Project CAD Assistant on this computer…",
     download: updating
       ? "Install the latest assistant, reopen it, and reconnect here."
-      : "Install Project CAD Assistant on this computer to connect your agents.",
-    setup: "This page will detect the assistant when it’s running.",
+      : "The connector downloads automatically. Muse installs when you open it.",
+    setup: "Install the connector, then return here.",
     connect: "Connect, then approve this website in the assistant app.",
-    approval:
-      "In the Project CAD Assistant window, choose Approve connection. On Windows and Linux, this window opens in another browser tab. Return here after approving.",
-    connected:
-      "Your agent choices are synced with the app. Complete any agent sign-in there, then start a conversation here.",
+    approval: "Approve this website in the connector window.",
+    connected: "Choose a Muse model and start chatting.",
   };
 
   function startSetup() {
@@ -296,7 +298,6 @@ export default function AssistantConnectionFlow({
       <div className={styles.panelBody}>
         <ol className={styles.steps} aria-label="Connection progress">
           {[
-            "Agents",
             updating ? "Update" : "Set up",
             updating ? "Reconnect" : "Connect",
           ].map((label, index) => (
@@ -357,97 +358,6 @@ export default function AssistantConnectionFlow({
             <p>{descriptions[stage]}</p>
           </div>
 
-          {stage === "agents" ? (
-            <div className={styles.actions}>
-              <div className={styles.agentSelection}>
-                <fieldset
-                  className={styles.agentChoices}
-                  aria-label="Agents to connect"
-                >
-                  {(Object.keys(agentNames) as ProviderId[]).map((id) => (
-                    <label
-                      key={id}
-                      className={styles.agentChoice}
-                      data-selected={providers.includes(id) || undefined}
-                    >
-                      <input
-                        type="checkbox"
-                        aria-label={agentNames[id]}
-                        checked={providers.includes(id)}
-                        onChange={() => toggleAgent(id)}
-                      />
-                      <span>
-                        <strong>{agentNames[id]}</strong>
-                        <small>
-                          {id === "codex"
-                            ? "Use your ChatGPT or API sign-in."
-                            : id === "claude"
-                              ? "Use your Claude Code sign-in."
-                              : "Use your Muse Code sign-in."}
-                        </small>
-                      </span>
-                    </label>
-                  ))}
-                </fieldset>
-                {providers.length > 1 ? (
-                  <label className={styles.defaultAgent}>
-                    Default agent
-                    <select
-                      aria-label="Default agent"
-                      value={preferred}
-                      onChange={(event) =>
-                        setPreferred(event.target.value as ProviderId)
-                      }
-                    >
-                      {providers.map((id) => (
-                        <option key={id} value={id}>
-                          {agentNames[id]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </div>
-
-              <button
-                className={styles.primary}
-                data-connect-primary
-                disabled={!selection}
-                onClick={() => {
-                  if (selection) {
-                    if (!preview) rememberAgentSelection(selection);
-                    setChoosingAgents(false);
-                    if (ready && !updating) onConnect(selection);
-                  }
-                }}
-              >
-                {ready && !updating ? "Connect agents" : "Continue"}{" "}
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          ) : null}
-          {stage !== "agents" &&
-          stage !== "checking" &&
-          selection &&
-          !connecting ? (
-            <div className={styles.agentSummary}>
-              <span>
-                {providers.map((id) => agentNames[id]).join(", ")}
-                {providers.length > 1 ? (
-                  <small>Default: {agentNames[selection.preferred]}</small>
-                ) : null}
-              </span>
-              {!updating ? (
-                <button
-                  className={styles.textButton}
-                  onClick={() => setChoosingAgents(true)}
-                >
-                  Manage agents
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
           {stage === "download" ? (
             <div className={styles.actions} aria-busy={checkingDownloads}>
               {downloads ? (
@@ -496,8 +406,8 @@ export default function AssistantConnectionFlow({
               ) : downloadError ? (
                 <div className={styles.notice} role="alert">
                   <p>
-                    We couldn’t check for installers. Try again. Your agent
-                    choices are saved.
+                    We couldn’t check for installers. Try again. Muse is
+                    selected automatically.
                   </p>
                   <button
                     key="retry-downloads"
@@ -513,7 +423,7 @@ export default function AssistantConnectionFlow({
                     {downloadAttempt > 0
                       ? "Checked again. The updated installer is still unavailable."
                       : "The updated installer is not available yet."}{" "}
-                    This website needs version 0.1.4 or later; the available
+                    This website needs version 0.1.8 or later; the available
                     download is version {downloads?.version}. Your agent choices
                     are saved.
                   </p>
@@ -529,7 +439,7 @@ export default function AssistantConnectionFlow({
                 <div className={styles.notice} role="alert">
                   <p>
                     Installer downloads are temporarily unavailable. Try again
-                    shortly. Your agent choices are saved.
+                    shortly. Muse is selected automatically.
                   </p>
                   <button
                     key="retry-downloads"
@@ -634,13 +544,23 @@ export default function AssistantConnectionFlow({
                   <div>
                     <h3>Return here to connect</h3>
                     <p>
-                      Your agent choices will appear in the app after you
-                      approve the connection. Complete any sign-in there if
-                      needed.
+                      Approve the connection and sign in to Muse if prompted.
                     </p>
                   </div>
                 </li>
               </ol>
+              {download ? (
+                <a
+                  href={download.url}
+                  download
+                  className={styles.textButton}
+                  onClick={(event) => {
+                    if (preview) event.preventDefault();
+                  }}
+                >
+                  <ArrowDownToLine size={13} /> Download again
+                </a>
+              ) : null}
               {download ? (
                 <AssistantInstallationHelp
                   key={download.filename}
@@ -729,7 +649,7 @@ export default function AssistantConnectionFlow({
                 disabled={!selection}
                 onClick={() => {
                   if (selection) {
-                    if (!preview) rememberAgentSelection(selection);
+                    if (!preview) rememberAgentSelection();
                     onConnect(selection);
                   }
                 }}

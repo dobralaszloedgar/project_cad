@@ -1,21 +1,14 @@
-import { agentSelectionSchema, type AgentSelection } from "./protocol";
+import { MUSE_AGENTS, type AgentSelection } from "./protocol";
 
 const key = "project-cad.assistant-agents";
 
 export function savedAgentSelection(): AgentSelection | null {
-  try {
-    const value = agentSelectionSchema.safeParse(
-      JSON.parse(localStorage.getItem(key) || "null"),
-    );
-    return value.success ? value.data : null;
-  } catch {
-    return null;
-  }
+  return MUSE_AGENTS;
 }
 
-export function rememberAgentSelection(agents: AgentSelection) {
+export function rememberAgentSelection() {
   try {
-    localStorage.setItem(key, JSON.stringify(agents));
+    localStorage.setItem(key, JSON.stringify(MUSE_AGENTS));
   } catch {
     /* Storage can be unavailable in private browser sessions. */
   }

@@ -74,6 +74,22 @@ it("retries a failed window launch and rate limits new requests", async () => {
   await notifier.check(20000);
   expect(open).toHaveBeenCalledTimes(3);
 });
+it("reuses the project-owned connector window and permits an explicit fallback", async () => {
+  const open = vi.fn().mockResolvedValue(undefined);
+  const { requests, notifier } = fixture(open);
+  const request = requests.create(
+    "https://projectcad.vercel.app",
+    crypto.randomUUID(),
+    { providers: ["muse"], preferred: "muse" },
+    true,
+  );
+  await notifier.check(0);
+  expect(open).not.toHaveBeenCalled();
+  requests.requestOpen(request.id);
+  await notifier.check(10000);
+  expect(open).toHaveBeenCalledOnce();
+  expect(requests.get(request.id)?.status).toBe("pending");
+});
 
 it("reopens a dismissed approval window on request without approving or replacing the connection", async () => {
   const open = vi.fn().mockResolvedValue(undefined);

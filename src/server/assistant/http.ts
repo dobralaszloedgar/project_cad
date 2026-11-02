@@ -7,6 +7,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
   ASSISTANT_VERSION,
+  MUSE_AGENTS,
   projectIdSchema,
   submitSchema,
   agentNames,
@@ -49,6 +50,7 @@ export function createAssistantServer(
     selectAgents?: (agents: AgentSelection) => void;
     connections?: ConnectionRequests;
     desktopOpen?: boolean;
+    desktopWindow?: () => Promise<string>;
   },
 ) {
   const origins = new Set(options.origins),
@@ -103,12 +105,38 @@ export function createAssistantServer(
           name: "Project CAD assistant",
           version: ASSISTANT_VERSION,
           capabilities: [
+            "muse-connector-v1",
             "agent-selection-v1",
             "idle-tab-handoff-v1",
             ...(connections ? ["desktop-consent-v1"] : []),
             ...(connections && options.desktopOpen ? ["desktop-open-v1"] : []),
+            ...(options.desktopWindow ? ["desktop-window-v1"] : []),
           ],
         });
+      const windowRequest = /^\/connections\/([a-f0-9]{64})\/window$/.exec(
+        url.pathname,
+      );
+      if (windowRequest && connections && options.desktopWindow) {
+        // Navigation only: never expose a desktop launch ticket to fetch or an
+        // embedded frame. The project retains an opener reference for Return.
+        res.removeHeader("Access-Control-Allow-Origin");
+        res.setHeader("Referrer-Policy", "no-referrer");
+        res.setHeader("Cache-Control", "no-store");
+        const request = connections.get(windowRequest[1]);
+        if (
+          req.method !== "GET" ||
+          req.headers["sec-fetch-mode"] !== "navigate" ||
+          req.headers["sec-fetch-dest"] !== "document" ||
+          !request?.browserWindow ||
+          request.status !== "pending"
+        )
+          return json(res, 403, {
+            error: "Connect from your project to open this window.",
+          });
+        const target = await options.desktopWindow();
+        res.writeHead(303, { Location: target });
+        return res.end();
+      }
       if (
         connections &&
         (url.pathname === "/connections" ||
@@ -127,11 +155,34 @@ export function createAssistantServer(
               error: "Expected a JSON connection request.",
             });
           const value = z
-            .object({ nonce: z.string().uuid(), agents: agentSelectionSchema })
+            .object({
+              nonce: z.string().uuid(),
+              agents: agentSelectionSchema.default(MUSE_AGENTS),
+              browserWindow: z.boolean().optional(),
+            })
             .strict()
             .parse(JSON.parse(await readBody(req, 4096)));
-          const request = connections.create(origin, value.nonce, value.agents);
-          return json(res, 202, { id: request.id, expires: request.expires });
+          if (
+            value.agents.preferred !== "muse" ||
+            value.agents.providers.length !== 1 ||
+            value.agents.providers[0] !== "muse"
+          )
+            return json(res, 400, { error: "Only Muse Code is supported." });
+          const browserWindow =
+            !!value.browserWindow && !!options.desktopWindow;
+          const request = connections.create(
+            origin,
+            value.nonce,
+            MUSE_AGENTS,
+            browserWindow,
+          );
+          return json(res, 202, {
+            id: request.id,
+            expires: request.expires,
+            ...(browserWindow
+              ? { windowUrl: `${ownOrigin}/connections/${request.id}/window` }
+              : {}),
+          });
         }
         const match =
           /^\/connections\/([a-f0-9]{64})(\/(?:cancel|open))?$/.exec(
@@ -230,10 +281,15 @@ export function createAssistantServer(
               }
             : runtime.agents(),
         );
-        if (!selection.success)
+        if (
+          !selection.success ||
+          selection.data.preferred !== "muse" ||
+          selection.data.providers.length !== 1 ||
+          selection.data.providers[0] !== "muse"
+        )
           return fail(
-            "Choose your agents first",
-            "Choose at least one agent and a default in Project CAD, then connect again.",
+            "Connect Muse Code",
+            "Only Muse Code is supported. Reconnect from Project CAD.",
           );
         for (const [id, entry] of pending)
           if (Date.now() > entry.expires) pending.delete(id);
