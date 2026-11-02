@@ -10,6 +10,7 @@ export default function AssistantPopover({
   align = "left",
   disabled = false,
   compact = false,
+  iconOnly = false,
 }: {
   label: string;
   trigger: ReactNode;
@@ -17,6 +18,7 @@ export default function AssistantPopover({
   align?: "left" | "right";
   disabled?: boolean;
   compact?: boolean;
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null),
@@ -51,8 +53,9 @@ export default function AssistantPopover({
       <button
         ref={button}
         type="button"
-        className={styles.control}
+        className={iconOnly ? styles.iconButton : styles.control}
         aria-label={label}
+        title={iconOnly ? label : undefined}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         disabled={disabled}

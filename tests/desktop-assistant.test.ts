@@ -98,6 +98,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     XDG_CONFIG_HOME: join(temporary, "config"),
     XDG_DATA_HOME: join(temporary, "share"),
     PROJECT_CAD_NO_DESKTOP_OPEN: "1",
+    PROJECT_CAD_DISABLE_AGENT_SETUP: "1",
     PROJECT_CAD_ASSISTANT_STARTUP_NAME: `ProjectCADAssistant-Test-${desktopPort}`,
   };
   let child = spawn(
@@ -160,7 +161,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     expect(page.headers.get("content-security-policy")).toContain(
       "frame-ancestors 'none'",
     );
-    expect(await page.text()).toContain("Your local assistant");
+    expect(await page.text()).toContain("Assistant connector");
     // A fresh installation listens for consent, but cannot launch any provider.
     const endpoint = `http://127.0.0.1:${assistantPort}`;
     const consent = await (
@@ -228,7 +229,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       await fetch(origin + "/api/state", { headers: { Cookie: cookie } })
     ).text();
     expect(state).not.toContain("test-key-never-returned");
-    expect(JSON.parse(state).museConfigured).toBe(true);
+    expect(JSON.parse(state)).toHaveProperty("museAvailable");
     expect(JSON.parse(state).agents).toEqual({
       providers: ["muse"],
       preferred: "muse",

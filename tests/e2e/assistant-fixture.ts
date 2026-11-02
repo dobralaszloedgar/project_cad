@@ -137,10 +137,25 @@ export async function installAssistant(
         status: async () => ({
           id,
           name:
-            id === "claude" ? "Claude Code" : id === "codex" ? "Codex" : "Muse",
+            id === "claude"
+              ? "Claude Code"
+              : id === "codex"
+                ? "Codex"
+                : "Muse Code",
           available: true,
           message: "Browser test provider",
-          models: [{ id: "test-model", name: "Test model", default: true }],
+          models: [
+            { id: "test-model", name: "Test model", default: true },
+            ...(id === "muse"
+              ? [
+                  {
+                    id: "muse-second",
+                    name: "Muse alternate",
+                    reasoning: ["low", "high"],
+                  },
+                ]
+              : []),
+          ],
         }),
         run,
       },
@@ -209,7 +224,7 @@ export async function connectAssistant(page: Page) {
       .getByRole("heading", { name: "Choose your agents", exact: true })
       .isVisible()
   ) {
-    for (const name of ["Codex", "Claude Code", "Muse"])
+    for (const name of ["Codex", "Claude Code", "Muse Code"])
       await page.getByRole("checkbox", { name, exact: true }).check();
     await page
       .getByRole("button", { name: "Connect agents", exact: true })

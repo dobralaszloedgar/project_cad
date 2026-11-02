@@ -379,7 +379,7 @@ export default function AssistantConnectionFlow({
                             ? "Use your ChatGPT or API sign-in."
                             : id === "claude"
                               ? "Use your Claude Code sign-in."
-                              : "Use your Muse API key."}
+                              : "Use your Muse Code sign-in."}
                         </small>
                       </span>
                     </label>

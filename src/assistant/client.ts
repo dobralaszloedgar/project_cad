@@ -146,7 +146,7 @@ export function useAssistant(projectId: string, project: Project) {
     }
     setError(
       failure instanceof TypeError
-        ? "The local assistant is unavailable. Open Project CAD Assistant on this laptop, then connect again."
+        ? "The browser could not reach Project CAD Assistant. Open the app, allow local network access in this website’s browser permissions, then connect again."
         : failure instanceof Error
           ? failure.message
           : "Assistant request failed.",
@@ -379,6 +379,15 @@ export function useAssistant(projectId: string, project: Project) {
           throw new Error(
             "The connection response was invalid. Try connecting again.",
           );
+        // A fresh approval is an explicit handoff from an idle older tab.
+        // Older companions have no attach endpoint and retain their lease rules.
+        try {
+          await request(value.token, clientId, path("/attach"), {});
+        } catch (failure) {
+          if (!(failure instanceof ConnectionError && failure.status === 404))
+            throw failure;
+        }
+        if (stopped) return;
         setAgents(accepted.data);
         rememberAgentSelection(accepted.data);
         sessionStorage.setItem(tokenKey, value.token);

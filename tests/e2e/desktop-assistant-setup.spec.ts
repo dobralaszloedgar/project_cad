@@ -9,7 +9,7 @@ test("desktop receives website choices after consent without a second agent pick
   browser,
 }) => {
   test.setTimeout(60000);
-  const output = "/tmp/project-cad-inline-setup-qa";
+  const output = join(process.cwd(), "test-results", "connector-redesign");
   await mkdir(output, { recursive: true });
   const temporary = await mkdtemp(join(tmpdir(), "project-cad-ui-"));
   const bundle = join(temporary, "bundle"),
@@ -39,6 +39,7 @@ test("desktop receives website choices after consent without a second agent pick
         PROJECT_CAD_DESKTOP_PORT: String(desktopPort),
         PROJECT_CAD_ASSISTANT_PORT: String(assistantPort),
         PROJECT_CAD_NO_DESKTOP_OPEN: "1",
+        PROJECT_CAD_DISABLE_AGENT_SETUP: "1",
         PROJECT_CAD_ASSISTANT_STARTUP_NAME: `ProjectCADAssistant-Test-${desktopPort}`,
         PROJECT_CAD_APP_ORIGINS: "",
       },
@@ -90,7 +91,7 @@ test("desktop receives website choices after consent without a second agent pick
     await page.goto((await command("ticket")).url);
     await expect(page).toHaveTitle("Project CAD Assistant");
     await expect(
-      page.getByRole("heading", { name: "Connect from Project CAD" }),
+      page.getByText("Start from your project", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: "Codex", exact: true }),
@@ -121,12 +122,20 @@ test("desktop receives website choices after consent without a second agent pick
     };
     const approve = async (id: string) => {
       await page
-        .getByRole("button", { name: "Approve connection", exact: true })
+        .getByRole("button", { name: "Connect and set up agents", exact: true })
         .click();
-      const response = await fetch(`${endpoint}/connections/${id}`, {
-        headers: { Origin: website },
-      });
-      expect((await response.json()).status).toBe("connected");
+      await expect
+        .poll(
+          async () =>
+            (
+              await (
+                await fetch(`${endpoint}/connections/${id}`, {
+                  headers: { Origin: website },
+                })
+              ).json()
+            ).status,
+        )
+        .toBe("connected");
     };
     const first = await select(["claude", "muse"], "claude");
     expect((await command("status")).agents).toBeNull();
@@ -149,18 +158,13 @@ test("desktop receives website choices after consent without a second agent pick
       path: join(output, "02-synced-agent-setup.png"),
       fullPage: true,
     });
-    await page.getByRole("button", { name: "Configure", exact: true }).click();
-    await page
-      .getByLabel("Muse API key", { exact: true })
-      .fill("ui-fixture-key");
-    await page.getByLabel("Start the assistant when I log in").uncheck();
+    await expect(page.getByLabel("Muse API key")).toHaveCount(0);
+    await page.getByText("Connection settings", { exact: true }).click();
+    await page.getByLabel("Start the connector when I log in").uncheck();
     await page
       .getByRole("button", { name: "Save settings", exact: true })
       .click();
-    await expect(page.locator("#key")).toHaveValue("");
-    await expect(page.locator("#muse-status")).toContainText(
-      "API key configured",
-    );
+    await expect(page.locator("#settings")).not.toHaveAttribute("open");
     expect((await command("status")).agents.preferred).toBe("claude");
     const changed = await select(["muse"], "muse");
     // Requesting approval does not change the saved selection.
@@ -181,17 +185,25 @@ test("desktop receives website choices after consent without a second agent pick
       path: join(output, "03-synced-agents-mobile.png"),
       fullPage: true,
     });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.screenshot({
+      path: join(output, "04-dark-mobile.png"),
+      fullPage: true,
+    });
     const declined = await select(["codex"], "codex");
     await page.getByRole("button", { name: "Decline", exact: true }).click();
-    expect(
-      (
-        await (
-          await fetch(`${endpoint}/connections/${declined}`, {
-            headers: { Origin: website },
-          })
-        ).json()
-      ).status,
-    ).toBe("denied");
+    await expect
+      .poll(
+        async () =>
+          (
+            await (
+              await fetch(`${endpoint}/connections/${declined}`, {
+                headers: { Origin: website },
+              })
+            ).json()
+          ).status,
+      )
+      .toBe("denied");
     expect((await command("status")).agents).toEqual({
       providers: ["muse"],
       preferred: "muse",
@@ -221,7 +233,7 @@ test("desktop receives website choices after consent without a second agent pick
         "fresh desktop listens without selecting or starting providers",
         "website choices applied only after consent",
         "only selected setup rows",
-        "private key saved without echo",
+        "sign-in replaces the obsolete API key form",
         "website changes sync without a second picker",
         "reload persistence",
         "hosted-origin approval",

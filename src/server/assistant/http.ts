@@ -103,6 +103,7 @@ export function createAssistantServer(
           version: ASSISTANT_VERSION,
           capabilities: [
             "agent-selection-v1",
+            "idle-tab-handoff-v1",
             ...(connections ? ["desktop-consent-v1"] : []),
           ],
         });
@@ -313,6 +314,10 @@ export function createAssistantServer(
       const body = JSON.parse(
         await readBody(req, url.pathname === "/send" ? 14_000_000 : 2_000_000),
       );
+      if (url.pathname === "/attach") {
+        runtime.attach(scope);
+        return json(res, 200, { attached: true });
+      }
       if (url.pathname === "/conversations")
         return json(res, 200, await runtime.create(scope, body));
       if (url.pathname === "/conversation") {

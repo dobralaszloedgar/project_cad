@@ -25,12 +25,13 @@ export async function buildAssistant(destination = join(root, 'dist', 'assistant
   await copyFile(join(root, 'scripts', 'assistant', 'install.mjs'), join(destination, 'install.mjs'));
   await copyFile(join(root, 'scripts', 'assistant', 'install-cleanup.mjs'), join(destination, 'install-cleanup.mjs'));
   for (const file of ['desktop.html', 'icon.svg']) await copyFile(join(root, 'scripts', 'assistant', file), join(destination, file));
+  await copyFile(join(root, 'node_modules', '@muse-code', 'sdk', 'LICENSE'), join(destination, 'MuseSDK-LICENSE.txt'));
   await copyFile(join(root, 'node_modules', 'zod', 'LICENSE'), join(destination, 'Zod-LICENSE.txt'));
   await cp(join(root, 'node_modules', 'unpdf', 'dist', 'licenses'), join(destination, 'PDF-licenses'), { recursive: true });
   await copyFile(join(root, 'node_modules', 'unpdf', 'LICENSE'), join(destination, 'Unpdf-LICENSE.txt'));
   await copyFile(join(root, 'LICENSE'), join(destination, 'ProjectCAD-LICENSE.txt'));
   const sdk = JSON.parse(await readFile(join(sdkSource, 'package.json'), 'utf8'));
-  await writeFile(join(destination, 'THIRD_PARTY_NOTICES.txt'), `Project CAD Assistant\n\nNode.js: bundled runtime; see Node-LICENSE.txt.\nZod: MIT; see Zod-LICENSE.txt.\nUnpdf: MIT; see Unpdf-LICENSE.txt. PDF.js and image decoders: see PDF-licenses/.\nClaude Agent SDK ${sdk.version}: see app/node_modules/@anthropic-ai/claude-agent-sdk/LICENSE.md.\nCodex and Claude Code are obtained from their official packages only when the user requests setup. Existing provider installations and authentication are reused.\n`);
+  await writeFile(join(destination, 'THIRD_PARTY_NOTICES.txt'), `Project CAD Assistant\n\nNode.js: bundled runtime; see Node-LICENSE.txt.\nZod: MIT; see Zod-LICENSE.txt.\nUnpdf: MIT; see Unpdf-LICENSE.txt. PDF.js and image decoders: see PDF-licenses/.\nClaude Agent SDK ${sdk.version}: see app/node_modules/@anthropic-ai/claude-agent-sdk/LICENSE.md.\nMuse Code SDK: see MuseSDK-LICENSE.txt.\nCodex, Claude Code, and Muse Code are obtained from their official packages only when the user requests setup. Existing provider installations and authentication are reused.\n`);
   const files = {};
   async function inventory(directory) {
     for (const entry of await readdir(directory)) {

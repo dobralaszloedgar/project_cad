@@ -99,6 +99,16 @@ export class AssistantRuntime {
       throw new Error("Reconnect this project before continuing.");
     this.leases.set(key, { clientId: scope.clientId, time: Date.now() });
   }
+  /** An explicit connection may take an idle project from an older browser tab. */
+  attach(scope: Scope) {
+    const key = this.key(scope);
+    const lease = this.leases.get(key);
+    if (lease && lease.clientId !== scope.clientId && this.active.has(key))
+      throw new Error(
+        "An agent is still working in another tab. Stop it there before connecting here.",
+      );
+    this.leases.set(key, { clientId: scope.clientId, time: Date.now() });
+  }
   private chat(scope: Scope, id: string) {
     const active = this.active.get(this.key(scope));
     return active?.chat.id === id
