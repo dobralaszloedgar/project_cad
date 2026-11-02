@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { removePreviousInstallations } from './install-cleanup.mjs';
 
 const execute = promisify(execFile);
 const args = process.argv.slice(2);
@@ -38,7 +39,6 @@ try {
     const result = await execute(runtime(destination), [controller(destination), 'start'], { timeout: 30000 });
     started = JSON.parse(result.stdout).running;
   }
-  console.log(JSON.stringify({ installed: destination, started, historyPreserved: true }));
 } catch (error) {
   if (promoted) await rm(destination, { recursive: true, force: true });
   if (backedUp) {
@@ -48,4 +48,5 @@ try {
   throw error;
 } finally { await rm(staging, { recursive: true, force: true }); }
 // Cleanup cannot roll back an application that has already started successfully.
-if (backedUp) await rm(previous, { recursive: true, force: true }).catch(() => {});
+await removePreviousInstallations(destination, [source, process.env.PROJECT_CAD_ASSISTANT_DATA || join(homedir(), '.project-cad', 'assistant')]);
+console.log(JSON.stringify({ installed: destination, started, historyPreserved: true }));

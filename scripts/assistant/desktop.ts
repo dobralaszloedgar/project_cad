@@ -35,6 +35,8 @@ import {
 } from "../../src/server/assistant/config";
 import { installProvider } from "../../src/server/assistant/install-provider";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
+import { ApprovalNotifier } from "../../src/server/assistant/approval-notifier";
+import { removePreviousInstallations } from "./install-cleanup.mjs";
 
 const execute = promisify(execFile);
 const resources = fileURLToPath(new URL("../", import.meta.url));
@@ -166,6 +168,12 @@ async function shutdownExisting() {
 async function integration(folder: string, enabled: boolean, remove = false) {
   if (process.platform === "win32") {
     const key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    // Verification uses its own Run value so temporary installations cannot
+    // overwrite or remove the user's installed assistant's login entry.
+    const name =
+      process.env.PROJECT_CAD_ASSISTANT_STARTUP_NAME || "ProjectCADAssistant";
+    if (!/^ProjectCADAssistant(?:-[a-zA-Z0-9-]+)?$/.test(name))
+      throw new Error("Invalid assistant startup name.");
     if (enabled && !remove)
       await execute(
         windowsExecutable("reg.exe"),
@@ -173,7 +181,7 @@ async function integration(folder: string, enabled: boolean, remove = false) {
           "ADD",
           key,
           "/v",
-          "ProjectCADAssistant",
+          name,
           "/t",
           "REG_SZ",
           "/d",
@@ -185,7 +193,7 @@ async function integration(folder: string, enabled: boolean, remove = false) {
     else
       await execute(
         windowsExecutable("reg.exe"),
-        ["DELETE", key, "/v", "ProjectCADAssistant", "/f"],
+        ["DELETE", key, "/v", name, "/f"],
         { windowsHide: true },
       ).catch(() => {});
   } else if (process.platform === "linux") {
@@ -345,8 +353,9 @@ async function install(source: string, destination?: string, noStart = false) {
   } finally {
     await rm(stage, { recursive: true, force: true });
   }
-  if (backedUp)
-    await rm(backup, { recursive: true, force: true }).catch(() => {});
+  // Cleanup is outside rollback: a partially deleted backup cannot replace the
+  // working new version. Also retire backups left by earlier interrupted updates.
+  await removePreviousInstallations(destination, [source, root]);
   return { installed: destination, historyPreserved: true };
 }
 
@@ -358,8 +367,10 @@ async function serve() {
     stoppingWorker = false,
     shuttingDown = false,
     workerError = "",
+    approvalError = "",
     retries = 0;
   let lifecycle = Promise.resolve();
+  let approvalTimer: ReturnType<typeof setInterval> | undefined;
   function exclusive<T>(work: () => Promise<T>) {
     const result = lifecycle.then(work);
     lifecycle = result.then(
@@ -450,12 +461,14 @@ async function serve() {
       museConfigured: !!settings.museApiKey,
       codexAvailable: !!providerExecutable("codex"),
       claudeAvailable: !!providerExecutable("claude"),
-      message: workerError,
+      message: workerError || approvalError,
     };
   }
   async function shutdown() {
     if (shuttingDown) return;
     shuttingDown = true;
+    clearInterval(approvalTimer);
+    approvalTimer = undefined;
     await exclusive(stopWorker);
     server.closeAllConnections();
     server.close();
@@ -466,15 +479,16 @@ async function serve() {
     if (saved.token === token) await rm(stateFile, { force: true });
     setTimeout(() => process.exit(0), 100).unref();
   }
+  function launchTicket() {
+    for (const [key, expires] of tickets)
+      if (expires < Date.now()) tickets.delete(key);
+    if (tickets.size > 20) tickets.clear();
+    const ticket = randomBytes(32).toString("base64url");
+    tickets.set(ticket, Date.now() + 60000);
+    return { url: origin + "/open?ticket=" + ticket };
+  }
   async function command(action: string) {
-    if (action === "ticket") {
-      for (const [key, expires] of tickets)
-        if (expires < Date.now()) tickets.delete(key);
-      if (tickets.size > 20) tickets.clear();
-      const ticket = randomBytes(32).toString("base64url");
-      tickets.set(ticket, Date.now() + 60000);
-      return { url: origin + "/open?ticket=" + ticket };
-    }
+    if (action === "ticket") return launchTicket();
     if (action === "shutdown") {
       setTimeout(() => void shutdown(), 50);
       return { stopping: true };
@@ -644,6 +658,21 @@ async function serve() {
     JSON.stringify({ port, token, pid: process.pid }),
     { mode: 0o600 },
   );
+  const approvals = new ApprovalNotifier(
+    new ConnectionRequests(root),
+    async () => {
+      await openTarget(launchTicket().url);
+      approvalError = "";
+    },
+  );
+  approvalTimer = setInterval(() => {
+    if (!shuttingDown)
+      void approvals.check().catch(() => {
+        approvalError =
+          "Open Project CAD Assistant from your Start or application menu to approve the connection.";
+      });
+  }, 1000);
+  approvalTimer.unref();
 }
 
 async function main() {
@@ -719,6 +748,10 @@ async function main() {
         "Could not start Project CAD Assistant. Check the desktop log in your assistant data folder.",
       );
   }
+  // Reopening an existing desktop session must also resume a stopped worker.
+  // Checking the controller alone can otherwise claim success while the website
+  // still cannot reach the assistant.
+  await control("start");
   if (command === "launch") {
     const ticket = await control("ticket");
     await openTarget(ticket.url);

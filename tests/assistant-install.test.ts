@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 
 const execute = promisify(execFile);
 
@@ -54,6 +55,10 @@ it.skipIf(process.platform !== "darwin").each([false, true])(
       }
       const history = join(root, "saved-history");
       await writeFile(history, "existing conversations and sign-ins");
+      await writeFile(join(destination, "obsolete-file"), "old version only");
+      const staleBackup = `${destination}.previous-${randomUUID()}`;
+      await mkdir(staleBackup);
+      await writeFile(join(staleBackup, "old-runtime"), "partial old version");
       const args = [
         resolve("scripts/assistant/install.mjs"),
         "--source",
@@ -70,6 +75,9 @@ it.skipIf(process.platform !== "darwin").each([false, true])(
         ...(!noStart ? ["new:start"] : []),
       ]);
       expect(await readFile(join(destination, "version"), "utf8")).toBe("new");
+      await expect(
+        readFile(join(destination, "obsolete-file")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
       expect(await readFile(history, "utf8")).toBe(
         "existing conversations and sign-ins",
       );

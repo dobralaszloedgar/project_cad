@@ -43,9 +43,25 @@ The [AI guide](docs/AI_GUIDE.txt) documents exact workflows, units, partial upda
 
 The connector defaults to `https://projectcad.vercel.app`, which is explicitly allowed alongside the configured website and local development at `http://127.0.0.1:3000` / `http://localhost:3000`. For another deployment, enter its HTTPS URL in desktop assistant Settings. Unsupported addresses show a recovery page and report the error to the connecting window. The companion does not include the website; it connects the website to providers on this laptop. The connection token is kept only in the browser session and must be reconnected after the companion restarts. Keep the selected project tab open during tool use. Only one tab can control the assistant for a project at a time.
 
+On Windows and Linux, a website connection request automatically opens the companion’s private approval window, including when the connector started in the background at login. Approve the connection there, then return to the website. Reopening the installed app also restarts a stopped connector. On Windows, npm-installed Codex is detected through its bundled native executable and reuses the existing sign-in.
+
 For source development with Node.js 24 or newer, use `npm run assistant`. Optional `.env.local` configures Muse with `MODEL_API_KEY` and `META_AI_ENABLED=true`. `PROJECT_CAD_APP_ORIGINS` accepts an explicit comma-separated origin list, `PROJECT_CAD_ASSISTANT_DATA` selects the history directory, and `PROJECT_CAD_CODEX_BIN` / `PROJECT_CAD_CLAUDE_BIN` select provider executables. Stop the source companion before starting the installed one on the same port.
 
 Build the macOS app and installer with `npm run assistant:package` on a Mac with Xcode command-line tools. It verifies pinned Node downloads and produces `dist/assistant/Project CAD Assistant.app`, `ProjectCAD-Assistant-macos-universal.pkg`, and a ZIP, with SHA-256 checksums. Generated binaries stay in `dist/assistant/` and are not committed or copied into the website. `npm run assistant:build` builds only the JavaScript payload. Packaging does not install the service on the build machine.
+
+To rebuild on a MacBook, copy or check out the current source including the installer changes. Install Node.js 24 or newer and Xcode command-line tools (`xcode-select --install`) first. Configure the same external release policy at `~/.config/project-cad/release-policy.json` on the Mac, or set `RELEASE_REFERENCE_POLICY_FILE` to its location; the build requires it, and it is kept outside the repository and installers (see docs/RELEASE_CHECKS.txt). Install dependencies on the Mac itself; do not reuse a Windows `node_modules` folder. From the repository directory, run:
+
+```sh
+npm ci
+npx vitest run tests/assistant-install-cleanup.test.ts tests/assistant-install.test.ts
+npm run assistant:package
+npm run assistant:verify
+open dist/assistant
+```
+
+The resulting `ProjectCAD-Assistant-macos-universal.pkg` works on Apple silicon and Intel Macs. Open it to install or upgrade `~/Applications/Project CAD Assistant.app`. Verification uses temporary installations and checks that obsolete files and previous-version backups are removed while conversation data is preserved. The local build is ad-hoc signed; release signing and notarization are configured separately below.
+
+All installers replace the existing application in its usual install folder and remove old application files and leftover `.previous-<UUID>` backup folders after a successful upgrade. Cleanup retries temporary file locks; if an old version remains locked, setup reports a failure so you can close the assistant and rerun the installer. Settings, sign-ins, provider installs, and conversations in `~/.project-cad/assistant` are preserved. Downloaded installers and manually extracted portable copies remain where you saved them.
 
 Build Windows packages with `npm run assistant:package-windows` and Linux packages with `npm run assistant:package-linux`. These cross builds use Go for native launchers and NSIS for Windows installers, plus verified target-specific Node runtimes. Each target has separate x64 and ARM64 packages. The download manifest retains all built platforms. `npm run assistant:export-downloads` copies the installers, archives, macOS app, checksums, and instructions into a new **Project CAD Assistant** folder in your Downloads directory.
 

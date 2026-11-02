@@ -83,4 +83,55 @@ describe("local companion configuration", () => {
     vi.stubEnv("PROJECT_CAD_CODEX_BIN", override);
     expect(providerExecutable("codex")).toBe(override);
   });
+
+  it.runIf(process.platform === "win32")(
+    "finds the native Codex binary behind Windows npm shims without requiring npm on PATH",
+    () => {
+      const root = temporary();
+      const npm = join(root, "roaming", "npm");
+      const packageRoot = join(npm, "node_modules", "@openai", "codex");
+      const nativePackage = join(
+        packageRoot,
+        "node_modules",
+        "@openai",
+        `codex-win32-${process.arch}`,
+      );
+      const target =
+        process.arch === "arm64"
+          ? "aarch64-pc-windows-msvc"
+          : "x86_64-pc-windows-msvc";
+      const executable = join(
+        nativePackage,
+        "vendor",
+        target,
+        "bin",
+        "codex.exe",
+      );
+      mkdirSync(join(nativePackage, "vendor", target, "bin"), {
+        recursive: true,
+      });
+      writeFileSync(
+        join(packageRoot, "package.json"),
+        JSON.stringify({ name: "@openai/codex" }),
+      );
+      writeFileSync(
+        join(nativePackage, "package.json"),
+        JSON.stringify({ name: `@openai/codex-win32-${process.arch}` }),
+      );
+      writeFileSync(
+        join(npm, "codex.cmd"),
+        "This shell shim must never be executed.",
+      );
+      writeFileSync(executable, "native executable fixture");
+      vi.stubEnv("PROJECT_CAD_ASSISTANT_DATA", root);
+      vi.stubEnv("PROJECT_CAD_CODEX_BIN", "");
+      vi.stubEnv("APPDATA", join(root, "roaming"));
+      vi.stubEnv("LOCALAPPDATA", join(root, "local"));
+      vi.stubEnv("PATH", "");
+      expect(providerExecutable("codex")).toBe(executable);
+
+      vi.stubEnv("PROJECT_CAD_CODEX_BIN", join(root, "missing-override.exe"));
+      expect(providerExecutable("codex")).toBeUndefined();
+    },
+  );
 });

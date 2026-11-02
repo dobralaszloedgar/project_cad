@@ -39,6 +39,7 @@ test("desktop receives website choices after consent without a second agent pick
         PROJECT_CAD_DESKTOP_PORT: String(desktopPort),
         PROJECT_CAD_ASSISTANT_PORT: String(assistantPort),
         PROJECT_CAD_NO_DESKTOP_OPEN: "1",
+        PROJECT_CAD_ASSISTANT_STARTUP_NAME: `ProjectCADAssistant-Test-${desktopPort}`,
         PROJECT_CAD_APP_ORIGINS: "",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -152,6 +153,7 @@ test("desktop receives website choices after consent without a second agent pick
     await page
       .getByLabel("Muse API key", { exact: true })
       .fill("ui-fixture-key");
+    await page.getByLabel("Start the assistant when I log in").uncheck();
     await page
       .getByRole("button", { name: "Save settings", exact: true })
       .click();

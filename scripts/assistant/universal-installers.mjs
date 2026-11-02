@@ -44,7 +44,7 @@ Section "Assistant"
   \${EndIf}
   ExecWait '\"$1\\runtime\\node.exe\" \"$1\\app\\desktop.mjs\" install \"$1\" \"$INSTDIR\" --no-start' $0
   \${If} $0 != 0
-    MessageBox MB_ICONSTOP "Project CAD Assistant could not be installed. Existing settings and history were preserved."
+    MessageBox MB_ICONSTOP "Project CAD Assistant setup could not finish. Close the assistant and run setup again. Existing settings and history were preserved."
     Abort
   \${EndIf}
   CreateDirectory "$SMPROGRAMS\\Project CAD"

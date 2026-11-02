@@ -1,14 +1,17 @@
 import { it, expect } from "vitest";
 import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:net";
+import { randomUUID } from "node:crypto";
 import {
   copyFile,
   mkdtemp,
   mkdir,
   readFile,
+  readdir,
   rm,
   stat,
   symlink,
+  writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -95,6 +98,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     XDG_CONFIG_HOME: join(temporary, "config"),
     XDG_DATA_HOME: join(temporary, "share"),
     PROJECT_CAD_NO_DESKTOP_OPEN: "1",
+    PROJECT_CAD_ASSISTANT_STARTUP_NAME: `ProjectCADAssistant-Test-${desktopPort}`,
   };
   let child = spawn(
     process.execPath,
@@ -238,6 +242,13 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
         0o600,
       );
     expect((await command("stop")).running).toBe(false);
+    await promisify(execFile)(
+      process.execPath,
+      [join(bundle, "app", "desktop.mjs"), "launch"],
+      { env: environment, timeout: 30000, windowsHide: true },
+    );
+    expect((await command("status")).running).toBe(true);
+    expect((await command("stop")).running).toBe(false);
     const started = await Promise.all([command("start"), command("start")]);
     expect(started.every((value) => value.running)).toBe(true);
     expect(
@@ -314,6 +325,72 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       ),
     ).toBe(false);
     await expect(stat(join(data, "desktop-control.json"))).rejects.toThrow();
+    expect(await readFile(join(data, "settings.json"), "utf8")).toBe(
+      settingsBefore,
+    );
+
+    // Run a real upgrade from the installed runtime, including obsolete files
+    // and a partially removed backup from an earlier update.
+    await mkdir(join(installed, "obsolete-dependency"));
+    await writeFile(
+      join(installed, "obsolete-dependency", "old.js"),
+      "old version",
+    );
+    const staleBackup = `${installed}.previous-${randomUUID()}`;
+    await mkdir(staleBackup);
+    await writeFile(join(staleBackup, "old-runtime"), "leftover old version");
+    child = spawn(
+      join(
+        installed,
+        "runtime",
+        process.platform === "win32" ? "node.exe" : "node",
+      ),
+      [join(installed, "app", "desktop.mjs"), "serve"],
+      {
+        env: environment,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
+    child.stdout.on("data", () => {});
+    child.stderr.on("data", () => {});
+    await expect
+      .poll(
+        async () => {
+          try {
+            token = JSON.parse(
+              await readFile(join(data, "desktop-control.json"), "utf8"),
+            ).token;
+            return (await command("status")).running;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 15000 },
+      )
+      .toBe(true);
+    await promisify(execFile)(
+      process.execPath,
+      [
+        join(bundle, "app", "desktop.mjs"),
+        "install",
+        bundle,
+        installed,
+        "--no-start",
+      ],
+      { env: environment, timeout: 30000, windowsHide: true },
+    );
+    await expect.poll(() => child.exitCode).toBe(0);
+    await expect(
+      stat(join(installed, "obsolete-dependency")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(
+      (await readdir(temporary)).filter(
+        (name) =>
+          name.startsWith("installed.previous-") ||
+          name.startsWith("installed.install-"),
+      ),
+    ).toEqual([]);
     expect(await readFile(join(data, "settings.json"), "utf8")).toBe(
       settingsBefore,
     );

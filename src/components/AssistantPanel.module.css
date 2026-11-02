@@ -1,10 +1,10 @@
 .root {
   --assistant-surface: var(--surface);
   --assistant-ink: var(--ink);
-  --assistant-muted: color-mix(in srgb, var(--ink) 70%, var(--surface));
-  --assistant-field: color-mix(in srgb, var(--ink) 6%, var(--surface));
-  --assistant-line: color-mix(in srgb, var(--ink) 12%, transparent);
-  --assistant-brand: #286f5c;
+  --assistant-muted: var(--muted);
+  --assistant-field: var(--field-surface);
+  --assistant-line: var(--border);
+  --assistant-brand: var(--accent);
   --assistant-shadow: color-mix(in srgb, var(--ink) 15%, transparent);
   position: absolute;
   inset: 0;
@@ -26,9 +26,6 @@
   display: none;
 }
 :global(.workspace[data-theme="dark"]) .root {
-  --assistant-surface: #212121;
-  --assistant-field: #303030;
-  --assistant-brand: var(--accent);
   --assistant-shadow: #0006;
 }
 .root *,
@@ -257,8 +254,8 @@
   font-size: 12px;
 }
 .hideTarget[data-active] {
-  background: #b42318;
-  color: #fff;
+  background: var(--color-error);
+  color: var(--color-error-content);
   scale: 1.1;
 }
 .panel {
@@ -873,7 +870,7 @@
   padding: 7px 0;
   font-size: 11px;
   line-height: 1.5;
-  color: #ab4036;
+  color: var(--err);
   overflow-wrap: anywhere;
   margin: 0;
 }

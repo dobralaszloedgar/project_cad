@@ -1,6 +1,13 @@
-import { accessSync, constants, readFileSync, statSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { delimiter, join, isAbsolute, relative } from "node:path";
+import { delimiter, dirname, join, isAbsolute, relative } from "node:path";
 import { z } from "zod";
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -73,6 +80,39 @@ export function assistantOrigins(websiteUrl: string, override?: string) {
   ];
 }
 
+function windowsNpmExecutables(
+  provider: "codex" | "claude",
+  directory: string,
+) {
+  if (provider !== "codex" || !["x64", "arm64"].includes(process.arch))
+    return [];
+  const packageRoot = join(directory, "node_modules", "@openai", "codex");
+  const target =
+    process.arch === "arm64"
+      ? "aarch64-pc-windows-msvc"
+      : "x86_64-pc-windows-msvc";
+  const vendors = [join(packageRoot, "vendor")];
+  try {
+    // npm exposes codex.cmd/codex.ps1, which cannot be spawned as executables.
+    // Resolve its native optional package just as the official CLI does, keeping
+    // vendor sidecars and existing sign-in without invoking a command shell.
+    const require = createRequire(
+      realpathSync(join(packageRoot, "package.json")),
+    );
+    vendors.unshift(
+      join(
+        dirname(
+          require.resolve(`@openai/codex-win32-${process.arch}/package.json`),
+        ),
+        "vendor",
+      ),
+    );
+  } catch {
+    // Older npm releases put vendor/ directly inside @openai/codex.
+  }
+  return vendors.map((vendor) => join(vendor, target, "bin", "codex.exe"));
+}
+
 export function providerExecutable(
   provider: "codex" | "claude",
 ): string | undefined {
@@ -107,6 +147,10 @@ export function providerExecutable(
     ...(process.platform === "win32"
       ? [
           join(
+            process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
+            "npm",
+          ),
+          join(
             process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"),
             "Microsoft",
             "WinGet",
@@ -123,12 +167,15 @@ export function providerExecutable(
         managed,
         ...directories
           .filter(Boolean)
-          .map((directory) =>
+          .flatMap((directory) => [
             join(
               directory,
               provider + (process.platform === "win32" ? ".exe" : ""),
             ),
-          ),
+            ...(process.platform === "win32"
+              ? windowsNpmExecutables(provider, directory)
+              : []),
+          ]),
       ];
   for (const file of candidates) {
     try {
