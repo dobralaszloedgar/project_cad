@@ -141,7 +141,8 @@ test("ten chemical colors stay readable and selectable on desktop and narrow scr
   await legend
     .getByRole("combobox", { name: "Fluid palette" })
     .selectOption("plum-lime");
-  await expect.poll(colors).not.toEqual(initial);
+  // Software rendering may need time to rebuild the full plant's materials.
+  await expect.poll(colors, { timeout: 30000 }).not.toEqual(initial);
   expect(new Set(await colors()).size).toBe(10);
   await testInfo.attach("ten-chemicals-plum-lime", {
     body: await page.screenshot({
