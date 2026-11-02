@@ -74,3 +74,24 @@ it("retries a failed window launch and rate limits new requests", async () => {
   await notifier.check(20000);
   expect(open).toHaveBeenCalledTimes(3);
 });
+
+it("reopens a dismissed approval window on request without approving or replacing the connection", async () => {
+  const open = vi.fn().mockResolvedValue(undefined);
+  const { notifier, requests, request } = fixture(open);
+  const pending = request();
+  await notifier.check(0);
+  requests.requestOpen(pending.id);
+  await notifier.check(1000);
+  expect(open).toHaveBeenCalledTimes(1);
+  await notifier.check(10000);
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(requests.get(pending.id)).toMatchObject({
+    nonce: pending.nonce,
+    status: "pending",
+  });
+  requests.requestOpen(pending.id);
+  await notifier.check(20000);
+  expect(open).toHaveBeenCalledTimes(2);
+  requests.decide(pending.id, false);
+  expect(() => requests.requestOpen(pending.id)).toThrow("no longer waiting");
+});

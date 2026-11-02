@@ -512,7 +512,7 @@
           changes still need your review.
         </p>
         <div class="actions">
-          <button class="primary" id="approve">Connect and set up agents</button
+          <button class="primary" id="approve">Approve connection</button
           ><button id="deny">Decline</button>
         </div>
       </section>
@@ -677,6 +677,12 @@
             If the website can’t connect, allow local network access in its
             browser permissions. Keep the connector running.
           </p>
+          <button id="uninstall" data-action="uninstall" hidden>
+            Uninstall connector…
+          </button>
+          <p id="uninstall-note" class="small" hidden>
+            Your projects, conversations, settings, and sign-ins will be kept.
+          </p>
         </div>
       </details>
       <footer>
@@ -709,6 +715,8 @@
             );
           const agents = value.agents,
             states = value.providerSetup || {};
+          $("uninstall").hidden = !value.canUninstall;
+          $("uninstall-note").hidden = !value.canUninstall;
           $("state").textContent = value.running
             ? "Connector running"
             : "Connector stopped";

@@ -41,6 +41,8 @@ export default function AssistantSetup({
           assistant.connect(agents, onBack);
         }}
         onCancel={assistant.cancelConnect}
+        onOpenApproval={assistant.openApproval}
+        openingApproval={assistant.openingApproval}
       />
     </>
   );

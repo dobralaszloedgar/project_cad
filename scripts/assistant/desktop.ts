@@ -198,6 +198,73 @@ async function integration(folder: string, enabled: boolean, remove = false) {
         ["DELETE", key, "/v", name, "/f"],
         { windowsHide: true },
       ).catch(() => {});
+    if (
+      !remove &&
+      (await exists(join(folder, "uninstall-windows.ps1"))) &&
+      (await exists(join(folder, "runtime", "node.exe")))
+    ) {
+      // Register every installation, including portable/CLI upgrades. Replacing
+      // the app folder used to leave Windows pointing at a deleted Uninstall.exe.
+      const manifest = JSON.parse(
+        await readFile(join(folder, "manifest.json"), "utf8"),
+      );
+      const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${name}`;
+      const shell = windowsExecutable("WindowsPowerShell/v1.0/powershell.exe");
+      const uninstall = `"${shell}" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${join(folder, "uninstall-windows.ps1")}"`;
+      for (const [field, value] of Object.entries({
+        DisplayName: "Project CAD Assistant",
+        DisplayVersion: manifest.version,
+        DisplayIcon: join(folder, launcherName),
+        InstallLocation: folder,
+        UninstallString: uninstall,
+      }))
+        await execute(
+          windowsExecutable("reg.exe"),
+          ["ADD", uninstallKey, "/v", field, "/t", "REG_SZ", "/d", value, "/f"],
+          { windowsHide: true },
+        );
+      for (const field of ["NoModify", "NoRepair"])
+        await execute(
+          windowsExecutable("reg.exe"),
+          [
+            "ADD",
+            uninstallKey,
+            "/v",
+            field,
+            "/t",
+            "REG_DWORD",
+            "/d",
+            "1",
+            "/f",
+          ],
+          { windowsHide: true },
+        );
+      const menu = join(
+        process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
+        "Microsoft",
+        "Windows",
+        "Start Menu",
+        "Programs",
+        "Project CAD",
+      );
+      await mkdir(menu, { recursive: true });
+      const shortcut = join(
+        menu,
+        (name === "ProjectCADAssistant" ? "Project CAD Assistant" : name) +
+          ".lnk",
+      );
+      const script = `$link = (New-Object -ComObject WScript.Shell).CreateShortcut(${powershell(shortcut)}); $link.TargetPath = ${powershell(join(folder, launcherName))}; $link.WorkingDirectory = ${powershell(folder)}; $link.Save()`;
+      await execute(
+        shell,
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-EncodedCommand",
+          Buffer.from(script, "utf16le").toString("base64"),
+        ],
+        { windowsHide: true },
+      );
+    }
   } else if (process.platform === "linux") {
     const config = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
     const data =
@@ -421,6 +488,7 @@ async function serve() {
             process.env.PATH || "",
           ].join(delimiter),
           PROJECT_CAD_ASSISTANT_DATA: root,
+          PROJECT_CAD_DESKTOP_MANAGED: "1",
         },
         stdio: ["ignore", log, log, "ipc"],
         windowsHide: true,
@@ -465,6 +533,10 @@ async function serve() {
       providerSetup: setup.states,
       codexAvailable: !!providerExecutable("codex"),
       claudeAvailable: !!providerExecutable("claude"),
+      canUninstall:
+        process.platform === "win32" &&
+        (await exists(join(resources, "uninstall-windows.ps1"))) &&
+        (await exists(join(resources, "runtime", "node.exe"))),
       message: workerError || approvalError,
     };
   }
@@ -660,6 +732,36 @@ async function serve() {
         await openTarget(logs);
         return json(200, {});
       }
+      if (value.action === "uninstall" && process.platform === "win32") {
+        const file = join(resources, "uninstall-windows.ps1");
+        await access(file);
+        const child = spawn(
+          windowsExecutable("WindowsPowerShell/v1.0/powershell.exe"),
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            file,
+          ],
+          {
+            detached: true,
+            stdio: "ignore",
+            windowsHide: true,
+            cwd: homedir(),
+          },
+        );
+        await new Promise<void>((resolve, reject) => {
+          child.once("spawn", resolve);
+          child.once("error", reject);
+        });
+        child.unref();
+        return json(200, {
+          message:
+            "Confirm removal in the uninstall window. Your projects, conversations, and sign-ins will be kept.",
+        });
+      }
       if (["start", "stop"].includes(value.action))
         return json(200, await command(value.action));
       return json(400, { error: "Unknown desktop action." });
@@ -687,13 +789,31 @@ async function serve() {
   const approvals = new ApprovalNotifier(
     new ConnectionRequests(root),
     async () => {
-      await openTarget(launchTicket().url);
+      const launch = launchTicket();
+      const ticket = new URL(launch.url).searchParams.get("ticket")!;
+      await openTarget(launch.url);
+      // Dispatching a URL can succeed without a browser opening it. Do not
+      // suppress retries until the browser has redeemed the private ticket.
+      if (process.env.PROJECT_CAD_NO_DESKTOP_OPEN !== "1") {
+        for (let attempt = 0; attempt < 100 && tickets.has(ticket); attempt++)
+          await pause(100);
+        if (tickets.has(ticket)) {
+          tickets.delete(ticket);
+          throw new Error(
+            "The browser did not open the approval window. Open Project CAD Assistant from your Start or application menu.",
+          );
+        }
+      }
       approvalError = "";
     },
   );
   approvalTimer = setInterval(() => {
     if (!shuttingDown)
-      void approvals.check().catch(() => {
+      void approvals.check().catch((error) => {
+        console.error(
+          "Could not open the approval window:",
+          error instanceof Error ? error.message : "Desktop launch failed",
+        );
         approvalError =
           "Open Project CAD Assistant from your Start or application menu to approve the connection.";
       });

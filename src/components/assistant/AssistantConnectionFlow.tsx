@@ -47,6 +47,8 @@ type Props = {
   onCheck: () => void;
   onConnect: (agents: AgentSelection) => void;
   onCancel: () => void;
+  onOpenApproval?: () => void;
+  openingApproval?: boolean;
   initialAgents?: AgentSelection | null;
   manageAgents?: boolean;
   updating?: boolean;
@@ -65,6 +67,8 @@ export default function AssistantConnectionFlow({
   onCheck,
   onConnect,
   onCancel,
+  onOpenApproval,
+  openingApproval = false,
   initialAgents,
   manageAgents = false,
   updating: requestedUpdate = false,
@@ -251,7 +255,7 @@ export default function AssistantConnectionFlow({
     setup: "This page will detect the assistant when it’s running.",
     connect: "Connect, then approve this website in the assistant app.",
     approval:
-      "In the assistant app, choose Approve connection. This page will continue automatically.",
+      "In the Project CAD Assistant window, choose Approve connection. On Windows and Linux, this window opens in another browser tab. Return here after approving.",
     connected:
       "Your agent choices are synced with the app. Complete any agent sign-in there, then start a conversation here.",
   };
@@ -742,6 +746,22 @@ export default function AssistantConnectionFlow({
                 <LoaderCircle size={16} className={styles.spinner} /> Waiting
                 for your approval
               </div>
+              {onOpenApproval ? (
+                <button
+                  className={styles.primary}
+                  onClick={onOpenApproval}
+                  disabled={openingApproval}
+                >
+                  <ExternalLink size={16} />{" "}
+                  {openingApproval
+                    ? "Opening approval window…"
+                    : "Open approval window"}
+                </button>
+              ) : null}
+              <p className={styles.fileInfo}>
+                If no window appears, open Project CAD Assistant from your Start
+                or application menu.
+              </p>
               <button className={styles.textButton} onClick={onCancel}>
                 Cancel connection
               </button>

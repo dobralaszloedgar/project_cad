@@ -44,6 +44,7 @@ async function fixture(seed?: (requests: ConnectionRequests) => void) {
     port: 0,
     origins: [origin, otherOrigin],
     connections: requests,
+    desktopOpen: true,
     selectAgents,
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -170,6 +171,28 @@ it("requires a private desktop decision before issuing an origin-bound session",
   ).toBe(200);
   expect((await request("/providers", { headers })).status).toBe(401);
   expect(requests.get(pending.id)).toBeNull();
+});
+
+it("lets only the requesting website reopen a pending approval without issuing a token", async () => {
+  const { create, request, requests } = await fixture();
+  const pending = await create();
+  const path = `/connections/${pending.id}/open`;
+  const init = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  };
+  expect((await request(path, init, otherOrigin)).status).toBe(404);
+  expect((await request(path, { method: "POST" })).status).toBe(400);
+  expect(requests.get(pending.id)?.openRevision).toBe(0);
+  expect((await request(path)).status).toBe(405);
+  const response = await request(path, init);
+  expect(response.status).toBe(202);
+  expect(await response.json()).toEqual({ opening: true });
+  expect(requests.get(pending.id)?.openRevision).toBeGreaterThan(0);
+  expect(await (await request(`/connections/${pending.id}`)).json()).toEqual({
+    status: "pending",
+  });
 });
 
 it("keeps declined, cancelled, and expired requests from granting access", async () => {

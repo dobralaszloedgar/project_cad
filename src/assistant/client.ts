@@ -114,6 +114,8 @@ export function useAssistant(projectId: string, project: Project) {
   const selected = useRef<string | undefined>(undefined);
   const projectRef = useRef(project);
   const pairCleanup = useRef<(() => void) | null>(null);
+  const pairOpen = useRef<(() => Promise<void>) | null>(null);
+  const [openingApproval, setOpeningApproval] = useState(false);
   const retry = useRef<{
     chatId: string;
     message: string;
@@ -332,6 +334,8 @@ export function useAssistant(projectId: string, project: Project) {
       clearTimeout(timer);
       setConnecting(false);
       pairCleanup.current = null;
+      pairOpen.current = null;
+      setOpeningApproval(false);
     };
     const cancel = () => {
       cleanup();
@@ -349,6 +353,31 @@ export function useAssistant(projectId: string, project: Project) {
       controller.signal,
       AbortSignal.timeout(120000),
     ]);
+    pairOpen.current = async () => {
+      if (!id || stopped) return;
+      setOpeningApproval(true);
+      setError("");
+      try {
+        const response = await fetch(
+          `${ASSISTANT_ENDPOINT}/connections/${id}/open`,
+          {
+            method: "POST",
+            credentials: "omit",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+            signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            "Open Project CAD Assistant from your Start or application menu, then choose Approve connection. Update the connector if its approval window does not open.",
+          );
+      } catch (failure) {
+        if (!stopped) report(failure);
+      } finally {
+        if (!stopped) setOpeningApproval(false);
+      }
+    };
     const poll = async () => {
       try {
         const response = await fetch(
@@ -589,6 +618,7 @@ export function useAssistant(projectId: string, project: Project) {
   return {
     connected,
     connecting,
+    openingApproval,
     providers,
     checkingProviders,
     updateRequired,
@@ -602,6 +632,7 @@ export function useAssistant(projectId: string, project: Project) {
     error,
     sending,
     connect,
+    openApproval: () => void pairOpen.current?.(),
     select,
     send,
     stop,

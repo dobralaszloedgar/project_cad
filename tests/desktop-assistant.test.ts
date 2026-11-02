@@ -487,18 +487,65 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
         .get("upgrade-history")?.data,
     ).toBe(savedChat);
     preserved.close();
+    if (process.platform === "win32") {
+      const registryKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${environment.PROJECT_CAD_ASSISTANT_STARTUP_NAME}`;
+      const registry = await promisify(execFile)(
+        "reg.exe",
+        ["QUERY", registryKey],
+        { windowsHide: true },
+      );
+      expect(registry.stdout).toContain("uninstall-windows.ps1");
+      expect(registry.stdout).toContain(installed);
+      // This is the disposable installation, with a live worker and saved history.
+      await promisify(execFile)(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          join(installed, "uninstall-windows.ps1"),
+          "-Quiet",
+        ],
+        {
+          env: environment,
+          windowsHide: true,
+          timeout: 30000,
+        },
+      );
+      await expect(stat(installed)).rejects.toMatchObject({ code: "ENOENT" });
+      expect(await readFile(join(data, "settings.json"), "utf8")).toBe(
+        settingsBefore,
+      );
+      const historyAfterUninstall = new DatabaseSync(
+        join(data, "conversations.sqlite"),
+      );
+      expect(
+        historyAfterUninstall
+          .prepare("SELECT data FROM conversations WHERE id=?")
+          .get("upgrade-history")?.data,
+      ).toBe(savedChat);
+      historyAfterUninstall.close();
+      await expect(
+        promisify(execFile)("reg.exe", ["QUERY", registryKey], {
+          windowsHide: true,
+        }),
+      ).rejects.toThrow();
+    }
   } finally {
     if (token) await command("shutdown").catch(() => {});
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        child.kill();
-        resolve();
-      }, 10000);
-      child.once("exit", () => {
-        clearTimeout(timer);
-        resolve();
+    if (child.exitCode === null)
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          child.kill();
+          resolve();
+        }, 10000);
+        child.once("exit", () => {
+          clearTimeout(timer);
+          resolve();
+        });
       });
-    });
     await rm(temporary, { recursive: true, force: true });
   }
-}, 60000);
+}, 90000);

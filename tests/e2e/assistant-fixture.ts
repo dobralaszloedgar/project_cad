@@ -171,6 +171,7 @@ export async function installAssistant(
     port: 0,
     origins: [origin],
     connections,
+    desktopOpen: true,
     selectAgents: (selection) => {
       agents = selection;
     },

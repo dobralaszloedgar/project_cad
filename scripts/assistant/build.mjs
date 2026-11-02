@@ -24,7 +24,7 @@ export async function buildAssistant(destination = join(root, 'dist', 'assistant
   await copyFile(join(root, 'scripts', 'assistant', 'releases.json'), join(destination, 'releases.json'));
   await copyFile(join(root, 'scripts', 'assistant', 'install.mjs'), join(destination, 'install.mjs'));
   await copyFile(join(root, 'scripts', 'assistant', 'install-cleanup.mjs'), join(destination, 'install-cleanup.mjs'));
-  for (const file of ['desktop.html', 'icon.svg']) await copyFile(join(root, 'scripts', 'assistant', file), join(destination, file));
+  for (const file of ['desktop.html', 'icon.svg', 'uninstall-windows.ps1']) await copyFile(join(root, 'scripts', 'assistant', file), join(destination, file));
   await copyFile(join(root, 'node_modules', '@muse-code', 'sdk', 'LICENSE'), join(destination, 'MuseSDK-LICENSE.txt'));
   await copyFile(join(root, 'node_modules', 'zod', 'LICENSE'), join(destination, 'Zod-LICENSE.txt'));
   await cp(join(root, 'node_modules', 'unpdf', 'dist', 'licenses'), join(destination, 'PDF-licenses'), { recursive: true });

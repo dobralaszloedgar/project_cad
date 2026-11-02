@@ -48,6 +48,7 @@ export function createAssistantServer(
     origins: string[];
     selectAgents?: (agents: AgentSelection) => void;
     connections?: ConnectionRequests;
+    desktopOpen?: boolean;
   },
 ) {
   const origins = new Set(options.origins),
@@ -105,6 +106,7 @@ export function createAssistantServer(
             "agent-selection-v1",
             "idle-tab-handoff-v1",
             ...(connections ? ["desktop-consent-v1"] : []),
+            ...(connections && options.desktopOpen ? ["desktop-open-v1"] : []),
           ],
         });
       if (
@@ -131,16 +133,30 @@ export function createAssistantServer(
           const request = connections.create(origin, value.nonce, value.agents);
           return json(res, 202, { id: request.id, expires: request.expires });
         }
-        const match = /^\/connections\/([a-f0-9]{64})(\/cancel)?$/.exec(
-          url.pathname,
-        );
+        const match =
+          /^\/connections\/([a-f0-9]{64})(\/(?:cancel|open))?$/.exec(
+            url.pathname,
+          );
         const request = match ? connections.get(match[1]) : null;
         if (!request || request.origin !== origin)
           return json(res, 404, {
             error:
               "Connection request expired. Connect again from the website.",
           });
-        if (match![2] && req.method === "POST") {
+        if (match![2] === "/open" && req.method === "POST") {
+          if (!options.desktopOpen)
+            return json(res, 409, {
+              error:
+                "Open Project CAD Assistant from your Start or application menu.",
+            });
+          if (!req.headers["content-type"]?.startsWith("application/json"))
+            return json(res, 400, {
+              error: "Expected a JSON connection request.",
+            });
+          connections.requestOpen(request.id);
+          return json(res, 202, { opening: true });
+        }
+        if (match![2] === "/cancel" && req.method === "POST") {
           const previous = claimed.get(request.id);
           if (previous) tokens.delete(previous.token);
           claimed.delete(request.id);

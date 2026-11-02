@@ -41,6 +41,7 @@ const server = createAssistantServer(runtime, {
   port,
   origins,
   connections: new ConnectionRequests(root),
+  desktopOpen: process.env.PROJECT_CAD_DESKTOP_MANAGED === "1",
   selectAgents: (agents) => {
     settings = saveAssistantSettings(root, {
       ...loadAssistantSettings(root),

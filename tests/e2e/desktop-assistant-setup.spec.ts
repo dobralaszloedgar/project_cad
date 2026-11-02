@@ -122,7 +122,7 @@ test("desktop receives website choices after consent without a second agent pick
     };
     const approve = async (id: string) => {
       await page
-        .getByRole("button", { name: "Connect and set up agents", exact: true })
+        .getByRole("button", { name: "Approve connection", exact: true })
         .click();
       await expect
         .poll(

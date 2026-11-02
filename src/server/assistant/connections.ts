@@ -19,6 +19,7 @@ const requestSchema = z.object({
   nonce: z.string().uuid(),
   agents: agentSelectionSchema,
   expires: z.number(),
+  openRevision: z.number().int().nonnegative().default(0),
 });
 export type ConnectionRequest = z.infer<typeof requestSchema>;
 
@@ -55,7 +56,16 @@ export class ConnectionRequests {
       } catch {
         /* No local decision yet. */
       }
-      return { ...request, status };
+      let openRevision = 0;
+      try {
+        const value = Number(
+          readFileSync(join(directory, "open-request"), "utf8"),
+        );
+        if (Number.isSafeInteger(value) && value > 0) openRevision = value;
+      } catch {
+        /* No explicit request to reopen the approval window. */
+      }
+      return { ...request, openRevision, status };
     } catch {
       return null;
     }
@@ -106,6 +116,20 @@ export class ConnectionRequests {
     writeFileSync(join(this.path(id), "decision"), decision, {
       mode: 0o600,
       flag: "wx",
+    });
+  }
+  requestOpen(id: string) {
+    const request = this.get(id);
+    if (!request || request.status !== "pending")
+      throw new Error(
+        "This connection is no longer waiting for approval. Connect again from the website.",
+      );
+    // The desktop observes this marker. It never grants consent or exposes its
+    // private launch ticket to the website. Coalesce rapid repeat clicks.
+    const now = Date.now();
+    if (now - request.openRevision < 10000) return;
+    writeFileSync(join(this.path(id), "open-request"), String(now), {
+      mode: 0o600,
     });
   }
   remove(id: string) {

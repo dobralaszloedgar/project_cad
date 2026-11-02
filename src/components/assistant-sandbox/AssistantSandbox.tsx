@@ -38,6 +38,8 @@ function LiveConnection() {
       error={assistant.error}
       onConnect={assistant.connect}
       onCancel={assistant.cancelConnect}
+      onOpenApproval={assistant.openApproval}
+      openingApproval={assistant.openingApproval}
     />
   );
 }
