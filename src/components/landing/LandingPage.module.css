@@ -19,7 +19,7 @@
 .story {
   cursor: auto;
   position: relative;
-  height: 380svh;
+  height: 620svh;
   color: var(--ink);
   background: #fafbf9;
   font: 400 15px/1.5 var(--font-sans);
@@ -147,7 +147,11 @@
   justify-content: space-between;
   height: 92px;
   padding: 0 3.5%;
-  background: linear-gradient(#fafbf9, #fafbf900);
+  background: linear-gradient(180deg, #fafbf9f5, #fafbf9d9);
+  border-bottom: 1px solid #536b5f12;
+  box-shadow: 0 8px 32px #26373004;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 .story .graphicsNotice {
   top: 82px;
@@ -199,16 +203,18 @@
   align-items: center;
   justify-content: center;
   gap: 18px;
-  border: 1px solid var(--field-border);
+  border: 1px solid var(--accent);
   border-radius: 24px;
   padding: 10px 19px;
   font-size: 13px;
-  background: var(--field-surface);
-  backdrop-filter: blur(10px);
+  background: var(--accent);
+}
+.story .workspaceLink {
+  color: #fff;
 }
 .workspaceLink:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 85%, black);
+  background: color-mix(in srgb, var(--accent) 85%, black);
 }
 .workspaceNotice {
   position: absolute;
@@ -272,9 +278,9 @@
   max-width: 560px;
   pointer-events: none;
 }
-.sceneCaption h1,
-.sceneCaption h2 {
-  font-size: clamp(32px, 3.05vw, 49px);
+.chapterTitle {
+  font-family: var(--font-sans);
+  font-size: clamp(36px, 4vw, 64px);
   font-weight: 400;
   line-height: 1.08;
   letter-spacing: -0.045em;
@@ -291,6 +297,15 @@
   max-width: 460px;
   letter-spacing: -0.15px;
   text-shadow: none;
+}
+.sceneCaption .equipmentName {
+  color: var(--ink);
+  font-size: clamp(16px, 1.4vw, 20px);
+  font-weight: 500;
+  line-height: 1.35;
+}
+.sceneCaption .equipmentName + p {
+  margin-top: 6px;
 }
 .cadWorkbench {
   --pfd-stroke-width: 1.8;
@@ -359,9 +374,6 @@
 }
 .chapter[data-scene="build"] .sceneCaption {
   bottom: 9.5%;
-}
-.chapter[data-scene="build"] .sceneCaption h2 {
-  font-size: clamp(26px, 2.15vw, 34px);
 }
 .chapter[data-scene="build"] .sceneCaption p {
   font-size: 13px;
@@ -440,6 +452,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+.footer::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(-4.1vw);
+  border-top: 1px solid #536b5f12;
+  background: linear-gradient(180deg, #fafbf9c9, #f4f7f3f5);
+  box-shadow: 0 -8px 32px #26373003;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: none;
 }
 .storyControls {
   position: relative;
@@ -542,10 +566,6 @@
     left: 5%;
     max-width: 48%;
   }
-  .sceneCaption h1,
-  .sceneCaption h2 {
-    font-size: 35px;
-  }
   .sceneCaption p {
     font-size: 13px;
   }
@@ -572,6 +592,14 @@
     padding: 0 20px;
     align-items: flex-start;
     padding-top: 22px;
+  }
+  .header::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0 0 -52px;
+    background: linear-gradient(180deg, #fafbf9f5, #fafbf9e6);
+    border-bottom: 1px solid #536b5f12;
   }
   .brand {
     font-size: 17px;
@@ -603,12 +631,6 @@
     right: 24px;
     max-width: none;
   }
-  .sceneCaption h1,
-  .sceneCaption h2 {
-    font-size: 31px;
-    line-height: 1.06;
-    letter-spacing: -0.04em;
-  }
   .sceneCaption p {
     font-size: 12px;
     line-height: 1.4;
@@ -621,6 +643,9 @@
   .footer {
     left: 24px;
     right: 24px;
+  }
+  .footer::before {
+    inset-inline: -24px;
   }
   .story .scrollCue {
     font-size: 8px;
@@ -640,10 +665,6 @@
   }
   .sceneCaption {
     bottom: calc(16% + 36px);
-  }
-  .sceneCaption h1,
-  .sceneCaption h2 {
-    font-size: 30px;
   }
   .sceneCaption p {
     font-size: 12px;
@@ -709,7 +730,7 @@
     letter-spacing: 0.08em;
   }
   .chapter[data-scene="explore"] .sceneCaption {
-    bottom: max(80px, calc(env(safe-area-inset-bottom) + 64px));
+    bottom: max(148px, calc(env(safe-area-inset-bottom) + 132px));
   }
   .sceneVeil {
     background: linear-gradient(
@@ -733,12 +754,8 @@
   max-width: 1440px;
   margin: auto;
 }
-.designCaption h1 {
+.designCaption .chapterTitle {
   margin: 16px 0 14px;
-  font-size: clamp(64px, 7.5vw, 112px);
-  line-height: 1;
-  font-weight: 400;
-  letter-spacing: -0.065em;
 }
 .designCaption p {
   color: var(--muted);
@@ -833,18 +850,11 @@
 .chapter[data-scene="build"] .sceneCaption {
   bottom: calc(13% + 36px);
 }
-.chapter[data-scene="build"] .sceneCaption h2,
-.chapter[data-scene="explore"] .sceneCaption h2 {
-  font-size: clamp(36px, 4vw, 64px);
-}
 @media (max-width: 1050px) {
   .designLayout {
     inset-inline: 8%;
     gap: 36px;
     grid-template-columns: 0.7fr 1.3fr;
-  }
-  .designCaption h1 {
-    font-size: 72px;
   }
   .designCaption p {
     font-size: 14px;
@@ -865,15 +875,14 @@
     min-height: 42px;
   }
   .designLayout {
-    inset: 128px 20px 108px;
+    inset: 136px 20px 140px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     align-items: stretch;
     gap: 22px;
   }
-  .designCaption h1 {
-    font-size: 58px;
+  .designCaption .chapterTitle {
     margin: 8px 0;
   }
   .designCaption p {
@@ -900,14 +909,13 @@
   .chapter[data-scene="build"] .sceneCaption {
     bottom: max(calc(25% + 36px), 240px);
   }
-  .chapter[data-scene="build"] .sceneCaption h2,
-  .chapter[data-scene="explore"] .sceneCaption h2 {
+  .chapterTitle {
     font-size: 40px;
   }
 }
 @media (max-width: 700px) and (max-height: 740px) {
   .designLayout {
-    inset-block: 112px 98px;
+    inset-block: 136px 132px;
     gap: 14px;
   }
   .designCaption {
@@ -919,8 +927,7 @@
   .designCaption .eyebrow {
     display: none;
   }
-  .designCaption h1 {
-    font-size: 36px;
+  .designCaption .chapterTitle {
     margin: 0;
   }
   .designCaption p {
@@ -944,8 +951,7 @@
   .chapter[data-scene="build"] .sceneCaption > p:first-of-type {
     display: none;
   }
-  .chapter[data-scene="build"] .sceneCaption h2,
-  .chapter[data-scene="explore"] .sceneCaption h2 {
+  .chapterTitle {
     font-size: 30px;
   }
   .story .sceneCaption .modelNote {
@@ -979,9 +985,6 @@
 @media (max-height: 600px) and (min-width: 601px) {
   .designLayout {
     inset-block: 80px 108px;
-  }
-  .designCaption h1 {
-    font-size: 60px;
   }
 }
 @media (max-width: 600px) {

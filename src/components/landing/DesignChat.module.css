@@ -335,7 +335,7 @@
   }
 }
 /* Keep the full response visible when the surrounding page leaves less room. */
-@container (max-height: 450px) {
+@container (max-height: 520px) {
   .header {
     padding-block: 10px;
   }

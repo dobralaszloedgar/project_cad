@@ -17,7 +17,6 @@ export function useStoryPlayback(
   scroll: MotionValue<number>,
   visible: boolean,
   reduced: boolean,
-  sceneReady = true,
 ) {
   const progress = useMotionValue(0);
   const design = useMotionValue(0);
@@ -33,19 +32,13 @@ export function useStoryPlayback(
       const target = Math.max(0, Math.min(1, scroll.get())) * STORY_END;
       const seconds = previous ? (time - previous) / 1000 : 1 / 60;
       previous = time;
-      state.current = advancePlayback(
-        state.current,
-        target,
-        seconds,
-        reduced,
-        sceneReady,
-      );
+      state.current = advancePlayback(state.current, target, seconds, reduced);
       const next = state.current;
       progress.set(next.progress);
       design.set(next.design);
       construction.set(next.construction);
       simulation.set(next.simulation);
-      const destination = sceneReady ? target : Math.min(target, 0.53);
+      const destination = target;
       const travelling = Math.abs(destination - next.progress) > 0.00001;
       const building = target >= 0.3 && next.simulation < 1;
       const chatting = next.design < 1;
@@ -67,15 +60,6 @@ export function useStoryPlayback(
       cancelAnimationFrame(frame);
       stop();
     };
-  }, [
-    scroll,
-    visible,
-    reduced,
-    sceneReady,
-    progress,
-    design,
-    construction,
-    simulation,
-  ]);
+  }, [scroll, visible, reduced, progress, design, construction, simulation]);
   return { progress, design, construction, simulation };
 }

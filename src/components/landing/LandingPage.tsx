@@ -14,7 +14,7 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, Monitor, X } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Monitor, X } from "lucide-react";
 import {
   motion,
   MotionConfig,
@@ -36,8 +36,6 @@ import SiteLinks from "@/components/site/SiteLinks";
 import { useStoryPlayback } from "./use-story-playback";
 import { STORY_END, STORY_STOPS } from "./landing-playback";
 import { tourStopAt } from "./landing-motion";
-import { AccelerationNotice } from "../graphics/AccelerationHelp";
-import type { GraphicsInfo } from "../graphics/renderer";
 
 const LandingExperience = dynamic(() => import("./LandingExperience"), {
   ssr: false,
@@ -74,28 +72,24 @@ export default function LandingPage({
   const [sceneRequested, setSceneRequested] = useState(false);
   const scenePreloaded = useRef(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
-  const [graphicsInfo, setGraphicsInfo] = useState<GraphicsInfo | null>(null);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
   const onSceneUnavailable = useCallback(() => setSceneUnavailable(true), []);
   const { progress, design, construction, simulation } = useStoryPlayback(
     scrollYProgress,
     visible,
     reduced,
-    sceneReady || sceneUnavailable,
   );
   const prepareScene = () => {
-    // Fetch the next chapter on navigation intent while the chat finishes.
-    // Geometry and GPU setup still wait until the introduction is complete.
-    if (!scenePreloaded.current && scrollYProgress.get() * STORY_END >= 0.27) {
+    // Load the 3D code on navigation intent while the chat finishes.
+    if (!scenePreloaded.current && scrollYProgress.get() * STORY_END >= 0.08) {
       scenePreloaded.current = true;
       void import("./LandingExperience").catch(() => {});
     }
-    // Prepare 3D only when the finished chat leads into Build. Staying in
-    // Design keeps geometry creation and shader compilation off the page.
+    // Staying in Design does not initialize a graphics context.
     if (
       !sceneRequested &&
       design.get() >= 1 &&
-      scrollYProgress.get() * STORY_END >= 0.27
+      scrollYProgress.get() * STORY_END >= 0.16
     )
       setSceneRequested(true);
   };
@@ -169,11 +163,17 @@ export default function LandingPage({
       });
   };
   const goTo = (index: number) => travelTo(STORY_STOPS[index]);
-  const tourCopy = [
-    "Your process, brought to life.",
+  const tourEquipment = [
+    "Process overview",
     "H-101 · Heat exchanger",
     "R-101 · Packed-bed reactor",
     "D-101 · Distillation column",
+  ][tourStop];
+  const tourCopy = [
+    "Follow the equipment and connections through your process.",
+    "Follow the feed through mixing and heat exchange.",
+    "See how the reactor connects to the rest of the process.",
+    "Trace the separation, product streams and recycle loop.",
   ][tourStop];
 
   return (
@@ -187,7 +187,7 @@ export default function LandingPage({
         data-chapter={chapter}
         data-motion={playing ? "playing" : "paused"}
         data-launch-state={
-          sceneUnavailable ? "unavailable" : sceneReady ? "live" : "preparing"
+          sceneUnavailable ? "unavailable" : sceneReady ? "ready" : "preparing"
         }
       >
         <Link
@@ -223,7 +223,6 @@ export default function LandingPage({
                 </button>
               ))}
             </nav>
-            {/* Full navigation releases the landing WebGL context before setup. */}
             <a
               href="/workspace?home=1"
               className={styles.workspaceLink}
@@ -253,10 +252,6 @@ export default function LandingPage({
             </div>
           ) : null}
 
-          {graphicsInfo?.software && !sceneUnavailable ? (
-            <AccelerationNotice className={styles.graphicsNotice} />
-          ) : null}
-
           <motion.div
             className={styles.experienceStage}
             style={{
@@ -264,19 +259,19 @@ export default function LandingPage({
             }}
             data-shared-scene
           >
-            {sceneRequested ? (
+            {sceneUnavailable ? (
+              <SceneFallback />
+            ) : sceneRequested ? (
               <SceneBoundary
                 fallback={<SceneFallback onUnavailable={onSceneUnavailable} />}
               >
                 <LandingExperience
                   onReady={onSceneReady}
                   onUnavailable={onSceneUnavailable}
-                  onGraphicsInfo={setGraphicsInfo}
                   progress={progress}
                   cadBridge={cadBridge}
                   construction={construction}
                   simulation={simulation}
-                  playing={playing && sceneReady && chapter === 2}
                 />
               </SceneBoundary>
             ) : null}
@@ -305,21 +300,10 @@ export default function LandingPage({
                 style={{ y: reduced ? 0 : heroY }}
               >
                 <span className={styles.eyebrow}>FROM IDEA TO PROCESS</span>
-                <h1 id="design-title">Design</h1>
-                <p>Describe a process. Make it a working layout.</p>
-                <p className={styles.demoNote}>
-                  Scripted demo.{" "}
-                  <Link href="/privacy#ai-assistant" prefetch={false}>
-                    How connected AI uses your data
-                  </Link>
-                </p>
-                <button
-                  className={styles.textLink}
-                  onClick={() => goTo(1)}
-                  aria-label="Watch this process take shape"
-                >
-                  Watch it build <ArrowRight size={16} />
-                </button>
+                <h1 id="design-title" className={styles.chapterTitle}>
+                  Design
+                </h1>
+                <p>Turn your process description into a working layout.</p>
               </motion.div>
               <DesignChat design={design} reduced={reduced} />
             </div>
@@ -338,14 +322,10 @@ export default function LandingPage({
               simulation={simulation}
             />
             <div className={styles.sceneCaption}>
-              <h2 id="build-title">Build</h2>
-              <p>Connected. Simulated. Ready.</p>
-              <p className={styles.modelNote}>
-                Model-based estimates. Engineering review required.{" "}
-                <Link href="/terms#engineering" prefetch={false}>
-                  Model limits
-                </Link>
-              </p>
+              <h2 id="build-title" className={styles.chapterTitle}>
+                Build
+              </h2>
+              <p>Watch the equipment connect as the process takes shape.</p>
             </div>
           </motion.section>
 
@@ -361,9 +341,11 @@ export default function LandingPage({
               className={styles.sceneCaption}
               style={{ y: reduced ? 0 : exploreY }}
             >
-              <h2 id="explore-title">Explore</h2>
+              <h2 id="explore-title" className={styles.chapterTitle}>
+                Explore
+              </h2>
+              <p className={styles.equipmentName}>{tourEquipment}</p>
               <p>{tourCopy}</p>
-              <p className={styles.modelNote}>Illustrative 3D view.</p>
             </motion.div>
           </motion.section>
 

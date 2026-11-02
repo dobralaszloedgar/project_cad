@@ -2,9 +2,11 @@
 // Applies only to copyrightable Project CAD material owned by this holder.
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
-/** A short build sequence followed by responsive, scroll-controlled camera motion. */
+/** A readable build sequence followed by responsive, scroll-controlled views. */
 export const STORY_END = 1.65;
 export const STORY_STOPS = [0, 0.53, 0.95] as const;
+export const BUILD_SECONDS = 10;
+export const SIMULATION_SECONDS = 1.2;
 
 export type PlaybackState = {
   design: number;
@@ -33,7 +35,6 @@ export function advancePlayback(
   requested: number,
   seconds: number,
   reduced = false,
-  sceneReady = true,
 ): PlaybackState {
   const target = Math.max(0, Math.min(STORY_END, requested));
   if (reduced)
@@ -55,30 +56,29 @@ export function advancePlayback(
   // Scrolling is an explicit request to move on. Never hold it behind the
   // eight-second introductory chat, which can play at leisure while at rest.
   let design = target > 0.12 ? 1 : Math.min(1, state.design + dt / 8);
-  const speed = 1 + Math.min(2.2, Math.max(0, target - 0.53) * 6);
-  if (progress < 0.18) {
+  const speed = 1;
+  if (target > 0.55) {
+    // Native scroll and chapter shortcuts always win. Play the slower build
+    // while the user is watching it, without queuing a delayed camera catch-up.
+    construction = 1;
+    simulation = 1;
+    completedFor = 1;
+  } else if (progress < 0.18 || (progress > 0.65 && target >= 0.3)) {
     construction = 0;
     simulation = 0;
     completedFor = 0;
   } else if (progress >= 0.3 && target >= 0.3) {
     construction = Math.min(
       1,
-      construction + Math.min(1 / 24, (dt * speed) / 2.4),
+      construction + Math.min(1 / 36, dt / BUILD_SECONDS),
     );
     // Simulation is its own visible beat, after the last recycle connection.
     if (construction === 1 && state.construction === 1)
-      simulation = Math.min(1, simulation + dt / 0.45);
+      simulation = Math.min(1, simulation + dt / SIMULATION_SECONDS);
     if (simulation === 1) completedFor += dt;
   }
 
-  // Hold the camera over the workbench until every unit and stream is drawn.
-  // More scroll accelerates that work; it never changes construction to 100%.
-  const destination =
-    design < 1
-      ? 0
-      : target > 0.53 && (!sceneReady || simulation < 1 || completedFor < 0.12)
-        ? 0.53
-        : target;
+  const destination = design < 1 ? 0 : target;
   // Frame-rate independent damping without a speed cap or a second spring.
   // A completed story catches the scroll in well under a second, without bounce.
   const next = progress + (destination - progress) * (1 - Math.exp(-dt * 14));

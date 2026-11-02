@@ -32,6 +32,14 @@ for (const viewport of [
     expect(bounds.y).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+    const header = (await page
+      .locator("[data-landing-stage] > header")
+      .boundingBox())!;
+    const footer = (await page
+      .locator("[data-landing-stage] > footer")
+      .boundingBox())!;
+    expect(bounds.y).toBeGreaterThanOrEqual(header.y + header.height);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(footer.y);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,

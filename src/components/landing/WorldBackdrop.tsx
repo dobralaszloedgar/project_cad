@@ -6,7 +6,7 @@
 
 import styles from "./LandingPage.module.css";
 
-/** A restrained screen vignette; the entire world behind it is rendered in 3D. */
+/** A restrained screen vignette over the process scene. */
 export default function WorldBackdrop() {
   return (
     <div className={styles.world} aria-hidden="true">

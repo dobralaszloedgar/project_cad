@@ -5,9 +5,15 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { STORY_END } from "../../src/components/landing/landing-playback";
 
-// Software WebGL compiles the same live equipment shaders as the application;
-// Include shader warmup on machines without a hardware GPU.
-test.setTimeout(180000);
+test.setTimeout(60000);
+test.use({
+  launchOptions: {
+    args:
+      process.platform === "win32"
+        ? ["--enable-gpu", "--ignore-gpu-blocklist", "--use-angle=d3d11"]
+        : [],
+  },
+});
 
 async function chapter(page: Page, name: string, index: number) {
   await page
@@ -85,7 +91,7 @@ async function expectViewportFilled(page: Page) {
   expect(view.left).toBe(0);
   expect(view.right).toBe(view.width);
   expect(view.bottom).toBe(view.height);
-  expect(view.screens).toBeCloseTo(3.8, 2);
+  expect(view.screens).toBeCloseTo(6.2, 2);
 }
 
 test("the hardcoded assistant plays without mounting editor or assistant controls", async ({
@@ -130,7 +136,7 @@ test("the hardcoded assistant plays without mounting editor or assistant control
   expect(errors).toEqual([]);
 });
 
-test("one 3D scene continuously unfolds the drawing and keeps operating equipment live", async ({
+test("one live scene unfolds the drawing and explores the connected process", async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -151,11 +157,14 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
   await expectViewportFilled(page);
   await expect(page.locator("[data-design-chat]")).toBeVisible();
 
-  // The prompt travels through the scene instead of teleporting to Build.
+  await expect(
+    page.getByRole("button", { name: "Watch this process take shape" }),
+  ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Watch this process take shape" })
+    .getByRole("navigation", { name: "Story chapters" })
+    .getByRole("button", { name: "02 Build" })
     .click();
-  // 3D now warms up on entry to Build, while the live drawing stays usable.
+  // Graphics preparation starts on entry to Build while the drawing stays usable.
   await expect(page.locator("[data-live-cad]")).toBeVisible({
     timeout: 15000,
   });
@@ -341,7 +350,7 @@ test("mobile scenes fit and rest between gestures without changing desktop layou
     await expect(canvas).toHaveAttribute("data-focus", focus);
     await expect(page.locator("#explore-title").locator("..")).toHaveCSS(
       "bottom",
-      "80px",
+      "148px",
     );
     await page.screenshot({ path: info.outputPath(`${focus}-mobile.png`) });
   }
@@ -349,11 +358,11 @@ test("mobile scenes fit and rest between gestures without changing desktop layou
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(page.locator("#explore-title").locator("..")).not.toHaveCSS(
     "bottom",
-    "80px",
+    "148px",
   );
 });
 
-test("a fast scroll accelerates every build step before revealing the plant", async ({
+test("Build shows every construction step at a readable pace before simulation", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -365,7 +374,7 @@ test("a fast scroll accelerates every build step before revealing the plant", as
   });
   await chapter(page, "01 Design", 0);
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await scrollTo(page, STORY_END);
+  await scrollTo(page, 0.53);
   const samples = await page.evaluate(async () => {
     const samples: {
       progress: number;
@@ -385,7 +394,7 @@ test("a fast scroll accelerates every build step before revealing the plant", as
         simulation: Number(canvas.getAttribute("data-simulation")),
         unfold: Number(canvas.getAttribute("data-unfold")),
       });
-      if (progress > 0.94) break;
+      if (Number(canvas.getAttribute("data-simulation")) === 1) break;
     }
     return samples;
   });
@@ -401,11 +410,12 @@ test("a fast scroll accelerates every build step before revealing the plant", as
   expect(
     samples.some((s) => s.built === 1 && s.simulation > 0 && s.simulation < 1),
   ).toBe(true);
-  expect(samples.at(-1)!.progress).toBeGreaterThan(0.94);
+  expect(samples.at(-1)!.simulation).toBe(1);
+  await chapter(page, "03 Explore", 2);
   await expect(canvas).toHaveAttribute("data-ready", "true");
 });
 
-test("reduced motion is still, remains navigable and handles a lost GPU", async ({
+test("reduced motion is still and navigation is independent of GPU availability", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -440,7 +450,7 @@ test("reduced motion is still, remains navigable and handles a lost GPU", async 
     element.dispatchEvent(new Event("webglcontextlost", { cancelable: true })),
   );
   await expect(
-    page.getByRole("link", { name: "Open the 3D sandbox" }),
+    page.getByRole("img", { name: "Connected process diagram" }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Open workspace", exact: true }),

@@ -8,14 +8,6 @@ export function reveal(value: number, from: number, to: number) {
   return t * t * (3 - 2 * t);
 }
 
-/** Hold each equipment view before moving to the next one. */
-export function tourWeights(progress: number) {
-  const heater = reveal(progress, 1, 1.16);
-  const reactor = reveal(progress, 1.24, 1.38);
-  const column = reveal(progress, 1.46, 1.62);
-  return [1 - heater, heater - reactor, reactor - column, column] as const;
-}
-
 export function tourStopAt(progress: number) {
   return progress < 1.08 ? 0 : progress < 1.31 ? 1 : progress < 1.54 ? 2 : 3;
 }

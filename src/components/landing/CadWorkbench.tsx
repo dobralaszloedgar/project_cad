@@ -35,7 +35,6 @@ import {
 } from "./landing-construction";
 import { reveal } from "./landing-motion";
 import drawing from "./landing-drawing.json";
-import DemoPointer from "./DemoPointer";
 import styles from "./LandingPage.module.css";
 
 export type CadRoutes = Map<string, { x: number; y: number; z: number }[]>;
@@ -55,6 +54,7 @@ export function createCadBridge(): CadBridge {
 }
 
 /** Fixed worksheet artwork, using the app's symbols and authored connector paths.
+ * The assistant applies equipment and connections automatically, without a cursor.
  * No React Flow, live routing, simulation, controls or mutation observers. */
 export default function CadWorkbench({
   progress,
@@ -70,7 +70,6 @@ export default function CadWorkbench({
   fallback: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
-  const pointer = useRef<SVGGElement>(null);
   useEffect(() => {
     const resize = () =>
       bridge.viewport.current?.style.setProperty(
@@ -116,7 +115,7 @@ export default function CadWorkbench({
           z: (point.y + CAD_HEADER - CAD_HEIGHT / 2) / CAD_SCALE + CAD_CENTER_Z,
         })),
       );
-      return { ...stream, element, path, label, length, points };
+      return { ...stream, element, path, label, length };
     });
     const chrome = host.querySelectorAll<HTMLElement>("[data-sheet-chrome]");
     const status = host.querySelector<HTMLElement>("[data-cad-status]")!;
@@ -154,19 +153,11 @@ export default function CadWorkbench({
         units.filter((unit) => stepProgress(built, "unit", unit.id) >= 1)
           .length,
       );
-      pointer.current?.setAttribute("opacity", "0");
       for (const [index, unit] of units.entries()) {
         const drawn = stepProgress(built, "unit", unit.id);
         unit.element.style.opacity = String(
           Math.min(1, drawn * 3) * unitUnfold(p, index).drawing,
         );
-        if (drawn > 0 && drawn < 1 && pointer.current) {
-          pointer.current.setAttribute(
-            "transform",
-            "translate(" + (unit.x + 76) + "," + (unit.y + 70) + ")",
-          );
-          pointer.current.setAttribute("opacity", String(paper));
-        }
       }
       for (const stream of streams) {
         const drawn = stepProgress(built, "stream", stream.id);
@@ -181,17 +172,6 @@ export default function CadWorkbench({
         if (built === 1 && simulated > 0 && simulated < 1) {
           stream.path.style.strokeDasharray = "12 7";
           stream.path.style.strokeDashoffset = String(-simulated * 240);
-        }
-        if (drawn > 0 && drawn < 1 && pointer.current) {
-          const point =
-            stream.points[
-              Math.min(ROUTE_SAMPLES, Math.round(drawn * ROUTE_SAMPLES))
-            ];
-          pointer.current.setAttribute(
-            "transform",
-            "translate(" + point.x + "," + point.y + ")",
-          );
-          pointer.current.setAttribute("opacity", String(paper));
         }
       }
     };
@@ -375,9 +355,6 @@ export default function CadWorkbench({
                     ))}
                   </g>
                 ))}
-                <g ref={pointer} opacity={0} aria-hidden="true">
-                  <DemoPointer size={30} />
-                </g>
               </svg>
               <div className={styles.sheetStatus} data-sheet-chrome>
                 Example worksheet <span>9 units · 9 streams</span>
