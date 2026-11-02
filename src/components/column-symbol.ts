@@ -18,7 +18,7 @@ export function columnSymbol(
   const body = `<g data-column-tray-count="${layout.count}" data-condenser-type="${condenserType}" stroke-width="1.4">
     <title>${partial ? "Equilibrium (partial) condenser · vapor distillate" : "Total condenser · liquid distillate"}</title>
     <rect class="pfd-body" x="34" y="${first - 20}" width="38" height="${last - first + 40}" rx="16" ${fill}/>
-    ${trays.map((y, i) => `<g data-column-tray="${i + 1}">${path(i % 2 ? `M71 ${y}H42v${Math.min(4, pitch / 3)}` : `M35 ${y}H64v${Math.min(4, pitch / 3)}`)}<text x="53" y="${y - 2}" fill="currentColor" stroke="none" text-anchor="middle" font-size="${Math.min(7, pitch * 0.7)}" font-family="monospace">${i + 1}</text></g>`).join("")}
+    ${trays.map((y, i) => `<g data-column-tray="${i + 1}">${path(i % 2 ? `M71 ${y}H42v${Math.min(4, pitch / 3)}` : `M35 ${y}H64v${Math.min(4, pitch / 3)}`)}<text x="53" y="${y - 2}" fill="currentColor" stroke="none" text-anchor="middle" font-size="${Math.min(7, pitch * 0.7)}" font-family="var(--font-mono, monospace)">${i + 1}</text></g>`).join("")}
     ${path(`M53 ${first - 20}V22H85`)}
     ${coil(96, 22, "condenser")}
     ${path("M96 33V38")}

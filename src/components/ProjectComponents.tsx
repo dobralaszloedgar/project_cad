@@ -36,6 +36,7 @@ import {
   loadChemicalSearch,
   type ChemicalSearchPage,
 } from "@/lib/chemical-search-client";
+import ChemicalFormula from "./ChemicalFormula";
 import "./thermo-settings.css";
 
 export default function ProjectComponents({
@@ -349,7 +350,9 @@ export default function ProjectComponents({
                         <td>
                           <div className="chemical-name">
                             <strong>{chemical.name}</strong>
-                            <small>{chemical.formula}</small>
+                            <small>
+                              <ChemicalFormula formula={chemical.formula} />
+                            </small>
                           </div>
                         </td>
                         <td className="chemical-cas">{chemical.id}</td>
@@ -427,15 +430,15 @@ export default function ProjectComponents({
             <span className="component-badge">{selectedCount} / 40</span>
           </header>
           <p className="component-model">{modelInfo(current.modelId).label}</p>
-          <p className="component-save-status" role="status">
-            {saving
-              ? "Saving changes…"
-              : hasSynthetic
-                ? "Replace both teaching species to save catalog chemicals."
-                : selectedCount < 2
-                  ? "Choose at least two chemicals to save the mixture."
-                  : "Changes save automatically."}
-          </p>
+          {(saving || hasSynthetic || selectedCount < 2) && (
+            <p className="component-save-status" role="status">
+              {saving
+                ? "Saving changes…"
+                : hasSynthetic
+                  ? "Replace both teaching species to save catalog chemicals."
+                  : "Choose at least two chemicals to save the mixture."}
+            </p>
+          )}
           <div className="component-slots">
             {choices.map((_, i) => (
               <div key={i} className="component-slot">
@@ -444,9 +447,21 @@ export default function ProjectComponents({
                     <div className="selected-chemical">
                       <strong>{choices[i]!.name}</strong>
                       <small>
-                        {["A", "B"].includes(choices[i]!.id)
-                          ? "Built-in teaching species · properties included"
-                          : `${choices[i]!.formula ?? ""} · ${choices[i]!.id}`}
+                        {["A", "B"].includes(choices[i]!.id) ? (
+                          "Built-in teaching species · properties included"
+                        ) : (
+                          <>
+                            {choices[i]!.formula && (
+                              <>
+                                <ChemicalFormula
+                                  formula={choices[i]!.formula}
+                                />
+                                {" · "}
+                              </>
+                            )}
+                            {choices[i]!.id}
+                          </>
+                        )}
                       </small>
                     </div>
                     <button

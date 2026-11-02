@@ -2,7 +2,7 @@
   min-height: 100dvh;
   height: auto;
   overflow: visible;
-  font-family: "Geist Variable", sans-serif;
+  font-family: var(--font-sans);
 }
 .header {
   display: flex;

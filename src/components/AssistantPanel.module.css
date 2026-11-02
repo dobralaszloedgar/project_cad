@@ -10,7 +10,7 @@
   inset: 0;
   z-index: 20;
   pointer-events: none;
-  font-family: "Geist Variable", sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
   color: var(--assistant-ink);
@@ -510,6 +510,9 @@
 }
 .response code {
   font-size: 0.9em;
+}
+.response pre code {
+  font-size: inherit;
 }
 .response :is(h1, h2, h3, h4) {
   font-size: 14px;

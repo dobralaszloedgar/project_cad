@@ -2,6 +2,7 @@ import { loadProject } from "./project-fixture";
 import { expect, test } from "./test";
 import { solutionExample } from "../../src/domain/examples";
 import { catalogFixture } from "./catalog-fixture";
+import { settingsFor } from "../helpers/catalog";
 
 test("thermodynamics has a descriptive radio dialog and components has a separate Supabase search", async ({
   page,
@@ -49,42 +50,52 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   await expect(modelDialog.getByRole("radio")).toHaveCount(3);
   await expect(idealGas).toBeChecked();
   await expect(idealGas).toHaveAccessibleDescription(
-    /Low-pressure gases.*condensation.*Vapor only/,
+    /Low-pressure gases.*No condensation/,
   );
   await expect(raoult).toHaveAccessibleDescription(
-    /Ideal mixtures.*similar molecules.*1–200 kPa/,
+    /Ideal mixtures.*0.01–2 bar.*No azeotropes/,
   );
   await expect(unifac).toHaveAccessibleDescription(
-    /Nonideal liquids.*supported molecular groups.*1–200 kPa/,
+    /Nonideal liquids.*0.01–2 bar.*Vapor–liquid only/,
   );
   await expect(modelDialog.getByRole("searchbox")).toHaveCount(0);
+  await expect(
+    modelDialog.getByRole("button", { name: /^(Cancel|Apply model)$/ }),
+  ).toHaveCount(0);
   await expect(idealGas).toBeFocused();
+  await expect(raoult).toBeEnabled();
   await page.keyboard.press("ArrowDown");
   await expect(raoult).toBeFocused();
   await expect(raoult).toBeChecked();
+  await expect(trigger).toContainText("Raoult’s law");
+  await expect(modelDialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(modelDialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
-  await expect(trigger).toContainText("Ideal gas");
+  await expect(trigger).toContainText("Raoult’s law");
   await trigger.click();
-  await expect(idealGas).toBeChecked();
+  await expect(raoult).toBeChecked();
   await page.screenshot({
     path: info.outputPath("thermodynamics-dialog.png"),
   });
-  await raoult.check();
+  await idealGas.check();
   await expect(modelDialog).toBeVisible();
   await expect(trigger).toContainText("Ideal gas");
-  await modelDialog.getByRole("button", { name: "Apply model" }).click();
-  await expect(trigger).toContainText("Raoult’s law");
-  await expect(modelDialog).toHaveCount(0);
-  await trigger.click();
-  await expect(raoult).toBeChecked();
-  await unifac.check();
   await modelDialog
-    .getByRole("button", { name: "Cancel", exact: true })
+    .getByRole("button", { name: "Close Thermodynamics" })
     .click();
   await expect(modelDialog).toHaveCount(0);
-  await expect(trigger).toContainText("Raoult’s law");
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(idealGas).toBeChecked();
+  await unifac.check();
+  await expect(trigger).toContainText("Modified UNIFAC 2.0");
+  await page.mouse.click(10, 10);
+  await expect(modelDialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
+  await page.reload();
+  await expect(trigger).toContainText("Modified UNIFAC 2.0");
   await header.getByRole("button", { name: "Project components" }).click();
   const dialog = page.getByRole("dialog", {
     name: "Project components",
@@ -127,9 +138,9 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
   expect(
     await modelDialog.evaluate((el) => el.scrollWidth <= el.clientWidth),
   ).toBe(true);
-  await modelDialog
-    .getByRole("button", { name: "Apply model" })
-    .scrollIntoViewIfNeeded();
+  await expect(
+    modelDialog.getByRole("button", { name: "Close Thermodynamics" }),
+  ).toBeInViewport();
   await page.screenshot({ path: info.outputPath("thermodynamics-mobile.png") });
   await page.keyboard.press("Escape");
   await header.getByRole("button", { name: "Project components" }).click();
@@ -144,6 +155,97 @@ test("thermodynamics has a descriptive radio dialog and components has a separat
     dialog.getByRole("table", { name: "Chemical search results" }),
   ).toBeVisible();
   await page.screenshot({ path: info.outputPath("components-mobile.png") });
+});
+
+test("unavailable model data has a hover explanation and preserves the saved selection", async ({
+  page,
+}) => {
+  await catalogFixture(page);
+  const missingData = "Benzene does not have the data required by this model.";
+  await page.route("**/api/chemicals/selection", (route) => {
+    const input = route.request().postDataJSON();
+    return input.model === "modified-unifac-2.0"
+      ? route.fulfill({ status: 422, json: { error: missingData } })
+      : route.fulfill({ json: settingsFor(input.ids, input.model).catalog });
+  });
+  await page.goto("/workspace");
+  await loadProject(page, solutionExample());
+  const trigger = page.getByRole("button", { name: "Project thermodynamics" });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", {
+    name: "Thermodynamics",
+    exact: true,
+  });
+  const unifac = dialog.getByRole("radio", {
+    name: "Modified UNIFAC 2.0",
+    exact: true,
+  });
+  const unavailable = dialog.locator(".thermo-model-option").filter({
+    has: page.getByRole("radio", {
+      name: "Modified UNIFAC 2.0",
+      exact: true,
+    }),
+  });
+  await expect(unavailable).toContainText("Data unavailable");
+  await expect(unifac).toBeDisabled();
+  await unavailable.hover();
+  await expect(unavailable).toHaveAttribute("title", missingData);
+  await expect(unifac).toHaveAccessibleDescription(new RegExp(missingData));
+  await unavailable.focus();
+  await expect(unavailable).toHaveAccessibleDescription(missingData);
+  const bounds = (await unavailable.boundingBox())!;
+  await page.mouse.click(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
+  await expect(trigger).toContainText("Raoult’s law");
+  await dialog.getByRole("radio", { name: "Ideal gas", exact: true }).check();
+  await expect(trigger).toContainText("Ideal gas");
+  await dialog.getByRole("button", { name: "Close Thermodynamics" }).click();
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
+  await page.reload();
+  await expect(trigger).toContainText("Ideal gas");
+});
+
+test("closing while model data is loading does not change the selected model", async ({
+  page,
+}) => {
+  await catalogFixture(page);
+  let releaseResponse!: () => void;
+  const response = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  await page.route("**/api/chemicals/selection", async (route) => {
+    const input = route.request().postDataJSON();
+    await response;
+    await route
+      .fulfill({ json: settingsFor(input.ids, input.model).catalog })
+      .catch(() => {});
+  });
+  await page.goto("/workspace");
+  await loadProject(page, solutionExample());
+  const started = page.waitForRequest("**/api/chemicals/selection");
+  const trigger = page.getByRole("button", { name: "Project thermodynamics" });
+  await trigger.click();
+  await started;
+  const dialog = page.getByRole("dialog", {
+    name: "Thermodynamics",
+    exact: true,
+  });
+  await expect(
+    dialog.getByRole("radio", { name: "Modified UNIFAC 2.0", exact: true }),
+  ).toBeDisabled();
+  await expect(dialog.getByText("Checking data…").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  releaseResponse();
+  await expect(trigger).toContainText("Raoult’s law");
+  await trigger.click();
+  await dialog
+    .getByRole("radio", { name: "Modified UNIFAC 2.0", exact: true })
+    .check();
+  await expect(trigger).toContainText("Modified UNIFAC 2.0");
+  await expect(dialog).toBeVisible();
 });
 
 test("database model registry agrees with the three supported methods", async ({

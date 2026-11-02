@@ -133,7 +133,10 @@ test("the first catalog mixture saves as soon as both teaching species are repla
   await picker
     .getByRole("cell", { name: "ethanol C2H6O", exact: true })
     .dblclick();
-  await expect(picker.getByText("Changes save automatically.")).toBeVisible();
+  await expect(picker.locator(".project-components")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await expect(picker.locator(".component-slot")).toHaveCount(2);
   await expect(picker).toBeVisible();
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Monitor } from "lucide-react";
 import type { GraphicsInfo, GraphicsPreference } from "./renderer";
@@ -18,8 +19,20 @@ export function GraphicsSettings({
   onChange: (value: GraphicsPreference) => void;
   container?: HTMLElement | null;
 }) {
+  const settingsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      const settings = settingsRef.current;
+      if (settings?.open && !settings.contains(event.target as Node))
+        settings.open = false;
+    };
+    document.addEventListener("pointerdown", closeOutside, true);
+    return () =>
+      document.removeEventListener("pointerdown", closeOutside, true);
+  }, []);
   const settings = (
     <details
+      ref={settingsRef}
       className={`${styles.settings}${container ? ` ${styles.inlineSettings}` : ""}`}
       onKeyDown={(event) => {
         if (event.key === "Escape" && !isSelectPickerOpen(event)) {

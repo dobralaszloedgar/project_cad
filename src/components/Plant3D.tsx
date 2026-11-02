@@ -170,12 +170,13 @@ export default function Plant3D({
           aria-label="3D component colors"
         >
           <div className="plant-composition-heading">
-            <strong>Composition</strong>
-            <span>{compositionColors.components.length} chemicals</span>
-          </div>
-          <label className="plant-palette-select">
-            <span>Fluid palette</span>
+            <strong title="Colors blend by mole fraction. Gray means unknown or no flow.">
+              Composition
+            </strong>
             <select
+              className="plant-palette-select"
+              aria-label="Fluid palette"
+              title="Change fluid palette"
               value={palette.id}
               onChange={(event) => setPalette(event.target.value)}
             >
@@ -185,11 +186,6 @@ export default function Plant3D({
                 </option>
               ))}
             </select>
-          </label>
-          <div className="plant-palette-preview" aria-hidden="true">
-            {palette.colors.map((color) => (
-              <i key={color} style={{ backgroundColor: color }} />
-            ))}
           </div>
           <div className="plant-component-swatches">
             {compositionColors.components.map(({ id, name, color }) => (
@@ -199,9 +195,6 @@ export default function Plant3D({
               </span>
             ))}
           </div>
-          <small>
-            Colors blend by mole fraction · gray = unknown or no flow
-          </small>
         </aside>
       ) : null}
       {layout && project.units.length > 0 ? (

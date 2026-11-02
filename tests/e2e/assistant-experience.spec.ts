@@ -152,7 +152,7 @@ test("background activity, popover dismissal, markdown and desktop geometry", as
   await settled(page);
   await expect(
     page.getByRole("dialog", { name: "Assistant", exact: true }),
-  ).toHaveCSS("font-family", '"Geist Variable", sans-serif');
+  ).toHaveCSS("font-family", '"Figtree Variable", sans-serif');
   await page.screenshot({
     path: "test-results/assistant-connected.png",
   });

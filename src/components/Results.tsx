@@ -1,23 +1,22 @@
 "use client";
+import { useState } from "react";
 import {
-  FlaskConical,
-  Flame,
-  Scale,
+  ChartNoAxesCombined,
   History,
-  FileChartColumn,
+  Maximize2,
+  Minimize2,
   RotateCcw,
+  X,
 } from "lucide-react";
 import { type Project } from "@/domain/schema";
-import { flow, type Result, simulate } from "@/domain/solver";
+import { type Result, simulate } from "@/domain/solver";
 import { type Revision, diff } from "@/lib/revisions";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
-import { componentFlows } from "@/domain/stream-composition";
-import {
-  componentNames,
-  mixtureName,
-  thermoContext,
-} from "@/domain/thermo/catalog";
+import { buildResultsReport } from "@/lib/results-report";
 import { useUnitSystem } from "./useUnitSystem";
+import ResultsOverview from "./ResultsOverview";
+import ResultsExportButton from "./ResultsExportButton";
+import "./results.css";
 const fmt = (n: number, digits = 3) =>
   n.toLocaleString("en-US", { maximumFractionDigits: digits });
 export default function Results({
@@ -30,6 +29,8 @@ export default function Results({
   compareId,
   onCompare,
   onSelect,
+  onRun,
+  onClose,
 }: {
   project: Project;
   result: Result | null;
@@ -40,35 +41,76 @@ export default function Results({
   compareId: string;
   onCompare: (s: string) => void;
   onSelect: (s: string) => void;
+  onRun: () => void;
+  onClose: () => void;
 }) {
   const display = useUnitSystem();
-  const names = componentNames(project.thermo ?? defaultThermo);
-  const [firstComponent] = names;
-  const componentIds =
-    result?.provenance.chemicalIds ??
-    (project.thermo?.mixture === "catalog" && !project.thermo.catalog
-      ? []
-      : thermoContext(project.thermo ?? defaultThermo).ids);
+  const [expanded, setExpanded] = useState(false);
+  const report = result ? buildResultsReport(project, result, display) : null;
   const baseline = revisions.find((r) => r.id === compareId);
   const changes = baseline ? diff(baseline.project, project) : null;
   let previous: Result | null = null;
-  if (baseline)
+  if (baseline && tab === "Revisions") {
     try {
       previous = simulate(baseline.project);
-    } catch {}
+    } catch {
+      /* An incomplete revision may not be solvable. */
+    }
+  }
   return (
-    <section className="panel results">
+    <section
+      className="panel results"
+      data-expanded={expanded}
+      aria-label="Simulation results"
+    >
       <div className="results-header">
-        <h2>{tab === "Results" ? "Simulation results" : "Revision history"}</h2>
-        <div className="tabs">
+        <div className="results-title-row">
+          <div className="results-title-icon">
+            <ChartNoAxesCombined size={22} />
+          </div>
+          <div className="results-title">
+            <h2>
+              {tab === "Results" ? "Simulation results" : "Revision history"}
+            </h2>
+            <p title={project.name}>{project.name}</p>
+          </div>
+          <div className="results-header-actions">
+            <ResultsExportButton report={report} />
+            <button
+              type="button"
+              className="results-icon-button results-expand"
+              aria-label={expanded ? "Restore results size" : "Expand results"}
+              title={expanded ? "Restore size" : "Expand results"}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            </button>
+            <button
+              type="button"
+              className="results-icon-button"
+              aria-label="Close Results"
+              title="Close results"
+              onClick={onClose}
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        <div
+          className="tabs results-navigation"
+          role="group"
+          aria-label="Results sections"
+        >
           <button
             className={tab === "Results" ? "active" : ""}
+            aria-pressed={tab === "Results"}
             onClick={() => onTab("Results")}
           >
-            Results
+            <ChartNoAxesCombined size={15} /> Results
           </button>
           <button
             className={tab === "Revisions" ? "active" : ""}
+            aria-pressed={tab === "Revisions"}
             onClick={() => onTab("Revisions")}
           >
             <History size={14} /> Revisions <span>{revisions.length}</span>
@@ -76,210 +118,13 @@ export default function Results({
         </div>
       </div>
       {tab === "Results" ? (
-        <>
-          <div className="kpi-row">
-            {[
-              {
-                label: `Conversion of ${firstComponent}`,
-                value: result ? `${fmt(result.conversion * 100, 2)}%` : "—",
-                icon: FlaskConical,
-                detail: "Overall fresh-feed basis",
-              },
-              {
-                label: "Net heat duty",
-                value: result ? display.format(result.heatDuty, "power") : "—",
-                icon: Flame,
-                detail: "Positive adds heat to process",
-              },
-              {
-                label: "Mass balance residual",
-                value: result
-                  ? `${display.value(result.massResidual, "massFlow").toExponential(2)} ${display.quantityLabel("massFlow")}`
-                  : "—",
-                icon: Scale,
-                detail: "Products minus fresh feeds",
-              },
-            ].map((k) => (
-              <div className="kpi" key={k.label}>
-                <k.icon size={19} />
-                <span>{k.label}</span>
-                <strong>{k.value}</strong>
-                <small>{result ? k.detail : "Run to calculate"}</small>
-              </div>
-            ))}
-          </div>
-          <div className="result-detail">
-            <div className="stream-table">
-              <h3>
-                Stream table{" "}
-                <small>
-                  {display.label} ·{" "}
-                  {mixtureName(project.thermo ?? defaultThermo)}
-                </small>
-              </h3>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Stream</th>
-                    <th>Flow ({display.quantityLabel("molarFlow")})</th>
-                    <th>Temp. ({display.quantityLabel("temperature")})</th>
-                    <th>Pressure ({display.quantityLabel("pressure")})</th>
-                    {names.map((name) => (
-                      <th key={name}>{name} fraction</th>
-                    ))}
-                    <th>Phase</th>
-                    <th>Vapor fraction</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {project.edges.map((e) => {
-                    const s = result?.streams[e.id];
-                    return (
-                      <tr key={e.id} onClick={() => onSelect(e.id)}>
-                        <td>
-                          <button
-                            className="stream-link"
-                            onClick={() => onSelect(e.id)}
-                          >
-                            {e.name ?? e.id}
-                          </button>
-                        </td>
-                        <td>
-                          {s
-                            ? fmt(display.value(flow(s), "molarFlow"), 4)
-                            : "—"}
-                        </td>
-                        <td>
-                          {s
-                            ? fmt(
-                                display.value(s.temperature, "temperature"),
-                                2,
-                              )
-                            : "—"}
-                        </td>
-                        <td>
-                          {s
-                            ? fmt(display.value(s.pressure, "pressure"), 3)
-                            : "—"}
-                        </td>
-                        {names.map((name, i) => (
-                          <td key={name}>
-                            {s && flow(s) > 0
-                              ? fmt(
-                                  componentFlows(s, componentIds)[
-                                    componentIds[i]
-                                  ] / flow(s),
-                                  4,
-                                )
-                              : "—"}
-                          </td>
-                        ))}
-                        <td>{result?.properties[e.id]?.phase ?? "—"}</td>
-                        <td>
-                          {result?.properties[e.id]?.vaporFraction != null
-                            ? fmt(result.properties[e.id].vaporFraction!, 4)
-                            : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div
-              className={`diagnostics ${result && !result.converged ? "warning" : ""}`}
-            >
-              {result ? (
-                <>
-                  <h3>{result.converged ? "Converged" : "Not converged"}</h3>
-                  <p>
-                    {modelInfo(result.provenance.modelId).name} ·{" "}
-                    {result.provenance.modelVersion}
-                  </p>
-                  <p>
-                    {result.tearId
-                      ? `${result.iterations} recycle iterations`
-                      : "Acyclic · one evaluation"}
-                  </p>
-                  <dl>
-                    <dt>Scaled recycle residual</dt>
-                    <dd>{result.residual.toExponential(2)}</dd>
-                    <dt>Energy balance residual</dt>
-                    <dd>
-                      {display
-                        .value(result.energyResidual, "power")
-                        .toExponential(2)}{" "}
-                      {display.quantityLabel("power")}
-                    </dd>
-                  </dl>
-                  {result.history.length > 1 ? (
-                    <svg
-                      className="residual-chart"
-                      viewBox="0 0 200 50"
-                      role="img"
-                      aria-label="Logarithmic recycle residual history"
-                    >
-                      <polyline
-                        points={result.history
-                          .map(
-                            (v, i) =>
-                              `${(i / (result.history.length - 1)) * 198 + 1},${Math.min(49, Math.max(1, (-Math.log10(Math.max(v, 1e-12)) / 10) * 48 + 1))}`,
-                          )
-                          .join(" ")}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <FileChartColumn size={34} />
-                  <h3>Run to calculate</h3>
-                  <p>
-                    Stream properties, heat duties and balance diagnostics
-                    appear here.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-          {result ? (
-            <details className="limitations">
-              <summary>
-                Model limits & calculation evidence (
-                {new Set(result.warnings).size})
-              </summary>
-              <ul>
-                {[...new Set(result.warnings)].map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-              <p>
-                Data:{" "}
-                <span title={result.provenance.dataVersion}>
-                  {result.provenance.dataVersion.slice(0, 20)}
-                </span>
-                . Kernel: {result.provenance.kernelHash.slice(0, 12)}.{" "}
-                {result.provenance.parameterHash
-                  ? `Parameters: ${result.provenance.parameterHash.slice(0, 12)}.`
-                  : ""}
-              </p>
-              <p>
-                Recycle convergence uses scaled A, B, temperature and pressure
-                changes; tolerance 10⁻⁹, maximum 500 iterations. Energy balance
-                includes formation enthalpy. Finite precision residuals are
-                shown above.
-              </p>
-            </details>
-          ) : (
-            <p className="results-note">
-              Ideal models only. Calculations have not been run for this
-              revision.
-            </p>
-          )}
-        </>
+        <ResultsOverview
+          project={project}
+          result={result}
+          report={report}
+          onSelect={onSelect}
+          onRun={onRun}
+        />
       ) : (
         <div className="revision-content">
           <div className="comparison">

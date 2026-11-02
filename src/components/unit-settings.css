@@ -26,35 +26,6 @@
 .unit-settings {
   container-type: inline-size;
 }
-.units-intro {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 24px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--border);
-}
-.units-intro p {
-  color: var(--muted);
-  line-height: 1.6;
-}
-.units-save-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-.units-save-note svg {
-  flex-shrink: 0;
-  color: var(--accent);
-}
-.units-intro .btn {
-  flex-shrink: 0;
-}
 .units-workbench {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
@@ -197,13 +168,6 @@
   }
 }
 @container (max-width: 520px) {
-  .units-intro {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 14px;
-    padding-bottom: 20px;
-    margin-bottom: 20px;
-  }
   .units-sidebar {
     grid-template-columns: minmax(0, 1fr);
   }

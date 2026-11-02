@@ -131,7 +131,7 @@ test("the workspace assistant keeps usable controls in a narrow panel", async ({
     await expect(page.getByRole("log")).toContainText("equipment");
     await expect(panel).toHaveCSS(
       "font-family",
-      '"Geist Variable", sans-serif',
+      '"Figtree Variable", sans-serif',
     );
     const size = await panel.boundingBox();
     expect(size!.x + size!.width).toBeLessThanOrEqual(600);

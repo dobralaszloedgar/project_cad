@@ -39,7 +39,8 @@
   border-color: var(--accent);
   background: var(--active);
 }
-.thermo-model-option:has(input:focus-visible) {
+.thermo-model-option:has(input:focus-visible),
+.thermo-model-option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -56,6 +57,24 @@
   font-weight: 600;
   line-height: 1.5;
 }
+.thermo-model-content {
+  flex: 1;
+  min-width: 0;
+}
+.thermo-model-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.thermo-model-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
 .thermo-model-description {
   display: block;
   margin-top: 5px;
@@ -63,13 +82,12 @@
   font-size: 12px;
   line-height: 1.6;
 }
-.thermo-model-options:disabled .thermo-model-option {
-  cursor: wait;
+.thermo-model-option:has(input:disabled) {
+  color: var(--muted);
+  cursor: progress;
 }
-.thermo-model-error {
-  margin-top: 16px;
-  color: var(--err);
-  font-size: 12px;
+.thermo-model-option[title] {
+  cursor: help;
 }
 .thermo-spinner {
   animation: thermo-spin 1s linear infinite;

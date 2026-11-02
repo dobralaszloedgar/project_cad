@@ -30,10 +30,10 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await page
     .getByRole("radio", { name: "Modified UNIFAC 2.0", exact: true })
     .check();
-  await page.getByRole("button", { name: "Apply model", exact: true }).click();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );
+  await page.getByRole("button", { name: "Close Thermodynamics" }).click();
   await page
     .getByRole("button", { name: "Project components", exact: true })
     .click();
@@ -51,7 +51,10 @@ test("catalog selection calculates, persists offline and preserves the 3D view",
   await expect(
     page.getByRole("dialog", { name: "Project components", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Changes save automatically.")).toBeVisible();
+  await expect(page.locator(".project-components")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );

@@ -23,17 +23,13 @@ export function EquipmentStatusIndicator({
   unit,
   status,
   nodeRef,
-  x,
-  anchorTop,
-  anchorBottom,
+  position,
   onNavigate,
 }: {
   unit: Unit;
   status: EquipmentStatus;
   nodeRef: RefObject<HTMLDivElement | null>;
-  x: number;
-  anchorTop: number;
-  anchorBottom: number;
+  position: { x: number; y: number };
   onNavigate: (id: string, target: EquipmentTarget) => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -52,7 +48,13 @@ export function EquipmentStatusIndicator({
   const transform = useStore((state) => state.transform);
   const canvasWidth = useStore((state) => state.width);
   const canvasHeight = useStore((state) => state.height);
-  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const [placement, setPlacement] = useState({
+    left: 0,
+    top: 0,
+    width: 280,
+    maxHeight: 0,
+    visible: false,
+  });
   const open = !dismissed && (hovered || focused || pinned);
   const cancel = useCallback(() => {
     clearTimeout(enterTimer.current);
@@ -70,7 +72,7 @@ export function EquipmentStatusIndicator({
       cancel();
       const next = event.relatedTarget;
       // NodeToolbar renders outside the equipment's DOM subtree. Moving into
-      // an overlapping card must not count as leaving the shared hover region.
+      // the card must not count as leaving the shared hover region.
       if (
         next instanceof globalThis.Node &&
         (nodeRef.current?.contains(next) || content.current?.contains(next))
@@ -132,14 +134,133 @@ export function EquipmentStatusIndicator({
     };
   }, [open, nodeRef, dismiss]);
   useLayoutEffect(() => {
-    if (!open || !content.current) return;
-    const measure = () =>
-      setMeasuredHeight(content.current?.getBoundingClientRect().height ?? 0);
+    const popup = content.current;
+    const node = nodeRef.current;
+    const canvas = node?.closest(".react-flow");
+    const frame = node?.querySelector(".equipment-selection-frame");
+    const label = node?.querySelector(".unit-label");
+    if (!open || !popup || !canvas || !frame || !label) return;
+    const measure = () => {
+      const canvasBounds = canvas.getBoundingClientRect();
+      const frameBounds = frame.getBoundingClientRect();
+      const labelBounds = label.getBoundingClientRect();
+      const anchor = {
+        left: Math.min(frameBounds.left, labelBounds.left) - canvasBounds.left,
+        right:
+          Math.max(frameBounds.right, labelBounds.right) - canvasBounds.left,
+        top: Math.min(frameBounds.top, labelBounds.top) - canvasBounds.top,
+        bottom:
+          Math.max(frameBounds.bottom, labelBounds.bottom) - canvasBounds.top,
+      };
+      const gap = 10;
+      const viewport = {
+        left: 12,
+        right: canvasBounds.width - 12,
+        top: 72,
+        bottom: canvasBounds.height - 12,
+      };
+      const width = Math.min(280, Math.max(0, viewport.right - viewport.left));
+      const maxHeight = Math.max(0, viewport.bottom - viewport.top);
+      const headingHeight = popup
+        .querySelector(".equipment-status-heading")!
+        .getBoundingClientRect().height;
+      const footerHeight = popup
+        .querySelector(".equipment-status-open")!
+        .getBoundingClientRect().height;
+      const minHeight = headingHeight + footerHeight + 2;
+      const height = Math.min(
+        maxHeight,
+        minHeight +
+          (popup.querySelector(".equipment-status-body")?.scrollHeight ?? 0),
+      );
+      const clamp = (value: number, min: number, max: number) =>
+        Math.max(min, Math.min(value, max));
+      const centeredLeft = clamp(
+        (anchor.left + anchor.right - width) / 2,
+        viewport.left,
+        viewport.right - width,
+      );
+      const sideTop = clamp(anchor.top, viewport.top, viewport.bottom - height);
+      // Clamp only along the edge of the equipment. Clamping toward it can
+      // put the card back over the selection when neither vertical side fits.
+      const candidates = [
+        {
+          left: centeredLeft,
+          top: Math.max(viewport.top, anchor.bottom + gap),
+          width,
+          maxHeight:
+            viewport.bottom - Math.max(viewport.top, anchor.bottom + gap),
+        },
+        {
+          left: centeredLeft,
+          top: viewport.top,
+          width,
+          maxHeight: Math.min(viewport.bottom, anchor.top - gap) - viewport.top,
+        },
+        {
+          left: Math.max(viewport.left, anchor.right + gap),
+          top: sideTop,
+          width: Math.min(
+            width,
+            viewport.right - Math.max(viewport.left, anchor.right + gap),
+          ),
+          maxHeight,
+        },
+        {
+          left: viewport.left,
+          top: sideTop,
+          width: Math.min(
+            width,
+            Math.min(viewport.right, anchor.left - gap) - viewport.left,
+          ),
+          maxHeight,
+        },
+      ];
+      const candidate =
+        candidates.find(
+          (item) => item.width >= width && item.maxHeight >= height,
+        ) ??
+        candidates.find(
+          (item) =>
+            item.width >= Math.min(width, 200) &&
+            item.maxHeight >= minHeight + 24,
+        );
+      if (candidate === candidates[1])
+        candidate.top =
+          Math.min(viewport.bottom, anchor.top - gap) -
+          Math.min(height, candidate.maxHeight);
+      if (candidate === candidates[3])
+        candidate.left =
+          Math.min(viewport.right, anchor.left - gap) - candidate.width;
+      const next = candidate
+        ? { ...candidate, visible: true }
+        : {
+            left: viewport.left,
+            top: viewport.top,
+            width,
+            maxHeight,
+            visible: false,
+          };
+      // If zoom leaves no readable space outside the equipment, keep the
+      // automatic card hidden; its status button still opens setup directly.
+      setPlacement((previous) =>
+        previous.left === next.left &&
+        previous.top === next.top &&
+        previous.width === next.width &&
+        previous.maxHeight === next.maxHeight &&
+        previous.visible === next.visible
+          ? previous
+          : next,
+      );
+    };
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(content.current);
+    observer.observe(popup);
+    observer.observe(frame);
+    observer.observe(label);
+    observer.observe(canvas);
     return () => observer.disconnect();
-  }, [open]);
+  }, [open, nodeRef, position, transform, canvasWidth, canvasHeight, status]);
   const completed = status.state === "calculated" || status.state === "warning";
   const ready = status.state === "ready" || status.state === "stale";
   const defaultTarget: EquipmentTarget = {
@@ -149,21 +270,6 @@ export function EquipmentStatusIndicator({
     dismiss();
     onNavigate(unit.id, target);
   };
-  const width = Math.min(320, Math.max(0, canvasWidth - 24));
-  const [panX, panY, zoom] = transform;
-  const left = Math.max(
-    12,
-    Math.min((x + 64) * zoom + panX - width / 2, canvasWidth - width - 12),
-  );
-  const below = anchorBottom * zoom + panY + 6;
-  const above = anchorTop * zoom + panY - measuredHeight - 6;
-  const top = Math.max(
-    72,
-    Math.min(
-      below + measuredHeight <= canvasHeight - 12 ? below : above,
-      canvasHeight - measuredHeight - 12,
-    ),
-  );
   const Icon = completed || ready ? CircleCheck : CircleAlert;
   return (
     <>
@@ -173,8 +279,8 @@ export function EquipmentStatusIndicator({
         className={`equipment-status-dot nodrag nopan ${status.state}`}
         aria-label={`${unit.id}: ${equipmentStatusLabels[status.state]}`}
         aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={open ? popupId : undefined}
+        aria-expanded={open && placement.visible}
+        aria-controls={open && placement.visible ? popupId : undefined}
         onMouseEnter={enter}
         onPointerDown={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
@@ -197,8 +303,9 @@ export function EquipmentStatusIndicator({
           isVisible
           className="equipment-status-toolbar nodrag nopan nowheel"
           style={{
-            transform: `translate(${left}px, ${top}px)`,
-            width,
+            transform: `translate(${placement.left}px, ${placement.top}px)`,
+            width: placement.width,
+            visibility: placement.visible ? "visible" : "hidden",
             zIndex: 1002,
             transition: "none",
           }}
@@ -209,7 +316,7 @@ export function EquipmentStatusIndicator({
             role="dialog"
             aria-label={`${unit.id} equipment status`}
             className={`equipment-status-popover ${status.state}`}
-            style={{ maxHeight: Math.max(0, canvasHeight - 84) }}
+            style={{ maxHeight: placement.maxHeight }}
             onMouseEnter={() => {
               cancel();
               setHovered(true);
@@ -235,9 +342,7 @@ export function EquipmentStatusIndicator({
               <Icon size={16} aria-hidden="true" />
               <div>
                 <strong>{equipmentStatusLabels[status.state]}</strong>
-                <span>
-                  {unit.id} · {unit.name}
-                </span>
+                <span>{unit.id}</span>
               </div>
               <button
                 type="button"
@@ -251,42 +356,23 @@ export function EquipmentStatusIndicator({
                 <X size={15} />
               </button>
             </div>
-            <div className="equipment-status-body">
-              {ready && (
-                <p>
-                  {status.state === "stale"
-                    ? "Inputs have changed since the last simulation. Run again to update results."
-                    : "Required inputs are complete. Run a simulation to calculate results."}
-                </p>
-              )}
-              {completed && (
-                <p>
-                  {status.state === "warning"
-                    ? "Review the calculation warnings below."
-                    : "Results are up to date."}
-                </p>
-              )}
-              {status.issues.length > 0 && (
-                <>
-                  <p className="equipment-status-hint">
-                    Select an item to go to its source.
-                  </p>
-                  <ul className="equipment-issue-list">
-                    {status.issues.map((issue, index) => (
-                      <li key={`${issue.message}-${index}`}>
-                        <button
-                          type="button"
-                          onClick={() => navigate(issue.target)}
-                        >
-                          <span>{issue.message}</span>
-                          <ArrowUpRight size={14} aria-hidden="true" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
+            {status.issues.length > 0 && (
+              <div className="equipment-status-body">
+                <ul className="equipment-issue-list">
+                  {status.issues.map((issue, index) => (
+                    <li key={`${issue.message}-${index}`}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(issue.target)}
+                      >
+                        <span>{issue.message}</span>
+                        <ArrowUpRight size={14} aria-hidden="true" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <button
               type="button"
               className="equipment-status-open"

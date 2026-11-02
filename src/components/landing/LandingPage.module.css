@@ -15,9 +15,7 @@
   height: 380svh;
   color: var(--ink);
   background: #fafbf9;
-  font:
-    400 15px/1.5 "Figtree Variable",
-    sans-serif;
+  font: 400 15px/1.5 var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 .story a {
@@ -300,9 +298,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
-  font:
-    400 14px/1.5 "Figtree Variable",
-    sans-serif;
+  font: 400 14px/1.5 var(--font-sans);
   pointer-events: none;
   box-shadow: 0 24px 70px #26373012;
 }
@@ -526,9 +522,7 @@
   align-items: center;
   gap: 12px;
   color: var(--muted);
-  font:
-    10px ui-monospace,
-    monospace;
+  font: 10px var(--font-mono);
   letter-spacing: 0.04em;
 }
 .positionLabel span {

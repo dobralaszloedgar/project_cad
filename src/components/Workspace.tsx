@@ -108,6 +108,7 @@ import {
 } from "@/lib/project-file";
 import { projectFileName } from "@/lib/project-directory";
 import ProcessCanvas from "./ProcessCanvas";
+import Plant3DLoading from "./Plant3DLoading";
 import { EquipmentSimulationError } from "@/domain/solver";
 import {
   equipmentStatuses,
@@ -138,7 +139,7 @@ import {
 } from "@/domain/editor";
 const Plant3D = dynamic(() => import("./Plant3D"), {
   ssr: false,
-  loading: () => <div className="empty-state">Loading 3D workspace…</div>,
+  loading: () => <Plant3DLoading />,
 });
 type WorkspacePanel =
   | "Equipment"
@@ -273,8 +274,9 @@ export default function Workspace({
     null,
   );
   const canvasRef = useRef<HTMLElement>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
   const { isFullscreen, isViewportFullscreen, toggleFullscreen } =
-    useCanvasFullscreen(canvasRef, setMessage);
+    useCanvasFullscreen(workspaceRef, setMessage);
   const saveQueue = useRef(Promise.resolve());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveVersion = useRef(0);
@@ -1406,15 +1408,18 @@ export default function Workspace({
   }
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (
-        !ready ||
-        projectBusy ||
-        showProjects ||
-        event.defaultPrevented ||
-        event.isComposing
-      )
+      if (!ready || projectBusy || event.defaultPrevented || event.isComposing)
         return;
-      if (thermoDialog === "model") return;
+      const key = event.key.toLowerCase();
+      if (
+        (key === "f11" || (key === "f" && event.ctrlKey && event.metaKey)) &&
+        !shortcutsBlocked(event)
+      ) {
+        event.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
+      if (showProjects || thermoDialog === "model") return;
       if (isCloseKey(event) && !document.querySelector("dialog[open]")) {
         event.preventDefault();
         if (assistantOpen) setAssistantOpen(false);
@@ -1423,13 +1428,10 @@ export default function Workspace({
         return;
       }
       if (shortcutsBlocked(event)) return;
-      const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
       let handled = true;
-      if (key === "f11" || (key === "f" && event.ctrlKey && event.metaKey))
-        toggleFullscreen();
-      else if (event.altKey) return;
-      else if (command) {
+      if (event.altKey) return;
+      if (command) {
         if (key === "s")
           void flushCurrentProject().catch(() =>
             setMessage("Could not save locally. Export a copy of the project."),
@@ -1572,7 +1574,13 @@ export default function Workspace({
   );
   if (showProjects)
     return (
-      <main className="workspace" data-theme={theme} data-palette={palette.id}>
+      <main
+        ref={workspaceRef}
+        className={`workspace${isViewportFullscreen ? " workspace-fullscreen" : ""}`}
+        data-theme={theme}
+        data-palette={palette.id}
+        tabIndex={-1}
+      >
         <ProjectsPage
           projects={savedProjects}
           roots={library?.roots ?? []}
@@ -1617,11 +1625,14 @@ export default function Workspace({
     );
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
-    <main className="workspace" data-theme={theme} data-palette={palette.id}>
-      <header
-        className="app-header"
-        inert={!ready || projectBusy || isViewportFullscreen}
-      >
+    <main
+      ref={workspaceRef}
+      className={`workspace${isViewportFullscreen ? " workspace-fullscreen" : ""}`}
+      data-theme={theme}
+      data-palette={palette.id}
+      tabIndex={-1}
+    >
+      <header className="app-header" inert={!ready || projectBusy}>
         <button
           className="brand"
           onClick={() => void openProjects()}
@@ -1654,17 +1665,21 @@ export default function Workspace({
         </div>
         <div className="header-actions">
           <CanvasSoundToggle sound={sound} />
-          {view !== "2D" && !isFullscreen ? (
-            <div ref={setGraphicsSettingsContainer} />
-          ) : null}
+          {view !== "2D" ? <div ref={setGraphicsSettingsContainer} /> : null}
           <ThermodynamicSelector
             key={`${projectId}:${state.revisions.length}`}
             settings={project.thermo ?? defaultThermo}
             open={thermoDialog === "model"}
-            onOpenChange={(open) =>
-              open ? openThermodynamics("model") : setThermoDialog(null)
-            }
-            onApply={applyThermodynamics}
+            onOpenChange={(open) => {
+              if (open) openThermodynamics("model");
+              else {
+                setThermoDialog(null);
+                void flushCurrentProject().catch((error) =>
+                  setMessage(errorMessage(error)),
+                );
+              }
+            }}
+            onApply={(settings) => applyThermodynamics(settings, false)}
             onError={setMessage}
           />
           <button
@@ -1709,7 +1724,7 @@ export default function Workspace({
       {saveNotice}
       <div className="editor-body" inert={!ready || projectBusy}>
         <section
-          className={`canvas-panel${isViewportFullscreen ? " canvas-panel-fullscreen" : ""}`}
+          className="canvas-panel"
           ref={canvasRef}
           tabIndex={-1}
           aria-label="Process canvas"
@@ -1797,16 +1812,18 @@ export default function Workspace({
               className={`workspace-drawer drawer-${drawer.toLowerCase().replaceAll(" ", "-")}`}
               aria-label={drawer}
             >
-              <header className="library-heading">
-                <h2>{drawer}</h2>
-                <button
-                  className="icon-button"
-                  aria-label={`Close ${drawer}`}
-                  onClick={closeDrawer}
-                >
-                  <X size={16} />
-                </button>
-              </header>
+              {drawer !== "Results" && (
+                <header className="library-heading">
+                  <h2>{drawer}</h2>
+                  <button
+                    className="icon-button"
+                    aria-label={`Close ${drawer}`}
+                    onClick={closeDrawer}
+                  >
+                    <X size={16} />
+                  </button>
+                </header>
+              )}
               {drawer === "Settings" ? (
                 <div
                   className="tabs settings-tabs"
@@ -1865,6 +1882,8 @@ export default function Workspace({
                       onRestore={restoreRevision}
                       compareId={compareId}
                       onCompare={setCompareId}
+                      onRun={run}
+                      onClose={closeDrawer}
                       onSelect={(id) => {
                         setDrawer(null);
                         inspect(id);
@@ -2032,9 +2051,6 @@ export default function Workspace({
                 </div>
               </div>
               <div className="tool-group canvas-edit-tools">
-                {view !== "2D" && isFullscreen ? (
-                  <div ref={setGraphicsSettingsContainer} />
-                ) : null}
                 <button
                   aria-label="Properties"
                   title="Edit selected equipment"
@@ -2061,7 +2077,7 @@ export default function Workspace({
                   aria-pressed={isFullscreen}
                   title={
                     isFullscreen
-                      ? "Exit full screen (Esc)"
+                      ? "Exit full screen (hold Esc for 2 seconds)"
                       : "Full screen (F11)"
                   }
                   onClick={toggleFullscreen}
@@ -2119,7 +2135,7 @@ export default function Workspace({
                 graphicsSettingsContainer={graphicsSettingsContainer}
               />
             ) : view !== "2D" ? (
-              <div className="empty-state">Opening 3D project…</div>
+              <Plant3DLoading />
             ) : null}
           </div>
           {message ? (

@@ -9,16 +9,35 @@ export function RendererRuntime({
   onLost,
   onVisible,
   onInfo,
+  onReady,
   label,
 }: {
   onLost: () => void;
   onVisible: (visible: boolean) => void;
   onInfo?: (info: GraphicsInfo) => void;
+  onReady?: () => void;
   label?: string;
 }) {
   const { gl, size, setDpr, get } = useThree();
   const controller = useRef(new ResolutionController());
   const maximum = useRef(1);
+  useEffect(() => {
+    if (!onReady) return;
+    const { scene, invalidate } = get();
+    const previous = scene.onAfterRender;
+    let frame: number | undefined;
+    // Renderer creation precedes geometry and shader setup. Keep the loading
+    // indicator until the scene has rendered and the browser can present it.
+    scene.onAfterRender = (...args) => {
+      previous.apply(scene, args);
+      if (frame === undefined) frame = requestAnimationFrame(onReady);
+    };
+    invalidate();
+    return () => {
+      scene.onAfterRender = previous;
+      if (frame !== undefined) cancelAnimationFrame(frame);
+    };
+  }, [get, onReady]);
   useEffect(() => {
     maximum.current = maximumDpr(
       size.width,

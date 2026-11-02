@@ -1,0 +1,48 @@
+.placeholder,
+.overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.placeholder {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+}
+
+.spinner {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  color: var(--accent);
+  /* Keep rotation on the compositor while 3D setup occupies the main thread. */
+  will-change: transform;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    will-change: auto;
+  }
+}

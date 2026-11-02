@@ -27,7 +27,6 @@ test("three model choices, real flash, model change and saved settings", async (
   await page
     .getByRole("radio", { name: "Modified UNIFAC 2.0", exact: true })
     .check();
-  await page.getByRole("button", { name: "Apply model", exact: true }).click();
   await expect(page.locator(".model-button")).toContainText(
     "Modified UNIFAC 2.0",
   );

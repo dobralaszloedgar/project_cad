@@ -289,7 +289,7 @@
   flex: 1;
 }
 .rate-symbol-field input {
-  font-family: monospace !important;
+  font-family: var(--font-mono) !important;
 }
 .rate-symbol-error {
   color: #b7791f;
@@ -387,7 +387,7 @@
   width: 100%;
   min-height: 120px;
   padding: 12px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.7;
   resize: vertical;

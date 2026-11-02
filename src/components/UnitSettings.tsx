@@ -1,13 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Check,
-  Gauge,
-  RotateCcw,
-  Ruler,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Gauge, Ruler, SlidersHorizontal } from "lucide-react";
 import {
   STANDARD_ATMOSPHERE,
   UNIT_SYSTEMS,
@@ -94,25 +88,6 @@ export default function UnitSettings() {
       className="unit-settings"
       aria-label="Engineering units"
     >
-      <div className="units-intro">
-        <div>
-          <p>Choose a standard system or fine-tune units for each quantity.</p>
-          <span className="units-save-note">
-            <Check size={13} aria-hidden="true" /> Changes apply immediately and
-            are saved in this browser.
-          </span>
-        </div>
-        <button
-          className="btn btn-sm"
-          onClick={() => {
-            preferences.resetDefaults();
-            setAtmosphereUnit("atm");
-            setEditing(null);
-          }}
-        >
-          <RotateCcw size={14} aria-hidden="true" /> Restore defaults
-        </button>
-      </div>
       <div className="units-workbench">
         <aside className="units-sidebar">
           <section className="units-card" aria-label="Standard unit systems">

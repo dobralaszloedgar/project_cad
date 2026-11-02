@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/figtree";
-import "@fontsource-variable/geist";
+import "@fontsource-variable/figtree/wght-italic.css";
 import "./globals.css";
 import "./themes.css";
 export const metadata: Metadata = {

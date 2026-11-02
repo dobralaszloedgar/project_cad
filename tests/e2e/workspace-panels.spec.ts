@@ -251,7 +251,7 @@ test("phone pull tab and panels remain reachable without page overflow", async (
     const panel = page.getByRole("complementary", { name });
     await expect(panel).toBeVisible();
     const rect = (await panel.boundingBox())!;
-    expect(rect.x).toBeGreaterThanOrEqual(44);
+    expect(rect.x).toBeGreaterThanOrEqual(name === "Results" ? 12 : 44);
     expect(rect.x + rect.width).toBeLessThanOrEqual(390);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),

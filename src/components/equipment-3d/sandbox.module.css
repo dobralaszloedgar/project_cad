@@ -13,7 +13,7 @@
   overflow: hidden;
   color: var(--ink);
   background: var(--surface);
-  font-family: "Figtree Variable", sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.5;
 }

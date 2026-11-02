@@ -1,7 +1,3 @@
-.quickToggle[aria-pressed="true"] {
-  color: var(--accent);
-  background: var(--active);
-}
 .quickToggle {
   flex-shrink: 0;
 }

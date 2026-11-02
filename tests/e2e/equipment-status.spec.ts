@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "./test";
 import { loadProject } from "./project-fixture";
+import { settleCanvas } from "./canvas-fixture";
 import { newUnit, type Project } from "../../src/domain/schema";
+import { distillationExample } from "../../src/domain/examples";
 import { defaultPackedBed } from "../../src/domain/reactions/schema";
 import { defaultDistillation } from "../../src/domain/equipment/distillation-schema";
 
@@ -48,6 +50,37 @@ async function hoverStatus(page: Page, id: string) {
     await expect(popup).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 10000 });
   return popup;
+}
+
+async function expectClearOfEquipment(page: Page, id: string) {
+  const popup = page.getByRole("dialog", {
+    name: `${id} equipment status`,
+    exact: true,
+  });
+  await expect(async () => {
+    const bounds = (await popup.boundingBox())!;
+    const canvas = (await page.locator(".flow-wrapper").boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(canvas.x);
+    expect(bounds.y).toBeGreaterThanOrEqual(canvas.y + 70);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+      canvas.x + canvas.width,
+    );
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(
+      canvas.y + canvas.height,
+    );
+    for (const selector of [".equipment-selection-frame", ".unit-label"]) {
+      const equipment = (await page
+        .locator(`.react-flow__node[data-id="${id}"] ${selector}`)
+        .boundingBox())!;
+      expect(
+        bounds.x >= equipment.x + equipment.width + 8 ||
+          bounds.x + bounds.width + 8 <= equipment.x ||
+          bounds.y >= equipment.y + equipment.height + 8 ||
+          bounds.y + bounds.height + 8 <= equipment.y,
+        `Status popup must leave ${selector} unobstructed`,
+      ).toBe(true);
+    }
+  }).toPass();
 }
 
 test("missing connections hover, remain clickable and focus the exact port without moving equipment", async ({
@@ -219,17 +252,11 @@ test("hover cards stay within the desktop canvas, keep their size at zoom and di
   await loadProject(page, project);
   const popup = await hoverStatus(page, "H1");
   const firstWidth = (await popup.boundingBox())!.width;
-  const canvas = (await page.locator(".flow-wrapper").boundingBox())!;
-  const bounds = (await popup.boundingBox())!;
-  expect(bounds.x).toBeGreaterThanOrEqual(canvas.x);
-  expect(bounds.y).toBeGreaterThanOrEqual(canvas.y + 70);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(canvas.x + canvas.width);
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(
-    canvas.y + canvas.height,
-  );
+  await expectClearOfEquipment(page, "H1");
   await page.getByRole("button", { name: "Zoom In", exact: true }).click();
   const zoomed = await hoverStatus(page, "H1");
   expect((await zoomed.boundingBox())!.width).toBe(firstWidth);
+  await expectClearOfEquipment(page, "H1");
   await page.screenshot({ path: "test-results/equipment-status-laptop.png" });
   await page.getByRole("heading", { name: project.name, exact: true }).hover();
   await expect(zoomed).toHaveCount(0);
@@ -240,27 +267,33 @@ test("hover cards stay within the desktop canvas, keep their size at zoom and di
   await expect(popup).toBeVisible();
 });
 
-test("a status card overlapping its equipment stays open under a stationary pointer", async ({
+test("status cards stay clear of a tall equipment highlight at canvas edges and remain interactive", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/workspace?example=solution");
+  const project = distillationExample();
+  const column = project.units[1];
+  column.params.trayCount = 40;
+  column.params.distillation = {
+    ...defaultDistillation(["A", "B"]),
+    method: "mesh",
+  };
+  await loadProject(page, project);
+  await settleCanvas(page);
+  await page
+    .locator('.react-flow__node[data-id="D-201"] .equipment-symbol')
+    .click();
+  await expect(
+    page.locator('.react-flow__node[data-id="D-201"] .equipment-node'),
+  ).toHaveClass(/selected/);
   const dot = page.locator(
     '.react-flow__node[data-id="D-201"] .equipment-status-dot',
   );
+  await hoverStatus(page, "D-201");
+  // Reproduce the tall column in the report, where neither vertical side fits.
+  await page.getByRole("button", { name: "Zoom In", exact: true }).click();
   const popup = await hoverStatus(page, "D-201");
-  const triggerBounds = (await dot.boundingBox())!;
-  const popupBounds = (await popup.boundingBox())!;
-  // The canvas edge forces the card over its trigger, transferring the hover
-  // without moving the mouse. It must not close and recreate itself repeatedly.
-  const pointer = {
-    x: triggerBounds.x + triggerBounds.width / 2,
-    y: triggerBounds.y + triggerBounds.height / 2,
-  };
-  expect(pointer.x).toBeGreaterThan(popupBounds.x);
-  expect(pointer.x).toBeLessThan(popupBounds.x + popupBounds.width);
-  expect(pointer.y).toBeGreaterThan(popupBounds.y);
-  expect(pointer.y).toBeLessThan(popupBounds.y + popupBounds.height);
+  await expectClearOfEquipment(page, "D-201");
   expect(
     await popup.evaluate(
       (element) =>
@@ -271,6 +304,45 @@ test("a status card overlapping its equipment stays open under a stationary poin
     ),
   ).toBe(true);
   await expect(dot).toHaveAttribute("aria-expanded", "true");
+
+  // Keep the card open while resizing and panning the column to each edge.
+  await dot.focus();
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await expectClearOfEquipment(page, "D-201");
+  for (const side of ["left", "right"] as const) {
+    const canvas = (await page.locator(".flow-wrapper").boundingBox())!;
+    const label = (await page
+      .locator('.react-flow__node[data-id="D-201"] .unit-label')
+      .boundingBox())!;
+    const targetX =
+      side === "left"
+        ? canvas.x + 24
+        : canvas.x + canvas.width - label.width - 24;
+    await page.locator(".react-flow__pane").dispatchEvent("wheel", {
+      deltaX: (label.x - targetX) * 2,
+      deltaY: (label.y - canvas.y - 84) * 2,
+    });
+    await expect
+      .poll(
+        async () =>
+          (await page
+            .locator('.react-flow__node[data-id="D-201"] .unit-label')
+            .boundingBox())!.x,
+      )
+      .toBeCloseTo(targetX, 0);
+    await expectClearOfEquipment(page, "D-201");
+    const bounds = (await popup.boundingBox())!;
+    const frame = (await page
+      .locator('.react-flow__node[data-id="D-201"] .equipment-selection-frame')
+      .boundingBox())!;
+    if (side === "left")
+      expect(bounds.x).toBeGreaterThan(frame.x + frame.width);
+    else expect(bounds.x + bounds.width).toBeLessThan(frame.x);
+  }
+  await page.screenshot({
+    path: "test-results/equipment-status-clear-highlight.png",
+  });
+  await dot.evaluate((element) => element.blur());
 
   // The equipment and its portaled card form one continuous hover region.
   await page

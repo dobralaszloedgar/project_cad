@@ -28,6 +28,7 @@ import { FloorGrid } from "../graphics/FloorGrid";
 import { GraphicsSettings } from "../graphics/GraphicsSettings";
 import { AccelerationHelp } from "../graphics/AccelerationHelp";
 import { RendererRuntime } from "../graphics/RendererRuntime";
+import Plant3DLoading from "../Plant3DLoading";
 import { StudioEnvironment } from "../graphics/StudioEnvironment";
 import {
   createSceneRenderer,
@@ -837,6 +838,8 @@ export default function EquipmentScene(props: SceneProps) {
     [],
   );
   const [lost, setLost] = useState(false);
+  const [ready, setReady] = useState(false);
+  const handleReady = useCallback(() => setReady(true), []);
   const [recovery, setRecovery] = useState(0);
   const [visible, setVisible] = useState(true);
   const [preference, setPreference] = useState(readGraphicsPreference);
@@ -844,12 +847,19 @@ export default function EquipmentScene(props: SceneProps) {
   const [recoverWithWebGL, setRecoverWithWebGL] = useState(false);
   const handleLost = useCallback(() => setLost(true), []);
   const createRenderer = useCallback(
-    ({ canvas }: { canvas: EventTarget }) =>
-      createSceneRenderer({
+    async ({ canvas }: { canvas: EventTarget }) => {
+      if (props.workspace) {
+        // Paint the loading layer before geometry and shader setup can block.
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+      }
+      return createSceneRenderer({
         canvas: canvas as HTMLCanvasElement,
         preference: recoverWithWebGL ? "webgl" : preference,
-      }),
-    [preference, recoverWithWebGL],
+      });
+    },
+    [preference, recoverWithWebGL, props.workspace],
   );
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const labels = useMemo<EquipmentInstance[]>(
@@ -874,6 +884,7 @@ export default function EquipmentScene(props: SceneProps) {
     setRecoverWithWebGL(info?.backend === "webgpu");
     setInfo(null);
     setLost(false);
+    setReady(false);
     setRecovery((v) => v + 1);
   };
   const changePreference = (value: GraphicsPreference) => {
@@ -882,6 +893,7 @@ export default function EquipmentScene(props: SceneProps) {
     setRecoverWithWebGL(false);
     setInfo(null);
     setLost(false);
+    setReady(false);
     setRecovery((v) => v + 1);
   };
   return (
@@ -919,6 +931,7 @@ export default function EquipmentScene(props: SceneProps) {
               onLost={handleLost}
               onVisible={setVisible}
               onInfo={setInfo}
+              onReady={props.workspace ? handleReady : undefined}
               label="Interactive 3D equipment model"
             />
             <Studio
@@ -930,6 +943,7 @@ export default function EquipmentScene(props: SceneProps) {
             <ProjectLabels labels={labels} elements={labelElements} />
           </Canvas>
         )}
+        {props.workspace && !lost && !ready ? <Plant3DLoading overlay /> : null}
         {!lost && labels.length ? (
           <div
             className={`equipment-label-layer${props.workspace ? " plant-labels" : ""}`}
