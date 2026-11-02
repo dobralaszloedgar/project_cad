@@ -126,6 +126,7 @@ export default function CadWorkbench({
       host.style.opacity = String(opacity);
       host.style.visibility = opacity > 0.001 ? "visible" : "hidden";
       host.setAttribute("aria-hidden", String(opacity < 0.01));
+      if (opacity <= 0.001 && p > 0.84) return;
       host.style.setProperty("--canvas", "rgb(250 251 249 / " + paper + ")");
       host.style.setProperty(
         "--symbol-fill",

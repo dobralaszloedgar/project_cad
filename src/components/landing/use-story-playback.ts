@@ -11,7 +11,6 @@ import {
 /** Wake only for playback or scrolling; a settled/hidden page has no story RAF. */
 export function useStoryPlayback(
   scroll: MotionValue<number>,
-  enabled: boolean,
   visible: boolean,
   reduced: boolean,
 ) {
@@ -23,20 +22,13 @@ export function useStoryPlayback(
   useEffect(() => {
     if (!visible) return;
     let frame = 0,
-      previous = 0,
-      manual = false;
+      previous = 0;
     const tick = (time: number) => {
       frame = 0;
-      if (!enabled && !manual && !reduced) return;
       const target = Math.max(0, Math.min(1, scroll.get())) * STORY_END;
       const seconds = previous ? (time - previous) / 1000 : 1 / 60;
       previous = time;
-      state.current = advancePlayback(
-        state.current,
-        target,
-        seconds,
-        reduced || !enabled,
-      );
+      state.current = advancePlayback(state.current, target, seconds, reduced);
       const next = state.current;
       progress.set(next.progress);
       design.set(next.design);
@@ -48,12 +40,10 @@ export function useStoryPlayback(
       if (!reduced && (travelling || building || chatting))
         frame = requestAnimationFrame(tick);
       else {
-        manual = false;
         previous = 0;
       }
     };
     const wake = () => {
-      manual = true;
       if (!frame) {
         previous = 0;
         frame = requestAnimationFrame(tick);
@@ -65,15 +55,6 @@ export function useStoryPlayback(
       cancelAnimationFrame(frame);
       stop();
     };
-  }, [
-    scroll,
-    enabled,
-    visible,
-    reduced,
-    progress,
-    design,
-    construction,
-    simulation,
-  ]);
+  }, [scroll, visible, reduced, progress, design, construction, simulation]);
   return { progress, design, construction, simulation };
 }

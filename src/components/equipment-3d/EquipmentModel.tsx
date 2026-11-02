@@ -33,6 +33,7 @@ export function EquipmentModel({
   condenserType,
   column,
   hydraulics,
+  showContents = true,
   ...props
 }: ThreeElements["group"] &
   MotionProps & {
@@ -44,6 +45,8 @@ export function EquipmentModel({
     condenserType?: EquipmentModelOptions["condenserType"];
     column?: EquipmentModelOptions["column"];
     hydraulics?: TrayHydraulicsResult;
+    /** Landing previews can show the cutaway hardware without fluid shaders. */
+    showContents?: boolean;
   }) {
   const mount = useRef<Group>(null);
   const rotors = useRef<Group[]>([]);
@@ -101,7 +104,7 @@ export function EquipmentModel({
   // and animation time while the new material colors become visible.
   useLayoutEffect(() => {
     const parent = mount.current;
-    if (!parent || (!section && !transparent)) return;
+    if (!parent || !showContents || (!section && !transparent)) return;
     const fluid = createProcessContents(
       kind,
       section || transparent,
@@ -130,6 +133,7 @@ export function EquipmentModel({
     condenserType,
     column,
     hydraulics,
+    showContents,
     compositionColors,
   ]);
   useFrame((_, delta) => {

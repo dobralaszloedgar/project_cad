@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "./test";
 import { STORY_END } from "../../src/components/landing/landing-playback";
 
 // Software WebGL compiles the same live equipment shaders as the application;
-// Include the paced construction sequence and material rebuilds.
+// Include shader warmup on machines without a hardware GPU.
 test.setTimeout(180000);
 
 async function chapter(page: Page, name: string, index: number) {
@@ -26,11 +26,18 @@ async function chapter(page: Page, name: string, index: number) {
     .toBeGreaterThan(0.99);
 }
 async function expectStill(canvas: Locator) {
-  let previous = await canvas.screenshot();
+  await expect(canvas).toHaveAttribute("data-ready", "true", {
+    timeout: 30000,
+  });
+  await expect(canvas).toHaveAttribute("data-render-loop", "demand");
+  // Canvas screenshots also include the DOM layered above it. Freeze the CSS
+  // scroll cue so this comparison measures 3D motion rather than its arrow.
+  const capture = () => canvas.screenshot({ animations: "disabled" });
+  let previous = await capture();
   await expect
     .poll(
       async () => {
-        const next = await canvas.screenshot();
+        const next = await capture();
         const unchanged = next.equals(previous);
         previous = next;
         return unchanged;
@@ -39,7 +46,7 @@ async function expectStill(canvas: Locator) {
     )
     .toBe(true);
   await canvas.page().waitForTimeout(600);
-  expect((await canvas.screenshot()).equals(previous)).toBe(true);
+  expect((await capture()).equals(previous)).toBe(true);
 }
 async function scrollTo(page: Page, progress: number) {
   await page.evaluate(
@@ -89,7 +96,7 @@ test("the hardcoded assistant plays without mounting editor or assistant control
   });
   await page.goto("/landing");
   await expect(
-    page.getByRole("heading", { name: "Design.", exact: true }),
+    page.getByRole("heading", { name: "Design", exact: true }),
   ).toBeVisible();
   await expectViewportFilled(page);
   const chat = page.locator("[data-design-chat]");
@@ -106,11 +113,15 @@ test("the hardcoded assistant plays without mounting editor or assistant control
   });
   await expect(chat.locator("[data-demo-result]")).toBeVisible();
   await page.screenshot({ path: info.outputPath("design-desktop.png") });
-  await page.getByRole("button", { name: "Pause motion", exact: true }).click();
-  await expect(page.locator("[data-landing-page]")).toHaveAttribute(
-    "data-motion",
-    "paused",
+  await expect(
+    page.getByRole("button", { name: /Pause motion|Step inside/ }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Explore in 3D" })).toHaveCount(
+    0,
   );
+  await expect(
+    page.getByRole("switch", { name: "Transparent shells" }),
+  ).toHaveCount(0);
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -125,7 +136,7 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
     if (message.type() === "error") errors.push(message.text());
   });
   await page.goto("/landing");
-  await expect(page.getByRole("heading", { name: "Design." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Design" })).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Open workspace", exact: true }),
   ).toHaveAttribute("href", "/workspace?home=1");
@@ -225,13 +236,12 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
     timeout: 20000,
   });
   await expectViewportFilled(page);
-  await expect(
-    page.getByRole("switch", { name: "Transparent shells" }),
-  ).toBeChecked();
+  await expect(canvas).toHaveAttribute("data-render-loop", "demand");
+  await expectStill(canvas);
   expect(errors).toEqual([]);
 });
 
-test("pause, shell controls and reverse navigation preserve the scene", async ({
+test("reduced motion and reverse navigation preserve the scene", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -244,24 +254,17 @@ test("pause, shell controls and reverse navigation preserve the scene", async ({
     timeout: 30000,
   });
   const original = await canvas.elementHandle();
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.getByRole("button", { name: "Pause motion", exact: true }).click();
   await expect(page.locator("[data-landing-page]")).toHaveAttribute(
     "data-motion",
     "paused",
   );
   await expectStill(canvas);
-  await page.getByRole("switch", { name: "Transparent shells" }).click();
-  await expect(
-    page.getByRole("switch", { name: "Transparent shells" }),
-  ).not.toBeChecked();
-  await page.getByRole("switch", { name: "Transparent shells" }).click();
   // Reversing the same timeline restores the exact planar state.
   await chapter(page, "02 Build", 1);
   await expect(canvas).toHaveAttribute("data-unfold", "0.0000");
   await chapter(page, "01 Design", 0);
   await expect(
-    page.getByRole("button", { name: "Resume motion", exact: true }),
+    page.getByRole("heading", { name: "Design", exact: true }),
   ).toBeVisible();
   expect(
     await original!.evaluate(
@@ -272,7 +275,7 @@ test("pause, shell controls and reverse navigation preserve the scene", async ({
   ).toBe(true);
 });
 
-test("mobile scenes fit, have readable controls and open the real equipment sandbox", async ({
+test("mobile scenes fit and rest between gestures without changing desktop layout", async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -316,11 +319,28 @@ test("mobile scenes fit, have readable controls and open the real equipment sand
     await page.mouse.wheel(0, 1800);
     await expectViewportFilled(page);
   }
-  await page.getByRole("link", { name: "Explore in 3D", exact: true }).click();
-  await expect(page).toHaveURL(/\/sandbox\/equipment$/);
-  await expect(
-    page.getByText("Equipment sandbox", { exact: true }),
-  ).toBeVisible();
+  const canvas = page.locator("[data-shared-scene] canvas");
+  await expect(canvas).toHaveAttribute("data-render-loop", "demand");
+  await expectStill(canvas);
+  for (const [position, focus] of [
+    [1.2, "heater"],
+    [1.4, "reactor"],
+    [1.65, "column"],
+  ] as const) {
+    await scrollTo(page, position);
+    await expect(canvas).toHaveAttribute("data-focus", focus);
+    await expect(page.locator("#explore-title").locator("..")).toHaveCSS(
+      "bottom",
+      "80px",
+    );
+    await page.screenshot({ path: info.outputPath(`${focus}-mobile.png`) });
+  }
+  // Phone-only caption positioning must not persist when returning to desktop.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.locator("#explore-title").locator("..")).not.toHaveCSS(
+    "bottom",
+    "80px",
+  );
 });
 
 test("a fast scroll accelerates every build step before revealing the plant", async ({
@@ -408,7 +428,7 @@ test("reduced motion is still, remains navigable and handles a lost GPU", async 
     page.getByRole("link", { name: "Open the 3D sandbox" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Explore in 3D", exact: true }),
+    page.getByRole("link", { name: "Open workspace", exact: true }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });

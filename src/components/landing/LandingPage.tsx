@@ -7,25 +7,15 @@ import {
   useRef,
   useState,
   type MouseEvent,
-  type ReactNode,
 } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import {
-  ArrowDown,
-  ArrowRight,
-  ArrowUpRight,
-  Monitor,
-  Pause,
-  Play,
-  X,
-} from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Monitor, X } from "lucide-react";
 import {
   motion,
   MotionConfig,
   useMotionValueEvent,
   useScroll,
-  useMotionValue,
   useTransform,
   animate,
 } from "motion/react";
@@ -38,6 +28,7 @@ import DesignChat from "./DesignChat";
 import BrandMark from "@/components/BrandMark";
 import { useStoryPlayback } from "./use-story-playback";
 import { STORY_END, STORY_STOPS } from "./landing-playback";
+import { tourStopAt } from "./landing-motion";
 import { AccelerationNotice } from "../graphics/AccelerationHelp";
 import type { GraphicsInfo } from "../graphics/renderer";
 
@@ -46,18 +37,7 @@ const LandingExperience = dynamic(() => import("./LandingExperience"), {
   loading: () => null,
 });
 const spring = { stiffness: 300, damping: 30, mass: 1 };
-// Entering the GPU-heavy workspace starts a new document, releasing this scene
-// before the equipment sandbox creates its own renderer.
 const chapters = ["Design", "Build", "Explore"];
-
-function EntryLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <a href={href} className={styles.primaryLink}>
-      {children}
-      <ArrowUpRight size={17} strokeWidth={1.5} />
-    </a>
-  );
-}
 
 export default function LandingPage({
   isPhone,
@@ -81,12 +61,8 @@ export default function LandingPage({
   });
   const scrollJourney = useRef<ReturnType<typeof animate> | null>(null);
   const reduced = useMotionPreference();
-  const pointerX = useMotionValue(0);
-  const pointerY = useMotionValue(0);
   const [chapter, setChapter] = useState(0);
-  const [motionEnabled, setMotionEnabled] = useState(true);
   const [visible, setVisible] = useState(true);
-  const [transparent, setTransparent] = useState(true);
   const [sceneReady, setSceneReady] = useState(false);
   const [sceneRequested, setSceneRequested] = useState(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
@@ -95,7 +71,6 @@ export default function LandingPage({
   const onSceneUnavailable = useCallback(() => setSceneUnavailable(true), []);
   const { progress, design, construction, simulation } = useStoryPlayback(
     scrollYProgress,
-    motionEnabled,
     visible,
     reduced,
   );
@@ -117,7 +92,8 @@ export default function LandingPage({
     (value) => value / STORY_END,
   );
   const chapterRef = useRef(0);
-  const playing = motionEnabled && !reduced && visible;
+  const tourStopRef = useRef(0);
+  const playing = !reduced && visible;
   const sceneOpacity = useTransform(progress, [0.12, 0.3], [0, 1]);
   const heroOpacity = useTransform(progress, [0, 0.16, 0.29], [1, 1, 0]);
   const heroY = useTransform(progress, [0, 0.28], [0, 70]);
@@ -148,7 +124,11 @@ export default function LandingPage({
       chapterRef.current = next;
       setChapter(next);
     }
-    setTourStop(value < 1.07 ? 0 : value < 1.29 ? 1 : value < 1.49 ? 2 : 3);
+    const stop = tourStopAt(value);
+    if (stop !== tourStopRef.current) {
+      tourStopRef.current = stop;
+      setTourStop(stop);
+    }
   });
   useEffect(() => {
     const onVisibility = () => setVisible(!document.hidden);
@@ -164,26 +144,21 @@ export default function LandingPage({
       top +
       ((element.offsetHeight - window.innerHeight) * position) / STORY_END;
     scrollJourney.current?.stop();
-    if (reduced || !motionEnabled)
-      window.scrollTo({ top: target, behavior: "instant" });
+    if (reduced) window.scrollTo({ top: target, behavior: "instant" });
     else
       scrollJourney.current = animate(window.scrollY, target, {
-        type: "spring",
-        stiffness: 26,
-        damping: 13,
-        mass: 1.2,
-        restDelta: 0.5,
-        restSpeed: 0.5,
+        duration: 0.5,
+        ease: [0.22, 1, 0.36, 1],
         onUpdate: (value) =>
           window.scrollTo({ top: value, behavior: "instant" }),
       });
   };
   const goTo = (index: number) => travelTo(STORY_STOPS[index]);
   const tourCopy = [
-    "Step inside your process.",
-    "Follow the heat.",
-    "Inside the reaction.",
-    "Separation, tray by tray.",
+    "Your process, brought to life.",
+    "H-101 · Heat exchanger",
+    "R-101 · Packed-bed reactor",
+    "D-101 · Distillation column",
   ][tourStop];
 
   return (
@@ -282,10 +257,6 @@ export default function LandingPage({
                 construction={construction}
                 simulation={simulation}
                 playing={playing && sceneReady && chapter === 2}
-                transparent={transparent}
-                reduced={reduced}
-                pointerX={pointerX}
-                pointerY={pointerY}
               />
             ) : null}
           </motion.div>
@@ -313,7 +284,7 @@ export default function LandingPage({
                 style={{ y: reduced ? 0 : heroY }}
               >
                 <span className={styles.eyebrow}>FROM IDEA TO PROCESS</span>
-                <h1 id="design-title">Design.</h1>
+                <h1 id="design-title">Design</h1>
                 <p>Describe a process. Make it a working layout.</p>
                 <button
                   className={styles.textLink}
@@ -340,14 +311,8 @@ export default function LandingPage({
               simulation={simulation}
             />
             <div className={styles.sceneCaption}>
-              <h2 id="build-title">Build.</h2>
+              <h2 id="build-title">Build</h2>
               <p>Connected. Simulated. Ready.</p>
-            </div>
-            <div className={styles.sceneActions}>
-              <button className={styles.textLink} onClick={() => goTo(2)}>
-                Step inside
-                <ArrowRight size={18} />
-              </button>
             </div>
           </motion.section>
 
@@ -363,23 +328,9 @@ export default function LandingPage({
               className={styles.sceneCaption}
               style={{ y: reduced ? 0 : exploreY }}
             >
-              <h2 id="explore-title">Explore.</h2>
+              <h2 id="explore-title">Explore</h2>
               <p>{tourCopy}</p>
             </motion.div>
-            <div className={styles.sceneActions}>
-              <EntryLink href="/sandbox/equipment">Explore in 3D</EntryLink>
-              <button
-                className={styles.shellSwitch}
-                role="switch"
-                aria-checked={transparent}
-                onClick={() => setTransparent((value) => !value)}
-              >
-                Transparent shells
-                <span className={styles.switch} data-on={transparent}>
-                  <motion.i animate={{ x: transparent ? 16 : 0 }} />
-                </span>
-              </button>
-            </div>
           </motion.section>
 
           <nav className={styles.sceneRail} aria-label="Scene navigation">
@@ -396,17 +347,12 @@ export default function LandingPage({
             ))}
           </nav>
           <footer className={styles.footer}>
-            <div className={styles.positionLabel}>
-              <span>0{chapter + 1}</span>
-              <i />
-              03
-            </div>
             <button
               className={styles.scrollCue}
               onClick={() =>
                 chapter !== 2
                   ? goTo(chapter + 1)
-                  : travelTo(tourStop === 3 ? 0 : [1.25, 1.4, 1.65][tourStop])
+                  : travelTo(tourStop === 3 ? 0 : [1.2, 1.4, 1.65][tourStop])
               }
             >
               <span>
@@ -424,21 +370,6 @@ export default function LandingPage({
                 size={17}
                 className={tourStop === 3 ? styles.upArrow : undefined}
               />
-            </button>
-            <button
-              className={styles.pause}
-              onClick={() => setMotionEnabled((value) => !value)}
-              aria-label={motionEnabled ? "Pause motion" : "Resume motion"}
-              aria-pressed={!motionEnabled}
-              disabled={reduced}
-              title={
-                reduced
-                  ? "Reduced motion is enabled in your device settings"
-                  : undefined
-              }
-            >
-              {playing ? <Pause size={14} /> : <Play size={14} />}
-              <span>{playing ? "Pause motion" : "Motion paused"}</span>
             </button>
           </footer>
           <motion.div

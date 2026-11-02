@@ -10,7 +10,7 @@ test("landing opens the dashboard and asks for a folder only when creating a pro
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Design.", exact: true }),
+    page.getByRole("heading", { name: "Design", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open workspace", exact: true }).click();
   await expect(page).toHaveURL(/\/workspace\?home=1$/);

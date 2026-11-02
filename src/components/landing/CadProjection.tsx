@@ -1,15 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Matrix4, Vector3 } from "three";
 import { CAD_SCALE, CAD_CENTER_Z } from "./landing-construction";
 import type { CadBridge } from "./CadWorkbench";
+import type { MotionValue } from "motion/react";
 
 /** Project the fixed worksheet with the same camera as the WebGL plant.
  * React retains ownership of its DOM; no secondary React root or raster capture. */
-export default function CadProjection({ bridge }: { bridge: CadBridge }) {
+export default function CadProjection({
+  bridge,
+  progress,
+}: {
+  bridge: CadBridge;
+  progress: MotionValue<number>;
+}) {
   const { camera, size } = useThree();
+  const previous = useRef("");
   const plane = useMemo(
     () =>
       new Matrix4()
@@ -19,6 +27,13 @@ export default function CadProjection({ bridge }: { bridge: CadBridge }) {
     [],
   );
   useFrame(() => {
+    // The worksheet has disappeared by Explore. Don't keep writing three CSS
+    // transforms on every machinery frame, or recomputing a stationary view.
+    const p = progress.get();
+    if (p >= 0.87) return;
+    const stamp = `${p}/${size.width}/${size.height}`;
+    if (stamp === previous.current) return;
+    previous.current = stamp;
     const viewport = bridge.viewport.current;
     const cameraLayer = bridge.camera.current;
     const surface = bridge.surface.current;
