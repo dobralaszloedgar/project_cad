@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { buildAssistant } from './build.mjs';
 import { finalizeManifest, output, registerArtifacts } from './artifacts.mjs';
+import { linuxUniversalHeader, windowsUniversalScript } from './universal-installers.mjs';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -43,10 +44,12 @@ try {
   for (const result of downloads) if (result.status === 'rejected') throw result.reason;
   const runtimes = Object.fromEntries(downloads.map(result => result.value));
   const files = [];
+  const bundles = {};
   for (const arch of ['x64', 'arm64']) {
     console.log(`Building ${targetName} ${arch}…`);
     const name = `ProjectCAD-Assistant-${targetName}-${arch}`;
     const bundle = join(temporary, name);
+    bundles[arch] = bundle;
     await buildAssistant(bundle);
     await mkdir(join(bundle, 'runtime'));
     await copyFile(runtimes[arch].binary, join(bundle, 'runtime', platform === 'win32' ? 'node.exe' : 'node'));
@@ -84,6 +87,23 @@ try {
       await chmod(join(output, filename), 0o755);
       files.push({ filename, architecture: arch });
     }
+  }
+  if (platform === 'win32') {
+    const filename = 'ProjectCAD-Assistant-windows-universal-Setup.exe';
+    const script = join(temporary, 'universal.nsi');
+    await writeFile(script, windowsUniversalScript({ destination: join(output, filename), version: release.version, ...bundles }));
+    await execute('makensis', ['-V2', script], { timeout: 180000, maxBuffer: 1000000 });
+    files.push({ filename, architecture: 'universal', signed: false });
+  } else {
+    const directory = join(temporary, 'universal');
+    await mkdir(directory);
+    for (const arch of ['x64', 'arm64']) await rename(bundles[arch], join(directory, arch));
+    const payload = join(temporary, 'universal-payload.tar.gz');
+    await execute('/usr/bin/tar', ['--no-xattrs', '--no-acls', '--no-fflags', '-czf', payload, '-C', directory, 'x64', 'arm64'], { env: { ...process.env, COPYFILE_DISABLE: '1' }, timeout: 180000 });
+    const filename = 'ProjectCAD-Assistant-linux-universal.run';
+    await writeFile(join(output, filename), Buffer.concat([Buffer.from(linuxUniversalHeader()), await readFile(payload)]), { mode: 0o755 });
+    await chmod(join(output, filename), 0o755);
+    files.push({ filename, architecture: 'universal' });
   }
   await registerArtifacts(targetName, files);
   console.log('Created ' + files.map(file => file.filename).join(', '));

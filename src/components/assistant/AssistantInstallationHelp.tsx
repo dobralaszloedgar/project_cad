@@ -56,9 +56,11 @@ export default function AssistantInstallationHelp({
             }
             architecture={
               download
-                ? download.architecture === "ARM64"
-                  ? "arm64"
-                  : "x64"
+                ? download.filename.includes("-universal")
+                  ? "universal"
+                  : download.architecture === "ARM64"
+                    ? "arm64"
+                    : "x64"
                 : undefined
             }
             previewControls={preview}

@@ -39,6 +39,22 @@ function manifest() {
     ].map((file) => ({ ...file, bytes: data.length, sha256: sha256(data) })),
   };
 }
+function universalManifest() {
+  const value = manifest();
+  return {
+    ...value,
+    files: [
+      value.files[0],
+      ...["windows", "linux"].map((platform) => ({
+        platform,
+        architecture: "universal",
+        filename: `ProjectCAD-Assistant-${platform}-universal${platform === "windows" ? "-Setup.exe" : ".run"}`,
+        bytes: data.length,
+        sha256: sha256(data),
+      })),
+    ],
+  };
+}
 const directories: string[] = [];
 async function temporary() {
   const path = await mkdtemp(join(tmpdir(), "project-cad-release-"));
@@ -51,6 +67,48 @@ afterEach(async () => {
 });
 
 describe("assistant download distribution", () => {
+  it("offers one universal installer per platform, including from the full build inventory", () => {
+    const value = universalManifest();
+    const full = {
+      ...value,
+      files: [...manifest().files, ...value.files.slice(1)],
+    };
+    for (const release of [value, full]) {
+      expect(() =>
+        validateManifest(release, { published: true }),
+      ).not.toThrow();
+      const parsed = assistantDownloads(release)!;
+      expect(parsed.installers.map((file) => file.platform)).toEqual([
+        "macos",
+        "windows",
+        "linux",
+      ]);
+      expect(
+        parsed.installers.slice(1).map((file) => file.architecture),
+      ).toEqual(["x64 + ARM64", "x64 + ARM64"]);
+      expect(
+        parsed.installers.every((file) => file.filename.includes("-universal")),
+      ).toBe(true);
+    }
+    expect(() =>
+      validateManifest({ ...value, files: value.files.slice(1) }),
+    ).toThrow();
+    expect(() =>
+      validateManifest({
+        ...value,
+        files: [manifest().files[2], ...value.files.slice(1)],
+      }),
+    ).toThrow();
+    expect(() =>
+      validateManifest({ ...full, files: full.files.slice(1) }),
+    ).toThrow();
+    expect(
+      assistantDownloads({
+        ...value,
+        files: value.files.map((file) => ({ ...file, architecture: "x64" })),
+      }),
+    ).toBeUndefined();
+  });
   it("offers all five installers and checksums directly from a versioned public Blob store", async () => {
     const value = {
       ...manifest(),
@@ -204,36 +262,41 @@ describe("assistant download distribution", () => {
       }),
     ).toThrow();
   });
-  it("verifies a reduced release using its combined checksums without sidecars", async () => {
-    const directory = await temporary();
-    const value = {
-      ...manifest(),
-      files: manifest().files.filter((file) =>
-        installerPattern.test(file.filename),
-      ),
-    };
-    for (const file of value.files)
-      await writeFile(join(directory, file.filename), data);
-    const checksums = value.files
-      .map((file) => `${file.sha256}  ${file.filename}\n`)
-      .join("");
-    await writeFile(join(directory, "SHA256SUMS.txt"), checksums);
-    await expect(
-      verifyLocalArtifacts(directory, value),
-    ).resolves.toBeUndefined();
-    await writeFile(
-      join(directory, "SHA256SUMS.txt"),
-      checksums.replace(value.files[0].sha256, "0".repeat(64)),
-    );
-    await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
-      "Combined checksum",
-    );
-    await writeFile(join(directory, "SHA256SUMS.txt"), checksums);
-    await writeFile(join(directory, value.files[0].filename), "corrupted");
-    await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
-      "Checksum mismatch",
-    );
-  });
+  it.each([false, true])(
+    "verifies reduced releases using combined checksums without sidecars (universal: %s)",
+    async (universal) => {
+      const directory = await temporary();
+      const value = universal
+        ? universalManifest()
+        : {
+            ...manifest(),
+            files: manifest().files.filter((file) =>
+              installerPattern.test(file.filename),
+            ),
+          };
+      for (const file of value.files)
+        await writeFile(join(directory, file.filename), data);
+      const checksums = value.files
+        .map((file) => `${file.sha256}  ${file.filename}\n`)
+        .join("");
+      await writeFile(join(directory, "SHA256SUMS.txt"), checksums);
+      await expect(
+        verifyLocalArtifacts(directory, value),
+      ).resolves.toBeUndefined();
+      await writeFile(
+        join(directory, "SHA256SUMS.txt"),
+        checksums.replace(value.files[0].sha256, "0".repeat(64)),
+      );
+      await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
+        "Combined checksum",
+      );
+      await writeFile(join(directory, "SHA256SUMS.txt"), checksums);
+      await writeFile(join(directory, value.files[0].filename), "corrupted");
+      await expect(verifyLocalArtifacts(directory, value)).rejects.toThrow(
+        "Checksum mismatch",
+      );
+    },
+  );
   it("rejects corrupted local binaries and checksum sidecars", async () => {
     const directory = await temporary(),
       value = manifest();

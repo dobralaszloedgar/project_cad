@@ -6,9 +6,7 @@ export type AssistantDownload = {
   name: string;
   architecture: string;
 };
-export function assistantDownloads(
-  value: unknown,
-):
+export function assistantDownloads(value: unknown):
   | {
       version: string;
       installers: AssistantDownload[];
@@ -46,7 +44,8 @@ export function assistantDownloads(
     seen.add(entry.filename);
     if (
       entry.filename === "ProjectCAD-Assistant-macos-universal.pkg" &&
-      entry.platform === "macos"
+      entry.platform === "macos" &&
+      (entry.architecture === undefined || entry.architecture === "universal")
     )
       installers.push({
         filename: entry.filename,
@@ -58,12 +57,13 @@ export function assistantDownloads(
       });
     else {
       const match =
-        /^ProjectCAD-Assistant-(windows|linux)-(x64|arm64)(-Setup\.exe|\.run)$/.exec(
+        /^ProjectCAD-Assistant-(windows|linux)-(x64|arm64|universal)(-Setup\.exe|\.run)$/.exec(
           entry.filename,
         );
       if (
         !match ||
         match[1] !== entry.platform ||
+        (entry.architecture !== undefined && match[2] !== entry.architecture) ||
         (match[1] === "windows"
           ? match[3] !== "-Setup.exe"
           : match[3] !== ".run")
@@ -75,12 +75,32 @@ export function assistantDownloads(
         bytes: entry.bytes,
         platform: match[1] as "windows" | "linux",
         name: match[1] === "windows" ? "Windows" : "Linux",
-        architecture: match[2] === "arm64" ? "ARM64" : "x64",
+        architecture:
+          match[2] === "universal"
+            ? "x64 + ARM64"
+            : match[2] === "arm64"
+              ? "ARM64"
+              : "x64",
       });
     }
   }
-  return installers.length
-    ? { version: manifest.version, installers, releaseUrl, checksumsUrl }
+  const universalPlatforms = new Set(
+    installers
+      .filter((file) => file.filename.includes("-universal"))
+      .map((file) => file.platform),
+  );
+  const preferred = installers.filter(
+    (file) =>
+      !universalPlatforms.has(file.platform) ||
+      file.filename.includes("-universal"),
+  );
+  return preferred.length
+    ? {
+        version: manifest.version,
+        installers: preferred,
+        releaseUrl,
+        checksumsUrl,
+      }
     : undefined;
 }
 import { assistantDownloadLocation } from "./download-location.mjs";

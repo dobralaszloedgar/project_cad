@@ -17,85 +17,107 @@ const files = ["installer.exe", "downloads.json"].map((filename) => {
 });
 
 describe("Blob release publishing", () => {
-  it("publishes only five installers and two metadata files from a complete build", async () => {
-    const directory = await mkdtemp(
-      join(tmpdir(), "project-cad-blob-release-"),
-    );
-    try {
-      const inventory = [
-        ["macos", "universal", ".pkg"],
-        ["macos", "universal", ".zip"],
-        ...["x64", "arm64"].flatMap((architecture) => [
-          ["windows", architecture, "-Setup.exe"],
-          ["windows", architecture, ".zip"],
-          ["linux", architecture, ".run"],
-          ["linux", architecture, ".tar.gz"],
-        ]),
-      ].map(([platform, architecture, extension]) => {
-        const filename = `ProjectCAD-Assistant-${platform}-${architecture}${extension}`;
-        const data = Buffer.from(filename);
-        return {
-          platform,
-          architecture,
-          filename,
-          bytes: data.length,
-          sha256: sha256(data),
-        };
-      });
-      const source = {
-        name: "Project CAD Assistant",
-        version: "0.1.2",
-        files: inventory,
-      };
-      await writeFile(
-        join(directory, "downloads.json"),
-        JSON.stringify(source),
+  it.each([false, true])(
+    "publishes only preferred installers and two metadata files (universal: %s)",
+    async (universal) => {
+      const directory = await mkdtemp(
+        join(tmpdir(), "project-cad-blob-release-"),
       );
-      for (const file of inventory) {
-        await writeFile(join(directory, file.filename), file.filename);
-        await writeFile(
-          join(directory, `${file.filename}.sha256`),
-          `${file.sha256}  ${file.filename}\n`,
-        );
-      }
-      const prepared = await prepareVercelRelease(directory, base);
-      expect(prepared.sourceManifest).toEqual(source);
-      expect(prepared.manifest.files).toHaveLength(5);
-      expect(
-        prepared.assets.map((file: { filename: string }) => file.filename),
-      ).toEqual([
-        "ProjectCAD-Assistant-macos-universal.pkg",
-        "ProjectCAD-Assistant-windows-x64-Setup.exe",
-        "ProjectCAD-Assistant-linux-x64.run",
-        "ProjectCAD-Assistant-windows-arm64-Setup.exe",
-        "ProjectCAD-Assistant-linux-arm64.run",
-        "SHA256SUMS.txt",
-        "downloads.json",
-      ]);
-      // The same seven files must be sufficient to resume a later upload.
-      for (const file of inventory) {
-        await rm(join(directory, `${file.filename}.sha256`));
-        if (
-          !prepared.manifest.files.some(
-            (item: { filename: string }) => item.filename === file.filename,
+      try {
+        const inventory = [
+          ["macos", "universal", ".pkg"],
+          ["macos", "universal", ".zip"],
+          ...["x64", "arm64"].flatMap((architecture) => [
+            ["windows", architecture, "-Setup.exe"],
+            ["windows", architecture, ".zip"],
+            ["linux", architecture, ".run"],
+            ["linux", architecture, ".tar.gz"],
+          ]),
+        ]
+          .concat(
+            universal
+              ? [
+                  ["windows", "universal", "-Setup.exe"],
+                  ["linux", "universal", ".run"],
+                ]
+              : [],
           )
-        )
-          await rm(join(directory, file.filename));
+          .map(([platform, architecture, extension]) => {
+            const filename = `ProjectCAD-Assistant-${platform}-${architecture}${extension}`;
+            const data = Buffer.from(filename);
+            return {
+              platform,
+              architecture,
+              filename,
+              bytes: data.length,
+              sha256: sha256(data),
+            };
+          });
+        const source = {
+          name: "Project CAD Assistant",
+          version: "0.1.2",
+          files: inventory,
+        };
+        await writeFile(
+          join(directory, "downloads.json"),
+          JSON.stringify(source),
+        );
+        for (const file of inventory) {
+          await writeFile(join(directory, file.filename), file.filename);
+          await writeFile(
+            join(directory, `${file.filename}.sha256`),
+            `${file.sha256}  ${file.filename}\n`,
+          );
+        }
+        const prepared = await prepareVercelRelease(directory, base);
+        expect(prepared.sourceManifest).toEqual(source);
+        expect(prepared.manifest.files).toHaveLength(universal ? 3 : 5);
+        expect(
+          prepared.assets.map((file: { filename: string }) => file.filename),
+        ).toEqual(
+          universal
+            ? [
+                "ProjectCAD-Assistant-macos-universal.pkg",
+                "ProjectCAD-Assistant-windows-universal-Setup.exe",
+                "ProjectCAD-Assistant-linux-universal.run",
+                "SHA256SUMS.txt",
+                "downloads.json",
+              ]
+            : [
+                "ProjectCAD-Assistant-macos-universal.pkg",
+                "ProjectCAD-Assistant-windows-x64-Setup.exe",
+                "ProjectCAD-Assistant-linux-x64.run",
+                "ProjectCAD-Assistant-windows-arm64-Setup.exe",
+                "ProjectCAD-Assistant-linux-arm64.run",
+                "SHA256SUMS.txt",
+                "downloads.json",
+              ],
+        );
+        // The published files must be sufficient to resume a later upload.
+        for (const file of inventory) {
+          await rm(join(directory, `${file.filename}.sha256`));
+          if (
+            !prepared.manifest.files.some(
+              (item: { filename: string }) => item.filename === file.filename,
+            )
+          )
+            await rm(join(directory, file.filename));
+        }
+        for (const asset of prepared.assets.filter(
+          (file: { data?: Buffer }) => file.data,
+        ))
+          await writeFile(join(directory, asset.filename), asset.data);
+        const resumed = await prepareVercelRelease(directory, base);
+        expect(resumed.manifest).toEqual(prepared.manifest);
+        expect(resumed.assets).toHaveLength(universal ? 5 : 7);
+        expect(
+          JSON.parse(await readFile(join(directory, "downloads.json"), "utf8")),
+        ).toEqual(prepared.manifest);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
       }
-      for (const asset of prepared.assets.filter(
-        (file: { data?: Buffer }) => file.data,
-      ))
-        await writeFile(join(directory, asset.filename), asset.data);
-      const resumed = await prepareVercelRelease(directory, base);
-      expect(resumed.manifest).toEqual(prepared.manifest);
-      expect(resumed.assets).toHaveLength(7);
-      expect(
-        JSON.parse(await readFile(join(directory, "downloads.json"), "utf8")),
-      ).toEqual(prepared.manifest);
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
+    },
+  );
   it("verifies every uploaded file, publishes the manifest last, and resumes without overwrites", async () => {
     const remote = new Map<string, Buffer>();
     const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
