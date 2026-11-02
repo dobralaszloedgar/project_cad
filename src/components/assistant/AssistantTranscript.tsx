@@ -14,6 +14,7 @@ import AssistantError from "./AssistantError";
 import styles from "../AssistantPanel.module.css";
 export default function AssistantTranscript({
   chat,
+  readOnly = false,
   project,
   appliedProposalIds,
   onApply,
@@ -22,6 +23,7 @@ export default function AssistantTranscript({
   decide,
 }: {
   chat: Conversation;
+  readOnly?: boolean;
   project: Project;
   appliedProposalIds: string[];
   onApply: (proposal: Proposal) => Promise<string>;
@@ -36,6 +38,7 @@ export default function AssistantTranscript({
   const [revision, setRevision] = useState("");
   const [applying, setApplying] = useState<string | null>(null);
   useEffect(() => {
+    if (readOnly) return;
     let alive = true;
     void projectRevision(project).then((value) => {
       if (alive) setRevision(value);
@@ -43,7 +46,7 @@ export default function AssistantTranscript({
     return () => {
       alive = false;
     };
-  }, [project]);
+  }, [project, readOnly]);
   async function apply(proposal: Proposal) {
     setApplying(proposal.id);
     try {
@@ -102,13 +105,20 @@ export default function AssistantTranscript({
               </ul>
             </details>
           ) : null}
-          {run.status === "running" ? (
+          {run.status === "running" && !readOnly ? (
             <p className={styles.working} role="status">
               Working with the current project…
             </p>
           ) : null}
           {run.error ? (
-            <AssistantError message={run.error} onUpdate={onUpdate} />
+            readOnly ? (
+              <details className={styles.details}>
+                <summary>Saved error details</summary>
+                <p>{run.error}</p>
+              </details>
+            ) : (
+              <AssistantError message={run.error} onUpdate={onUpdate} />
+            )
           ) : null}
           {run.proposals.map((proposal) => (
             <div
@@ -155,7 +165,7 @@ export default function AssistantTranscript({
                 <summary>Full change details</summary>
                 <pre>{JSON.stringify(proposal.plan.actions, null, 2)}</pre>
               </details>
-              {proposal.status === "pending" ? (
+              {proposal.status === "pending" && !readOnly ? (
                 <>
                   <div className={styles.actions}>
                     <button
@@ -194,7 +204,11 @@ export default function AssistantTranscript({
                   ) : null}
                 </>
               ) : (
-                <p>{proposal.result}</p>
+                <p>
+                  {proposal.status === "pending"
+                    ? "Saved proposal. Start a Muse conversation to request new changes."
+                    : proposal.result}
+                </p>
               )}
             </div>
           ))}

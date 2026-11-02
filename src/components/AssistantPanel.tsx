@@ -154,6 +154,11 @@ export default function AssistantPanel({
     assistant.conversation?.id === tab.conversationId
       ? assistant.conversation
       : undefined;
+  const savedProvider =
+    chat?.provider ??
+    assistant.conversations.find((item) => item.id === tab.conversationId)
+      ?.provider;
+  const legacyConversation = !!savedProvider && savedProvider !== "muse";
   const busy =
     assistant.sending ||
     !!assistant.activeConversation ||
@@ -180,6 +185,8 @@ export default function AssistantPanel({
       : [];
   const canSend =
     assistant.connected &&
+    !legacyConversation &&
+    (!tab.conversationId || !!chat) &&
     !!assistant.agents?.providers.includes(settings.provider) &&
     !!provider?.available &&
     !!model &&
@@ -286,6 +293,7 @@ export default function AssistantPanel({
   }, [busy, assistant.connected, queueCount]);
 
   function selectTab(item: ChatTab) {
+    adopted.current = true;
     if (log.current) scrollPositions.current.set(active, log.current.scrollTop);
     activeTab.current = item.id;
     setActive(item.id);
@@ -449,7 +457,13 @@ export default function AssistantPanel({
     await assistant.stop();
   }
   async function addFiles(files: File[]) {
-    if (!files.length || !assistant.connected || readingFiles) return;
+    if (
+      !files.length ||
+      !assistant.connected ||
+      legacyConversation ||
+      readingFiles
+    )
+      return;
     const target = tab.id;
     setReadingFiles(true);
     try {
@@ -497,14 +511,22 @@ export default function AssistantPanel({
     <div
       className={styles.panel}
       onDragEnter={(event) => {
-        if (assistant.connected && event.dataTransfer.types.includes("Files")) {
+        if (
+          assistant.connected &&
+          !legacyConversation &&
+          event.dataTransfer.types.includes("Files")
+        ) {
           event.preventDefault();
           dragDepth.current++;
           setDrop(true);
         }
       }}
       onDragOver={(event) => {
-        if (assistant.connected && event.dataTransfer.types.includes("Files"))
+        if (
+          assistant.connected &&
+          !legacyConversation &&
+          event.dataTransfer.types.includes("Files")
+        )
           event.preventDefault();
       }}
       onDragLeave={() => {
@@ -776,7 +798,8 @@ export default function AssistantPanel({
                     >
                       <strong>{item.title}</strong>
                       <small>
-                        {item.provider} ·{" "}
+                        {agentNames[item.provider]} ·{" "}
+                        {item.provider !== "muse" ? "Read-only · " : null}
                         {new Date(item.updatedAt).toLocaleDateString()}
                       </small>
                     </button>
@@ -850,6 +873,7 @@ export default function AssistantPanel({
             ) : chat?.runs.length ? (
               <AssistantTranscript
                 chat={chat}
+                readOnly={legacyConversation}
                 project={project}
                 appliedProposalIds={appliedProposalIds}
                 onUpdate={() => setSetup("update")}
@@ -871,7 +895,26 @@ export default function AssistantPanel({
               </div>
             )}
           </div>
-          <div className={styles.composerArea}>
+          {legacyConversation ? (
+            <div className={styles.composerArea}>
+              <div className={styles.agentStatus}>
+                <strong>
+                  {agentNames[savedProvider]} conversation · Read-only
+                </strong>
+                <p>
+                  This conversation is saved for reference. New conversations
+                  use Muse.
+                </p>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => newChat(initialSettings)}
+                >
+                  Start a Muse conversation
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div className={styles.composerArea} hidden={legacyConversation}>
             <AssistantAgentStatus
               id={settings.provider}
               provider={provider}
