@@ -19,17 +19,13 @@ const root =
   join(homedir(), ".project-cad", "assistant");
 mkdirSync(root, { recursive: true, mode: 0o700 });
 let settings = loadAssistantSettings(root);
-if (settings.museApiKey && !process.env.MODEL_API_KEY) {
-  process.env.MODEL_API_KEY = settings.museApiKey;
-  process.env.META_AI_ENABLED = "true";
-}
 const store = new AssistantStore(join(root, "conversations.sqlite"));
 const runtime = new AssistantRuntime(
   store,
   {
     codex: new CodexProvider(root),
     claude: new ClaudeProvider(root),
-    muse: new MuseProvider(),
+    muse: new MuseProvider(root),
   },
   root,
   () => settings.agents,

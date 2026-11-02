@@ -153,7 +153,7 @@ Windows: Open the x64 or ARM64 Setup.exe matching your PC. No administrator acce
 
 Linux: Choose x64 for Intel/AMD PCs or ARM64 for ARM PCs. Run chmod +x on the downloaded .run file, then execute it as your normal user without sudo. A tar.gz archive containing install.sh is also available. Requires glibc 2.28+, tar, xdg-open, and a terminal emulator. Alpine/musl is not supported.
 
-Choose your agents on https://projectcad.vercel.app, then install and open Project CAD Assistant. Connect from the website and approve the request inside the assistant app. Your choices appear automatically. Existing sign-ins are reused; complete any missing sign-in or Muse key setup there. Use Manage agents on the website to change your selection later. Keep your project tab open while the assistant works.
+Choose your agents on https://projectcad.vercel.app, then install and open Project CAD Assistant. Connect from the website and approve the request inside the assistant app. Your choices appear automatically. Existing sign-ins are reused; missing software installs automatically and sign-in opens when needed. Use Manage agents on the website to change your selection later. Keep your project tab open while the assistant works.
 
 The companion runs on this computer. Windows and Linux settings open in the browser on 127.0.0.1:43119. Project files stay in the folder you choose. Conversations and provider settings stay under .project-cad/assistant in your home folder. Updates preserve them.
 

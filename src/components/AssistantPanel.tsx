@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   Archive,
+  ArrowDownToLine,
   ArrowUp,
   Check,
   ChevronDown,
@@ -46,6 +47,7 @@ import {
 } from "@/assistant/attachments";
 import AssistantSetup from "./AssistantSetup";
 import AssistantPopover from "./assistant/AssistantPopover";
+import AssistantDownloads from "./assistant/AssistantDownloads";
 import AssistantTranscript from "./assistant/AssistantTranscript";
 import AssistantAgentStatus from "./assistant/AssistantAgentStatus";
 import AssistantError from "./assistant/AssistantError";
@@ -569,6 +571,15 @@ export default function AssistantPanel({
                   </button>
                 </>
               )}
+            </AssistantPopover>
+            <AssistantPopover
+              label="Download connector"
+              trigger={<ArrowDownToLine size={16} />}
+              align="right"
+              compact
+              iconOnly
+            >
+              {() => <AssistantDownloads />}
             </AssistantPopover>
             <button
               type="button"
@@ -1153,11 +1164,7 @@ export default function AssistantPanel({
                             })
                           }
                         >
-                          {id === "codex"
-                            ? "Codex"
-                            : id === "claude"
-                              ? "Claude Code"
-                              : "Muse"}
+                          {agentNames[id]}
                         </button>
                       ))}
                     </div>

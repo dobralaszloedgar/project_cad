@@ -626,7 +626,7 @@ export default function Workspace({
           const r = calculate(next);
           setMessage(
             r.converged
-              ? "Calculated · open Results for balances and model limits."
+              ? ""
               : "Recycle did not converge. Inspect diagnostics.",
           );
         } catch (e) {
@@ -673,7 +673,7 @@ export default function Workspace({
       sound.playSimulation(calculated.converged ? "complete" : "attention");
       setMessage(
         calculated.converged
-          ? "Calculated · review model limits in Results."
+          ? ""
           : "Recycle did not converge. Final iterate only.",
       );
       setTab("Results");

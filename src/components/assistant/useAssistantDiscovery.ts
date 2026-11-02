@@ -34,7 +34,9 @@ export function useAssistantDiscovery(enabled: boolean) {
           credentials: "omit",
           signal: AbortSignal.any([
             controller.signal,
-            AbortSignal.timeout(1800),
+            // First contact can display the browser's local-network permission
+            // prompt. Cancelling after 1.8 s makes a running app look absent.
+            AbortSignal.timeout(30000),
           ]),
         });
         const health: unknown = response.ok ? await response.json() : null;

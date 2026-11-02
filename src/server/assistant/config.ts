@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import {
   agentSelectionSchema,
   PROJECT_CAD_ORIGIN,
+  type ProviderId,
 } from "../../assistant/protocol";
 
 export const settingsSchema = z
@@ -80,10 +81,7 @@ export function assistantOrigins(websiteUrl: string, override?: string) {
   ];
 }
 
-function windowsNpmExecutables(
-  provider: "codex" | "claude",
-  directory: string,
-) {
+function windowsNpmExecutables(provider: ProviderId, directory: string) {
   if (provider !== "codex" || !["x64", "arm64"].includes(process.arch))
     return [];
   const packageRoot = join(directory, "node_modules", "@openai", "codex");
@@ -113,13 +111,8 @@ function windowsNpmExecutables(
   return vendors.map((vendor) => join(vendor, target, "bin", "codex.exe"));
 }
 
-export function providerExecutable(
-  provider: "codex" | "claude",
-): string | undefined {
-  const override =
-    process.env[
-      provider === "codex" ? "PROJECT_CAD_CODEX_BIN" : "PROJECT_CAD_CLAUDE_BIN"
-    ];
+export function providerExecutable(provider: ProviderId): string | undefined {
+  const override = process.env[`PROJECT_CAD_${provider.toUpperCase()}_BIN`];
   const managedDirectory = join(
     process.env.PROJECT_CAD_ASSISTANT_DATA ||
       join(homedir(), ".project-cad", "assistant"),
@@ -140,12 +133,20 @@ export function providerExecutable(
     /* No managed Windows installation. */
   }
   const directories = [
+    ...(provider === "muse" && process.env.MUSE_INSTALL_DIR
+      ? [process.env.MUSE_INSTALL_DIR]
+      : []),
     join(homedir(), ".local", "bin"),
     join(homedir(), ".npm-global", "bin"),
     "/opt/homebrew/bin",
     "/usr/local/bin",
     ...(process.platform === "win32"
       ? [
+          join(
+            process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"),
+            "Programs",
+            "muse",
+          ),
           join(
             process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
             "npm",
@@ -164,6 +165,7 @@ export function providerExecutable(
     ? [override]
     : [
         ...(pointer ? [pointer] : []),
+        managed + (process.platform === "win32" ? ".exe" : ""),
         managed,
         ...directories
           .filter(Boolean)
@@ -174,6 +176,9 @@ export function providerExecutable(
             ),
             ...(process.platform === "win32"
               ? windowsNpmExecutables(provider, directory)
+              : []),
+            ...(provider === "muse" && process.platform === "win32"
+              ? windowsMuseExecutables(directory)
               : []),
           ]),
       ];
@@ -186,4 +191,20 @@ export function providerExecutable(
     }
   }
   return undefined;
+}
+
+function windowsMuseExecutables(directory: string) {
+  try {
+    // The official Windows installer exposes muse.cmd; MSP needs the native
+    // executable, not a shell shim. Follow the launcher's validated pointer.
+    const version = readFileSync(
+      join(directory, ".muse-version"),
+      "utf8",
+    ).trim();
+    if (/^\d+\.\d+\.\d+-R\d+(?:\.\d+)?$/.test(version))
+      return [join(directory, `muse-bin-${version}.exe`)];
+  } catch {
+    /* Not an official Muse installation. */
+  }
+  return [];
 }

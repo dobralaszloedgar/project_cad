@@ -82,7 +82,8 @@ exit ${options.exitCode ?? 0}
   return { run, report, staging };
 }
 
-describe("universal Linux installer", () => {
+// These execute the Unix shell payload; Windows builds have their own installer tests.
+describe.skipIf(process.platform === "win32")("universal Linux installer", () => {
   it.each([
     ["x86_64", "x64"],
     ["amd64", "x64"],

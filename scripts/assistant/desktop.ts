@@ -32,8 +32,10 @@ import {
   loadAssistantSettings,
   providerExecutable,
   settingsSchema,
+  saveAssistantSettings,
 } from "../../src/server/assistant/config";
-import { installProvider } from "../../src/server/assistant/install-provider";
+import { ProviderSetup } from "../../src/server/assistant/provider-setup";
+import { agentNames, type ProviderId } from "../../src/assistant/protocol";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
 import { ApprovalNotifier } from "../../src/server/assistant/approval-notifier";
 import { removePreviousInstallations } from "./install-cleanup.mjs";
@@ -238,25 +240,29 @@ async function openTarget(target: string) {
       { timeout: 15000 },
     );
 }
-async function signIn(provider: "codex" | "claude") {
-  if (!loadAssistantSettings(root).agents?.providers.includes(provider))
-    throw new Error("Choose this agent in Manage agents before setting it up.");
-  const installed = await installProvider(provider, resources, root);
-  const args = provider === "codex" ? ["login"] : ["auth", "login"];
+async function signIn(provider: ProviderId, executable: string) {
+  const args = provider === "claude" ? ["auth", "login"] : ["login"];
   if (process.platform === "win32") {
     const file = join(root, `signin-${provider}.ps1`);
     await writeFile(
       file,
-      `\uFEFF& ${powershell(installed.path)} ${args.map(powershell).join(" ")}\nWrite-Host 'Return to Project CAD and refresh providers.'\nRead-Host 'Press Enter to close'\n`,
+      `\uFEFF$Host.UI.RawUI.WindowTitle = ${powershell(`Sign in to ${agentNames[provider]} · Project CAD`)}\n& ${powershell(executable)} ${args.map(powershell).join(" ")}\nWrite-Host 'Return to Project CAD. Your sign-in will be detected automatically.'\nRead-Host 'Press Enter to close'\n`,
       { mode: 0o600 },
     );
-    const child = spawn(
-      windowsExecutable("WindowsPowerShell/v1.0/powershell.exe"),
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file],
-      { detached: true, stdio: "ignore", windowsHide: false },
+    const shell = windowsExecutable("WindowsPowerShell/v1.0/powershell.exe");
+    // A detached Node child has no Windows console. Start-Process creates the
+    // interactive sign-in window instead of silently running login invisibly.
+    const command = `Start-Process -FilePath ${powershell(shell)} -WindowStyle Normal -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',${powershell('"' + file + '"')})`;
+    await execute(
+      shell,
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        Buffer.from(command, "utf16le").toString("base64"),
+      ],
+      { windowsHide: true, timeout: 15000 },
     );
-    child.on("error", () => {});
-    child.unref();
   } else {
     const candidates = [
       "/usr/bin/x-terminal-emulator",
@@ -273,24 +279,19 @@ async function signIn(provider: "codex" | "claude") {
     ).find(Boolean);
     if (!terminal)
       throw new Error(
-        `Installed ${provider === "codex" ? "Codex" : "Claude Code"}. Sign in from a terminal: "${installed.path}" ${args.join(" ")}`,
+        `Installed ${agentNames[provider]}. Sign in from a terminal: "${executable}" ${args.join(" ")}`,
       );
     const child = spawn(
       terminal,
-      [
-        terminal.includes("gnome-terminal") ? "--" : "-e",
-        installed.path,
-        ...args,
-      ],
+      [terminal.includes("gnome-terminal") ? "--" : "-e", executable, ...args],
       { detached: true, stdio: "ignore" },
     );
-    child.on("error", () => {});
+    await new Promise<void>((resolve, reject) => {
+      child.once("spawn", resolve);
+      child.once("error", reject);
+    });
     child.unref();
   }
-  return {
-    message:
-      "Complete provider sign-in in the terminal, then refresh providers in Project CAD.",
-  };
 }
 async function install(source: string, destination?: string, noStart = false) {
   source = resolve(source);
@@ -371,6 +372,8 @@ async function serve() {
     retries = 0;
   let lifecycle = Promise.resolve();
   let approvalTimer: ReturnType<typeof setInterval> | undefined;
+  const setup = new ProviderSetup(root, resources, signIn);
+  let setupTimer: ReturnType<typeof setInterval> | undefined;
   function exclusive<T>(work: () => Promise<T>) {
     const result = lifecycle.then(work);
     lifecycle = result.then(
@@ -458,7 +461,8 @@ async function serve() {
       startAtLogin: settings.startAtLogin,
       agents: settings.agents,
       connections: new ConnectionRequests(root).pending(),
-      museConfigured: !!settings.museApiKey,
+      museAvailable: !!providerExecutable("muse"),
+      providerSetup: setup.states,
       codexAvailable: !!providerExecutable("codex"),
       claudeAvailable: !!providerExecutable("claude"),
       message: workerError || approvalError,
@@ -468,6 +472,8 @@ async function serve() {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(approvalTimer);
+    clearInterval(setupTimer);
+    setupTimer = undefined;
     approvalTimer = undefined;
     await exclusive(stopWorker);
     server.closeAllConnections();
@@ -586,10 +592,17 @@ async function serve() {
         value.action === "approve-connection" ||
         value.action === "deny-connection"
       ) {
-        new ConnectionRequests(root).decide(
-          value.id,
-          value.action === "approve-connection",
-        );
+        const requests = new ConnectionRequests(root);
+        const pending = requests.get(value.id);
+        requests.decide(value.id, value.action === "approve-connection");
+        if (value.action === "approve-connection" && pending) {
+          saveAssistantSettings(root, {
+            ...loadAssistantSettings(root),
+            agents: pending.agents,
+          });
+          if (process.env.PROJECT_CAD_DISABLE_AGENT_SETUP !== "1")
+            setup.ensure(pending.agents.providers);
+        }
         return json(200, {
           message:
             value.action === "approve-connection"
@@ -623,9 +636,22 @@ async function serve() {
       }
       if (
         value.action === "signin" &&
-        ["codex", "claude"].includes(value.provider)
-      )
-        return json(200, await signIn(value.provider));
+        ["codex", "claude", "muse"].includes(value.provider)
+      ) {
+        if (
+          !loadAssistantSettings(root).agents?.providers.includes(
+            value.provider,
+          )
+        )
+          throw new Error(
+            "Choose this agent on the website before setting it up.",
+          );
+        void setup.prepare(value.provider);
+        return json(202, {
+          message:
+            "Checking your agent. Sign-in opens automatically if needed.",
+        });
+      }
       if (value.action === "open") {
         await openTarget(loadAssistantSettings(root).websiteUrl);
         return json(200, {});
@@ -673,6 +699,10 @@ async function serve() {
       });
   }, 1000);
   approvalTimer.unref();
+  if (process.env.PROJECT_CAD_DISABLE_AGENT_SETUP !== "1")
+    setup.ensure(loadAssistantSettings(root).agents?.providers ?? []);
+  setupTimer = setInterval(() => void setup.refresh(), 5000);
+  setupTimer.unref();
 }
 
 async function main() {

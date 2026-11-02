@@ -211,7 +211,7 @@ test("an installed assistant goes straight to connect and remembers the selected
     await panel
       .getByRole("button", { name: "Manage agents", exact: true })
       .click();
-    await panel.getByRole("checkbox", { name: "Muse", exact: true }).check();
+    await panel.getByRole("checkbox", { name: "Muse Code", exact: true }).check();
     await panel
       .getByLabel("Default agent", { exact: true })
       .selectOption("muse");

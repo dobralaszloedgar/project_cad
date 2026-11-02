@@ -15,16 +15,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { providerExecutable } from "./config";
+import { installMuse } from "./install-muse";
+import type { ProviderId } from "../../assistant/protocol";
 
 const execute = promisify(execFile);
 
 export async function installProvider(
-  provider: "codex" | "claude",
+  provider: ProviderId,
   resources: string,
   root: string,
 ) {
   const existing = providerExecutable(provider);
   if (existing) return { path: existing, installed: false };
+  if (provider === "muse") return installMuse(root);
   const release = JSON.parse(
     await readFile(join(resources, "releases.json"), "utf8"),
   );

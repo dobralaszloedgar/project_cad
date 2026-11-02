@@ -16,7 +16,7 @@ export type ProviderId = z.infer<typeof providerSchema>;
 export const agentNames: Record<ProviderId, string> = {
   codex: "Codex",
   claude: "Claude Code",
-  muse: "Muse",
+  muse: "Muse Code",
 };
 export const agentSelectionSchema = z
   .object({

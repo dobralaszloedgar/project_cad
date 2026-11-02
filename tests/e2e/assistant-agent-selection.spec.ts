@@ -38,7 +38,7 @@ test("chooses agents before setup and uses the selected default for the first ch
   await page
     .getByRole("checkbox", { name: "Claude Code", exact: true })
     .check();
-  await page.getByRole("checkbox", { name: "Muse", exact: true }).check();
+  await page.getByRole("checkbox", { name: "Muse Code", exact: true }).check();
   await page.getByLabel("Default agent", { exact: true }).selectOption("muse");
   await page.screenshot({
     path: "/tmp/project-cad-inline-setup-qa/05-website-agent-selection.png",
@@ -61,14 +61,20 @@ test("chooses agents before setup and uses the selected default for the first ch
       .getByRole("group", { name: "Assistant provider" })
       .getByRole("button", { name: "Codex", exact: true }),
   ).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Muse alternate", exact: true })
+    .click();
+  await expect(model).toContainText("Muse alternate");
   await page.getByLabel("Process prompt").fill("read the current project");
   const created = page.waitForRequest(
     (request) =>
       request.url().includes("/conversations?") && request.method() === "POST",
   );
   await page.getByRole("button", { name: "Send message", exact: true }).click();
-  expect((await created).postDataJSON().provider).toBe("muse");
+  expect((await created).postDataJSON()).toMatchObject({
+    provider: "muse",
+    model: "muse-second",
+  });
   await expect(page.getByText(/Current project:/)).toBeVisible();
   await model.click();
   await page

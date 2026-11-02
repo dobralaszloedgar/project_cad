@@ -4,7 +4,7 @@ import SwiftUI
 private let accent = Color(red: 0.16, green: 0.43, blue: 0.35)
 private let dataDirectory = ProcessInfo.processInfo.environment["PROJECT_CAD_ASSISTANT_DATA"].map { URL(fileURLWithPath: $0, isDirectory: true) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".project-cad/assistant", isDirectory: true)
 
-private let agentNames = ["codex": "Codex", "claude": "Claude Code", "muse": "Muse"]
+private let agentNames = ["codex": "Codex", "claude": "Claude Code", "muse": "Muse Code"]
 struct AgentSelection: Codable {
     var providers: [String]
     var preferred: String
@@ -29,7 +29,7 @@ struct CompanionStatus: Decodable {
     var managed: Bool
     var codexAvailable: Bool
     var claudeAvailable: Bool
-    var museConfigured: Bool
+    var museAvailable: Bool
     var message: String
     var agents: AgentSelection?
     var connections: [PendingConnection]?
@@ -75,19 +75,31 @@ final class CompanionModel: ObservableObject {
     @Published var failure = false
     @Published var showSettings = false
     private var refreshing = false
+    private var attemptedSetup = Set<String>()
+    private var waitingSignIns = Set<String>()
+    @Published var readyAgents = Set<String>()
 
     init() { loadSettings() }
     func refresh() {
         guard !busy, !refreshing, !showSettings else { return }
         refreshing = true
+        let waiting = Array(waitingSignIns)
         DispatchQueue.global(qos: .utility).async {
             let data = try? control(["status"])
+            let signedIn = waiting.filter { id in
+                guard let result = try? control(["provider-status", id]), let value = try? JSONSerialization.jsonObject(with: result) as? [String: Any] else { return false }
+                return value["available"] as? Bool == true
+            }
             DispatchQueue.main.async {
                 self.refreshing = false
                 guard !self.busy, !self.showSettings, let data,
                       let status = try? JSONDecoder().decode(CompanionStatus.self, from: data) else { return }
                 self.status = status
+                self.readyAgents.formUnion(signedIn)
+                self.waitingSignIns.subtract(signedIn)
+                if !signedIn.isEmpty && self.waitingSignIns.isEmpty { self.message = "Ready. Return to Project CAD and choose a model." }
                 self.settings.agents = status.agents
+                self.prepareNextAgent()
             }
         }
     }
@@ -127,16 +139,28 @@ final class CompanionModel: ObservableObject {
             return true
         } catch { failure = true; message = "Settings could not be saved. \(error.localizedDescription)"; return false }
     }
+    func prepareNextAgent() {
+        guard !busy, let next = settings.agents?.providers.first(where: { !attemptedSetup.contains($0) }) else { return }
+        attemptedSetup.insert(next)
+        setup(next)
+    }
     func setup(_ provider: String) {
         guard !busy else { return }
+        attemptedSetup.insert(provider)
+        readyAgents.remove(provider)
+        waitingSignIns.remove(provider)
         busy = true; failure = false
-        message = "Preparing \(provider == "codex" ? "Codex" : "Claude Code"). Missing software will be downloaded from its official package."
+        message = "Preparing \(agentNames[provider] ?? provider). Missing software will be downloaded from its official package."
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let result = try control(["install-provider", provider])
+                let result = try control(["prepare-provider", provider])
                 guard let value = try JSONSerialization.jsonObject(with: result) as? [String: Any], let binary = value["path"] as? String else { throw NSError(domain: "ProjectCAD", code: 1) }
+                if value["ready"] as? Bool == true {
+                    DispatchQueue.main.async { self.readyAgents.insert(provider); self.busy = false; self.message = "Ready. Choose your model in Project CAD."; self.prepareNextAgent() }
+                    return
+                }
                 let quote = "'" + binary.replacingOccurrences(of: "'", with: "'\\''") + "'"
-                let command = quote + (provider == "codex" ? " login" : " auth login")
+                let command = quote + (provider == "claude" ? " auth login" : " login")
                 let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
                 let script = "tell application \"Terminal\"\nactivate\ndo script \"\(escaped)\"\nend tell"
                 DispatchQueue.main.async {
@@ -144,9 +168,9 @@ final class CompanionModel: ObservableObject {
                     NSAppleScript(source: script)?.executeAndReturnError(&error)
                     self.busy = false
                     if let error { self.failure = true; self.message = "Could not open sign-in. \(error)" }
-                    else { self.message = "Complete \(provider == "codex" ? "Codex" : "Claude Code") sign-in, then return to Project CAD." }
+                    else { self.waitingSignIns.insert(provider); self.message = "Complete \(agentNames[provider] ?? provider) sign-in, then return to Project CAD."; self.prepareNextAgent() }
                 }
-            } catch { DispatchQueue.main.async { self.busy = false; self.failure = true; self.message = error.localizedDescription } }
+            } catch { DispatchQueue.main.async { self.busy = false; self.failure = true; self.message = error.localizedDescription; self.prepareNextAgent() } }
         }
     }
     func openProject() {
@@ -159,7 +183,7 @@ struct CompanionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 13) {
-                Image(systemName: "point.3.connected.trianglepath.dotted").font(.system(size: 30, weight: .medium)).foregroundStyle(accent)
+                Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 42, height: 42)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Project CAD").font(.system(size: 25, weight: .semibold))
                     Text("Your local assistant").foregroundStyle(.secondary)
@@ -184,14 +208,7 @@ struct CompanionView: View {
                 Text("Your agents").font(.title2.weight(.semibold))
                 Text("Agent choices are managed on the website. Existing sign-ins are reused.").foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 ForEach(model.settings.agents?.providers ?? [], id: \.self) { id in
-                    if id == "muse" {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) { Text("Muse").fontWeight(.medium); Text(model.status?.museConfigured == true ? "API key configured. Access is checked when you send a message." : "Add your Muse API key.").font(.caption).foregroundStyle(.secondary) }
-                            Spacer(); Button("Configure") { model.showSettings = true }.disabled(model.busy)
-                        }
-                    } else {
-                        provider(agentNames[id]!, detail: (model.settings.agents?.providers.count ?? 0) > 1 && model.settings.agents?.preferred == id ? "Default agent" : "", available: id == "codex" ? model.status?.codexAvailable == true : model.status?.claudeAvailable == true) { model.setup(id) }
-                    }
+                    provider(agentNames[id]!, detail: model.readyAgents.contains(id) ? "Signed in · ready to use" : "Installs automatically and opens sign-in when needed", available: model.readyAgents.contains(id)) { model.setup(id) }
                 }
             }
             if model.status?.connections?.first == nil { HStack {
@@ -221,7 +238,6 @@ struct CompanionView: View {
                 Text("Assistant settings").font(.title2.weight(.semibold))
                 VStack(alignment: .leading, spacing: 6) { Text("Project CAD website").font(.caption); TextField("https://projectcad.vercel.app", text: $model.settings.websiteUrl) }
                 Toggle("Start assistant when I log in", isOn: $model.settings.startAtLogin)
-                VStack(alignment: .leading, spacing: 6) { Text("Muse API key").font(.caption); SecureField("API key", text: $model.settings.museApiKey); Text("Stored in your private local assistant settings.").font(.caption2).foregroundStyle(.secondary) }
                 if model.failure { Text(model.message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
                 HStack { Button("Cancel") { model.loadSettings(); model.showSettings = false }; Spacer(); Button("Save settings") { model.save() }.buttonStyle(.borderedProminent).tint(accent) }
             }.padding(25).frame(width: 440)
@@ -230,7 +246,7 @@ struct CompanionView: View {
     func provider(_ title: String, detail: String, available: Bool, action: @escaping () -> Void) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) { Text(title).fontWeight(.medium); if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.secondary) } }
-            Spacer(); Button(available ? "Manage sign-in" : "Set up", action: action).disabled(model.busy)
+            Spacer(); Button(available ? "Check sign-in" : "Set up / sign in", action: action).disabled(model.busy)
         }
     }
 }

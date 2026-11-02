@@ -266,6 +266,7 @@
   position: relative;
 }
 .header {
+  position: relative;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -281,8 +282,14 @@
   letter-spacing: 0;
   color: var(--assistant-muted);
 }
-.header > .popoverAnchor {
+.header > .popoverAnchor:has(.connectionPill) {
   flex: 1;
+}
+.header > .popoverAnchor:has(.iconButton) {
+  position: static;
+}
+.header .popover[data-align="right"] {
+  right: 16px;
 }
 .header .popover {
   top: calc(100% + 10px);
@@ -446,8 +453,8 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--assistant-ink);
-  color: var(--assistant-surface);
+  background: var(--assistant-brand);
+  color: var(--color-primary-content);
 }
 .welcome h3 {
   font-size: 18px;
@@ -823,6 +830,9 @@
 }
 .option > span {
   flex: 1;
+}
+.downloadOption {
+  text-decoration: none;
 }
 .option > svg:last-child {
   margin-left: auto;

@@ -46,7 +46,7 @@ export default function AssistantAgentStatus({
             ? "Checking your agent’s sign-in and available models…"
             : provider?.available
               ? "Refresh to load the models available to your account."
-              : `Open Project CAD Assistant and ${id === "muse" ? "add your Muse API key in Settings" : `finish ${name} sign-in`}. Your agent choice is already saved. We’ll check again when you return.`}
+              : `Open Project CAD Assistant to finish ${name} setup. Missing software installs automatically and sign-in opens when needed. We’ll check again when you return.`}
       </p>
       {!selected ? (
         <button className={styles.textButton} onClick={onManage}>
