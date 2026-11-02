@@ -132,7 +132,9 @@ function CameraRig({
   }, [system]);
   useEffect(() => {
     const unsub = [progress, construction, simulation, pointerX, pointerY].map(
-      (value) => value.on("change", invalidate),
+      // Motion updates can arrive during the renderer's current frame. Queue a
+      // second frame so demand rendering presents the newly committed values.
+      (value) => value.on("change", () => invalidate(2)),
     );
     return () => unsub.forEach((fn) => fn());
   }, [progress, construction, simulation, pointerX, pointerY, invalidate]);
@@ -253,25 +255,20 @@ function Experience(props: ExperienceProps) {
       <PlaybackTelemetry {...props} />
       <CameraRig {...props} system={system} />
       <CadProjection bridge={props.cadBridge} />
-      <color attach="background" args={["#fafbf9"]} />
       <fog attach="fog" args={["#e9efea", 32, 100]} />
-      <ambientLight intensity={0.32} />
+      <ambientLight intensity={0.65} />
+      <directionalLight position={[5, 10, 6]} intensity={2.7} color="#fff5e9" />
       <directionalLight
-        position={[2, 15, 12]}
-        intensity={1.25}
-        color="#a8d4df"
-      />
-      <directionalLight
-        position={[-12, 9, 4]}
-        intensity={0.75}
-        color="#6eabc5"
+        position={[-6, 4, -4]}
+        intensity={1.8}
+        color="#dcebf0"
       />
       <directionalLight
         position={[12, 8, -6]}
-        intensity={1.45}
+        intensity={0.65}
         color="#ffd09a"
       />
-      <StudioEnvironment resolution={64} intensity={0.5}>
+      <StudioEnvironment resolution={64} intensity={0.8}>
         <Lightformer
           position={[-6, 8, 5]}
           scale={[8, 15, 1]}
@@ -400,7 +397,7 @@ export default memo(function LandingExperience(props: ExperienceProps) {
       ) : (
         <Canvas
           aria-label="Live equipment, a flowsheet and a continuously unfolding 3D process plant"
-          dpr={[1, 1.75]}
+          dpr={[1, 1.25]}
           frameloop={props.playing && visible ? "always" : "demand"}
           camera={{ position: [0, 8, 24], fov: 38, near: 0.1, far: 220 }}
           gl={createLandingRenderer}
@@ -409,6 +406,7 @@ export default memo(function LandingExperience(props: ExperienceProps) {
           fallback={<Fallback />}
         >
           <RendererRuntime
+            dprLimit={1.25}
             onLost={handleUnavailable}
             onVisible={setVisible}
             onInfo={props.onGraphicsInfo}

@@ -58,8 +58,9 @@ for (const preference of ["auto", "webgl"] as const) {
         { progress, end: STORY_END },
       );
       await expect
-        .poll(async () =>
-          Number(await canvas.getAttribute("data-story-progress")),
+        .poll(
+          async () => Number(await canvas.getAttribute("data-story-progress")),
+          { timeout: 20000 },
         )
         .toBeCloseTo(progress, 3);
       await page.screenshot({

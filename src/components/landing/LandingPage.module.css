@@ -11,6 +11,7 @@
 }
 
 .story {
+  cursor: auto;
   position: relative;
   height: 380svh;
   color: var(--ink);
@@ -70,13 +71,6 @@
     transparent 65%,
     #fafbf966
   );
-}
-.grain {
-  position: absolute;
-  inset: 0;
-  opacity: 0.02;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23n)' opacity='.6' d='M0 0h180v180H0z'/%3E%3C/svg%3E");
 }
 .atmosphere {
   position: absolute;
@@ -150,8 +144,9 @@
   background: linear-gradient(#fafbf9, #fafbf900);
 }
 .story .graphicsNotice {
-  top: 112px;
-  left: 4%;
+  top: 82px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 21;
   max-width: calc(100% - 32px);
 }
@@ -315,34 +310,12 @@
   border-radius: 7px;
   box-shadow: 0 0 28px #62ebcd15;
 }
-.constructionCursor {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-  filter: drop-shadow(0 0 7px #286e5c40);
-}
-.unitScan {
-  animation: unitScan 1.5s linear infinite alternate;
-}
-@keyframes unitScan {
-  from {
-    transform: translateY(-70px);
-    opacity: 0.3;
-  }
-  to {
-    transform: translateY(70px);
-    opacity: 0.7;
-  }
-}
 .cadWorkbench {
-  --pfd-stroke-width: 2.5;
+  --pfd-stroke-width: 1.8;
   color: var(--ink);
   background: var(--canvas);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   font: 400 14px/1.5 var(--font-sans);
   pointer-events: none;
@@ -373,7 +346,7 @@
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
-  font-size: 18px;
+  font-size: 16px;
   color: var(--muted);
 }
 .cadToolbar > span:first-child {
@@ -383,10 +356,13 @@
   color: var(--accent);
 }
 .cadMode {
-  background: var(--active);
-  color: var(--accent);
-  padding: 2px 9px;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: #286e5c;
+  color: white;
+  padding: 10px 17px;
+  border-radius: 7px;
 }
 .cadCanvas {
   position: relative;
@@ -396,58 +372,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-}
-.cadViewBar {
-  position: absolute;
-  z-index: 4;
-  top: 24px;
-  left: 24px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 18px;
-}
-.cadViewBar > span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-}
-.cadViewBar > span:nth-child(2) {
-  color: var(--accent);
-  background: var(--active);
-}
-.cadRainbow i {
-  width: 5px;
-  height: 16px;
-  border-radius: 3px;
-  background: var(--stream-rainbow-0);
-}
-.cadRainbow i:nth-child(2) {
-  background: var(--stream-rainbow-1);
-}
-.cadRainbow i:nth-child(3) {
-  background: var(--stream-rainbow-3);
-}
-.cadRainbow i:nth-child(4) {
-  background: var(--stream-rainbow-4);
-}
-.cadRainbow i:nth-child(5) {
-  background: var(--stream-rainbow-5);
-}
-.cadRainbow i:nth-child(6) {
-  background: var(--stream-rainbow-6);
-}
-.cadCanvas :global(.unit-tag),
-.cadCanvas :global(.unit-name) {
-  font-size: 22px;
-}
-.cadCanvas :global(.unit-name) {
-  width: 180px;
+  margin-right: auto;
+  margin-left: 24px;
 }
 .chapter[data-scene="build"] .sceneCaption {
   bottom: 9.5%;
@@ -457,13 +383,6 @@
 }
 .chapter[data-scene="build"] .sceneCaption p {
   font-size: 13px;
-}
-.cadCanvas :global([data-constructing="true"] .equipment-node) {
-  --symbol-stroke: var(--accent);
-  filter: drop-shadow(0 0 7px #286e5c20);
-}
-.cadCanvas :global([data-constructing="true"] .react-flow__edge-path) {
-  filter: brightness(1.3);
 }
 .story .textLink {
   display: flex;
@@ -702,10 +621,6 @@
   }
 }
 @media (max-width: 600px) {
-  .cadCanvas :global(.unit-tag),
-  .cadCanvas :global(.unit-name) {
-    font-size: 34px;
-  }
   .cadToolbar {
     font-size: 24px;
   }
@@ -953,11 +868,8 @@
   transform-origin: left;
   background: var(--accent);
 }
-.simulatingStream {
-  filter: brightness(1.2);
-}
 .cadWorkbench[data-simulation="complete"] .cadMode {
-  color: var(--ok);
+  color: white;
 }
 .cadProjection[data-fallback="true"] {
   perspective: none !important;
@@ -1059,21 +971,139 @@
     font-size: 60px;
   }
 }
-.cadCanvas :global(.stream-label) {
-  font-size: 17px;
-}
 @media (max-width: 600px) {
-  .cadViewBar {
-    top: 16px;
-    left: 16px;
-  }
-  .cadViewBar > span {
-    padding: 8px;
-  }
   .cadToolbar {
     font-size: 24px;
   }
-  .cadCanvas :global(.unit-name) {
-    font-size: 26px;
+}
+
+/* Fixed worksheet chrome mirrors the workspace without mounting its controls. */
+.cadHeaderTools {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 14px;
+}
+.cadToolbar > span:first-child > i {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin-inline: 10px;
+}
+.sheetGrid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(#8b9c8f35 0.8px, transparent 0.8px);
+  background-size: 24px 24px;
+}
+.worksheetDrawing {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.sheetUnit {
+  color: #53615a;
+}
+.sheetTag {
+  font-size: 19px;
+  font-weight: 500;
+  fill: #263730;
+}
+.sheetName {
+  font-size: 16px;
+  fill: #7a857e;
+}
+.sheetPanels,
+.sheetViews,
+.sheetZoom {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #dde3dc;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 7px #26373006;
+  color: #52625a;
+  z-index: 2;
+}
+.sheetPanels {
+  top: 18px;
+  left: 18px;
+  padding: 14px 16px;
+  font-size: 16px;
+}
+.sheetViews {
+  top: 18px;
+  right: 18px;
+  padding: 6px;
+  gap: 6px;
+  font-size: 15px;
+}
+.sheetPanels > span,
+.sheetViews > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheetViews > span {
+  padding: 8px 12px;
+  border-radius: 5px;
+}
+.sheetViews > span[data-active] {
+  background: #e5eeea;
+  color: #286e5c;
+}
+.sheetPanels > i,
+.sheetViews > i {
+  height: 20px;
+  width: 1px;
+  background: #e1e7e3;
+}
+.sheetZoom {
+  bottom: 28px;
+  left: 18px;
+  flex-direction: column;
+  padding: 14px 12px;
+  gap: 22px;
+}
+.sheetStatus {
+  position: absolute;
+  bottom: 16px;
+  left: 85px;
+  right: 22px;
+  color: #8a948d;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.designLayout {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  max-width: 1320px;
+}
+.designCaption p {
+  max-width: 280px;
+  line-height: 1.55;
+}
+.story button {
+  cursor: pointer;
+}
+.story button:disabled {
+  cursor: default;
+}
+@media (max-width: 700px) {
+  .designLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .designCaption p {
+    max-width: none;
+  }
+  .cadToolbar {
+    font-size: 18px;
+  }
+  .cadHeaderTools {
+    font-size: 14px;
   }
 }

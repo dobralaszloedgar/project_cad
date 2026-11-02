@@ -11,12 +11,14 @@ export function RendererRuntime({
   onInfo,
   onReady,
   label,
+  dprLimit = Infinity,
 }: {
   onLost: () => void;
   onVisible: (visible: boolean) => void;
   onInfo?: (info: GraphicsInfo) => void;
   onReady?: () => void;
   label?: string;
+  dprLimit?: number;
 }) {
   const { gl, size, setDpr, get } = useThree();
   const controller = useRef(new ResolutionController());
@@ -39,17 +41,16 @@ export function RendererRuntime({
     };
   }, [get, onReady]);
   useEffect(() => {
-    maximum.current = maximumDpr(
-      size.width,
-      size.height,
-      window.devicePixelRatio,
+    maximum.current = Math.min(
+      dprLimit,
+      maximumDpr(size.width, size.height, window.devicePixelRatio),
     );
     if (gl.domElement.dataset.graphicsSoftware === "true") {
       maximum.current = Math.min(1, maximum.current);
     }
     setDpr(maximum.current);
     controller.current.reset();
-  }, [gl, size.width, size.height, setDpr]);
+  }, [gl, size.width, size.height, setDpr, dprLimit]);
   useFrame((state, delta) => {
     // Demand rendering includes intentional pauses; these are not slow frames.
     if (state.frameloop !== "always") {

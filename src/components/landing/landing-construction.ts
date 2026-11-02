@@ -1,6 +1,5 @@
-import { newUnit, type Project } from "@/domain/schema";
 import { storyEquipment, storyStreams } from "./landing-process";
-import { reveal } from "./landing-system";
+import { reveal } from "./landing-motion";
 
 export function unitUnfold(progress: number, index: number) {
   const start = 0.56 + index * 0.012;
@@ -19,41 +18,7 @@ export const CAD_HEIGHT = 960;
 export const CAD_HEADER = 76;
 // Center the actual graph (including labels and overhead routes) in the sheet.
 export const CAD_CENTER_Z = -1.75;
-
-export function makeLandingProject(): Project {
-  const tags = Object.fromEntries(
-    storyEquipment.map((unit) => [unit.id, unit.tag]),
-  );
-  return {
-    version: 1,
-    name: "Reaction, separation & recycle",
-    units: storyEquipment.map((unit) => ({
-      ...newUnit(
-        unit.kind,
-        unit.tag,
-        CAD_WIDTH / 2 + unit.position[0] * CAD_SCALE - 64,
-        CAD_HEIGHT / 2 -
-          CAD_HEADER +
-          (unit.position[2] - CAD_CENTER_Z) * CAD_SCALE -
-          64,
-      ),
-      name: unit.name,
-    })),
-    edges: storyStreams.map((stream, index) => ({
-      id: stream.id,
-      name:
-        stream.id === "recycle"
-          ? "Recycle"
-          : `S${String(index + 1).padStart(2, "0")}`,
-      source: tags[stream.from[0]],
-      target: tags[stream.to[0]],
-      sourcePort: ["b", "bottom"].includes(stream.from[1]) ? "out2" : "out",
-      targetPort: stream.to[1] === "dose" ? "in2" : "in",
-      color: "teal",
-      colorIndex: index % 8,
-    })),
-  };
-}
+export const ROUTE_SAMPLES = 64;
 
 // Interleave placement and connection so the process is built as a connected
 // graph, rather than drawing a page of isolated symbols first.

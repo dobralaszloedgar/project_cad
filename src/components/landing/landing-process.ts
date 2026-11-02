@@ -66,7 +66,7 @@ export const storyEquipment: {
     kind: "Product",
     tag: "P-101",
     name: "Distillate",
-    position: [10.5, 0, -5.5],
+    position: [10.5, 0, -4.75],
     turn: 1,
     color: "#37c6a0",
   },

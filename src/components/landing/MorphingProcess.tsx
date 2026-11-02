@@ -16,11 +16,10 @@ import { pipeCurve } from "@/components/equipment-3d/operation";
 import type { SystemExample } from "@/components/equipment-3d/system-geometry";
 import { rackMembers } from "@/components/equipment-3d/system-geometry";
 import { reveal } from "./landing-system";
-import { unitUnfold } from "./landing-construction";
+import { ROUTE_SAMPLES, unitUnfold } from "./landing-construction";
 import type { CadBridge } from "./CadWorkbench";
 
-/** Only the handoff is rendered as Three.js lines. The planar drawing itself
- * is the actual application canvas, and supplies these exact routed paths. */
+/** The fixed worksheet supplies the paths that rise into the 3D pipes. */
 function RisingRoutes({
   system,
   progress,
@@ -41,7 +40,7 @@ function RisingRoutes({
   useLayoutEffect(() => {
     const group = root.current!;
     strokes.current = system.streams.map((stream) => {
-      const physical = pipeCurve(stream.points).getSpacedPoints(160);
+      const physical = pipeCurve(stream.points).getSpacedPoints(ROUTE_SAMPLES);
       const geometry = new LineGeometry().setPositions(
         physical.flatMap((point) => point.toArray()),
       );
@@ -81,7 +80,7 @@ function RisingRoutes({
       if (!drawing) continue;
       const starts = line.geometry.attributes.instanceStart;
       const ends = line.geometry.attributes.instanceEnd;
-      for (let i = 0; i < 160; i++) {
+      for (let i = 0; i < ROUTE_SAMPLES; i++) {
         for (const [attribute, point] of [
           [starts, i],
           [ends, i + 1],
@@ -129,11 +128,17 @@ export default function MorphingProcess({
   const equipment = useRef<(Group | null)[]>([]);
   const surface = useRef<MeshBasicMaterial>(null);
   const materials = useRef<
-    { material: Material; opacity: number; unit: number }[]
+    {
+      material: Material;
+      opacity: number;
+      unit: number;
+    }[]
   >([]);
   const originals = useRef(new WeakMap<Material, number>());
+  const previousProgress = useRef(-1);
   const members = useMemo(() => rackMembers(system.site!.rack), [system]);
   useLayoutEffect(() => {
+    previousProgress.current = -1;
     const seen = new Set<Material>();
     materials.current = [];
     const collect = (group: Group | null, unit: number) =>
@@ -161,6 +166,8 @@ export default function MorphingProcess({
   }, [transparent]);
   useFrame(() => {
     const p = progress.get();
+    if (p === previousProgress.current) return;
+    previousProgress.current = p;
     const lift = reveal(p, 0.55, 0.87);
     if (stage.current) stage.current.visible = p > 0.17;
     if (ground.current) ground.current.visible = lift > 0.003;
@@ -180,7 +187,7 @@ export default function MorphingProcess({
             : item.unit === -2
               ? reveal(p, 0.77, 0.85)
               : reveal(p, 0.68, 0.8);
-        item.material.setValues({ opacity: item.opacity * opacity });
+        item.material.opacity = item.opacity * opacity;
       }
     }
     if (surface.current) surface.current.opacity = reveal(p, 0.55, 0.7) * 0.9;

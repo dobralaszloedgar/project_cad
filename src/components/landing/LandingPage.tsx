@@ -25,7 +25,7 @@ import {
   MotionConfig,
   useMotionValueEvent,
   useScroll,
-  useSpring,
+  useMotionValue,
   useTransform,
   animate,
 } from "motion/react";
@@ -48,34 +48,14 @@ const LandingExperience = dynamic(() => import("./LandingExperience"), {
 const spring = { stiffness: 300, damping: 30, mass: 1 };
 // Entering the GPU-heavy workspace starts a new document, releasing this scene
 // before the equipment sandbox creates its own renderer.
-const MotionLink = motion.a;
 const chapters = ["Design", "Build", "Explore"];
 
 function EntryLink({ href, children }: { href: string; children: ReactNode }) {
-  const x = useSpring(0, spring);
-  const y = useSpring(0, spring);
-  const reduced = useMotionPreference();
-  const move = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (reduced) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    x.set((event.clientX - rect.left - rect.width / 2) * 0.1);
-    y.set((event.clientY - rect.top - rect.height / 2) * 0.1);
-  };
   return (
-    <MotionLink
-      href={href}
-      className={styles.primaryLink}
-      style={{ x, y }}
-      onMouseMove={move}
-      onMouseLeave={() => {
-        x.set(0);
-        y.set(0);
-      }}
-      whileTap={{ scale: 0.97 }}
-    >
+    <a href={href} className={styles.primaryLink}>
       {children}
       <ArrowUpRight size={17} strokeWidth={1.5} />
-    </MotionLink>
+    </a>
   );
 }
 
@@ -101,8 +81,8 @@ export default function LandingPage({
   });
   const scrollJourney = useRef<ReturnType<typeof animate> | null>(null);
   const reduced = useMotionPreference();
-  const pointerX = useSpring(0, { stiffness: 65, damping: 22 });
-  const pointerY = useSpring(0, { stiffness: 65, damping: 22 });
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
   const [chapter, setChapter] = useState(0);
   const [motionEnabled, setMotionEnabled] = useState(true);
   const [visible, setVisible] = useState(true);
@@ -113,14 +93,12 @@ export default function LandingPage({
   const [graphicsInfo, setGraphicsInfo] = useState<GraphicsInfo | null>(null);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
   const onSceneUnavailable = useCallback(() => setSceneUnavailable(true), []);
-  const {
-    progress,
-    design,
-    construction,
-    simulation,
-    replayDesign,
-    sendDesign,
-  } = useStoryPlayback(scrollYProgress, motionEnabled, visible, reduced);
+  const { progress, design, construction, simulation } = useStoryPlayback(
+    scrollYProgress,
+    motionEnabled,
+    visible,
+    reduced,
+  );
   const prepareScene = () => {
     // Prepare 3D only when the finished chat leads into Build. Staying in
     // Design keeps geometry creation and shader compilation off the page.
@@ -186,7 +164,8 @@ export default function LandingPage({
       top +
       ((element.offsetHeight - window.innerHeight) * position) / STORY_END;
     scrollJourney.current?.stop();
-    if (reduced) window.scrollTo({ top: target, behavior: "instant" });
+    if (reduced || !motionEnabled)
+      window.scrollTo({ top: target, behavior: "instant" });
     else
       scrollJourney.current = animate(window.scrollY, target, {
         type: "spring",
@@ -224,33 +203,12 @@ export default function LandingPage({
         <Link
           className={styles.skipLink}
           href="/workspace?home=1"
-          prefetch={isPhone ? false : undefined}
+          prefetch={false}
           onClick={openWorkspace}
         >
           Skip the story and open workspace
         </Link>
-        <div
-          className={styles.stage}
-          data-landing-stage
-          onPointerMove={(event) => {
-            if (
-              !playing ||
-              !sceneReady ||
-              chapter === 0 ||
-              event.pointerType === "touch"
-            )
-              return;
-            const rect = event.currentTarget.getBoundingClientRect();
-            pointerX.set((event.clientX - rect.left) / rect.width - 0.5);
-            pointerY.set((event.clientY - rect.top) / rect.height - 0.5);
-          }}
-          onPointerLeave={() => {
-            if (playing) {
-              pointerX.set(0);
-              pointerY.set(0);
-            }
-          }}
-        >
+        <div className={styles.stage} data-landing-stage>
           <header className={styles.header}>
             <Link
               href="/"
@@ -323,7 +281,7 @@ export default function LandingPage({
                 cadBridge={cadBridge}
                 construction={construction}
                 simulation={simulation}
-                playing={playing && sceneReady && chapter !== 0}
+                playing={playing && sceneReady && chapter === 2}
                 transparent={transparent}
                 reduced={reduced}
                 pointerX={pointerX}
@@ -356,7 +314,7 @@ export default function LandingPage({
               >
                 <span className={styles.eyebrow}>FROM IDEA TO PROCESS</span>
                 <h1 id="design-title">Design.</h1>
-                <p>Start with a conversation.</p>
+                <p>Describe a process. Make it a working layout.</p>
                 <button
                   className={styles.textLink}
                   onClick={() => goTo(1)}
@@ -365,13 +323,7 @@ export default function LandingPage({
                   Watch it build <ArrowRight size={16} />
                 </button>
               </motion.div>
-              <DesignChat
-                design={design}
-                reduced={reduced}
-                onReplay={replayDesign}
-                onSend={sendDesign}
-                onBuild={() => goTo(1)}
-              />
+              <DesignChat design={design} reduced={reduced} />
             </div>
           </motion.section>
 

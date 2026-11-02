@@ -77,157 +77,41 @@ async function expectViewportFilled(page: Page) {
   expect(view.screens).toBeCloseTo(3.8, 2);
 }
 
-test("the app-style assistant starts with a cursor, opens, types and sends", async ({
+test("the hardcoded assistant plays without mounting editor or assistant controls", async ({
   page,
 }, info) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const errors: string[] = [];
+  const requests: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+  page.on("request", (request) => {
+    if (request.url().includes("/api/assistant/")) requests.push(request.url());
   });
-  let release!: () => void;
-  const scripts = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await page.route(/\/_next\/.*\.js(?:\?.*)?$/, async (route) => {
-    await scripts;
-    await route.continue();
-  });
-  await page.goto("/landing", { waitUntil: "commit" });
-  try {
-    await expect(page.locator("[data-landing-page]")).toHaveAttribute(
-      "data-palette",
-      "light",
-    );
-    await expect(page.locator("html")).toHaveCSS("scrollbar-width", "none");
-    await expect(
-      page.getByRole("button", { name: "Open assistant demo", exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Design.", exact: true }),
-    ).toBeVisible();
-    const bubble = page.getByRole("button", {
-      name: "Open assistant demo",
-      exact: true,
-    });
-    await expect(bubble).toHaveCSS("width", "44px");
-    await expect(bubble).toHaveCSS("height", "44px");
-    await expect(page.locator("[data-design-chat]")).toBeVisible();
-    await expect(page.locator("canvas")).toHaveCount(0);
-    await expectViewportFilled(page);
-  } finally {
-    release();
-  }
+  await page.goto("/landing");
+  await expect(
+    page.getByRole("heading", { name: "Design.", exact: true }),
+  ).toBeVisible();
+  await expectViewportFilled(page);
   const chat = page.locator("[data-design-chat]");
-  await expect(chat).toHaveAttribute("data-intro", "cursor");
   await expect(page.locator("[data-demo-cursor]")).toBeVisible();
-  await page.screenshot({ path: info.outputPath("cursor-desktop.png") });
-  const approach = await page.evaluate(
-    () =>
-      new Promise<{ x: number; y: number; cursorX: number; cursorY: number }[]>(
-        (resolve) => {
-          const samples: {
-            x: number;
-            y: number;
-            cursorX: number;
-            cursorY: number;
-          }[] = [];
-          const sample = () => {
-            const button = document.querySelector<HTMLButtonElement>(
-              'button[aria-controls="landing-assistant"]',
-            )!;
-            if (button.getAttribute("aria-expanded") === "true") {
-              resolve(samples);
-              return;
-            }
-            const bubble = button.getBoundingClientRect();
-            const cursor = document
-              .querySelector("[data-demo-cursor] svg")!
-              .getBoundingClientRect();
-            samples.push({
-              x: bubble.x,
-              y: bubble.y,
-              cursorX: cursor.x + 5,
-              cursorY: cursor.y + 4,
-            });
-            requestAnimationFrame(sample);
-          };
-          sample();
-        },
-      ),
+  await expect(page.locator("[data-demo-cursor] svg")).toHaveCSS(
+    "filter",
+    "none",
   );
-  expect(approach.length).toBeGreaterThan(2);
-  expect(
-    Math.max(...approach.map((sample) => sample.x)) -
-      Math.min(...approach.map((sample) => sample.x)),
-  ).toBeLessThan(2);
-  expect(
-    Math.max(...approach.map((sample) => sample.y)) -
-      Math.min(...approach.map((sample) => sample.y)),
-  ).toBeLessThan(2);
-  const click = approach.at(-1)!;
-  expect(click.cursorX).toBeGreaterThan(click.x);
-  expect(click.cursorX).toBeLessThan(click.x + 44);
-  expect(click.cursorY).toBeGreaterThan(click.y);
-  expect(click.cursorY).toBeLessThan(click.y + 44);
-  await expect(chat).toHaveAttribute("data-expanded", "true", {
+  await expect(chat.locator("button, input, textarea, form")).toHaveCount(0);
+  await expect(page.locator(".react-flow")).toHaveCount(0);
+  await expect(page.locator("canvas")).toHaveCount(0);
+  await expect(chat).toHaveAttribute("data-phase", "complete", {
     timeout: 15000,
   });
-  await expect(
-    chat.getByRole("heading", { name: "How can I help you today?" }),
-  ).toBeVisible();
-  await expect(chat).toHaveAttribute("data-phase", "working", {
-    timeout: 45000,
-  });
-  await expect(
-    chat.getByRole("button", { name: "Build this flowsheet" }),
-  ).toBeVisible({ timeout: 15000 });
-  await expect(page.locator("[data-shared-scene] canvas")).toHaveCount(0);
-  await chat.getByText("3 project tool calls").click();
-  await expect(chat.getByText("propose actions · done")).toBeVisible();
+  await expect(chat.locator("[data-demo-result]")).toBeVisible();
   await page.screenshot({ path: info.outputPath("design-desktop.png") });
-  await page
-    .getByRole("button", { name: "Minimize assistant demo", exact: true })
-    .click();
-  await expect(chat).toHaveAttribute("data-expanded", "false");
-  await page
-    .getByRole("button", { name: "Open assistant demo", exact: true })
-    .click();
-  await expect(chat).toHaveAttribute("data-expanded", "true");
-  await page.getByRole("button", { name: "Replay chat demo" }).click();
-  await expect(chat).toHaveAttribute("data-phase", "typing");
   await page.getByRole("button", { name: "Pause motion", exact: true }).click();
-  const field = chat.getByRole("textbox", {
-    name: "Example prompt",
-    includeHidden: true,
-  });
-  const paused = await field.inputValue();
-  const cursorPosition = await page
-    .locator("[data-demo-cursor] > div")
-    .last()
-    .evaluate((element) => element.getAttribute("style"));
-  await page.waitForTimeout(500);
-  expect(await field.inputValue()).toBe(paused);
-  expect(
-    await page
-      .locator("[data-demo-cursor] > div")
-      .last()
-      .evaluate((element) => element.getAttribute("style")),
-  ).toBe(cursorPosition);
-  await page
-    .getByRole("button", { name: "Resume motion", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Send example prompt" }).click();
-  await expect(chat).toHaveAttribute("data-phase", "working", {
-    timeout: 10000,
-  });
-  await chat.getByRole("button", { name: "Build this flowsheet" }).click();
   await expect(page.locator("[data-landing-page]")).toHaveAttribute(
-    "data-chapter",
-    "1",
-    { timeout: 15000 },
+    "data-motion",
+    "paused",
   );
+  expect(requests).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -276,17 +160,16 @@ test("one 3D scene continuously unfolds the drawing and keeps operating equipmen
     })
     .toBeGreaterThan(0.99);
   await expect(page.getByText("Simulation complete")).toBeVisible();
-  const actualCanvas = page.locator(
-    '[data-live-cad] [data-canvas-mode="presentation"]',
-  );
-  await expect(actualCanvas.locator(".react-flow__node")).toHaveCount(9);
-  await expect(actualCanvas.locator(".react-flow__edge")).toHaveCount(9);
+  const actualCanvas = page.locator("[data-demo-worksheet]");
+  await expect(actualCanvas.locator("[data-unit]")).toHaveCount(9);
+  await expect(actualCanvas.locator("[data-stream]")).toHaveCount(9);
   await expect(actualCanvas.locator(".equipment-symbol")).toHaveCount(9);
-  await expect(
-    actualCanvas.locator(".react-flow__edge-path").first(),
-  ).toHaveCSS("stroke", "rgb(180, 63, 68)");
+  await expect(actualCanvas.locator("[data-stream] > path").first()).toHaveCSS(
+    "stroke",
+    "rgb(180, 63, 68)",
+  );
   const streamColors = await actualCanvas
-    .locator(".react-flow__edge-path")
+    .locator("[data-stream] > path")
     .evaluateAll((edges) => edges.map((edge) => getComputedStyle(edge).stroke));
   expect(new Set(streamColors).size).toBe(8);
   await expect(canvas).toHaveAttribute("data-simulation", "1.0000");

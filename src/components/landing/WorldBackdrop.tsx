@@ -7,7 +7,6 @@ export default function WorldBackdrop() {
   return (
     <div className={styles.world} aria-hidden="true">
       <div className={styles.worldShade} />
-      <div className={styles.grain} />
     </div>
   );
 }

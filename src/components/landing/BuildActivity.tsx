@@ -21,8 +21,14 @@ export default function BuildActivity({
 }) {
   const [built, setBuilt] = useState(construction.get());
   const [simulated, setSimulated] = useState(simulation.get());
-  useMotionValueEvent(construction, "change", setBuilt);
-  useMotionValueEvent(simulation, "change", setSimulated);
+  useMotionValueEvent(construction, "change", (value) =>
+    setBuilt(
+      Math.floor(value * constructionSteps.length) / constructionSteps.length,
+    ),
+  );
+  useMotionValueEvent(simulation, "change", (value) =>
+    setSimulated(Math.floor(value * 20) / 20),
+  );
   const completion = useTransform(
     () => construction.get() * 0.8 + simulation.get() * 0.2,
   );

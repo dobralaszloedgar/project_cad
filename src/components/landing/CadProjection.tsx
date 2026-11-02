@@ -6,7 +6,7 @@ import { Matrix4, Vector3 } from "three";
 import { CAD_SCALE, CAD_CENTER_Z } from "./landing-construction";
 import type { CadBridge } from "./CadWorkbench";
 
-/** Project the real DOM canvas with the same camera as the WebGL plant.
+/** Project the fixed worksheet with the same camera as the WebGL plant.
  * React retains ownership of its DOM; no secondary React root or raster capture. */
 export default function CadProjection({ bridge }: { bridge: CadBridge }) {
   const { camera, size } = useThree();
