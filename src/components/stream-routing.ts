@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 export type RoutePoint = { x: number; y: number };
 type Side = "left" | "right" | "top" | "bottom";
 export type RouteEndpoint = RoutePoint & { side: Side; nodeId: string };

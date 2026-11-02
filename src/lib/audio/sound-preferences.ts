@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 export const SOUND_STORAGE_KEY = "project-cad:sound:v1";
 export type SoundPreferences = { version: 1; enabled: boolean; volume: number };
 export const DEFAULT_SOUND_PREFERENCES: SoundPreferences = {

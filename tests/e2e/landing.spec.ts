@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { expect, test, type Locator, type Page } from "./test";
 import { STORY_END } from "../../src/components/landing/landing-playback";
 
@@ -279,6 +283,9 @@ test("mobile scenes fit and rest between gestures without changing desktop layou
   page,
 }, info) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  // Inspect stable layouts without tying this check to software GPU frame time.
+  // The cursor and construction tests exercise the animated journey separately.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/landing");
   for (const [index, name] of [
     "01 Design",
@@ -302,7 +309,10 @@ test("mobile scenes fit and rest between gestures without changing desktop layou
     ).toBe(true);
     const heading = await page
       .locator(`[data-scene="${["design", "build", "explore"][index]}"]`)
-      .getByRole("heading")
+      .getByRole("heading", {
+        name: ["Design", "Build", "Explore"][index],
+        exact: true,
+      })
       .boundingBox();
     expect(heading!.x).toBeGreaterThanOrEqual(0);
     expect(heading!.x + heading!.width).toBeLessThanOrEqual(390);
@@ -410,6 +420,11 @@ test("reduced motion is still, remains navigable and handles a lost GPU", async 
   await chapter(page, "03 Explore", 2);
   const canvas = page.locator("[data-shared-scene] canvas");
   await expect(canvas).toBeVisible();
+  // Preparation can show consecutive blank frames before the real scene is
+  // presented. Stillness is a property of the ready scene, not its placeholder.
+  await expect(canvas).toHaveAttribute("data-ready", "true", {
+    timeout: 30000,
+  });
   await expectStill(canvas);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await expect(page.locator("[data-landing-page]")).toHaveAttribute(

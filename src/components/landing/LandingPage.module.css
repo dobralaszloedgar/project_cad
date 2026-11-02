@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2026 László Edgár Dobra. All rights reserved.
+ * Applies only to copyrightable Project CAD material owned by this holder.
+ * See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+ */
+
 :global(html):has(.story),
 :global(body):has(.story) {
   background: #fafbf9;
@@ -262,7 +268,7 @@
   position: absolute;
   z-index: 5;
   left: 4.1%;
-  bottom: 13.5%;
+  bottom: calc(13.5% + 36px);
   max-width: 560px;
   pointer-events: none;
 }
@@ -428,7 +434,17 @@
   bottom: 0;
   left: 4.1%;
   right: 4.1%;
-  height: 76px;
+  min-height: 102px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.storyControls {
+  position: relative;
+  min-height: 52px;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -582,7 +598,7 @@
     inset: -3% -48%;
   }
   .sceneCaption {
-    bottom: 22%;
+    bottom: calc(22% + 36px);
     left: 24px;
     right: 24px;
     max-width: none;
@@ -603,7 +619,6 @@
     display: none;
   }
   .footer {
-    height: 57px;
     left: 24px;
     right: 24px;
   }
@@ -613,7 +628,7 @@
     letter-spacing: 0.11em;
   }
   .chapter[data-scene="explore"] .sceneCaption {
-    bottom: 25%;
+    bottom: max(calc(25% + 36px), 240px);
   }
   .chapter[data-scene="explore"] .sceneCaption p {
     max-width: 330px;
@@ -624,7 +639,7 @@
     height: 66px;
   }
   .sceneCaption {
-    bottom: 16%;
+    bottom: calc(16% + 36px);
   }
   .sceneCaption h1,
   .sceneCaption h2 {
@@ -710,7 +725,7 @@
 .designLayout {
   position: absolute;
   z-index: 5;
-  inset: 100px 8% 88px;
+  inset: 100px 8% 124px;
   display: grid;
   grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
   align-items: center;
@@ -728,6 +743,22 @@
 .designCaption p {
   color: var(--muted);
   font-size: 17px;
+}
+.story .demoNote,
+.story .sceneCaption .modelNote {
+  max-width: 350px;
+  margin-top: 12px;
+  color: #52655c;
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: normal;
+}
+.story .demoNote a,
+.story .modelNote a {
+  color: #236a59;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  pointer-events: auto;
 }
 .eyebrow {
   color: var(--subtle);
@@ -751,7 +782,7 @@
 .buildReadout {
   position: absolute;
   z-index: 6;
-  bottom: 13%;
+  bottom: calc(13% + 36px);
   left: 50%;
   transform: translateX(-50%);
   width: min(420px, 38vw);
@@ -800,7 +831,7 @@
   transform: translate(-50%, -50%) scale(var(--fallback-scale, 0.4)) !important;
 }
 .chapter[data-scene="build"] .sceneCaption {
-  bottom: 13%;
+  bottom: calc(13% + 36px);
 }
 .chapter[data-scene="build"] .sceneCaption h2,
 .chapter[data-scene="explore"] .sceneCaption h2 {
@@ -822,13 +853,19 @@
     left: auto;
     right: 5%;
     transform: none;
-    bottom: 23%;
+    bottom: calc(23% + 36px);
     width: 42%;
   }
 }
 @media (max-width: 700px) {
+  .footerInfo {
+    flex-direction: column-reverse;
+  }
+  .storyControls {
+    min-height: 42px;
+  }
   .designLayout {
-    inset: 128px 20px 72px;
+    inset: 128px 20px 108px;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
@@ -853,7 +890,7 @@
     left: 24px;
     right: 24px;
     width: auto;
-    bottom: 16%;
+    bottom: max(calc(16% + 36px), 174px);
     padding: 14px;
     font-size: 11px;
   }
@@ -861,7 +898,7 @@
     font-size: 9px;
   }
   .chapter[data-scene="build"] .sceneCaption {
-    bottom: 25%;
+    bottom: max(calc(25% + 36px), 240px);
   }
   .chapter[data-scene="build"] .sceneCaption h2,
   .chapter[data-scene="explore"] .sceneCaption h2 {
@@ -870,16 +907,78 @@
 }
 @media (max-width: 700px) and (max-height: 740px) {
   .designLayout {
-    inset-block: 112px 58px;
+    inset-block: 112px 98px;
     gap: 14px;
   }
+  .designCaption {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 18px;
+  }
+  .designCaption .eyebrow {
+    display: none;
+  }
   .designCaption h1 {
-    font-size: 44px;
+    font-size: 36px;
+    margin: 0;
+  }
+  .designCaption p {
+    margin: 0;
+    font-size: 12px;
+  }
+  .story .demoNote {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 11px;
+  }
+  .footer {
+    min-height: 92px;
+  }
+  .storyControls {
+    min-height: 42px;
+  }
+  .chapter[data-scene="build"] .sceneCaption {
+    bottom: 172px;
+  }
+  .chapter[data-scene="build"] .sceneCaption > p:first-of-type {
+    display: none;
+  }
+  .chapter[data-scene="build"] .sceneCaption h2,
+  .chapter[data-scene="explore"] .sceneCaption h2 {
+    font-size: 30px;
+  }
+  .story .sceneCaption .modelNote {
+    font-size: 11px;
+    line-height: 1.4;
+    margin-top: 6px;
+  }
+  .buildReadout {
+    bottom: 132px;
+    padding: 8px 12px;
+    font-size: 10px;
+  }
+  .chapter[data-scene="build"] .sceneActions {
+    bottom: 98px;
+  }
+  .chapter[data-scene="build"] .textLink {
+    padding-block: 6px;
+    font-size: 13px;
+  }
+  .chapter[data-scene="explore"] .sceneCaption {
+    top: 166px;
+    bottom: auto;
+  }
+  .chapter[data-scene="explore"] .sceneCaption > p:first-of-type {
+    margin-top: 6px;
+  }
+  .chapter[data-scene="explore"] .sceneActions {
+    bottom: 98px;
   }
 }
 @media (max-height: 600px) and (min-width: 601px) {
   .designLayout {
-    inset-block: 80px 70px;
+    inset-block: 80px 108px;
   }
   .designCaption h1 {
     font-size: 60px;
@@ -1019,5 +1118,32 @@
   }
   .cadHeaderTools {
     font-size: 14px;
+  }
+}
+
+.footerInfo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 20px;
+  width: 100%;
+}
+.copyright {
+  color: #52655c;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.story .footer {
+  height: auto;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+@media (max-width: 700px) {
+  .footerInfo {
+    flex-direction: column;
+    gap: 8px;
   }
 }

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 /** Shared by provider instructions, discovery tools, HTTP and the generated doc. */
 export const AI_GUIDE_VERSION = "project-cad-ai-guide-v1";
 

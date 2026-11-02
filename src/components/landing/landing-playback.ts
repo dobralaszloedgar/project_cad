@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 /** A short build sequence followed by responsive, scroll-controlled camera motion. */
 export const STORY_END = 1.65;
 export const STORY_STOPS = [0, 0.53, 0.95] as const;
@@ -29,6 +33,7 @@ export function advancePlayback(
   requested: number,
   seconds: number,
   reduced = false,
+  sceneReady = true,
 ): PlaybackState {
   const target = Math.max(0, Math.min(STORY_END, requested));
   if (reduced)
@@ -42,9 +47,10 @@ export function advancePlayback(
       speed: 1,
     };
 
-  // Keep real-time pacing on slower devices, but show each construction step
-  // for at least one frame. A stalled tab must not swallow the whole sequence.
-  const dt = Math.min(Math.max(seconds, 0), 0.25);
+  // Keep the same pacing at low frame rates. Visibility changes reset the
+  // clock at the call site; bound isolated stalls without turning a 1 FPS
+  // device's eight-second introduction into thirty-two seconds.
+  const dt = Math.min(Math.max(Number.isFinite(seconds) ? seconds : 0, 0), 1);
   let { progress, velocity, construction, simulation, completedFor } = state;
   // Scrolling is an explicit request to move on. Never hold it behind the
   // eight-second introductory chat, which can play at leisure while at rest.
@@ -70,7 +76,7 @@ export function advancePlayback(
   const destination =
     design < 1
       ? 0
-      : target > 0.53 && (simulation < 1 || completedFor < 0.12)
+      : target > 0.53 && (!sceneReady || simulation < 1 || completedFor < 0.12)
         ? 0.53
         : target;
   // Frame-rate independent damping without a speed cap or a second spring.

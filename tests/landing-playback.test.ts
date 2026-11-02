@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { describe, expect, it } from "vitest";
 import {
   advancePlayback,
@@ -106,5 +110,32 @@ describe("landing story playback", () => {
     expect(sawSimulation).toBe(true);
     expect(state.simulation).toBe(1);
     expect(state.progress).toBe(STORY_END);
+  });
+  it("keeps the eight-second introduction at one frame per second", () => {
+    let state = initialPlayback();
+    for (let second = 0; second < 7; second++)
+      state = advancePlayback(state, 0, 1);
+    expect(state.design).toBeLessThan(1);
+    state = advancePlayback(state, 0, 1);
+    expect(state.design).toBe(1);
+  });
+  it("finishes the drawing before waiting for 3D, then continues the same camera journey", () => {
+    let state = { ...initialPlayback(), design: 1, progress: 0.53 };
+    for (let frame = 0; frame < 600; frame++)
+      state = advancePlayback(state, 0.95, 1 / 60, false, false);
+    expect(state).toMatchObject({
+      construction: 1,
+      simulation: 1,
+      progress: 0.53,
+    });
+    state = advancePlayback(state, 0.95, 1 / 60, false, true);
+    expect(state.progress).toBeGreaterThan(0.53);
+    expect(state.progress).toBeLessThan(0.95);
+    for (let frame = 0; frame < 240; frame++)
+      state = advancePlayback(state, 0.95, 1 / 60, false, true);
+    expect(state.progress).toBeCloseTo(0.95, 3);
+    expect(
+      advancePlayback(initialPlayback(), 0.95, 0, true, false).progress,
+    ).toBe(0.95);
   });
 });

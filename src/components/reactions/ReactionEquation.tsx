@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import type { Chemical } from "@/domain/thermo/data";
 import type { Reaction } from "@/domain/reactions/schema";
 import ChemicalFormula from "../ChemicalFormula";

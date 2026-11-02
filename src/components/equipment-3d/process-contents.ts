@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import {
   Box3,
   Color,
@@ -27,11 +31,8 @@ import type { Kind } from "@/domain/schema";
 import { liquidMaterial, vaporMaterial } from "./fluid-materials";
 import { OperationClock, pipeCurve, type Point } from "./operation";
 import { flowColors, type SystemExample } from "./system-geometry";
-import {
-  blendColors,
-  UNKNOWN_COMPOSITION_COLOR,
-  type EquipmentCompositionColors,
-} from "./composition-colors";
+import { blendColors, UNKNOWN_COMPOSITION_COLOR } from "./color-blending";
+import type { EquipmentCompositionColors } from "./composition-colors";
 import {
   columnLayout,
   columnOverhead,

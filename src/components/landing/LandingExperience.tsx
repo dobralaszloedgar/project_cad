@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import {
@@ -8,13 +12,16 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Lightformer } from "@react-three/drei";
-import { Fog, MathUtils, PerspectiveCamera, Vector3 } from "three";
-import type { MotionValue } from "motion/react";
+import { Fog, MathUtils, PerspectiveCamera, Vector3, Vector4 } from "three";
+import { useMotionValue, type MotionValue } from "motion/react";
 import { RendererRuntime } from "../graphics/RendererRuntime";
-import { AccelerationHelp } from "../graphics/AccelerationHelp";
+import Fallback from "./SceneFallback";
+import { compileHiddenMaterials } from "../graphics/compile-scene";
+import { withGraphicsDeadline } from "../graphics/deadline";
 import { StudioEnvironment } from "../graphics/StudioEnvironment";
 import {
   createSceneRenderer,
@@ -37,7 +44,6 @@ import {
 import { makeLandingSystem, reveal } from "./landing-system";
 import { tourStopAt, tourWeights } from "./landing-motion";
 import { equipmentView } from "./landing-camera";
-import styles from "./LandingPage.module.css";
 
 export type ExperienceProps = {
   onReady: () => void;
@@ -224,8 +230,23 @@ function CameraRig({
   return null;
 }
 
-function Experience(props: ExperienceProps) {
+function Experience(
+  props: ExperienceProps & {
+    onFrameloopChange: (mode: "always" | "demand") => void;
+  },
+) {
+  const { onFrameloopChange } = props;
   const system = useMemo(() => makeLandingSystem(), []);
+  const invalidate = useThree((state) => state.invalidate);
+  const preparing = useRef(true);
+  const renderProgress = useMotionValue(0.95);
+  useEffect(
+    () => props.progress.on("change", invalidate),
+    [props.progress, invalidate],
+  );
+  useFrame(() => {
+    if (!preparing.current) renderProgress.set(props.progress.get());
+  }, -3);
   const width = useThree((state) => state.size.width);
   const setFrameloop = useThree((state) => state.setFrameloop);
   const get = useThree((state) => state.get);
@@ -238,16 +259,17 @@ function Experience(props: ExperienceProps) {
       // sleep between scroll events on desktop too.
       const mode = playing && props.progress.get() < 1.16 ? "always" : "demand";
       if (get().frameloop !== mode) setFrameloop(mode);
+      onFrameloopChange(mode);
       get().gl.domElement.dataset.renderLoop = mode;
     };
     update();
     return props.progress.on("change", update);
-  }, [playing, props.progress, get, setFrameloop]);
+  }, [playing, props.progress, onFrameloopChange, get, setFrameloop]);
   return (
     <>
       <PlaybackTelemetry {...props} />
-      <CameraRig {...props} system={system} />
-      <CadProjection bridge={props.cadBridge} progress={props.progress} />
+      <CameraRig {...props} progress={renderProgress} system={system} />
+      <CadProjection bridge={props.cadBridge} progress={renderProgress} />
       <fog attach="fog" args={["#e9efea", 32, 100]} />
       <ambientLight intensity={0.9} />
       <directionalLight position={[5, 10, 6]} intensity={2} color="#fff5e9" />
@@ -286,11 +308,12 @@ function Experience(props: ExperienceProps) {
       </StudioEnvironment>
       <MorphingProcess
         system={system}
-        progress={props.progress}
+        progress={renderProgress}
         bridge={props.cadBridge}
         playing={playing}
       />
       <ShaderWarmup
+        preparing={preparing}
         onReady={props.onReady}
         onUnavailable={props.onUnavailable}
       />
@@ -299,48 +322,73 @@ function Experience(props: ExperienceProps) {
 }
 
 function ShaderWarmup({
+  preparing,
   onReady,
   onUnavailable,
 }: {
+  preparing: RefObject<boolean>;
   onReady: () => void;
   onUnavailable: () => void;
 }) {
   const { gl, scene, camera, invalidate } = useThree();
-  const warmup = useRef({ compiled: false, frames: 0, reported: false });
-  const readyFrame = useRef<number | null>(null);
+  const viewport = useMemo(() => new Vector4(), []);
+  const warmup = useRef({ compiled: false, waiting: false, ready: false });
   const completion = useRef<AbortController | null>(null);
   useFrame(() => {
     const state = warmup.current;
-    if (!state.compiled || state.reported) return;
-    // Shader compilation alone doesn't mean pixels have reached the screen.
-    // Present two complete frames, including the environment and camera pose,
-    // beneath the opening preview before allowing the composited handoff.
-    if (++state.frames < 3) {
-      invalidate();
-      return;
+    if (!state.compiled || state.waiting) return;
+    const renderer = sceneRenderer(gl);
+    if (preparing.current) {
+      // First-use driver compilation needs an actual draw. A small hidden
+      // viewport exercises every material without rasterizing a full screen.
+      renderer.getViewport(viewport);
+      renderer.setViewport(0, 0, 64, 64);
     }
-    state.reported = true;
-    readyFrame.current = requestAnimationFrame(() => {
-      const controller = new AbortController();
-      completion.current = controller;
-      void waitForSceneFrame(sceneRenderer(gl), controller.signal)
-        .then(() => {
-          if (controller.signal.aborted) return;
-          gl.domElement.setAttribute("data-ready", "true");
-          onReady();
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) onUnavailable();
-        });
-    });
-  });
+    try {
+      renderer.render(scene, camera);
+    } finally {
+      if (preparing.current) renderer.setViewport(viewport);
+    }
+    if (state.ready) return;
+    // Compile and upload the complete plant before its first visible reveal.
+    // Only one frame is in flight during preparation, so slower drivers do not
+    // accumulate a queue of expensive draws while the drawing is still active.
+    state.waiting = true;
+    const controller = new AbortController();
+    completion.current = controller;
+    void waitForSceneFrame(renderer, controller.signal, 15_000)
+      .then(() => {
+        if (controller.signal.aborted) return;
+        state.waiting = false;
+        if (preparing.current) {
+          // Restore and present the actual story pose before exposing Canvas.
+          preparing.current = false;
+          invalidate();
+          return;
+        }
+        state.ready = true;
+        gl.domElement.setAttribute("data-ready", "true");
+        onReady();
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) onUnavailable();
+      });
+  }, 1);
   useEffect(() => {
     let active = true;
-    warmup.current = { compiled: false, frames: 0, reported: false };
+    const controller = new AbortController();
+    warmup.current = { compiled: false, waiting: false, ready: false };
+    gl.domElement.setAttribute("data-ready", "false");
     const frame = requestAnimationFrame(() => {
-      // Compile hidden equipment too, before scrolling reveals its materials.
-      void gl
-        .compileAsync(scene, camera)
+      void withGraphicsDeadline(
+        Promise.resolve().then(() => {
+          controller.signal.throwIfAborted();
+          return compileHiddenMaterials(sceneRenderer(gl), scene, camera);
+        }),
+        30_000,
+        "The 3D preview could not finish preparing",
+        controller.signal,
+      )
         .then(() => {
           if (!active) return;
           warmup.current.compiled = true;
@@ -352,23 +400,12 @@ function ShaderWarmup({
     });
     return () => {
       active = false;
+      controller.abort();
       cancelAnimationFrame(frame);
-      if (readyFrame.current !== null) cancelAnimationFrame(readyFrame.current);
       completion.current?.abort();
     };
   }, [gl, scene, camera, invalidate, onReady, onUnavailable]);
   return null;
-}
-
-function Fallback({ onUnavailable }: { onUnavailable?: () => void }) {
-  useEffect(() => onUnavailable?.(), [onUnavailable]);
-  return (
-    <div className={styles.plantFallback}>
-      <span>Explore the equipment collection</span>
-      <AccelerationHelp />
-      <a href="/sandbox/equipment">Open the 3D sandbox ↗</a>
-    </div>
-  );
 }
 
 /** One renderer, one camera, one coordinate system for the entire story. */
@@ -376,6 +413,8 @@ function Fallback({ onUnavailable }: { onUnavailable?: () => void }) {
 // tree during that handoff; start its animation after the entrance settles.
 export default memo(function LandingExperience(props: ExperienceProps) {
   const [lost, setLost] = useState(false);
+  const [dpr, setDpr] = useState(1);
+  const [frameloop, setFrameloop] = useState<"always" | "demand">("demand");
   const [visible, setVisible] = useState(true);
   const handleUnavailable = useCallback(() => setLost(true), []);
   const fallback = <Fallback onUnavailable={props.onUnavailable} />;
@@ -386,8 +425,8 @@ export default memo(function LandingExperience(props: ExperienceProps) {
       ) : (
         <Canvas
           aria-label="Live equipment, a flowsheet and a continuously unfolding 3D process plant"
-          dpr={[1, 1.25]}
-          frameloop="demand"
+          dpr={dpr}
+          frameloop={frameloop}
           camera={{ position: [0, 8, 24], fov: 38, near: 0.1, far: 220 }}
           gl={createLandingRenderer}
           // Canvas fallback children are mounted even when WebGL is supported.
@@ -396,6 +435,7 @@ export default memo(function LandingExperience(props: ExperienceProps) {
         >
           <RendererRuntime
             dprLimit={1.25}
+            onDprChange={setDpr}
             onLost={handleUnavailable}
             onVisible={setVisible}
             onInfo={props.onGraphicsInfo}
@@ -403,6 +443,7 @@ export default memo(function LandingExperience(props: ExperienceProps) {
           <Suspense fallback={null}>
             <Experience
               {...props}
+              onFrameloopChange={setFrameloop}
               playing={props.playing && visible}
               onUnavailable={handleUnavailable}
             />

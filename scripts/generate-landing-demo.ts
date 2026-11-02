@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 /** Offline authoring only: the landing page imports the fixed output, never the
  * editor, solver or routing engines. Run with node --import tsx scripts/generate-landing-demo.ts. */
 import { writeFileSync } from "node:fs";

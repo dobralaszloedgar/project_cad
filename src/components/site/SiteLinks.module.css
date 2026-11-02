@@ -1,0 +1,46 @@
+/*
+ * Copyright © 2026 László Edgár Dobra. All rights reserved.
+ * Applies only to copyrightable Project CAD material owned by this holder.
+ * See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+ */
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: clamp(12px, 2vw, 24px);
+  row-gap: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #52655c;
+}
+
+.links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 2px;
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.links a[aria-current],
+.links a:focus-visible {
+  color: #236a59;
+  text-decoration: underline;
+}
+
+.links a:focus-visible {
+  outline: 2px solid #236a59;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+@media (hover: hover) {
+  .links a:hover {
+    color: #236a59;
+    text-decoration: underline;
+  }
+}

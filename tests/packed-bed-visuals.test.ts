@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { describe, expect, it } from "vitest";
 import { Box3, InstancedMesh, Matrix4, Raycaster, Vector3 } from "three";
 import { createProcessContents } from "../src/components/equipment-3d/process-contents";

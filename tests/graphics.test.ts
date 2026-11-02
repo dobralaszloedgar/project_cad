@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { describe, expect, it } from "vitest";
 import { isSoftwareRenderer } from "../src/components/graphics/diagnostics";
 import { liquidMaterial } from "../src/components/equipment-3d/fluid-materials";
@@ -56,6 +60,20 @@ describe("adaptive render resolution", () => {
     expect(controller.sample(20, 1.5, 1.75)).toBe(1.5);
     for (let frame = 0; frame < 30; frame++)
       expect(controller.sample(1 / 30, 1.5, 1.75)).toBe(1.5);
+  });
+  it("enforces the device cap immediately after a parent reconfiguration", () => {
+    const controller = new ResolutionController();
+    expect(controller.sample(1 / 60, 1.75, 1)).toBe(1);
+    expect(controller.sample(1 / 60, 1.75, 0.55)).toBe(0.55);
+  });
+  it("recovers from repeated multi-second frames instead of resetting forever", () => {
+    const controller = new ResolutionController();
+    let dpr = 1;
+    for (let frame = 0; frame < 12; frame++)
+      dpr = controller.sample(1.2, dpr, 1);
+    expect(dpr).toBe(0.75);
+    controller.reset();
+    expect(controller.sample(1 / 60, dpr, 1)).toBe(dpr);
   });
 });
 

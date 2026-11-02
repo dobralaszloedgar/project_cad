@@ -1,3 +1,7 @@
+-- Copyright © 2026 László Edgár Dobra. All rights reserved.
+-- Applies only to copyrightable Project CAD material owned by this holder.
+-- See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 -- Scientific reference records only. User projects and operating conditions stay local.
 create schema if not exists thermo_catalog;
 revoke all on schema thermo_catalog from public, anon, authenticated;

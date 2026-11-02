@@ -1,3 +1,9 @@
+<!--
+Copyright © 2026 László Edgár Dobra. All rights reserved.
+Applies only to copyrightable Project CAD material owned by this holder.
+See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+-->
+
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="Project CAD">
   <title>Project CAD</title>
   <rect width="32" height="32" rx="8" fill="#286e5c"/>

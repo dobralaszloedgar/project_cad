@@ -1,3 +1,7 @@
+# Copyright © 2026 László Edgár Dobra. All rights reserved.
+# Applies only to copyrightable Project CAD material owned by this holder.
+# See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 """Run the real DWSIM 9.0.5 .NET engine; never imports Project CAD code.
 
 python dwsim-reference.py --dwsim-dir PATH --output PATH

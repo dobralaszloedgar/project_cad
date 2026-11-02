@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import {
@@ -832,6 +836,7 @@ function ProjectLabels({
 }
 
 export default function EquipmentScene(props: SceneProps) {
+  const [dpr, setDpr] = useState(1);
   const [labelsVisible, setLabelsVisible] = useState(true);
   const toggleLabels = useCallback(
     () => setLabelsVisible((value) => !value),
@@ -914,7 +919,7 @@ export default function EquipmentScene(props: SceneProps) {
         ) : (
           <Canvas
             shadows="percentage"
-            dpr={[1, 1.75]}
+            dpr={dpr}
             frameloop={
               visible && (props.rotate || props.playing) ? "always" : "demand"
             }
@@ -928,6 +933,7 @@ export default function EquipmentScene(props: SceneProps) {
             }
           >
             <RendererRuntime
+              onDprChange={setDpr}
               onLost={handleLost}
               onVisible={setVisible}
               onInfo={setInfo}

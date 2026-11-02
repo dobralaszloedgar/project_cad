@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { z } from "zod";
 import { applyActions, planSchema } from "../domain/actions";
 import { projectSchema, type Project } from "../domain/schema";
@@ -10,6 +14,8 @@ import {
 } from "./protocol";
 import { projectCapabilities } from "./capabilities";
 import { aiGuideText, AI_GUIDE_VERSION } from "./guide";
+import { projectRevision } from "./project-revision";
+export { projectRevision } from "./project-revision";
 
 // These tools run in the connected browser, against the same catalog routes as
 // manual component selection. Provider text never chooses an arbitrary endpoint.
@@ -36,23 +42,6 @@ async function readCatalog(path: string, body?: unknown) {
   return value;
 }
 
-export async function projectRevision(project: Project) {
-  const bytes = new TextEncoder().encode(
-    JSON.stringify(projectSchema.parse(project), (_key, value) =>
-      value && typeof value === "object" && !Array.isArray(value)
-        ? Object.fromEntries(
-            Object.entries(value).sort(([left], [right]) =>
-              left < right ? -1 : left > right ? 1 : 0,
-            ),
-          )
-        : value,
-    ),
-  );
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
 export async function executeProjectTool(
   name: ToolName,
   input: unknown,

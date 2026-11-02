@@ -1,6 +1,10 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { maximumDpr, ResolutionController } from "./performance";
 import { graphicsInfo, sceneRenderer, type GraphicsInfo } from "./renderer";
@@ -10,6 +14,7 @@ export function RendererRuntime({
   onVisible,
   onInfo,
   onReady,
+  onDprChange,
   label,
   dprLimit = Infinity,
 }: {
@@ -17,12 +22,22 @@ export function RendererRuntime({
   onVisible: (visible: boolean) => void;
   onInfo?: (info: GraphicsInfo) => void;
   onReady?: () => void;
+  onDprChange: (dpr: number) => void;
   label?: string;
   dprLimit?: number;
 }) {
   const { gl, size, setDpr, get } = useThree();
   const controller = useRef(new ResolutionController());
   const maximum = useRef(1);
+  const applyDpr = useCallback(
+    (dpr: number) => {
+      setDpr(dpr);
+      // Keep Canvas's declarative configuration in sync with adaptive rendering.
+      // Otherwise any parent update restores its original high-DPI setting.
+      onDprChange(dpr);
+    },
+    [setDpr, onDprChange],
+  );
   useEffect(() => {
     if (!onReady) return;
     const { scene, invalidate } = get();
@@ -48,18 +63,20 @@ export function RendererRuntime({
     if (gl.domElement.dataset.graphicsSoftware === "true") {
       maximum.current = Math.min(1, maximum.current);
     }
-    setDpr(maximum.current);
+    applyDpr(maximum.current);
     controller.current.reset();
-  }, [gl, size.width, size.height, setDpr, dprLimit]);
+  }, [gl, size.width, size.height, applyDpr, dprLimit]);
   useFrame((state, delta) => {
     // Demand rendering includes intentional pauses; these are not slow frames.
     if (state.frameloop !== "always") {
       controller.current.reset();
+      const current = get().viewport.dpr;
+      if (current > maximum.current) applyDpr(maximum.current);
       return;
     }
     const current = get().viewport.dpr;
     const next = controller.current.sample(delta, current, maximum.current);
-    if (next !== current) setDpr(next);
+    if (next !== current) applyDpr(next);
     const scale = next.toFixed(2);
     if (state.gl.domElement.dataset.renderScale !== scale)
       state.gl.domElement.dataset.renderScale = scale;

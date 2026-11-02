@@ -1,5 +1,9 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProviderInput } from "../src/server/assistant/providers/types";
@@ -167,7 +171,7 @@ it("uses the selected model and effort, streams once, and resumes the same Muse 
   expect(text.mock.calls.flat().join("")).toBe("Hello world");
   expect(fake.commands[0]).toMatchObject({
     method: "session/start",
-    params: { modelId: "wonder", workspaceRoot: value.cwd },
+    params: { modelId: "wonder", workspaceRoot: realpathSync(value.cwd) },
   });
   expect(fake.commands[1]).toMatchObject({
     method: "turn/start",

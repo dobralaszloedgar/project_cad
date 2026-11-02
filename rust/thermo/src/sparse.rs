@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 //! Sparse partial-pivot elimination with sorted contiguous numeric rows.
 //! Column incidence tracks fill-in; no factor survives a changed Jacobian.
 use crate::column_numerics::{require, Res};

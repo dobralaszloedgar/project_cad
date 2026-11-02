@@ -1,4 +1,11 @@
+/*
+ * Copyright © 2026 László Edgár Dobra. All rights reserved.
+ * Applies only to copyrightable Project CAD material owned by this holder.
+ * See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+ */
+
 .demo {
+  container-type: size;
   position: relative;
   width: 100%;
   height: min(570px, 100%);
@@ -325,6 +332,36 @@
     margin-bottom: 8px;
     font-size: 11px;
     line-height: 1.45;
+  }
+}
+/* Keep the full response visible when the surrounding page leaves less room. */
+@container (max-height: 450px) {
+  .header {
+    padding-block: 10px;
+  }
+  .conversation {
+    padding-block: 10px;
+  }
+  .userMessage {
+    margin-bottom: 10px;
+    padding-block: 8px;
+  }
+  .author {
+    margin-bottom: 6px;
+  }
+  .steps {
+    gap: 3px;
+    margin-top: 8px;
+  }
+  .result {
+    padding-block: 7px;
+    margin-top: 8px;
+  }
+  .composerArea {
+    padding-block: 8px;
+  }
+  .controls {
+    margin-top: 8px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

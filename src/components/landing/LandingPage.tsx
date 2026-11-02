@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import {
@@ -20,12 +24,15 @@ import {
   animate,
 } from "motion/react";
 import WorldBackdrop from "./WorldBackdrop";
+import SceneBoundary from "./SceneBoundary";
+import SceneFallback from "./SceneFallback";
 import { useMotionPreference } from "./use-motion-preference";
 import styles from "./LandingPage.module.css";
 import CadWorkbench, { createCadBridge } from "./CadWorkbench";
 import BuildActivity from "./BuildActivity";
 import DesignChat from "./DesignChat";
 import BrandMark from "@/components/BrandMark";
+import SiteLinks from "@/components/site/SiteLinks";
 import { useStoryPlayback } from "./use-story-playback";
 import { STORY_END, STORY_STOPS } from "./landing-playback";
 import { tourStopAt } from "./landing-motion";
@@ -65,6 +72,7 @@ export default function LandingPage({
   const [visible, setVisible] = useState(true);
   const [sceneReady, setSceneReady] = useState(false);
   const [sceneRequested, setSceneRequested] = useState(false);
+  const scenePreloaded = useRef(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
   const [graphicsInfo, setGraphicsInfo] = useState<GraphicsInfo | null>(null);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
@@ -73,8 +81,15 @@ export default function LandingPage({
     scrollYProgress,
     visible,
     reduced,
+    sceneReady || sceneUnavailable,
   );
   const prepareScene = () => {
+    // Fetch the next chapter on navigation intent while the chat finishes.
+    // Geometry and GPU setup still wait until the introduction is complete.
+    if (!scenePreloaded.current && scrollYProgress.get() * STORY_END >= 0.27) {
+      scenePreloaded.current = true;
+      void import("./LandingExperience").catch(() => {});
+    }
     // Prepare 3D only when the finished chat leads into Build. Staying in
     // Design keeps geometry creation and shader compilation off the page.
     if (
@@ -244,20 +259,26 @@ export default function LandingPage({
 
           <motion.div
             className={styles.experienceStage}
-            style={{ opacity: sceneOpacity }}
+            style={{
+              opacity: sceneReady || sceneUnavailable ? sceneOpacity : 0,
+            }}
             data-shared-scene
           >
             {sceneRequested ? (
-              <LandingExperience
-                onReady={onSceneReady}
-                onUnavailable={onSceneUnavailable}
-                onGraphicsInfo={setGraphicsInfo}
-                progress={progress}
-                cadBridge={cadBridge}
-                construction={construction}
-                simulation={simulation}
-                playing={playing && sceneReady && chapter === 2}
-              />
+              <SceneBoundary
+                fallback={<SceneFallback onUnavailable={onSceneUnavailable} />}
+              >
+                <LandingExperience
+                  onReady={onSceneReady}
+                  onUnavailable={onSceneUnavailable}
+                  onGraphicsInfo={setGraphicsInfo}
+                  progress={progress}
+                  cadBridge={cadBridge}
+                  construction={construction}
+                  simulation={simulation}
+                  playing={playing && sceneReady && chapter === 2}
+                />
+              </SceneBoundary>
             ) : null}
           </motion.div>
           <WorldBackdrop />
@@ -286,6 +307,12 @@ export default function LandingPage({
                 <span className={styles.eyebrow}>FROM IDEA TO PROCESS</span>
                 <h1 id="design-title">Design</h1>
                 <p>Describe a process. Make it a working layout.</p>
+                <p className={styles.demoNote}>
+                  Scripted demo.{" "}
+                  <Link href="/privacy#ai-assistant" prefetch={false}>
+                    How connected AI uses your data
+                  </Link>
+                </p>
                 <button
                   className={styles.textLink}
                   onClick={() => goTo(1)}
@@ -313,6 +340,12 @@ export default function LandingPage({
             <div className={styles.sceneCaption}>
               <h2 id="build-title">Build</h2>
               <p>Connected. Simulated. Ready.</p>
+              <p className={styles.modelNote}>
+                Model-based estimates. Engineering review required.{" "}
+                <Link href="/terms#engineering" prefetch={false}>
+                  Model limits
+                </Link>
+              </p>
             </div>
           </motion.section>
 
@@ -330,6 +363,7 @@ export default function LandingPage({
             >
               <h2 id="explore-title">Explore</h2>
               <p>{tourCopy}</p>
+              <p className={styles.modelNote}>Illustrative 3D view.</p>
             </motion.div>
           </motion.section>
 
@@ -347,30 +381,38 @@ export default function LandingPage({
             ))}
           </nav>
           <footer className={styles.footer}>
-            <button
-              className={styles.scrollCue}
-              onClick={() =>
-                chapter !== 2
-                  ? goTo(chapter + 1)
-                  : travelTo(tourStop === 3 ? 0 : [1.2, 1.4, 1.65][tourStop])
-              }
-            >
-              <span>
-                {chapter === 0
-                  ? "Scroll to build"
-                  : chapter === 1
-                    ? "Scroll to explore"
-                    : tourStop === 3
-                      ? "Back to the beginning"
-                      : tourStop === 0
-                        ? "Scroll to look closer"
-                        : "Keep exploring"}
-              </span>
-              <ArrowDown
-                size={17}
-                className={tourStop === 3 ? styles.upArrow : undefined}
-              />
-            </button>
+            <div className={styles.storyControls}>
+              <button
+                className={styles.scrollCue}
+                onClick={() =>
+                  chapter !== 2
+                    ? goTo(chapter + 1)
+                    : travelTo(tourStop === 3 ? 0 : [1.2, 1.4, 1.65][tourStop])
+                }
+              >
+                <span>
+                  {chapter === 0
+                    ? "Scroll to build"
+                    : chapter === 1
+                      ? "Scroll to explore"
+                      : tourStop === 3
+                        ? "Back to the beginning"
+                        : tourStop === 0
+                          ? "Scroll to look closer"
+                          : "Keep exploring"}
+                </span>
+                <ArrowDown
+                  size={17}
+                  className={tourStop === 3 ? styles.upArrow : undefined}
+                />
+              </button>
+            </div>
+            <div className={styles.footerInfo}>
+              <small className={styles.copyright}>
+                © 2026 László Edgár Dobra. All rights reserved.
+              </small>
+              <SiteLinks />
+            </div>
           </footer>
           <motion.div
             className={styles.scrollProgress}

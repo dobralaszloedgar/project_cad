@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -13,6 +17,7 @@ export function useStoryPlayback(
   scroll: MotionValue<number>,
   visible: boolean,
   reduced: boolean,
+  sceneReady = true,
 ) {
   const progress = useMotionValue(0);
   const design = useMotionValue(0);
@@ -28,13 +33,20 @@ export function useStoryPlayback(
       const target = Math.max(0, Math.min(1, scroll.get())) * STORY_END;
       const seconds = previous ? (time - previous) / 1000 : 1 / 60;
       previous = time;
-      state.current = advancePlayback(state.current, target, seconds, reduced);
+      state.current = advancePlayback(
+        state.current,
+        target,
+        seconds,
+        reduced,
+        sceneReady,
+      );
       const next = state.current;
       progress.set(next.progress);
       design.set(next.design);
       construction.set(next.construction);
       simulation.set(next.simulation);
-      const travelling = Math.abs(target - next.progress) > 0.00001;
+      const destination = sceneReady ? target : Math.min(target, 0.53);
+      const travelling = Math.abs(destination - next.progress) > 0.00001;
       const building = target >= 0.3 && next.simulation < 1;
       const chatting = next.design < 1;
       if (!reduced && (travelling || building || chatting))
@@ -55,6 +67,15 @@ export function useStoryPlayback(
       cancelAnimationFrame(frame);
       stop();
     };
-  }, [scroll, visible, reduced, progress, design, construction, simulation]);
+  }, [
+    scroll,
+    visible,
+    reduced,
+    sceneReady,
+    progress,
+    design,
+    construction,
+    simulation,
+  ]);
   return { progress, design, construction, simulation };
 }

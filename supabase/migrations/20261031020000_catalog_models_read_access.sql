@@ -1,3 +1,7 @@
+-- Copyright © 2026 László Edgár Dobra. All rights reserved.
+-- Applies only to copyrightable Project CAD material owned by this holder.
+-- See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 -- Public scientific reference data only; projects and compositions remain local.
 -- Keep tables in the unexposed schema, with narrowly scoped, read-only RPCs.
 create table thermo_catalog.models (
