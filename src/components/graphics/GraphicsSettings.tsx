@@ -5,6 +5,7 @@ import { ChevronDown, Monitor } from "lucide-react";
 import type { GraphicsInfo, GraphicsPreference } from "./renderer";
 import styles from "./graphics.module.css";
 import { AccelerationNotice } from "./AccelerationHelp";
+import { isSelectPickerOpen } from "@/lib/keyboard";
 
 export function GraphicsSettings({
   info,
@@ -21,7 +22,7 @@ export function GraphicsSettings({
     <details
       className={`${styles.settings}${container ? ` ${styles.inlineSettings}` : ""}`}
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && !isSelectPickerOpen(event)) {
           event.preventDefault();
           event.currentTarget.open = false;
           event.currentTarget.querySelector("summary")?.focus();

@@ -25,9 +25,9 @@ import {
   ChartNoAxesColumnIncreasing,
   CircleHelp,
   AlignHorizontalJustifyStart,
-  Rainbow,
   HardDrive,
   Ruler,
+  Palette,
 } from "lucide-react";
 import { useCanvasFullscreen } from "./useCanvasFullscreen";
 import Dialog from "./Dialog";
@@ -52,12 +52,13 @@ import { reactorExample } from "@/domain/examples";
 import { loadTemplate } from "@/domain/templates";
 import ThermodynamicSelector from "./ThermoSettings";
 import ProjectComponents from "./ProjectComponents";
+import { prefetchChemicalSearch } from "@/lib/chemical-search-client";
 import {
   defaultThermo,
   modelInfo,
   type ThermoSettings,
 } from "@/domain/thermo/registry";
-import { mixtureName, thermoContext } from "@/domain/thermo/catalog";
+import { thermoContext } from "@/domain/thermo/catalog";
 import { type Result, simulate } from "@/domain/solver";
 import { applyActions } from "@/domain/actions";
 import type { Proposal } from "@/assistant/protocol";
@@ -122,7 +123,9 @@ import KeyboardHelp from "./KeyboardHelp";
 import ProjectStorageSettings from "./ProjectStorageSettings";
 import UnitSettings from "./UnitSettings";
 import { useUnitSystem } from "./useUnitSystem";
+import ThemePicker from "./ThemePicker";
 import { useTheme } from "./useTheme";
+import { useCompositionColors } from "./useCompositionColors";
 import { useCanvasSound } from "./useCanvasSound";
 import CanvasSoundSettings, { CanvasSoundToggle } from "./CanvasSoundControls";
 import { editSoundCue } from "@/lib/audio/edit-sound";
@@ -138,7 +141,12 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   loading: () => <div className="empty-state">Loading 3D workspace…</div>,
 });
 type WorkspacePanel =
-  "Equipment" | "Results" | "Units" | "Storage settings" | "Settings";
+  | "Equipment"
+  | "Results"
+  | "Themes"
+  | "Units"
+  | "Storage settings"
+  | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
     ? `Saved to ${location.folderName}/${location.fileName ?? "project.json"}`
@@ -156,7 +164,7 @@ export default function Workspace({
   exampleId,
   initialScreen = "editor",
   initialView = "2D",
-  initialPlayback = false,
+  initialPlayback = true,
   initialArrange = false,
 }: {
   exampleId?: string;
@@ -210,12 +218,16 @@ export default function Workspace({
   const sound = useCanvasSound();
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
+  const [settingsTab, setSettingsTab] = useState<"Workspace" | "Storage">(
+    "Workspace",
+  );
   const [thermoDialog, setThermoDialog] = useState<
     "model" | "components" | null
   >(null);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [editingComponents, setEditingComponents] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const assistantApplyLock = useRef(false);
   useEffect(() => {
@@ -232,7 +244,7 @@ export default function Workspace({
     if (open && window.matchMedia("(max-width: 760px)").matches)
       setDrawer(null);
   }, []);
-  const [compositionColors, setCompositionColors] = useState(true);
+  const { compositionColors, setCompositionColors } = useCompositionColors();
   const [projectId, setProjectId] = useState(
     initialScreen === "projects" ? "" : "main",
   );
@@ -270,6 +282,11 @@ export default function Workspace({
     () => projectSchema.parse(state.project),
     [state.project],
   );
+  const chemicalModel = project.thermo?.modelId ?? defaultThermo.modelId;
+  const chemicalRelease = project.thermo?.catalog?.release;
+  useEffect(() => {
+    if (ready) prefetchChemicalSearch(chemicalModel, chemicalRelease);
+  }, [ready, chemicalModel, chemicalRelease]);
   const calculationKey = useMemo(() => simulationKey(project), [project]);
   const currentSimulation =
     simulation?.projectId === projectId && simulation.key === calculationKey
@@ -323,6 +340,7 @@ export default function Workspace({
   function openPanel(panel: WorkspacePanel) {
     closeWorkspaceMenu();
     if (panel === "Results") setTab("Results");
+    if (panel === "Settings") setSettingsTab("Workspace");
     setDrawer(panel);
     if (window.matchMedia("(max-width: 760px)").matches)
       setAssistantOpen(false);
@@ -332,7 +350,7 @@ export default function Workspace({
     setDrawer(null);
     setThermoDialog(section);
   }
-  function applyThermodynamics(settings: ThermoSettings) {
+  function applyThermodynamics(settings: ThermoSettings, close = true) {
     change(
       applyActions(project, {
         summary: "Change thermodynamics and components",
@@ -340,7 +358,7 @@ export default function Workspace({
       }),
       `Model: ${modelInfo(settings.modelId).name}`,
     );
-    setThermoDialog(null);
+    if (close) setThermoDialog(null);
   }
   function closeDrawer() {
     const trigger = drawer === "Units" ? unitsButtonRef : pullTabRef;
@@ -633,6 +651,8 @@ export default function Workspace({
       position?.x ?? 200 + (project.units.length % 4) * 180,
       position?.y ?? 350 + Math.floor(project.units.length / 4) * 100,
     );
+    if (kind === "Feed")
+      unit.missingInputs = ["flow", "temperature", "pressure", "composition"];
     if (kind === "PBR") {
       const settings = project.thermo ?? defaultThermo;
       const ids =
@@ -778,6 +798,7 @@ export default function Workspace({
     }
   }
   function inspect(id: string) {
+    setEditingComponents(false);
     setIssueTarget(undefined);
     setSelected(id);
     setPropertiesOpen(true);
@@ -1024,9 +1045,10 @@ export default function Workspace({
     setMessage("");
     setPropertiesOpen(false);
     setTemplatesOpen(false);
+    setEditingComponents(false);
     setAssistantOpen(false);
     setView("2D");
-    setPlaybackOnOpen(false);
+    setPlaybackOnOpen(true);
     const url = new URL(window.location.href);
     for (const key of ["example", "view", "play"]) url.searchParams.delete(key);
     if (!keepDashboard) url.searchParams.delete("home");
@@ -1595,7 +1617,7 @@ export default function Workspace({
     );
   const selectedUnit = project.units.find((n) => n.id === selected);
   return (
-    <main className="workspace" data-theme="light" data-palette="light">
+    <main className="workspace" data-theme={theme} data-palette={palette.id}>
       <header
         className="app-header"
         inert={!ready || projectBusy || isViewportFullscreen}
@@ -1649,7 +1671,7 @@ export default function Workspace({
             className="species-count"
             aria-label="Project components"
             aria-haspopup="dialog"
-            title={`Components: ${mixtureName(project.thermo ?? defaultThermo)}`}
+            title="Components"
             onClick={() => openThermodynamics("components")}
           >
             <FlaskConical size={16} />
@@ -1666,7 +1688,7 @@ export default function Workspace({
             aria-haspopup="dialog"
             aria-expanded={drawer === "Units"}
             aria-controls="workspace-units-panel"
-            title={`Engineering units: ${unitDisplay.label}`}
+            title="Units"
             onClick={() =>
               drawer === "Units" ? closeDrawer() : openPanel("Units")
             }
@@ -1737,6 +1759,7 @@ export default function Workspace({
                 {[
                   { name: "Equipment", icon: EquipmentPanelIcon },
                   { name: "Results", icon: ChartNoAxesColumnIncreasing },
+                  { name: "Themes", icon: Palette },
                   { name: "Components", icon: FlaskConical },
                   { name: "Thermodynamics", icon: Thermometer },
                   { name: "Toggle chat", icon: MessageCircle },
@@ -1784,6 +1807,50 @@ export default function Workspace({
                   <X size={16} />
                 </button>
               </header>
+              {drawer === "Settings" ? (
+                <div
+                  className="tabs settings-tabs"
+                  role="tablist"
+                  aria-label="Settings"
+                >
+                  {(["Workspace", "Storage"] as const).map((section) => (
+                    <button
+                      key={section}
+                      type="button"
+                      role="tab"
+                      id={`settings-tab-${section.toLowerCase()}`}
+                      aria-controls={`settings-panel-${section.toLowerCase()}`}
+                      aria-selected={settingsTab === section}
+                      tabIndex={settingsTab === section ? 0 : -1}
+                      className={settingsTab === section ? "active" : ""}
+                      onClick={() => setSettingsTab(section)}
+                      onKeyDown={(event) => {
+                        if (
+                          !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                            event.key,
+                          )
+                        )
+                          return;
+                        event.preventDefault();
+                        const next =
+                          event.key === "Home"
+                            ? "Workspace"
+                            : event.key === "End"
+                              ? "Storage"
+                              : section === "Workspace"
+                                ? "Storage"
+                                : "Workspace";
+                        setSettingsTab(next);
+                        document
+                          .getElementById(`settings-tab-${next.toLowerCase()}`)
+                          ?.focus();
+                      }}
+                    >
+                      {section}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {drawer === "Equipment" ? (
                 <EquipmentLibrary onAdd={add} />
               ) : (
@@ -1803,10 +1870,36 @@ export default function Workspace({
                         inspect(id);
                       }}
                     />
+                  ) : drawer === "Themes" ? (
+                    <ThemePicker value={palette.id} onChange={setTheme} />
                   ) : (
                     <>
                       {drawer === "Settings" ? (
-                        <>
+                        <div
+                          role="tabpanel"
+                          id="settings-panel-workspace"
+                          aria-labelledby="settings-tab-workspace"
+                          hidden={settingsTab !== "Workspace"}
+                        >
+                          <div className="preference-section">
+                            <h3>Canvas</h3>
+                            <label className="preference-toggle">
+                              <span>Color streams by composition</span>
+                              <input
+                                type="checkbox"
+                                role="switch"
+                                checked={compositionColors}
+                                aria-describedby="composition-colors-description"
+                                onChange={(event) =>
+                                  setCompositionColors(event.target.checked)
+                                }
+                              />
+                            </label>
+                            <p id="composition-colors-description">
+                              Use composition colors and flow animation in the
+                              2D flowsheet.
+                            </p>
+                          </div>
                           <CanvasSoundSettings sound={sound} />
                           <div className="preference-section">
                             <h3>Engineering units</h3>
@@ -1837,11 +1930,23 @@ export default function Workspace({
                               <MessageCircle size={15} /> Show assistant
                             </button>
                           </div>
-                        </>
+                        </div>
                       ) : null}
                       {drawer === "Storage settings" ||
                       drawer === "Settings" ? (
-                        <div className="preference-section">
+                        <div
+                          className="preference-section"
+                          role={drawer === "Settings" ? "tabpanel" : undefined}
+                          id="settings-panel-storage"
+                          aria-labelledby={
+                            drawer === "Settings"
+                              ? "settings-tab-storage"
+                              : undefined
+                          }
+                          hidden={
+                            drawer === "Settings" && settingsTab !== "Storage"
+                          }
+                        >
                           <ProjectStorageSettings />
                           <h3>Local project</h3>
                           <p>
@@ -1907,15 +2012,6 @@ export default function Workspace({
             </nav>
             <div className="canvas-right-tools">
               <div className="canvas-view-controls">
-                <button
-                  className={`composition-toggle ${compositionColors ? "active" : ""}`}
-                  aria-label="Color streams by composition"
-                  aria-pressed={compositionColors}
-                  title="Color streams by composition"
-                  onClick={() => setCompositionColors(!compositionColors)}
-                >
-                  <Rainbow size={17} />
-                </button>
                 <div className="view-switch" aria-label="Canvas view">
                   {[
                     { name: "2D", label: "2D flowsheet", icon: PanelTop },
@@ -2014,8 +2110,8 @@ export default function Workspace({
             {view !== "2D" && ready ? (
               <Plant3D
                 initialPlaying={playbackOnOpen}
-                dark={false}
-                canvasColor="#fafbf9"
+                dark={theme === "dark"}
+                canvasColor={palette.swatch[0]}
                 project={project}
                 result={result}
                 selected={selected}
@@ -2090,21 +2186,30 @@ export default function Workspace({
         >
           <ProjectComponents
             project={project}
-            onCancel={() => setThermoDialog(null)}
-            onApply={applyThermodynamics}
+            onApply={(settings) => applyThermodynamics(settings, false)}
           />
         </Dialog>
       ) : null}
       {propertiesOpen ? (
         <Dialog
           title={
-            selectedUnit
-              ? `${selectedUnit.name} · ${selectedUnit.id}`
-              : (project.edges.find((edge) => edge.id === selected)?.name ??
-                "Stream properties")
+            editingComponents
+              ? "Project components"
+              : selectedUnit
+                ? `${selectedUnit.name} · ${selectedUnit.id}`
+                : (project.edges.find((edge) => edge.id === selected)?.name ??
+                  "Stream properties")
           }
-          className={`properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`}
+          className={
+            editingComponents
+              ? "components-dialog"
+              : `properties-dialog${selectedUnit ? " equipment-editor-dialog" : ""}`
+          }
           onClose={() => {
+            if (editingComponents) {
+              setEditingComponents(false);
+              return;
+            }
             setPropertiesOpen(false);
             setIssueTarget(undefined);
           }}
@@ -2114,6 +2219,8 @@ export default function Workspace({
             selected={selected}
             result={result}
             issueTarget={issueTarget}
+            editingComponents={editingComponents}
+            onEditingComponentsChange={setEditingComponents}
             status={selectedUnit ? statuses[selectedUnit.id] : undefined}
             onNavigateIssue={(target) =>
               selected && navigateIssue(selected, target)

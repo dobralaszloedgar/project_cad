@@ -1,5 +1,4 @@
 "use client";
-import { useUnitSystem } from "./useUnitSystem";
 import {
   memo,
   useCallback,
@@ -62,7 +61,6 @@ import {
 } from "./useCanvasWheelNavigation";
 import { equipmentPort, equipmentSize, streamPath } from "./flow-geometry";
 import type { Result } from "@/domain/solver";
-import { flow } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
 import { availableStreamName } from "@/domain/stream-names";
 import { projectStreamColors, streamColor } from "./stream-colors";
@@ -72,7 +70,7 @@ import {
   type StreamRoute,
   type RouteEndpoint,
 } from "./stream-routing";
-const mixerDropHandle = "mixer-center";
+const equipmentDropHandle = "equipment-body";
 const coarsePointer = () => window.matchMedia("(pointer: coarse)").matches;
 const subscribePointer = (onChange: () => void) => {
   const query = window.matchMedia("(pointer: coarse)");
@@ -196,17 +194,26 @@ const UnitNode = memo(function UnitNode({
           className="material-handle"
         />
       ))}
-      {n.kind === "Mixer" && (
+      {p.inputs.length > 0 && (
         <Handle
-          id={mixerDropHandle}
+          id={equipmentDropHandle}
           type="target"
           position={Position.Left}
+          isConnectable={
+            n.kind === "Mixer" ||
+            p.inputs.some((id) => !data.connected.includes(id))
+          }
           isConnectableStart={false}
-          className="mixer-drop-handle"
-          aria-label={`${n.id} connect streams to mixer`}
+          className="equipment-drop-handle"
+          aria-label={`${n.id} connect streams to equipment`}
         />
       )}
-      <EquipmentIcon kind={n.kind} size={128} trayCount={n.params.trayCount} />
+      <EquipmentIcon
+        kind={n.kind}
+        size={128}
+        trayCount={n.params.trayCount}
+        condenserType={n.params.distillation?.condenserType}
+      />
       {p.outputs.map((id, i) => (
         <Handle
           key={id}
@@ -373,7 +380,6 @@ interface Props {
   presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
 }
 function Inner(props: Props) {
-  const display = useUnitSystem();
   const {
     project,
     selected,
@@ -596,7 +602,6 @@ function Inner(props: Props) {
   const [measurements, setMeasurements] = useState<
     Record<string, EquipmentNode["measured"]>
   >({});
-  const [hover, setHover] = useState("");
   const changes = useMemo(
     () => (compare ? diff(compare, project) : null),
     [compare, project],
@@ -747,14 +752,15 @@ function Inner(props: Props) {
     target: string;
     targetHandle?: string | null;
   }): Connection["targetPort"] {
-    if (
-      connection.targetHandle === mixerDropHandle &&
-      project.units.some(
-        (unit) => unit.id === connection.target && unit.kind === "Mixer",
+    if (connection.targetHandle === equipmentDropHandle) {
+      if (
+        !project.units.some(
+          (unit) => unit.id === connection.target && unit.kind === "Mixer",
+        )
       )
-    ) {
+        return "in";
       // Keep persisted port IDs compatible with existing projects and distribute
-      // center drops across both inlet branches, including occupied branches.
+      // mixer body drops across both inlet branches, including occupied branches.
       const incoming = project.edges.filter(
         (edge) => edge.target === connection.target,
       );
@@ -923,18 +929,6 @@ function Inner(props: Props) {
         onEdgeDoubleClick={(_, edge) =>
           !presentation && !panning && onInspect(edge.id)
         }
-        onEdgeMouseEnter={(_, edge) => {
-          const s = result?.streams[edge.id];
-          const name =
-            project.edges.find((stream) => stream.id === edge.id)?.name ??
-            edge.id;
-          setHover(
-            s
-              ? `${name} · ${display.format(flow(s), "molarFlow")} · ${display.format(s.temperature, "temperature", 1)} · xA ${(s.a / Math.max(flow(s), 1e-12)).toFixed(3)}`
-              : `${name} · Run to calculate`,
-          );
-        }}
-        onEdgeMouseLeave={() => setHover("")}
         isValidConnection={(connection) => {
           if (!connection.sourceHandle || !connection.targetHandle)
             return false;
@@ -1039,9 +1033,6 @@ function Inner(props: Props) {
           </Controls>
         )}
       </ReactFlow>
-      {!presentation && hover ? (
-        <div className="canvas-footnote">{hover}</div>
-      ) : null}
     </div>
   );
 }

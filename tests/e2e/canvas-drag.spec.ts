@@ -1,5 +1,7 @@
 import { test, expect, type Locator, type Page } from "./test";
+import { settleCanvas } from "./canvas-fixture";
 async function drag(page: Page, node: Locator) {
+  await settleCanvas(page);
   const before = await node.boundingBox();
   expect(before).toBeTruthy();
   await page.mouse.move(
@@ -28,10 +30,10 @@ test("loaded and added equipment keeps initialized dimensions while dragging and
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const reactor = page.locator('[data-id="R-101"]');
+  const reactor = page.locator('.react-flow__node[data-id="R-101"]');
   await expect(reactor).toBeVisible();
   await drag(page, reactor);
-  await page.locator('[data-id="F-101"]').click();
+  await page.locator('.react-flow__node[data-id="F-101"]').click();
   await drag(page, reactor);
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Cooler", { exact: true }).click();
@@ -53,7 +55,7 @@ test("loaded and added equipment keeps initialized dimensions while dragging and
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
   ).toBeEnabled();
-  const restored = page.locator(`[data-id="${id}"]`);
+  const restored = page.locator(`.react-flow__node[data-id="${id}"]`);
   await expect(restored).toBeVisible();
   expect(
     await restored.evaluate((node) => (node as HTMLElement).style.transform),

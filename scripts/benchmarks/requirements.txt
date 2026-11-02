@@ -1,0 +1,6 @@
+# Reference-generation tools only; not application dependencies.
+thermo==0.6.0
+chemicals==1.5.0
+scipy==1.18.0
+numpy==2.3.2
+pythonnet==3.0.5; sys_platform == "win32"

@@ -181,12 +181,8 @@ export function RateLawEditor({
   };
   const factors = (direction: "forward" | "reverse") => (
     <div className="rate-factor-group">
-      <h4>
-        {direction === "forward"
-          ? "Forward species factors"
-          : "Reverse species factors"}
-      </h4>
-      <EngineeringHelp text="Multiply these factors. Orders are independent of stoichiometric coefficients; no rows means a zero-order term." />
+      <h4>{direction === "forward" ? "Forward factors" : "Reverse factors"}</h4>
+      <EngineeringHelp text="Orders are independent of stoichiometry. No factors means zero order." />
       {law[direction].map((f, i) => (
         <div className="rate-factor-row" key={i}>
           <label>
@@ -256,19 +252,14 @@ export function RateLawEditor({
   );
   let sampleResult: string;
   try {
-    if (issues.length)
-      throw new Error(
-        "Resolve the expression issues above to evaluate a sample.",
-      );
+    if (issues.length) throw new Error("Fix expression errors first.");
     const values: Record<string, number> = {
       T: samples.T,
       P: samples.P,
       R: 8.31446261815324,
     };
     if (!(values.T > 0 && values.P > 0))
-      throw new Error(
-        "Sample temperature and absolute pressure must be positive.",
-      );
+      throw new Error("Sample temperature and pressure must be positive.");
     for (const v of law.variables) {
       const value = samples[v.symbol] ?? 1;
       if (
@@ -276,9 +267,7 @@ export function RateLawEditor({
         !Number.isFinite(value) ||
         (v.basis.endsWith("fraction") && value > 1)
       )
-        throw new Error(
-          `${v.symbol}: use a nonnegative value; fractions must be between 0 and 1.`,
-        );
+        throw new Error(`${v.symbol}: enter ≥ 0; fractions must be 0–1.`);
       values[v.symbol] = value;
     }
     Object.assign(values, rateParameterValues(law, values.T));
@@ -311,9 +300,9 @@ export function RateLawEditor({
                   patch({ phase: e.target.value as RateLaw["phase"] })
                 }
               >
-                <option value="gas">Gas (single phase)</option>
+                <option value="gas">Gas</option>
                 <option value="liquid" disabled>
-                  Liquid (requires a liquid reactor model)
+                  Liquid (unsupported)
                 </option>
               </select>
             </label>
@@ -338,10 +327,10 @@ export function RateLawEditor({
               </select>
             </label>
           </div>
-          <EngineeringHelp text="Use the units from your published rate law. Changing a basis or unit changes the numerical law; update its constants to match. Partial pressures are absolute, pᵢ = xᵢP." />
+          <EngineeringHelp text="Update constants when changing basis or units. Partial pressures are absolute (pᵢ = xᵢP)." />
           <div className="rate-group">
-            <h4>1. Choose species and their basis</h4>
-            <EngineeringHelp text="Mix bases in the same law, including inhibitors absent from the reaction. Rename a symbol with Enter or by leaving its field; the equation and both drafts update together." />
+            <h4>1. Species and basis</h4>
+            <EngineeringHelp text="Include any inhibitors. Bases can differ by species." />
             {law.variables.map((v, i) => (
               <div className="rate-species-card" key={v.symbol}>
                 <div className="rate-card-title">
@@ -479,7 +468,7 @@ export function RateLawEditor({
             </button>
           </div>
           <div className="rate-group">
-            <h4>2. Build the rate law</h4>
+            <h4>2. Rate law</h4>
             <label>
               Editing method
               <select
@@ -495,7 +484,7 @@ export function RateLawEditor({
                   })
                 }
               >
-                <option value="table">Table builder · no formula typing</option>
+                <option value="table">Table builder</option>
                 <option value="custom">Custom expression</option>
               </select>
             </label>
@@ -513,8 +502,8 @@ export function RateLawEditor({
                 </label>
                 {law.reversible && factors("reverse")}
                 <div className="rate-factor-group">
-                  <h4>Adsorption / inhibition denominator</h4>
-                  <EngineeringHelp text="Build (1 + K₁·aⁿ + K₂·bᵐ)ᵈ for Langmuir–Hinshelwood or inhibition kinetics. Each K·species term is dimensionless." />
+                  <h4>Adsorption / inhibition</h4>
+                  <EngineeringHelp text="Denominator: (1 + K₁·aⁿ + K₂·bᵐ)ᵈ. Each term must be dimensionless." />
                   {law.adsorption.map((a, i) => (
                     <div className="rate-factor-row" key={i}>
                       <label>
@@ -616,7 +605,7 @@ export function RateLawEditor({
               </>
             ) : (
               <>
-                <EngineeringHelp text="Use * for multiplication and ^ for powers. Table and custom drafts are retained separately; switching to the table does not translate custom formulas." />
+                <EngineeringHelp text="Use * to multiply and ^ for powers. Table and custom formulas are saved separately." />
                 <label>
                   Rate expression
                   <textarea
@@ -671,14 +660,22 @@ export function RateLawEditor({
                 >
                   Replace with table expression
                 </button>
-                <EngineeringHelp text="T in K · P in Pa · R = 8.314462618 J/(mol·K). Functions: exp, log / ln, sqrt, abs, min, max, pow. Custom parameter dimensions must match the selected rate units." />
+                <EngineeringHelp
+                  text="Match parameter dimensions to the rate units."
+                  more={
+                    <p>
+                      T in K · P in Pa · R = 8.314462618 J/(mol·K). Functions:
+                      exp, log / ln, sqrt, abs, min, max, pow.
+                    </p>
+                  }
+                />
               </>
             )}
           </div>
         </div>
         <aside className="rate-side-column">
           <div className="rate-group">
-            <h4>3. Enter constants</h4>
+            <h4>3. Constants</h4>
             {law.parameters
               .filter(
                 (p) =>
@@ -825,15 +822,14 @@ export function RateLawEditor({
             </div>
           ) : (
             <p className="rate-valid" role="status">
-              Expression is valid. Check a sample below.
+              Expression valid.
             </p>
           )}
           <details className="rate-sample" open={expanded ? true : undefined}>
-            <summary>Test the rate with sample values</summary>
+            <summary>Test sample values</summary>
             <p className="engineering-help">
-              Manual test values, independent of the flowsheet. Enter each
-              species value in its selected units; this checks arithmetic, not
-              phase or dimensional consistency.
+              Enter values in the selected units. Checks arithmetic only; the
+              flowsheet is unchanged.
             </p>
             {[
               {
@@ -931,9 +927,6 @@ export function RateLawEditor({
             <div>
               <span className="rate-eyebrow">Reaction kinetics</span>
               <h2>{reactionName || "Reaction rate editor"}</h2>
-              <p>
-                Build the rate law, inspect the equation, and test its values.
-              </p>
             </div>
             <button
               type="button"
@@ -945,10 +938,7 @@ export function RateLawEditor({
           </div>
           <div className="rate-dialog-scroll">{content}</div>
           <div className="rate-dialog-footer">
-            <span>
-              Changes stay in your draft. Apply conditions in the equipment
-              editor to save.
-            </span>
+            <span>Apply conditions in the equipment editor to save.</span>
             <span>
               {issues.length
                 ? `${issues.length} item${issues.length === 1 ? "" : "s"} to check`

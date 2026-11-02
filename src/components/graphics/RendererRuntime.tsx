@@ -40,7 +40,9 @@ export function RendererRuntime({
     const current = get().viewport.dpr;
     const next = controller.current.sample(delta, current, maximum.current);
     if (next !== current) setDpr(next);
-    state.gl.domElement.setAttribute("data-render-scale", next.toFixed(2));
+    const scale = next.toFixed(2);
+    if (state.gl.domElement.dataset.renderScale !== scale)
+      state.gl.domElement.dataset.renderScale = scale;
   });
   useEffect(() => {
     const canvas = gl.domElement;

@@ -18,7 +18,7 @@ export default async function Page({
       exampleId={exampleId}
       initialScreen={query.home === "1" && !exampleId ? "projects" : "editor"}
       initialView={initialView}
-      initialPlayback={query.play === "1"}
+      initialPlayback={query.play !== "0"}
       initialArrange={query.arrange === "1"}
     />
   );

@@ -27,6 +27,8 @@
     "docs:ai-guide:check": "node --import tsx scripts/generate-ai-guide.ts --check",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:benchmarks": "vitest run tests/numerical-benchmarks.test.ts",
+    "benchmark:numerical": "node --import tsx scripts/benchmarks/run.ts",
     "test:e2e": "playwright test",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\" \"*.{ts,mjs,json}\"",
     "thermo:build": "node scripts/build-thermo.mjs",

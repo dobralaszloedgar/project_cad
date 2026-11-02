@@ -58,9 +58,9 @@ test("automatic rendering, fluid motion, compatibility override and device recov
     ),
     contentType: "application/json",
   });
-  await page
-    .getByRole("button", { name: "Play operation", exact: true })
-    .click();
+  await expect(
+    page.getByRole("button", { name: "Pause operation", exact: true }),
+  ).toBeVisible();
   await expect(canvas).toHaveAttribute("data-render-scale", /\d/);
   await page.waitForTimeout(1200);
   await page

@@ -58,6 +58,12 @@ export const unitSchema = z
       })
       .strict(),
     params: paramsSchema,
+    // Interactive feeds can be saved before their operating inputs are supplied.
+    // Existing projects and templates keep their already specified values.
+    missingInputs: z
+      .array(z.enum(["flow", "temperature", "pressure", "composition"]))
+      .max(4)
+      .optional(),
   })
   .strict();
 export const edgeSchema = z

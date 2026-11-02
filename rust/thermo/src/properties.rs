@@ -602,6 +602,7 @@ pub fn column(mut req: Request, spec: serde_json::Value) -> Result<serde_json::V
             v.keys().all(|k| {
                 [
                     "trayCount",
+                    "condenserType",
                     "feedTray",
                     "pressurePa",
                     "pressureDropPa",

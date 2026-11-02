@@ -20,6 +20,11 @@ An omitted params.distillation retains the original single-contact/TP-flash
 behavior, so existing files and templates keep their previous calculations.
 Both new modes persist through project files, actions, revisions and reload.
 Switching between FUG and MESH preserves the inactive method's specifications.
+Choose Total condenser or Equilibrium condenser (partial) in Column calculation.
+The saved condenserType is total by default, including older files, or partial.
+Total condensation draws liquid distillate from the reflux split. Partial
+condensation draws vapor in equilibrium with the liquid reflux. The 2D symbol
+and 3D assembly update the takeoff piping; external stream ports stay fixed.
 
 FUG
 Supply distinct adjacent light/heavy keys, relative volatilities for all active
@@ -36,6 +41,9 @@ The TypeScript shortcut solver uses the following calculation sequence:
 - X=(R-Rmin)/(R+1); Y=1-exp((1+54.4X)/(11+117.2X)*(X-1)/sqrt(X)).
   The stage estimate is ceil((Nmin+Y)/(1-Y)).
 Reported stages include the equilibrium reboiler and exclude the total condenser.
+With a partial condenser the reported stages include both end equilibrium units.
+Its specified distillate temperature must support vapor at the top pressure;
+an incompatible state is rejected. FUG does not solve a condenser temperature.
 Installed tray count controls appearance only in FUG. Feed q is an explicit
 assumption, not computed from feed temperature. No azeotrope prediction,
 stage profile, hydraulic rating, feed-tray design or separate end duties.
@@ -48,7 +56,8 @@ top pressure, optional total pressure drop, operating reflux L/D, and distillate
 molar flow. Distillate must leave positive bottoms. Tray count drives both views
 and the solved stages; condenser and reboiler are additional end units.
 Feed pressure must reach the feed-tray pressure. Pressure varies linearly from
-condenser to reboiler. Only one feed and two liquid products are exposed.
+condenser to reboiler. One feed, liquid bottoms and either liquid distillate
+(total condenser) or vapor distillate (partial condenser) are exposed.
 
 The Rust implementation solves simultaneous stage equations with sparse
 factorization. Its property adapter uses the shared Raoult or Modified
@@ -72,7 +81,7 @@ Every accepted stage is independently checked with the existing TP flash of
 an equal-mole liquid/vapor blend. Phase compositions and enthalpies must agree.
 This checks VLE consistency without a tangent-plane stability search.
 There is no LLE/VLLE stability test, efficiency, hydraulic feedback, side draw,
-multiple-feed support, partial condenser, reaction equilibrium or mechanical
+multiple-feed support, liquid distillate from a partial condenser, reaction equilibrium or mechanical
 design. Convergence is not experimental/industrial validation. Property and
 parameter warnings are retained, including estimated latent heat and UNIFAC
 parameter licensing. Missing data, dry stages, wrong duty signs, unsupported
@@ -81,8 +90,10 @@ pressure, insufficient feed pressure or nonconvergence return errors.
 Results include component identities, feed data/enthalpy, stage T/P, liquid and
 vapor flows/compositions/enthalpies, stage and overall residuals, condenser and
 reboiler duties and solver identity. Positive duty adds heat. The condenser's
-liquid flow is reflux and its vapor composition is incipient equilibrium vapor;
-there is no condenser vapor outlet. Reboiler liquid flow is bottoms. Equipment
+liquid flow is reflux. For total condensation vapor flow is zero and its vapor
+composition is incipient equilibrium vapor. For partial condensation vapor flow
+is the distillate; material and energy balances use that vapor composition and
+enthalpy. Reboiler liquid flow is bottoms. Equipment
 duty is the sum of condenser and reboiler duties. Shared property provenance
 includes the rebuilt WebAssembly hash and the selected data/model identity.
 
@@ -121,6 +132,8 @@ University of Waterloo, Distillation Design (FUG and MESH equations):
 https://chemengvirtual.uwaterloo.ca/distillation-lab/design.html
 BioSTEAM source, distillation (Hengstebeck–Geddes and explicit Gilliland fit):
 https://biosteam.readthedocs.io/en/latest/_modules/biosteam/units/distillation.html
+DWSIM condenser definitions and product phases:
+https://dwsim.org/help/main/24-unit-operations.html#condenser-types
 
 
 OPTIONAL SIEVE-TRAY HYDRAULIC RATING

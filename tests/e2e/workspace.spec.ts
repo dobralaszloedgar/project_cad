@@ -28,6 +28,7 @@ async function preferences(page: Page) {
     .getByRole("button", { name: "Workspace menu", exact: true })
     .click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Storage", exact: true }).click();
 }
 test("reactor: calculate, edit, compare, restore, persist and export", async ({
   page,
@@ -104,6 +105,8 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
 test("3D and split views preserve topology and synchronized editing", async ({
   page,
 }) => {
+  // Software WebGL needs more time to render the plant during editing.
+  test.setTimeout(120000);
   await start(page);
   await chooseView(page, "3D schematic");
   await expect(page.locator(".plant-view canvas")).toBeVisible();
@@ -169,7 +172,10 @@ test("simple templates, equipment validation, appearance and mobile editing", as
   await expect(page.locator(".equipment-library")).toHaveCount(0);
   await edit(page, "D-201");
   await expect(
-    page.getByText(/The feed temperature and pressure determine/),
+    page.getByText(
+      "Flash at feed conditions. Outlet 1: vapor; outlet 2: liquid.",
+      { exact: true },
+    ),
   ).toBeVisible();
   await closeDialog(page);
   await page.screenshot({ path: `${output}/mobile.png`, fullPage: true });
@@ -195,6 +201,25 @@ test("manual editing supports connect, move, double-click, duplicate and delete"
     .first()
     .dragTo(page.locator(".react-flow__handle.target").first());
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  await page
+    .locator(".react-flow__node")
+    .filter({ hasText: "Feed" })
+    .dblclick();
+  await expect(
+    page.getByRole("button", { name: "4 items to complete", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Temperature (°C)", { exact: true }),
+  ).toHaveValue("");
+  await page.getByLabel("Temperature (°C)", { exact: true }).fill("26.85");
+  await page.getByLabel("Pressure (bar abs)", { exact: true }).fill("1.01325");
+  await page.getByLabel("Molar flow (kmol/h)", { exact: true }).fill("36");
+  await page.getByLabel("Mole fraction A", { exact: true }).fill("2");
+  await page.getByLabel("Mole fraction B", { exact: true }).fill("3");
+  await page
+    .getByRole("button", { name: "Apply conditions", exact: true })
+    .click();
+  await closeDialog(page);
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
   await closeDialog(page);
@@ -226,7 +251,7 @@ test("disabled or cross-origin AI requests are rejected", async ({
     page.getByRole("button", { name: "Send message", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Connect local assistant", exact: true }),
+    page.getByRole("heading", { name: "Choose your agents", exact: true }),
   ).toBeVisible();
   expect((await (await request.get("/api/ai")).json()).enabled).toBe(false);
   expect(

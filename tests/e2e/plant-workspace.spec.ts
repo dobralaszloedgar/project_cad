@@ -50,7 +50,9 @@ test("workspace defaults to transparent equipment and recovers 3D without losing
   const transparency = page.getByRole("switch", { name: "Transparent shell" });
   await expect(transparency).toHaveAttribute("aria-checked", "true");
   await expect(page.locator(".plant-label")).toHaveCount(6);
-  await page.getByRole("button", { name: "Play flow", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Pause flow", exact: true }),
+  ).toBeVisible();
   await page.getByRole("combobox", { name: "Flow speed" }).selectOption("4");
   await expect(page.getByRole("combobox", { name: "Flow speed" })).toHaveValue(
     "4",
@@ -63,6 +65,9 @@ test("workspace defaults to transparent equipment and recovers 3D without losing
   await view(page, "3D schematic");
   await ready(page);
   await expect(transparency).toHaveAttribute("aria-checked", "true");
+  await expect(
+    page.getByRole("button", { name: "Pause flow", exact: true }),
+  ).toBeVisible();
   await page
     .getByLabel("Interactive 3D equipment model")
     .dispatchEvent("webglcontextlost");

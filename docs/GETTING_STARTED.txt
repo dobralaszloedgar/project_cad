@@ -42,6 +42,8 @@ Keyboard focus also shows details; Escape dismisses them. Input changes require
 another simulation, while moving, arranging, or renaming equipment keeps results.
 Use the visible 2D / 3D / Split control to change views. The rainbow button toggles
 animated stream colors; reduced-motion settings stop the animation.
+The Themes tab beside Equipment and Results opens the appearance panel. Choose a
+light or dark palette; it applies to the workspace and Projects and is remembered.
 In 3D, click equipment or its label to select the orbit anchor. Choose Edit or
 press E/F2 to open setup. Drag to orbit; Space + drag, right/middle drag, or scroll
 to pan; pinch or Ctrl/Cmd + scroll to zoom. Arrow keys pan, +/- zoom, F fits the

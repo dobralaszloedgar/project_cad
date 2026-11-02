@@ -23,8 +23,26 @@ import {
 import { OperationClock } from "../src/components/equipment-3d/operation";
 import { arrangeFlowsheet } from "../src/domain/flowsheet-layout";
 import { plantTemplate } from "../src/domain/plant-templates";
+import { aromaticColumnTemplate } from "../src/domain/real-chemical-templates";
+import { buildProjectPlant } from "../src/components/equipment-3d/project-plant";
+import { acquireEquipmentModel } from "../src/components/equipment-3d/model-resources";
 
 describe("tray-driven column views", () => {
+  it("changes the distillate takeoff without moving ports or drawing the removed reflux valve", () => {
+    const total = columnSymbol(8, "total");
+    const partial = columnSymbol(8, "partial");
+    expect(total.body).toContain('data-condenser-type="total"');
+    expect(partial.body).toContain('data-condenser-type="partial"');
+    expect(total.body).toContain('data-column-equipment="reflux-splitter"');
+    expect(partial.body).not.toContain(
+      'data-column-equipment="reflux-splitter"',
+    );
+    expect(partial.connectors).toContain("M106 41H112V56H120");
+    expect(partial.connectors).toContain('data-flow-phase="vapor"');
+    expect(partial.distillateY).toBe(total.distillateY);
+    for (const diagram of [total, partial])
+      expect(diagram.body).not.toContain("l6 6v-6l-6 6Z");
+  });
   it.each([2, 8, 24, 80])(
     "keeps all %i numbered trays, feed and product ports within the drawing",
     (count) => {
@@ -147,12 +165,61 @@ describe("physical reflux splitter", () => {
       for (const part of [
         "reflux-splitter",
         "reflux-receiver",
-        "reflux-control-valve",
         "distillate-control-valve",
       ])
         expect(model.getObjectByName(part)).toBeDefined();
+      expect(model.getObjectByName("reflux-control-valve")).toBeUndefined();
       disposeEquipmentModel(model);
       disposeEquipmentModel(fluid.group);
     },
   );
+
+  it("uses a separate headspace outlet for a partial condenser and invalidates both 3D caches", () => {
+    const project = aromaticColumnTemplate("mesh");
+    const totalPlant = buildProjectPlant(project);
+    project.units[1].params.distillation!.condenserType = "partial";
+    const partialPlant = buildProjectPlant(project);
+    expect(partialPlant).not.toBe(totalPlant);
+    const options = partialPlant.equipment.find((item) => item.id === "D-201")!;
+    expect(options.condenserType).toBe("partial");
+    const total = acquireEquipmentModel("Distillation", true, true, {
+      ...options,
+      condenserType: "total",
+    });
+    const partial = acquireEquipmentModel("Distillation", true, true, options);
+    expect(total.model.getObjectByName("reflux-splitter")).toBeDefined();
+    expect(partial.model.getObjectByName("reflux-splitter")).toBeUndefined();
+    expect(partial.model.getObjectByName("liquid-reflux-return")).toBeDefined();
+    expect(
+      partial.model.getObjectByName("vapor-distillate-outlet"),
+    ).toBeDefined();
+    expect(
+      partial.model.getObjectByName("reflux-control-valve"),
+    ).toBeUndefined();
+    const overhead = columnOverhead(options);
+    expect(overhead.distillate[0][1]).toBeGreaterThan(overhead.receiver[1]);
+    expect(overhead.distillate.at(-1)).toEqual(
+      columnOverhead({ ...options, condenserType: "total" }).distillate.at(-1),
+    );
+    const contents = createProcessContents(
+      "Distillation",
+      true,
+      new OperationClock(),
+      undefined,
+      options,
+    );
+    const vapor = contents.group.getObjectByName(
+      "column-distillate-flow",
+    ) as Mesh;
+    const path = (vapor.geometry as TubeGeometry).parameters.path;
+    expect(
+      path.getPoint(0).distanceTo(new Vector3(...overhead.distillate[0])),
+    ).toBeLessThan(1e-8);
+    expect(
+      path.getPoint(1).distanceTo(new Vector3(...overhead.distillate.at(-1)!)),
+    ).toBeLessThan(1e-8);
+    total.release();
+    partial.release();
+    disposeEquipmentModel(contents.group);
+  });
 });

@@ -162,7 +162,10 @@ test("hand and Space panning move the camera over equipment without moving or cl
       await page.keyboard.down("Space");
     }
     await expect(pan).toHaveAttribute("aria-pressed", "true");
-    await expect(pane).toHaveCSS("cursor", /grab\.svg.*8 8, grab$/);
+    await expect(pane).toHaveCSS(
+      "cursor",
+      /url\(".*\/cursors\/grab\.svg"\) 8 8, grab/,
+    );
     await pane.click({ position: { x: 700, y: 150 } });
     await selected(page, ["R-101"]);
     const before = await camera(page);
@@ -174,7 +177,10 @@ test("hand and Space panning move the camera over equipment without moving or cl
       box.y + box.height / 2 + 40,
       { steps: 8 },
     );
-    await expect(pane).toHaveCSS("cursor", /grabbing\.svg.*8 8, grabbing$/);
+    await expect(pane).toHaveCSS(
+      "cursor",
+      /url\(".*\/cursors\/grabbing\.svg"\) 8 8, grabbing/,
+    );
     await page.mouse.up();
     await expect.poll(() => camera(page)).not.toBe(before);
     await expect(reactor).toHaveAttribute("style", position!);

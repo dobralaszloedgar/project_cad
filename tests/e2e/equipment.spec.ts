@@ -87,9 +87,7 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
     fullPage: true,
   });
   await page.getByRole("tab", { name: "Setup", exact: true }).click();
-  await page
-    .getByText("Model equations and assumptions", { exact: true })
-    .click();
+  await page.getByText("Model details", { exact: true }).click();
   await expect(
     page
       .locator('.model-notes annotation[encoding="application/x-tex"]')

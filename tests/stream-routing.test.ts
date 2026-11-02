@@ -2,10 +2,44 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   routeStreams,
+  type RouteObstacle,
   type RoutePoint,
   type StreamConnection,
   type StreamRoute,
 } from "../src/components/stream-routing";
+
+function assertClear(route: StreamRoute, obstacles: RouteObstacle[]) {
+  assert.ok(!/NaN|Infinity/.test(route.path));
+  for (let i = 1; i < route.points.length; i++) {
+    const a = route.points[i - 1],
+      b = route.points[i];
+    assert.ok(a.x === b.x || a.y === b.y, "segments stay orthogonal");
+    for (const o of obstacles) {
+      const intersects =
+        a.y === b.y
+          ? a.y > o.y - 8 &&
+            a.y < o.y + o.height + 8 &&
+            Math.max(a.x, b.x) > o.x - 8 &&
+            Math.min(a.x, b.x) < o.x + o.width + 8
+          : a.x > o.x - 8 &&
+            a.x < o.x + o.width + 8 &&
+            Math.max(a.y, b.y) > o.y - 8 &&
+            Math.min(a.y, b.y) < o.y + o.height + 8;
+      assert.equal(intersects, false, `segment ${i} crosses ${o.id}`);
+    }
+  }
+}
+
+const routeLength = (route: StreamRoute) =>
+  route.points
+    .slice(1)
+    .reduce(
+      (sum, p, i) =>
+        sum +
+        Math.abs(p.x - route.points[i].x) +
+        Math.abs(p.y - route.points[i].y),
+      0,
+    );
 
 function sharedLength(a: StreamRoute, b: StreamRoute) {
   let total = 0;
@@ -221,4 +255,135 @@ test("moving equipment reroutes the graph without retaining old lane coordinates
   );
   assert.notEqual(routes.get("s0")!.path, initial.get("s0")!.path);
   assert.equal(sharedLength(routes.get("s0")!, routes.get("s1")!), 0);
+});
+
+const blockedConnection: StreamConnection = {
+  id: "s",
+  source: { x: 0, y: 0, side: "right", nodeId: "a" },
+  target: { x: 800, y: 0, side: "left", nodeId: "b" },
+};
+const tallBlocker: RouteObstacle = {
+  id: "column",
+  x: 300,
+  y: -400,
+  width: 160,
+  height: 800,
+};
+
+test("escapes tall equipment beyond the local candidate lanes", () => {
+  const route = routeStreams([blockedConnection], [tallBlocker]).get("s")!;
+  assertClear(route, [tallBlocker]);
+  assert.equal(routeLength(route), 1616);
+  assert.equal(route.points.length, 6);
+  assert.deepEqual(route.points[0], blockedConnection.source);
+  assert.deepEqual(route.points.at(-1), blockedConnection.target);
+});
+
+test("weaves between staggered obstacles instead of crossing them or taking a long outer loop", () => {
+  const boxes = [
+    { id: "first", x: 120, y: -400, width: 80, height: 500 },
+    { id: "second", x: 360, y: -100, width: 80, height: 500 },
+    { id: "third", x: 600, y: -400, width: 80, height: 500 },
+  ];
+  const route = routeStreams([blockedConnection], boxes).get("s")!;
+  assertClear(route, boxes);
+  assert.equal(routeLength(route), 1448);
+  assert.deepEqual(
+    routeStreams([blockedConnection], [...boxes].reverse()).get("s"),
+    route,
+  );
+});
+
+test("multiple streams keep separate escape lanes around tall equipment", () => {
+  const connections = [0, 1, 2].map((i) => ({
+    id: `s${i}`,
+    source: { ...blockedConnection.source, y: i * 48, nodeId: `a${i}` },
+    target: { ...blockedConnection.target, y: i * 48, nodeId: `b${i}` },
+  }));
+  const routes = routeStreams(connections, [tallBlocker]);
+  for (const [id, route] of routes) {
+    assertClear(route, [tallBlocker]);
+    for (const [otherId, other] of routes) {
+      if (id === otherId) continue;
+      assert.equal(sharedLength(route, other), 0);
+      assert.equal(crossings(route, other), 0);
+    }
+  }
+  assert.deepEqual(
+    routeStreams([...connections].reverse(), [tallBlocker]),
+    routes,
+  );
+});
+
+test("obstacle search respects rotated port directions", () => {
+  const sides = {
+    right: "bottom",
+    bottom: "left",
+    left: "top",
+    top: "right",
+  } as const;
+  let connection = blockedConnection;
+  let box = tallBlocker;
+  for (let i = 0; i < 3; i++) {
+    connection = {
+      ...connection,
+      source: {
+        ...connection.source,
+        x: -connection.source.y,
+        y: connection.source.x,
+        side: sides[connection.source.side],
+      },
+      target: {
+        ...connection.target,
+        x: -connection.target.y,
+        y: connection.target.x,
+        side: sides[connection.target.side],
+      },
+    };
+    box = {
+      ...box,
+      x: -box.y - box.height,
+      y: box.x,
+      width: box.height,
+      height: box.width,
+    };
+    const route = routeStreams([connection], [box]).get("s")!;
+    assertClear(route, [box]);
+    assert.equal(routeLength(route), 1616);
+    const first = route.points[1],
+      last = route.points.at(-2)!;
+    for (const [endpoint, lead] of [
+      [connection.source, first],
+      [connection.target, last],
+    ] as const) {
+      if (endpoint.side === "left") assert.ok(lead.x < endpoint.x);
+      if (endpoint.side === "right") assert.ok(lead.x > endpoint.x);
+      if (endpoint.side === "top") assert.ok(lead.y < endpoint.y);
+      if (endpoint.side === "bottom") assert.ok(lead.y > endpoint.y);
+    }
+  }
+});
+
+test("moving an obstruction out of the way restores a straight route", () => {
+  const blocked = routeStreams([blockedConnection], [tallBlocker]).get("s")!;
+  const moved = { ...tallBlocker, y: 500 };
+  const clear = routeStreams([blockedConnection], [moved]).get("s")!;
+  assertClear(clear, [moved]);
+  assert.notEqual(clear.path, blocked.path);
+  assert.deepEqual(clear.points, [
+    blockedConnection.source,
+    blockedConnection.target,
+  ]);
+});
+
+test("overlapping equipment still produces a finite route without mutating inputs", () => {
+  const boxes = [
+    { id: "enclosure", x: -100, y: -100, width: 1000, height: 200 },
+  ];
+  const original = structuredClone({ connection: blockedConnection, boxes });
+  const route = routeStreams([blockedConnection], boxes).get("s")!;
+  assert.ok(!/NaN|Infinity/.test(route.path));
+  assert.deepEqual(route.points[0], blockedConnection.source);
+  assert.deepEqual(route.points.at(-1), blockedConnection.target);
+  assert.deepEqual({ connection: blockedConnection, boxes }, original);
 });

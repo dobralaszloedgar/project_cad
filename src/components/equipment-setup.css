@@ -188,6 +188,23 @@
   font-size: 12px;
   white-space: nowrap;
 }
+.equipment-editor .equipment-quantity > .equipment-unit-select {
+  flex: 0 0 96px;
+  width: 96px;
+  padding: 3px 4px 3px 6px;
+  appearance: auto;
+  background-image: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+.equipment-composition-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
 .equipment-editor .equipment-state {
   min-width: 0;
   border: 1px solid var(--border);
@@ -289,20 +306,6 @@
   margin-top: 1px;
   color: var(--accent);
 }
-.equipment-context {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  font-size: 12px;
-}
-.equipment-context dt {
-  color: var(--muted);
-  font-size: 11px;
-}
-.equipment-context dd {
-  margin: 0 0 8px;
-  overflow-wrap: anywhere;
-}
 .equipment-model-details {
   min-width: 0;
   border: 1px solid var(--border);
@@ -356,7 +359,7 @@
   color: var(--muted);
 }
 .model-notes li + li {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 .model-notes .model-equation {
   display: block;
@@ -367,6 +370,9 @@
 }
 .model-notes .katex-display {
   margin: 4px 0;
+}
+.model-notes .katex-display,
+.model-notes .katex-display > .katex {
   text-align: left;
 }
 .model-notes .katex {
@@ -389,6 +395,39 @@
 }
 .equipment-editor-footer .equipment-apply {
   margin-left: auto;
+}
+.equipment-completion {
+  position: relative;
+  flex: 0 0 100%;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.equipment-completion-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.equipment-completion-link > svg {
+  color: #eab308;
+}
+.equipment-completion.invalid .equipment-completion-link > svg {
+  color: #ef4444;
+}
+.equipment-completion-link:is(:hover, :focus-visible, [aria-expanded="true"]) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.setup-issues-popover {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: min(380px, 100%);
+  max-height: min(380px, calc(100dvh - 240px));
 }
 .equipment-editor .equipment-result {
   max-width: 760px;

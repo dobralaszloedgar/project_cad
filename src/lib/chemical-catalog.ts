@@ -1,6 +1,8 @@
 import {
   catalogSnapshotSchema,
+  contentHash,
   hashSchema,
+  selectParameters,
   validateSnapshot,
 } from "../domain/thermo/data";
 import { propertyRange } from "../domain/thermo/availability";
@@ -46,6 +48,31 @@ export async function resolveCatalogSettings(
   )
     throw new Error("Select 2–40 different components.");
   let snapshot = settings.catalog;
+  // Removing/reordering already saved components needs no database round trip.
+  // Keep each record paired with its integrity hash and trim activity data.
+  if (snapshot && (!release || snapshot.release === release)) {
+    const saved = snapshot;
+    const indices = choices.map((choice) =>
+      saved.chemicals.findIndex((chemical) => chemical.id === choice!.id),
+    );
+    if (indices.every((index) => index >= 0)) {
+      validateSnapshot(saved);
+      const chemicals = indices.map((index) => saved.chemicals[index]);
+      snapshot = {
+        ...saved,
+        chemicals,
+        recordHashes: indices.map((index) => saved.recordHashes[index]),
+      };
+      if (saved.parameters) {
+        const dataset = selectParameters(chemicals, saved.parameters.dataset);
+        snapshot.parameters = {
+          ...saved.parameters,
+          dataset,
+          hash: contentHash(dataset),
+        };
+      }
+    }
+  }
   if (
     !snapshot ||
     snapshot.chemicals.length !== choices.length ||

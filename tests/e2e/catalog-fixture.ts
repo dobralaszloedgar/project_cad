@@ -64,10 +64,10 @@ export async function chooseComponent(
   slot: "A" | "B",
   cas: string,
 ) {
-  const remove = page.getByRole("button", {
-    name: `Remove component ${slot}`,
-    exact: true,
-  });
+  const remove = page
+    .locator(".component-slot")
+    .nth(slot === "A" ? 0 : 1)
+    .getByRole("button", { name: /^Remove .* from project$/ });
   if (await remove.count()) await remove.click();
   await page
     .getByRole("searchbox", { name: "Search chemical database" })
