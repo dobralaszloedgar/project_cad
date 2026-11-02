@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,36 @@ const policy = validateReferencePolicy({
 });
 
 describe("release reference policy", () => {
+  it("exempts only exact verified upstream Node bytes at the runtime path", async () => {
+    const root = await mkdtemp(join(tmpdir(), "project-cad-runtime-policy-"));
+    const data = Buffer.from("RetiredExample upstream locale data");
+    const verifiedNodeHashes = new Set([
+      createHash("sha256").update(data).digest("hex"),
+    ]);
+    try {
+      await mkdir(join(root, "runtime"));
+      const runtime = join(root, "runtime", "node.exe");
+      await writeFile(runtime, data);
+      await expect(checkDirectoryReferences(root, policy)).rejects.toThrow(
+        "P01",
+      );
+      await expect(
+        checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
+      ).resolves.toEqual({ files: 1 });
+      await writeFile(join(root, "application.exe"), data);
+      await expect(
+        checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
+      ).rejects.toThrow("P01");
+      await rm(join(root, "application.exe"));
+      await writeFile(runtime, Buffer.concat([data, Buffer.from("changed")]));
+      await expect(
+        checkDirectoryReferences(root, policy, { verifiedNodeHashes }),
+      ).rejects.toThrow("P01");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("detects mixed-case text and both UTF-16 byte orders", () => {
     for (const data of [
       Buffer.from("RETIREDexample"),

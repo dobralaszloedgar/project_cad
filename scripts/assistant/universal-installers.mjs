@@ -1,3 +1,4 @@
+import { join } from "node:path";
 const nsisQuote = (value) =>
   String(value).replaceAll("$", "$$").replaceAll('"', '$\\"');
 
@@ -33,11 +34,11 @@ Section "Assistant"
   InitPluginsDir
   \${If} \${IsNativeARM64}
     SetOutPath "$PLUGINSDIR\\payload\\arm64"
-    File /r "${nsisQuote(arm64)}/*"
+    File /r "${nsisQuote(join(arm64, "*"))}"
     StrCpy $1 "$PLUGINSDIR\\payload\\arm64"
   \${ElseIf} \${IsNativeAMD64}
     SetOutPath "$PLUGINSDIR\\payload\\x64"
-    File /r "${nsisQuote(x64)}/*"
+    File /r "${nsisQuote(join(x64, "*"))}"
     StrCpy $1 "$PLUGINSDIR\\payload\\x64"
   \${Else}
     Abort

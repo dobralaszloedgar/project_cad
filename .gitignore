@@ -37,3 +37,4 @@ muse.local.*
 dist/assistant/
 public/downloads/assistant/*
 !public/downloads/assistant/downloads.json
+.vercel

@@ -126,7 +126,9 @@ export default function AssistantConnectionFlow({
   );
   const downloadUrl = download?.url;
   // Muse-only setup and the return-to-project window ship in 0.1.8.
-  const version = downloads?.version.split(".").map(Number);
+  const version = (download?.version ?? downloads?.version)
+    ?.split(".")
+    .map(Number);
   const needsNewInstaller =
     !preview &&
     !!version &&
@@ -424,8 +426,9 @@ export default function AssistantConnectionFlow({
                       ? "Checked again. The updated installer is still unavailable."
                       : "The updated installer is not available yet."}{" "}
                     This website needs version 0.1.8 or later; the available
-                    download is version {downloads?.version}. Your agent choices
-                    are saved.
+                    download is version{" "}
+                    {download?.version ?? downloads?.version}. Your agent
+                    choices are saved.
                   </p>
                   <button
                     key="retry-downloads"
@@ -470,7 +473,8 @@ export default function AssistantConnectionFlow({
                     ) : (
                       <>
                         {Math.ceil(download.bytes / 1_000_000)} MB{" "}
-                        <span>·</span> v{downloads?.version}
+                        <span>·</span> v
+                        {download?.version ?? downloads?.version}
                       </>
                     )}
                   </p>

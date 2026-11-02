@@ -58,7 +58,6 @@ export default function AssistantDownloads() {
         </>
       ) : (
         <>
-          <p>Project CAD Assistant · v{downloads.version}</p>
           {downloads.installers.map((file) => (
             <a
               key={file.filename}
@@ -71,7 +70,8 @@ export default function AssistantDownloads() {
               <span>
                 <strong>Download for {file.name}</strong>
                 <small>
-                  {file.architecture} · {Math.ceil(file.bytes / 1_000_000)} MB
+                  {file.architecture} · v{file.version ?? downloads.version} ·{" "}
+                  {Math.ceil(file.bytes / 1_000_000)} MB
                 </small>
               </span>
               <ArrowDownToLine size={14} />

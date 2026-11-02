@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { validateManifest } from "./release-manifest.mjs";
-import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
+import {
+  assistantDownloadLocation,
+  assistantDownloadFileLocation,
+} from "../../src/assistant/download-location.mjs";
 
 const manifest = validateManifest(
   JSON.parse(
@@ -30,7 +33,8 @@ if (
 // Stream and hash the same unauthenticated URLs used by the download buttons.
 const results = await Promise.allSettled(
   manifest.files.map(async (file) => {
-    const response = await fetch(`${base}/${file.filename}`, {
+    const fileBase = assistantDownloadFileLocation(manifest, file).baseUrl;
+    const response = await fetch(`${fileBase}/${file.filename}`, {
       signal: AbortSignal.timeout(180000),
     });
     if (!response.ok || !response.body)
