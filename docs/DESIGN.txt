@@ -173,12 +173,17 @@ separate tonal layers. See globals.css for the variable mapping and state select
 
 Typography
 
-Figtree Variable is loaded locally through the bundled font package. The workspace
-body establishes the body token. The headline token describes the Projects heading;
-title describes ordinary section headings; label describes buttons and unit tags;
-meta describes dates, counts and provider labels. The brand is 23px, weight 550,
+Figtree Variable's normal and italic faces are loaded locally through the bundled
+font package. All app surfaces, including the assistant and onboarding, use the
+shared --font-sans token in globals.css; controls inherit their surface's font.
+The workspace body establishes the body token. The headline token describes the
+Projects heading; title describes ordinary section headings; label describes
+buttons and unit tags; meta describes dates, counts and provider labels.
+The brand is 23px, weight 550,
 letter spacing -0.8px in the workspace; Projects uses 22px. Dialog titles use 17px.
-There is no separate decorative display or monospace family.
+Code, rate expressions, tray numbers and keyboard shortcuts share the --font-mono
+system stack. Equation typesetting, keyboard symbols and OS installation previews
+retain their specialized fonts. There is no separate decorative display family.
 
 Layout
 

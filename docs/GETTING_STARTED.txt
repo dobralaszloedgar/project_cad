@@ -23,8 +23,8 @@ See EQUIPMENT.txt for equations, units and supported limits.
 
 Open Workspace menu > Units to select SI, Metric engineering, or US customary.
 Metric engineering is the default (Celsius, bar absolute, kmol/h, kg/h, kW).
-Each quantity can be customized; Restore defaults returns to Metric engineering
-and a 1 atm gauge-pressure reference. Preferences apply immediately across
+Each quantity can be customized. To restore defaults, select Metric engineering
+and click Reset to 1 atm. Preferences apply immediately across
 projects and are remembered in this browser. Equipment inputs, stream results,
 reactor profiles and profile CSV exports use the selected units. Saved project
 values remain in SI; changing display units does not change the process.

@@ -11,12 +11,7 @@ export function CanvasSoundToggle({ sound }: { sound: CanvasSound }) {
       className={`icon-button ${styles.quickToggle}`}
       aria-label={sound.enabled ? "Mute canvas sounds" : "Enable canvas sounds"}
       aria-pressed={sound.enabled}
-      title={
-        sound.error ||
-        (sound.enabled
-          ? `${workspaceSound.name} + ${workspaceSimulationSound.name} sounds on · Click to mute`
-          : `Enable ${workspaceSound.name} + ${workspaceSimulationSound.name} sounds`)
-      }
+      title={sound.enabled ? "Mute sound" : "Unmute sound"}
       onClick={() => sound.setEnabled(!sound.enabled)}
     >
       {sound.enabled && sound.volume > 0 ? (

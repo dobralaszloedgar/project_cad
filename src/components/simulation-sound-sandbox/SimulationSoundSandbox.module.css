@@ -9,7 +9,7 @@
   color-scheme: light;
   color: var(--ink);
   background: #f6f8f5;
-  font-family: "Figtree Variable", sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }

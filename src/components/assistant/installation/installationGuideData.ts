@@ -1,6 +1,6 @@
 export type GuidePlatform = "mac" | "windows";
 export type MacVersion = "tahoe" | "sequoia";
-export type WindowsArchitecture = "x64" | "arm64";
+export type WindowsArchitecture = "universal" | "x64" | "arm64";
 export type GuideSceneName =
   | "mac-warning"
   | "mac-menu"
@@ -90,8 +90,11 @@ export function installationSteps(
   }
   return [
     {
-      title: "Open the matching Setup.exe",
-      description: `In File Explorer → Downloads, double-click ${windowsInstaller(architecture)}. The x64 and ARM64 files are different installers.`,
+      title:
+        architecture === "universal"
+          ? "Open the universal Setup.exe"
+          : "Open the matching Setup.exe",
+      description: `In File Explorer → Downloads, double-click ${windowsInstaller(architecture)}. ${architecture === "universal" ? "It automatically installs the correct version for your PC." : "The x64 and ARM64 files are different installers."}`,
       location: "File Explorer → Downloads",
       action: "Double-click the Project CAD Setup.exe you downloaded.",
       scene: "win-download",

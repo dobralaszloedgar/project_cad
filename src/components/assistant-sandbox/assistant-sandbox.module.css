@@ -7,7 +7,7 @@
   min-height: 100dvh;
   background: #f6f8f6;
   color: var(--ink);
-  font-family: "Figtree Variable", sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }

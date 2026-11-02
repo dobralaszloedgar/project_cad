@@ -87,8 +87,8 @@ test("offers the packaged companion and keeps source setup optional", async ({
   await expect(page.getByLabel("Process prompt")).not.toBeVisible();
   await page.getByRole("checkbox", { name: "Codex", exact: true }).check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByText("Other platforms", { exact: true }).click();
-  const installer = page.getByLabel("Choose your installer");
+
+  const installer = page.getByLabel("Operating system", { exact: true });
   await installer.selectOption("ProjectCAD-Assistant-macos-universal.pkg");
   const download = page.getByRole("link", { name: "Download for macOS" });
   await expect(download).toHaveAttribute(
@@ -135,7 +135,9 @@ test("offers the packaged companion and keeps source setup optional", async ({
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
   await expect(
-    page.getByText("We couldn’t load the installers. Try loading them again."),
+    page.getByText(
+      "We couldn’t check for installers. Try again. Your agent choices are saved.",
+    ),
   ).toBeVisible();
   await expect(download).toHaveCount(0);
   await expect(

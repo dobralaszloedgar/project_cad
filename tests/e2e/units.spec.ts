@@ -61,7 +61,7 @@ test("unit presets, custom quantities and defaults persist and fit desktop and m
   await expect(panel.getByLabel("Unit system", { exact: true })).toHaveValue(
     "us",
   );
-  await panel.getByRole("button", { name: "Restore defaults" }).click();
+  await panel.getByLabel("Unit system", { exact: true }).selectOption("metric");
   await expect(panel.getByLabel("Unit system", { exact: true })).toHaveValue(
     "metric",
   );
@@ -124,7 +124,7 @@ test("display changes preserve process values and converted inputs save in SI", 
   await editor.getByRole("button", { name: "Apply conditions" }).click();
   await page.keyboard.press("Escape");
   panel = await openUnits(page);
-  await panel.getByRole("button", { name: "Restore defaults" }).click();
+  await panel.getByLabel("Unit system", { exact: true }).selectOption("metric");
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
@@ -176,7 +176,7 @@ test("gauge reference validates entries and converts pressure without changing p
   await expect(panel.getByLabel("Pressure drop display unit")).toHaveValue(
     "bar",
   );
-  await panel.getByRole("button", { name: "Restore defaults" }).click();
+  await panel.getByRole("button", { name: "Reset to 1 atm" }).click();
   await expect(
     panel.getByLabel("Atmospheric pressure", { exact: true }),
   ).toHaveValue("1");

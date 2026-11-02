@@ -158,6 +158,7 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
           label: "Full screen",
           keys: mac ? [["Ctrl", "Command", "F"], ["F11"]] : [["F11"]],
         },
+        { label: "Exit full screen (hold for 2 seconds)", keys: [["Escape"]] },
       ],
     },
     {

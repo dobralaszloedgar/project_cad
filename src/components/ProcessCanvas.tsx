@@ -170,9 +170,7 @@ const UnitNode = memo(function UnitNode({
               unit={n}
               status={data.status}
               nodeRef={nodeRef}
-              x={positionAbsoluteX}
-              anchorTop={positionAbsoluteY + labelBottom - 46}
-              anchorBottom={positionAbsoluteY + frame.top + frame.height}
+              position={{ x: positionAbsoluteX, y: positionAbsoluteY }}
               onNavigate={data.onNavigate}
             />
           )}

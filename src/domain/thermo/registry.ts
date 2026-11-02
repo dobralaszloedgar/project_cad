@@ -25,8 +25,7 @@ export const models = [
     id: "ideal-gas",
     name: "Ideal gas",
     label: "Ideal gas",
-    description:
-      "Low-pressure gases, away from condensation. Vapor only.",
+    description: "Low-pressure gases. No condensation.",
     version: "2.0.0",
     pressureRange: [1, 1e8],
     source: "Ideal-gas equation of state",
@@ -36,8 +35,7 @@ export const models = [
     id: "ideal-solution",
     name: "Ideal solution · Raoult’s law",
     label: "Raoult’s law",
-    description:
-      "Ideal mixtures of similar molecules. 1–200 kPa; no azeotropes.",
+    description: "Ideal mixtures. 0.01–2 bar. No azeotropes.",
     version: "2.0.0",
     pressureRange: [1000, 200000],
     source: "Published vapor-pressure and caloric correlations",
@@ -48,8 +46,7 @@ export const models = [
     id: "modified-unifac-2.0",
     name: "Modified UNIFAC 2.0",
     label: "Modified UNIFAC 2.0",
-    description:
-      "Nonideal liquids with supported molecular groups. 1–200 kPa; vapor–liquid equilibrium only.",
+    description: "Nonideal liquids. 0.01–2 bar. Vapor–liquid only.",
     version: "2.0.0",
     pressureRange: [1000, 200000],
     source: "https://doi.org/10.1021/acs.iecr.5c00077",

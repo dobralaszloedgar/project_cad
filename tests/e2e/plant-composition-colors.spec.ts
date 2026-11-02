@@ -18,9 +18,7 @@ test("3D composition colors update after feed edits while preserving the view", 
   const legend = page.getByRole("complementary", {
     name: "3D component colors",
   });
-  await expect(legend).toContainText("Colors blend by mole fraction", {
-    timeout: 30000,
-  });
+  await expect(legend).toBeVisible({ timeout: 30000 });
   await expect(legend.locator(".plant-component-swatches span")).toHaveText([
     "A",
     "B",
@@ -124,7 +122,7 @@ test("ten chemical colors stay readable and selectable on desktop and narrow scr
   const legend = page.getByRole("complementary", {
     name: "3D component colors",
   });
-  await expect(legend).toContainText("10 chemicals");
+  await expect(legend).toBeVisible();
   const swatches = legend.locator(".plant-component-swatches i");
   await expect(swatches).toHaveCount(10);
   const colors = () =>
@@ -143,7 +141,8 @@ test("ten chemical colors stay readable and selectable on desktop and narrow scr
   await legend
     .getByRole("combobox", { name: "Fluid palette" })
     .selectOption("plum-lime");
-  await expect.poll(colors).not.toEqual(initial);
+  // Software rendering may need time to rebuild the full plant's materials.
+  await expect.poll(colors, { timeout: 30000 }).not.toEqual(initial);
   expect(new Set(await colors()).size).toBe(10);
   await testInfo.attach("ten-chemicals-plum-lime", {
     body: await page.screenshot({

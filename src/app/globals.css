@@ -6,11 +6,18 @@
   logs: false;
 }
 @import "@xyflow/react/dist/style.css";
+/* Shared by app surfaces, form controls, and Tailwind's font utilities. */
+@theme {
+  --font-sans: "Figtree Variable", sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
 :root {
   /* Main's 20px vector hands keep their size and render at the display's DPI. */
   --cursor-grab: url("/cursors/grab.svg") 8 8, grab;
   --cursor-grabbing: url("/cursors/grabbing.svg") 8 8, grabbing;
-  font-family: "Figtree Variable", sans-serif;
+  font-family: var(--font-sans);
   font-synthesis: none;
   background: #f5f7f6;
   color: #263730;
@@ -173,10 +180,19 @@ button {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  font-family: "Figtree Variable", sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
+}
+.workspace:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+.workspace-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
 }
 .workspace[data-theme="dark"] {
   --surface: #000;
@@ -289,6 +305,47 @@ h3 {
 .quiet-button:hover {
   background: var(--hover);
 }
+.workspace
+  :where(
+    .btn,
+    .icon-button,
+    .quiet-button,
+    .brand,
+    .model-button,
+    .species-count,
+    .tool-group button,
+    .view-switch button,
+    .react-flow__controls-button,
+    .workspace-menu button,
+    .project-menu button,
+    .equipment-item,
+    .template-option,
+    .app-header summary
+  ) {
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+.workspace
+  :where(
+    .btn:not(.btn-primary, .btn-error, .danger),
+    .icon-button,
+    .quiet-button,
+    .brand,
+    .model-button,
+    .species-count,
+    .tool-group button,
+    .view-switch button,
+    .workspace-menu button,
+    .project-menu button,
+    .equipment-item,
+    .template-option,
+    .app-header summary
+  ):where(:not(:disabled)):hover {
+  background: var(--hover);
+  color: var(--accent);
+}
 .app-header {
   height: 64px;
   flex-shrink: 0;
@@ -315,6 +372,9 @@ h3 {
 }
 .brand svg {
   stroke-width: 1.8;
+}
+.app-header .brand {
+  border-radius: 6px;
 }
 .header-divider {
   width: 1px;
@@ -539,16 +599,6 @@ h3 {
   overflow: hidden;
   background: var(--canvas);
 }
-.canvas-panel:fullscreen {
-  width: 100%;
-  height: 100%;
-  background: var(--canvas);
-}
-.canvas-panel-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-}
 .canvas-body {
   flex: 1;
   min-height: 0;
@@ -606,56 +656,47 @@ h3 {
   top: 56px;
   left: 14px;
   z-index: 5;
-  max-width: min(330px, calc(100% - 90px));
-  padding: 9px 12px;
+  width: max-content;
+  max-width: min(300px, calc(100% - 90px));
+  padding: 8px 12px 10px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 10px;
   background: var(--surface);
+  box-shadow: 0 2px 8px #1d2d2208;
   color: var(--ink);
   font-size: 11px;
 }
 .plant-composition-heading {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-.plant-composition-heading > span {
-  color: var(--muted);
-  font-size: 10px;
-}
-.plant-palette-select {
-  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
-  margin: 8px 0 6px;
-  color: var(--muted);
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-bottom: 6px;
 }
-.plant-palette-select select {
-  flex: 1;
+.plant-composition-heading strong {
+  font-weight: 600;
+}
+.plant-palette-select {
   min-width: 0;
-  padding: 5px 7px;
-  border: 1px solid var(--border);
+  max-width: 100%;
+  min-height: 28px;
+  margin-right: -6px;
+  padding: 4px 6px;
+  border: 0;
   border-radius: 5px;
-  background: var(--surface);
-  color: var(--ink);
+  background: transparent;
+  color: var(--muted);
   font: inherit;
+  cursor: pointer;
 }
-.plant-palette-select select:focus-visible {
+.plant-palette-select:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.plant-palette-select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.plant-palette-preview {
-  display: flex;
-  gap: 2px;
-  margin: 7px 0 10px;
-  overflow: hidden;
-  border-radius: 3px;
-}
-.plant-palette-preview i {
-  flex: 1;
-  height: 5px;
 }
 .plant-component-swatches {
   display: flex;
@@ -663,7 +704,6 @@ h3 {
   gap: 6px 14px;
   max-height: min(190px, 24vh);
   overflow: auto;
-  margin: 6px 0;
 }
 .plant-component-swatches span {
   display: inline-flex;
@@ -673,15 +713,11 @@ h3 {
   overflow-wrap: anywhere;
 }
 .plant-component-swatches i {
-  width: 11px;
-  height: 11px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
   box-shadow: inset 0 0 0 1px #00000018;
-}
-.plant-composition-legend small {
-  color: var(--muted);
-  font-size: 10px;
 }
 .plant-view .equipment-label-layer {
   z-index: 4;
@@ -976,9 +1012,12 @@ h3 {
   stroke: var(--accent);
 }
 .react-flow__controls {
-  box-shadow: none !important;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  box-shadow: 0 3px 9px #1d2d2210 !important;
   border: 1px solid var(--border);
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   overflow: hidden;
   left: 12px !important;
   bottom: 17px !important;
@@ -987,18 +1026,17 @@ h3 {
 .react-flow__controls-button {
   background: var(--surface) !important;
   color: var(--ink) !important;
-  border-bottom-color: var(--border) !important;
+  border: 0 !important;
+  border-radius: 4px !important;
   width: 28px !important;
   height: 28px !important;
-}
-.react-flow__controls-button:last-child {
-  border: 0;
 }
 .flow-wrapper .react-flow__controls-button svg.lucide {
   fill: none;
 }
-.flow-wrapper .react-flow__controls-button:hover {
+.flow-wrapper .react-flow__controls-button:enabled:hover {
   background: var(--hover) !important;
+  color: var(--accent) !important;
 }
 .flow-wrapper .react-flow__controls-pan[aria-pressed="true"] {
   background: var(--active) !important;
@@ -2205,11 +2243,7 @@ h3 {
   background: var(--canvas);
   box-shadow: 0 1px 0 var(--border);
   color: var(--ink);
-  font:
-    11px ui-monospace,
-    "SFMono-Regular",
-    Consolas,
-    monospace;
+  font: 11px var(--font-mono);
   white-space: nowrap;
 }
 .shortcut-groups kbd.shortcut-symbol {
@@ -3139,6 +3173,9 @@ h3 {
 }
 .workspace-menu button:hover {
   background: var(--hover);
+}
+.workspace-menu button:hover svg {
+  color: var(--accent);
 }
 .workspace-drawer {
   position: absolute;

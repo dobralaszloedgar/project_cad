@@ -1,5 +1,6 @@
 import type { Chemical } from "@/domain/thermo/data";
 import type { Reaction } from "@/domain/reactions/schema";
+import ChemicalFormula from "../ChemicalFormula";
 
 export function ReactionEquation({
   reaction,
@@ -20,18 +21,11 @@ export function ReactionEquation({
               {index > 0 && " + "}
               {Math.abs(row.coefficient) !== 1 &&
                 `${Math.abs(row.coefficient)} `}
-              {chemical?.formula
-                ? chemical.formula
-                    .split(/(\d+)/)
-                    .map((part, i, parts) =>
-                      /^\d+$/.test(part) &&
-                      /[A-Za-z)\]]$/.test(parts[i - 1] ?? "") ? (
-                        <sub key={i}>{part}</sub>
-                      ) : (
-                        part
-                      ),
-                    )
-                : (chemical?.name ?? row.componentId)}
+              {chemical?.formula ? (
+                <ChemicalFormula formula={chemical.formula} />
+              ) : (
+                (chemical?.name ?? row.componentId)
+              )}
             </span>
           );
         })

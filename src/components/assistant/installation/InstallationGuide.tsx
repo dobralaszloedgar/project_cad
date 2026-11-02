@@ -242,7 +242,7 @@ export default function InstallationGuide({
     (detectedPlatform === "windows" ? "windows" : "mac");
   const [version, setVersion] = useState<MacVersion | "other">("tahoe");
   const [selectedArchitecture, setArchitecture] =
-    useState<WindowsArchitecture>("x64");
+    useState<WindowsArchitecture>("universal");
   const architecture = fixedArchitecture ?? selectedArchitecture;
   const [appearance, setAppearance] = useState<"system" | "light" | "dark">(
     "system",
@@ -369,6 +369,7 @@ export default function InstallationGuide({
                 setArchitecture(event.target.value as WindowsArchitecture);
               }}
             >
+              <option value="universal">Windows x64 + ARM64</option>
               <option value="x64">Windows x64</option>
               <option value="arm64">Windows ARM64</option>
             </select>
@@ -396,7 +397,9 @@ export default function InstallationGuide({
             ? "Find your version: Apple menu → About This Mac"
             : previewControls
               ? "Find your processor: Settings → System → About"
-              : `Showing the ${architecture === "arm64" ? "ARM64" : "x64"} installer you selected`}
+              : architecture === "universal"
+                ? "This installer supports x64 and ARM64"
+                : `Showing the ${architecture === "arm64" ? "ARM64" : "x64"} installer you selected`}
         </span>
       </div>
       {hasWalkthrough ? (

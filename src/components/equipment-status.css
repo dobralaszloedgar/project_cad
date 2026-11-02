@@ -29,8 +29,6 @@
   border: 0;
   border-radius: 50%;
   background: var(--equipment-status-color);
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--equipment-status-color) 18%, var(--canvas));
   pointer-events: auto;
   cursor: pointer;
 }
@@ -67,7 +65,7 @@
   flex-shrink: 0;
   align-items: flex-start;
   gap: 8px;
-  padding: 12px 12px 8px;
+  padding: 12px;
 }
 .equipment-status-heading > svg {
   flex-shrink: 0;
@@ -105,12 +103,6 @@
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0 12px 12px;
-}
-.equipment-status-body p {
-  margin: 0 0 6px;
-}
-.equipment-status-hint {
-  color: var(--muted);
 }
 .equipment-issue-list {
   list-style: none;

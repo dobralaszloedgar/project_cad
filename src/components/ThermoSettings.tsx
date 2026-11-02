@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, Thermometer } from "lucide-react";
+import { Info, LoaderCircle, Thermometer } from "lucide-react";
 import {
   modelInfo,
   models,
@@ -51,11 +51,7 @@ export default function ThermodynamicSelector({
         >
           <ThermodynamicModelForm
             settings={settings}
-            onCancel={close}
-            onApply={(next) => {
-              onApply(next);
-              onOpenChange(false);
-            }}
+            onApply={onApply}
             onError={onError}
           />
         </Dialog>
@@ -66,119 +62,134 @@ export default function ThermodynamicSelector({
 
 function ThermodynamicModelForm({
   settings,
-  onCancel,
   onApply,
   onError,
 }: {
   settings: ThermoSettings;
-  onCancel: () => void;
   onApply: (settings: ThermoSettings) => void;
   onError: (message: string) => void;
 }) {
-  const [selected, setSelected] = useState<ModelId>(settings.modelId);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [availability, setAvailability] = useState<
+    Partial<Record<ModelId, { settings?: ThermoSettings; error?: string }>>
+  >(() => ({ [settings.modelId]: { settings } }));
   const options = useRef<HTMLFieldSetElement>(null);
-  const request = useRef<AbortController | null>(null);
   useEffect(() => {
+    const controller = new AbortController();
     const frame = requestAnimationFrame(() =>
       options.current
         ?.querySelector<HTMLInputElement>("input:checked")
         ?.focus(),
     );
+    const choices = catalogChoices(settings);
+    for (const model of models) {
+      if (model.id === settings.modelId) continue;
+      const next = { ...settings, modelId: model.id };
+      // Resolve before selection so applying a model is synchronous, including
+      // when the user immediately dismisses the dialog afterward.
+      const resolved = choices.every(Boolean)
+        ? resolveCatalogSettings(next, choices, undefined, controller.signal)
+        : Promise.resolve({
+            ...next,
+            mixture: "catalog" as const,
+            catalog: undefined,
+          });
+      void resolved.then(
+        (nextSettings) => {
+          if (!controller.signal.aborted)
+            setAvailability((current) => ({
+              ...current,
+              [model.id]: { settings: nextSettings },
+            }));
+        },
+        (reason) => {
+          if (!controller.signal.aborted)
+            setAvailability((current) => ({
+              ...current,
+              [model.id]: {
+                error:
+                  reason instanceof Error
+                    ? reason.message
+                    : "Could not load data for this model.",
+              },
+            }));
+        },
+      );
+    }
     return () => {
       cancelAnimationFrame(frame);
-      request.current?.abort();
+      controller.abort();
     };
-  }, []);
+  }, [settings]);
   return (
-    <form
-      className="thermo-model-form"
-      aria-busy={saving}
-      onSubmit={async (event) => {
-        event.preventDefault();
-        if (saving) return;
-        if (selected === settings.modelId) {
-          onCancel();
-          return;
-        }
-        const controller = new AbortController();
-        request.current = controller;
-        setSaving(true);
-        setError("");
-        try {
-          const next = { ...settings, modelId: selected };
-          const choices = catalogChoices(settings);
-          const resolved = choices.every(Boolean)
-            ? await resolveCatalogSettings(
-                next,
-                choices,
-                undefined,
-                controller.signal,
-              )
-            : { ...next, mixture: "catalog" as const, catalog: undefined };
-          if (controller.signal.aborted) return;
-          onApply(resolved);
-          if (!choices.every(Boolean))
-            onError("Choose project components for this model.");
-        } catch (reason) {
-          if (!controller.signal.aborted)
-            setError(
-              reason instanceof Error
-                ? reason.message
-                : "Could not change the model.",
-            );
-        } finally {
-          if (!controller.signal.aborted) setSaving(false);
-        }
-      }}
-    >
+    <div className="thermo-model-form">
       <fieldset
         ref={options}
         className="thermo-model-options"
         aria-label="Thermodynamic model"
-        disabled={saving}
       >
-        {models.map((model) => (
-          <label className="thermo-model-option" key={model.id}>
-            <input
-              type="radio"
-              name="thermodynamic-model"
-              value={model.id}
-              checked={selected === model.id}
-              aria-labelledby={`thermo-${model.id}-name`}
-              aria-describedby={`thermo-${model.id}-description`}
-              onChange={() => {
-                setSelected(model.id);
-                setError("");
-              }}
-            />
-            <span>
-              <strong id={`thermo-${model.id}-name`}>{model.name}</strong>
-              <span
-                id={`thermo-${model.id}-description`}
-                className="thermo-model-description"
-              >
-                {model.description}
+        {models.map((model) => {
+          const available = availability[model.id];
+          const detailId = `thermo-${model.id}-availability`;
+          return (
+            <label
+              className="thermo-model-option"
+              key={model.id}
+              title={available?.error}
+              tabIndex={available?.error ? 0 : undefined}
+              aria-label={available?.error ? model.name : undefined}
+              aria-describedby={available?.error ? detailId : undefined}
+            >
+              <input
+                type="radio"
+                name="thermodynamic-model"
+                value={model.id}
+                checked={settings.modelId === model.id}
+                disabled={!available?.settings}
+                aria-labelledby={`thermo-${model.id}-name`}
+                aria-describedby={`thermo-${model.id}-description${available?.error ? ` ${detailId}` : ""}`}
+                onChange={() => {
+                  if (!available?.settings) return;
+                  onApply(available.settings);
+                  if (!catalogChoices(available.settings).every(Boolean))
+                    onError("Choose project components for this model.");
+                }}
+              />
+              <span className="thermo-model-content">
+                <span className="thermo-model-heading">
+                  <strong id={`thermo-${model.id}-name`}>{model.name}</strong>
+                  {!available && (
+                    <span className="thermo-model-status" role="status">
+                      <LoaderCircle
+                        size={13}
+                        className="thermo-spinner"
+                        aria-hidden="true"
+                      />
+                      Checking data…
+                    </span>
+                  )}
+                  {available?.error && (
+                    <span className="thermo-model-status">
+                      <Info size={13} aria-hidden="true" />
+                      Data unavailable
+                    </span>
+                  )}
+                </span>
+                <span
+                  id={`thermo-${model.id}-description`}
+                  className="thermo-model-description"
+                >
+                  {model.description}
+                </span>
+                {available?.error && (
+                  <span id={detailId} className="sr-only">
+                    {available.error}
+                  </span>
+                )}
               </span>
-            </span>
-          </label>
-        ))}
+            </label>
+          );
+        })}
       </fieldset>
-      {error && (
-        <p className="thermo-model-error" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="dialog-actions">
-        <button type="button" className="btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving && <LoaderCircle size={15} className="thermo-spinner" />}
-          {saving ? "Applying…" : "Apply model"}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }
