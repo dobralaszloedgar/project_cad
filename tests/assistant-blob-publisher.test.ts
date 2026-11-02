@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { sha256 } from "../scripts/assistant/release-manifest.mjs";
+import {
+  sha256,
+  validateManifest,
+} from "../scripts/assistant/release-manifest.mjs";
 import { assistantDownloads } from "../src/assistant/downloads";
 import {
   prepareVercelRelease,
@@ -18,88 +21,129 @@ const files = ["installer.exe", "downloads.json"].map((filename) => {
 });
 
 describe("Blob release publishing", () => {
-  it("publishes Windows alone while retaining existing macOS and Linux downloads", async () => {
-    const directory = await mkdtemp(
-      join(tmpdir(), "project-cad-windows-release-"),
-    );
-    try {
-      const previous = {
-        name: "Project CAD Assistant",
-        version: "0.1.0",
-        distribution: {
-          provider: "vercel-blob",
-          baseUrl: base.replace("v0.1.2", "v0.1.0"),
-        },
-        files: ["macos", "windows", "linux"].map((platform) => {
-          const filename = `ProjectCAD-Assistant-${platform}-universal${platform === "macos" ? ".pkg" : platform === "windows" ? "-Setup.exe" : ".run"}`;
-          return {
-            platform,
-            architecture: "universal",
-            filename,
-            bytes: Buffer.byteLength(filename),
-            sha256: sha256(Buffer.from(filename)),
-          };
-        }),
-      };
-      const windows = {
-        ...previous.files[1],
-        bytes: 3,
-        sha256: sha256(Buffer.from("new")),
-      };
-      const source = {
-        name: previous.name,
-        version: "0.1.2",
-        files: [windows],
-      };
-      await writeFile(
-        join(directory, "downloads.json"),
-        JSON.stringify(source),
+  it.each(["windows", "windows,linux"])(
+    "publishes %s while retaining the other platform downloads",
+    async (platform) => {
+      const directory = await mkdtemp(
+        join(tmpdir(), "project-cad-windows-release-"),
       );
-      await writeFile(join(directory, windows.filename), "new");
-      await writeFile(
-        join(directory, "SHA256SUMS.txt"),
-        `${windows.sha256}  ${windows.filename}\n`,
-      );
-      const prepared = await prepareVercelRelease(directory, base, {
-        platform: "windows",
-        previous,
-      });
-      expect(
-        prepared.assets.map((file: { filename: string }) => file.filename),
-      ).toEqual([windows.filename, "SHA256SUMS.txt", "downloads.json"]);
-      expect(prepared.manifest.files).toEqual([
-        { ...previous.files[0], version: "0.1.0" },
-        { ...previous.files[2], version: "0.1.0" },
-        windows,
-      ]);
-      const parsed = assistantDownloads(prepared.manifest)!;
-      expect(
-        parsed.installers.find((file) => file.platform === "windows")?.url,
-      ).toBe(`${base}/${windows.filename}`);
-      for (const file of parsed.installers.filter(
-        (file) => file.platform !== "windows",
-      ))
-        expect(file.url).toBe(
-          `${previous.distribution.baseUrl}/${file.filename}`,
+      try {
+        const previous = {
+          name: "Project CAD Assistant",
+          version: "0.1.0",
+          distribution: {
+            provider: "vercel-blob",
+            baseUrl: base.replace("v0.1.2", "v0.1.0"),
+          },
+          files: ["macos", "windows", "linux"].map((platform) => {
+            const filename = `ProjectCAD-Assistant-${platform}-universal${platform === "macos" ? ".pkg" : platform === "windows" ? "-Setup.exe" : ".run"}`;
+            return {
+              platform,
+              architecture: "universal",
+              filename,
+              bytes: Buffer.byteLength(filename),
+              sha256: sha256(Buffer.from(filename)),
+            };
+          }),
+        };
+        const windows = {
+          ...previous.files[1],
+          bytes: 3,
+          sha256: sha256(Buffer.from("new")),
+        };
+        const changed = [
+          windows,
+          ...(platform.includes("linux")
+            ? [
+                {
+                  ...previous.files[2],
+                  bytes: 3,
+                  sha256: sha256(Buffer.from("new")),
+                },
+              ]
+            : []),
+        ];
+        const source = {
+          name: previous.name,
+          version: "0.1.2",
+          files: changed,
+        };
+        if (platform === "windows,linux") {
+          expect(
+            validateManifest(
+              {
+                ...source,
+                platforms: ["windows", "linux"],
+                release: { repository: "owner/app", tag: "v0.1.2" },
+              },
+              { published: true },
+            ),
+          ).toBeTruthy();
+          expect(() =>
+            validateManifest({ ...source, platforms: ["windows"] }),
+          ).toThrow();
+          expect(() =>
+            validateManifest({ ...source, platforms: ["unknown"] }),
+          ).toThrow();
+        }
+        await writeFile(
+          join(directory, "downloads.json"),
+          JSON.stringify(source),
         );
-      await expect(
-        prepareVercelRelease(
-          directory,
-          base.replace("teststore.", "otherstore."),
-          { platform: "windows", previous },
-        ),
-      ).rejects.toThrow("existing download store");
-      await writeFile(join(directory, windows.filename), "corrupt");
-      await expect(
-        prepareVercelRelease(directory, base, {
-          platform: "windows",
+        await writeFile(join(directory, windows.filename), "new");
+        if (changed[1])
+          await writeFile(join(directory, changed[1].filename), "new");
+        await writeFile(
+          join(directory, "SHA256SUMS.txt"),
+          changed.map((file) => `${file.sha256}  ${file.filename}\n`).join(""),
+        );
+        const prepared = await prepareVercelRelease(directory, base, {
+          platform,
           previous,
-        }),
-      ).rejects.toThrow("Checksum mismatch");
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
-  });
+        });
+        expect(
+          prepared.assets.map((file: { filename: string }) => file.filename),
+        ).toEqual([
+          ...changed.map((file) => file.filename),
+          "SHA256SUMS.txt",
+          "downloads.json",
+        ]);
+        expect(prepared.manifest.files).toEqual([
+          { ...previous.files[0], version: "0.1.0" },
+          ...(platform.includes("linux")
+            ? []
+            : [{ ...previous.files[2], version: "0.1.0" }]),
+          ...changed,
+        ]);
+        const parsed = assistantDownloads(prepared.manifest)!;
+        expect(
+          parsed.installers.find((file) => file.platform === "windows")?.url,
+        ).toBe(`${base}/${windows.filename}`);
+        for (const file of parsed.installers.filter(
+          (file) => !platform.split(",").includes(file.platform),
+        ))
+          expect(file.url).toBe(
+            `${previous.distribution.baseUrl}/${file.filename}`,
+          );
+        await expect(
+          prepareVercelRelease(
+            directory,
+            base.replace("teststore.", "otherstore."),
+            { platform, previous },
+          ),
+        ).rejects.toThrow("existing download store");
+        await writeFile(join(directory, windows.filename), "corrupt");
+        await expect(
+          prepareVercelRelease(directory, base, {
+            platform,
+            previous,
+          }),
+        ).rejects.toThrow("Checksum mismatch");
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
 
   it.each([false, true])(
     "publishes only preferred installers and two metadata files (universal: %s)",

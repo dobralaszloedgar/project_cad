@@ -527,6 +527,8 @@ async function serve() {
       managed: !!worker,
       websiteUrl: settings.websiteUrl,
       startAtLogin: settings.startAtLogin,
+      accessMode: settings.accessMode,
+      projectsDirectory: settings.projectsDirectory,
       agents: settings.agents,
       connections: new ConnectionRequests(root).pending(),
       museAvailable: !!providerExecutable("muse"),
@@ -686,6 +688,9 @@ async function serve() {
           ...previous,
           websiteUrl: value.websiteUrl,
           startAtLogin: value.startAtLogin,
+          accessMode: value.accessMode ?? previous.accessMode,
+          projectsDirectory:
+            value.projectsDirectory ?? previous.projectsDirectory,
           museApiKey: value.clearMuseKey
             ? ""
             : value.museApiKey || previous.museApiKey,

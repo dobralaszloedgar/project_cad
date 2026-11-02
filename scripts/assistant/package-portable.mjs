@@ -11,7 +11,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join, dirname, delimiter } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { buildAssistant } from "./build.mjs";
@@ -23,6 +23,25 @@ import {
 
 const execute = promisify(execFile);
 const tar = process.platform === "win32" ? "tar.exe" : "/usr/bin/tar";
+// Windows filesystem modes cannot retain Unix execute bits. GNU tar writes
+// explicit package modes so Linux runtimes/launchers remain executable.
+const archiveTar =
+  process.platform === "win32"
+    ? process.env.PROJECT_CAD_LINUX_TAR_BIN ||
+      join(
+        process.env.ProgramFiles || "C:/Program Files",
+        "Git/usr/bin/tar.exe",
+      )
+    : tar;
+const archiveOptions =
+  process.platform === "win32"
+    ? ["--force-local", "--mode=0755"]
+    : ["--no-xattrs", "--no-acls", "--no-fflags"];
+const archiveEnv = {
+  ...process.env,
+  COPYFILE_DISABLE: "1",
+  PATH: dirname(archiveTar) + delimiter + process.env.PATH,
+};
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const release = JSON.parse(
   await readFile(join(root, "scripts/assistant/releases.json"), "utf8"),
@@ -65,7 +84,22 @@ async function runtime(arch) {
   }
   const directory = join(temporary, "runtime-" + arch);
   await mkdir(directory);
-  await execute(tar, ["-xf", archive, "-C", directory], { timeout: 60000 });
+  const archiveRoot = entry.filename.replace(/\.zip$|\.tar\.gz$/g, "");
+  // Linux npm shims are symlinks. Only the bundled runtime and license are
+  // needed, and selecting them also permits cross-building on Windows.
+  await execute(
+    tar,
+    [
+      "-xf",
+      archive,
+      "-C",
+      directory,
+      ...(platform === "linux"
+        ? [`${archiveRoot}/bin/node`, `${archiveRoot}/LICENSE`]
+        : []),
+    ],
+    { timeout: 60000 },
+  );
   const extracted = join(
     directory,
     entry.filename.replace(/\.zip$|\.tar\.gz$/g, ""),
@@ -181,34 +215,23 @@ try {
     } else {
       const archive = name + ".tar.gz";
       await execute(
-        "/usr/bin/tar",
+        archiveTar,
         [
-          "--no-xattrs",
-          "--no-acls",
-          "--no-fflags",
+          ...archiveOptions,
           "-czf",
           join(output, archive),
           "-C",
           temporary,
           name,
         ],
-        { env: { ...process.env, COPYFILE_DISABLE: "1" }, timeout: 180000 },
+        { env: archiveEnv, timeout: 180000 },
       );
       files.push({ filename: archive, architecture: arch });
       const payload = join(temporary, arch + "-payload.tar.gz");
       await execute(
-        "/usr/bin/tar",
-        [
-          "--no-xattrs",
-          "--no-acls",
-          "--no-fflags",
-          "-czf",
-          payload,
-          "-C",
-          bundle,
-          ".",
-        ],
-        { env: { ...process.env, COPYFILE_DISABLE: "1" }, timeout: 180000 },
+        archiveTar,
+        [...archiveOptions, "-czf", payload, "-C", bundle, "."],
+        { env: archiveEnv, timeout: 180000 },
       );
       const header = `#!/bin/sh\nset -eu\nif [ "$(id -u)" = 0 ]; then echo "Install Project CAD Assistant as your normal user, without sudo." >&2; exit 1; fi\ncase "$(uname -m)" in ${arch === "x64" ? "x86_64|amd64" : "aarch64|arm64"}) ;; *) echo "This installer requires ${arch} Linux." >&2; exit 1 ;; esac\nproject_cad_stage="$(mktemp -d)"\ntrap 'rm -rf "$project_cad_stage"' EXIT HUP INT TERM\nproject_cad_line="$(awk '/^__PROJECT_CAD_ARCHIVE__$/ {print NR + 1; exit}' "$0")"\ntail -n +"$project_cad_line" "$0" | tar -xz -C "$project_cad_stage"\n"$project_cad_stage/runtime/node" "$project_cad_stage/app/desktop.mjs" install "$project_cad_stage" "$@"\nexit 0\n__PROJECT_CAD_ARCHIVE__\n`;
       const filename = name + ".run";
@@ -244,19 +267,9 @@ try {
       await rename(bundles[arch], join(directory, arch));
     const payload = join(temporary, "universal-payload.tar.gz");
     await execute(
-      "/usr/bin/tar",
-      [
-        "--no-xattrs",
-        "--no-acls",
-        "--no-fflags",
-        "-czf",
-        payload,
-        "-C",
-        directory,
-        "x64",
-        "arm64",
-      ],
-      { env: { ...process.env, COPYFILE_DISABLE: "1" }, timeout: 180000 },
+      archiveTar,
+      [...archiveOptions, "-czf", payload, "-C", directory, "x64", "arm64"],
+      { env: archiveEnv, timeout: 180000 },
     );
     const filename = "ProjectCAD-Assistant-linux-universal.run";
     await writeFile(

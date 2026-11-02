@@ -217,7 +217,7 @@ export async function connectAssistant(page: Page) {
     .click();
   await page
     .getByRole("heading", {
-      name: /Choose your agents|Your assistant is ready/,
+      name: /Choose your agents|Your assistant is ready|Muse connector is ready/,
     })
     .waitFor();
   if (

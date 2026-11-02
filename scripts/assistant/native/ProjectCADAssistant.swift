@@ -13,14 +13,18 @@ struct CompanionSettings: Codable {
     var websiteUrl = "https://projectcad.vercel.app"
     var startAtLogin = true
     var museApiKey = ""
+    var accessMode = "yolo"
+    var projectsDirectory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/Project CAD", isDirectory: true).path
     var agents: AgentSelection? = AgentSelection(providers: ["muse"], preferred: "muse")
-    enum CodingKeys: String, CodingKey { case websiteUrl, startAtLogin, museApiKey, agents }
+    enum CodingKeys: String, CodingKey { case websiteUrl, startAtLogin, museApiKey, agents, accessMode, projectsDirectory }
     init() {}
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         websiteUrl = try values.decodeIfPresent(String.self, forKey: .websiteUrl) ?? websiteUrl
         startAtLogin = try values.decodeIfPresent(Bool.self, forKey: .startAtLogin) ?? startAtLogin
         museApiKey = try values.decodeIfPresent(String.self, forKey: .museApiKey) ?? museApiKey
+        accessMode = try values.decodeIfPresent(String.self, forKey: .accessMode) ?? accessMode
+        projectsDirectory = try values.decodeIfPresent(String.self, forKey: .projectsDirectory) ?? projectsDirectory
         agents = AgentSelection(providers: ["muse"], preferred: "muse")
     }
 }
@@ -122,6 +126,9 @@ final class CompanionModel: ObservableObject {
         }
     }
     @discardableResult func save() -> Bool {
+        guard ["yolo", "sandbox"].contains(settings.accessMode), settings.projectsDirectory.hasPrefix("/") else {
+            failure = true; message = "Choose an absolute CAD projects folder path."; return false
+        }
         guard let url = URL(string: settings.websiteUrl), url.user == nil, url.password == nil,
               url.scheme == "https" || (url.scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(url.host ?? "")) else {
             failure = true; message = "Enter an HTTPS Project CAD address or a localhost address."; return false
@@ -224,11 +231,11 @@ struct CompanionView: View {
                 Text(request.origin).font(.body.weight(.medium)).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 Text(request.agents.providers.map { agentNames[$0] ?? $0 }.joined(separator: ", ")).foregroundStyle(.secondary)
 
-                HStack {
-                    Button("Decline") { model.perform("deny-connection", arguments: [request.id]) }.disabled(model.busy)
-                    Spacer()
-                    Button("Approve connection") { model.perform("approve-connection", arguments: [request.id]) }.buttonStyle(.borderedProminent).tint(accent).disabled(model.busy)
-                }
+                Text("Approve the connector here to finish connecting your project.").font(.callout).foregroundStyle(.secondary)
+                Button { model.perform("approve-connection", arguments: [request.id]) } label: {
+                    Text("Approve connector").font(.headline).frame(maxWidth: .infinity, minHeight: 38)
+                }.buttonStyle(.borderedProminent).tint(accent).controlSize(.large).disabled(model.busy)
+                HStack { Spacer(); Button("Decline") { model.perform("deny-connection", arguments: [request.id]) }.disabled(model.busy); Spacer() }
             } else {
                 provider("Muse Code", detail: model.readyAgents.contains("muse") ? "Ready" : "Preparing Muse…", available: model.readyAgents.contains("muse")) { model.setup("muse") }
             }
@@ -237,6 +244,7 @@ struct CompanionView: View {
                 Button("Return to project", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
             } }
             Divider()
+            Text(model.settings.accessMode == "sandbox" ? "Sandbox · CAD folder + web · No tool approvals" : "YOLO · Full device access · No tool approvals").font(.caption).foregroundStyle(.secondary)
             HStack(alignment: .top, spacing: 10) {
                 if model.busy { ProgressView().controlSize(.small) }
                 Text(model.message).font(.caption).foregroundStyle(model.failure ? Color.red : Color.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
@@ -257,6 +265,13 @@ struct CompanionView: View {
         .sheet(isPresented: $model.showSettings) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Assistant settings").font(.title2.weight(.semibold))
+                Picker("Connector access", selection: $model.settings.accessMode) {
+                    Text("YOLO — full device access").tag("yolo")
+                    Text("Sandbox — CAD folder + web").tag("sandbox")
+                }
+                Text("Both modes run without tool approval prompts. Sandbox is limited to the CAD folder and web access, with no shell commands.").font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) { Text("CAD projects folder").font(.caption); TextField("Folder path", text: $model.settings.projectsDirectory) }
+                Text("New chats apply and save CAD edits immediately.").font(.caption).foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 6) { Text("Project CAD website").font(.caption); TextField("https://projectcad.vercel.app", text: $model.settings.websiteUrl) }
                 Toggle("Start assistant when I log in", isOn: $model.settings.startAtLogin)
                 if model.failure { Text(model.message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }

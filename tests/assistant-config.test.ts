@@ -12,6 +12,7 @@ import {
   applicationOrigin,
   loadAssistantSettings,
   providerExecutable,
+  saveAssistantSettings,
 } from "../src/server/assistant/config";
 
 const directories: string[] = [];
@@ -46,6 +47,7 @@ describe("local companion configuration", () => {
   it("loads saved settings and refuses malformed settings without exposing a secret", () => {
     const root = temporary();
     expect(loadAssistantSettings(root).startAtLogin).toBe(true);
+    expect(loadAssistantSettings(root).accessMode).toBe("yolo");
     writeFileSync(
       join(root, "settings.json"),
       JSON.stringify({
@@ -55,6 +57,7 @@ describe("local companion configuration", () => {
       }),
     );
     expect(loadAssistantSettings(root)).toMatchObject({
+      accessMode: "yolo",
       startAtLogin: false,
       museApiKey: "test-only-key",
     });
@@ -134,6 +137,21 @@ describe("local companion configuration", () => {
       expect(providerExecutable("codex")).toBeUndefined();
     },
   );
+});
+
+it("persists sandbox access and the CAD folder, and rejects invalid access settings", () => {
+  const root = temporary();
+  const settings = saveAssistantSettings(root, {
+    accessMode: "sandbox",
+    projectsDirectory: root,
+  });
+  expect(loadAssistantSettings(root)).toEqual(settings);
+  expect(() =>
+    saveAssistantSettings(root, { accessMode: "allow-everything" }),
+  ).toThrow();
+  expect(() =>
+    saveAssistantSettings(root, { projectsDirectory: "../outside" }),
+  ).toThrow();
 });
 
 it.runIf(process.platform === "win32")(

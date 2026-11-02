@@ -16,6 +16,7 @@ const fake = vi.hoisted(() => ({
 }));
 vi.mock("../src/server/assistant/config", () => ({
   providerExecutable: () => "/test/muse",
+  defaultProjectsDirectory: "unused-default",
 }));
 vi.mock("@muse-code/sdk", () => ({
   spawnMspConnection: (options: { args: string[] }) => {
@@ -101,6 +102,7 @@ vi.mock("@muse-code/sdk", () => ({
   },
 }));
 import { MuseProvider } from "../src/server/assistant/providers/muse";
+import { ProjectFiles } from "../src/server/assistant/project-files";
 import {
   projectMcp,
   museToolSchema,
@@ -130,7 +132,9 @@ function input(mode = "review") {
     session: (id) => {
       conversation.providerSession = id;
     },
-    context: () => {},
+    context: (items) => {
+      conversation.providerContext = items;
+    },
   };
   return { value, controller, text, call };
 }
@@ -155,7 +159,10 @@ it("discovers Muse Code's models and sign-in instead of pinning Spark or requiri
 });
 it("uses the selected model and effort, streams once, and resumes the same Muse session", async () => {
   const { value, text } = input();
-  const provider = new MuseProvider(value.cwd);
+  const provider = new MuseProvider(value.cwd, () => ({
+    accessMode: "yolo",
+    projectsDirectory: value.cwd,
+  }));
   await provider.run(value);
   expect(text.mock.calls.flat().join("")).toBe("Hello world");
   expect(fake.commands[0]).toMatchObject({
@@ -168,9 +175,9 @@ it("uses the selected model and effort, streams once, and resumes the same Muse 
   });
   expect(fake.launches[0].args).toEqual(
     expect.arrayContaining([
-      "--disable-shell",
-      "--disable-write",
-      'run.toolset=["mcp__project-cad__*"]',
+      "--disable-sandbox",
+      "--trust-workspace",
+      "native-basic",
     ]),
   );
   await provider.run(value);
@@ -182,12 +189,51 @@ it("uses the selected model and effort, streams once, and resumes the same Muse 
 it("closes a running Muse host when cancelled", async () => {
   fake.hang = true;
   const { value, controller } = input();
-  const running = new MuseProvider(value.cwd).run(value);
+  const running = new MuseProvider(value.cwd, () => ({
+    accessMode: "yolo",
+    projectsDirectory: value.cwd,
+  })).run(value);
   await vi.waitFor(() =>
     expect(fake.commands.some((c) => c.method === "turn/start")).toBe(true),
   );
   controller.abort();
   await expect(running).rejects.toThrow(/disconnected|abort/i);
+});
+
+it("keeps sandbox folder/web access without shell and never resumes a YOLO session after switching", async () => {
+  const { value } = input("auto");
+  let accessMode: "yolo" | "sandbox" = "yolo";
+  let projectsDirectory = value.cwd;
+  const provider = new MuseProvider(value.cwd, () => ({
+    accessMode,
+    projectsDirectory,
+  }));
+  await provider.run(value);
+  accessMode = "sandbox";
+  await provider.run(value);
+  expect(
+    fake.commands.filter((item) => item.method === "session/resume"),
+  ).toHaveLength(0);
+  expect(
+    fake.commands.filter((item) => item.method === "session/start"),
+  ).toHaveLength(2);
+  const args = fake.launches[1].args;
+  expect(args).toContain("--disable-shell");
+  expect(args).toContain("--disable-write");
+  expect(args).not.toContain("--disable-sandbox");
+  expect(args).toContain(
+    'run.toolset=["web_search","web_fetch","mcp__project-cad__*"]',
+  );
+  await provider.run(value);
+  expect(fake.commands).toContainEqual({
+    method: "session/setApprovalMode",
+    params: { sessionId: "muse-session", mode: "allowAll" },
+  });
+  projectsDirectory = join(value.cwd, "another-project-folder");
+  await provider.run(value);
+  expect(
+    fake.commands.filter((item) => item.method === "session/start"),
+  ).toHaveLength(3);
 });
 it("refreshes the website AI guide on every turn, including a resumed session", async () => {
   const { value, call } = input();
@@ -195,7 +241,10 @@ it("refreshes the website AI guide on every turn, including a resumed session", 
   call.mockImplementation(async (name?: unknown) => ({
     name: name === "get_guide" ? version : "project",
   }));
-  const provider = new MuseProvider(value.cwd);
+  const provider = new MuseProvider(value.cwd, () => ({
+    accessMode: "sandbox",
+    projectsDirectory: value.cwd,
+  }));
   await provider.run(value);
   version = "latest-guide-two";
   await provider.run(value);
@@ -211,7 +260,7 @@ it("refreshes the website AI guide on every turn, including a resumed session", 
 });
 it("protects project MCP tools, validates JSON plans and withholds write proposals in read-only mode", async () => {
   const { value, call } = input("read-only");
-  const bridge = await projectMcp(value);
+  const bridge = await projectMcp(value, new ProjectFiles(value.cwd));
   const request = (
     method: string,
     params: unknown = {},
@@ -233,6 +282,15 @@ it("protects project MCP tools, validates JSON plans and withholds write proposa
         (t: { name: string }) => t.name === "propose_actions",
       ),
     ).toBe(false);
+    expect(list.result.tools.map((t: { name: string }) => t.name)).toContain(
+      "read_project_file",
+    );
+    expect(
+      list.result.tools.map((t: { name: string }) => t.name),
+    ).not.toContain("write_project_file");
+    expect(
+      list.result.tools.map((t: { name: string }) => t.name),
+    ).not.toContain("delete_project_file");
     expect(museToolSchema("preview_actions").properties?.plan).toMatchObject({
       type: "string",
     });

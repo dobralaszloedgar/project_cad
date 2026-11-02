@@ -88,7 +88,11 @@ async function request<T>(
     );
   return value;
 }
-export function useAssistant(projectId: string, project: Project) {
+export function useAssistant(
+  projectId: string,
+  project: Project,
+  onApply?: (proposal: Proposal) => Promise<string>,
+) {
   const [token, setToken] = useState(() =>
     typeof window === "undefined" ? "" : sessionStorage.getItem(tokenKey) || "",
   );
@@ -114,6 +118,7 @@ export function useAssistant(projectId: string, project: Project) {
   const [clientId, setClientId] = useState("");
   const selected = useRef<string | undefined>(undefined);
   const projectRef = useRef(project);
+  const applyRef = useRef(onApply);
   const pairCleanup = useRef<(() => void) | null>(null);
   const pairOpen = useRef<(() => Promise<void>) | null>(null);
   const connectorWindow = useRef<Window | null>(null);
@@ -140,7 +145,8 @@ export function useAssistant(projectId: string, project: Project) {
   const loadLatest = useRef(true);
   useEffect(() => {
     projectRef.current = project;
-  }, [project]);
+    applyRef.current = onApply;
+  }, [project, onApply]);
   useEffect(() => () => pairCleanup.current?.(), []);
   useEffect(() => {
     let alive = true;
@@ -294,6 +300,14 @@ export function useAssistant(projectId: string, project: Project) {
                     projectId,
                     project: projectRef.current,
                     mode: command.mode,
+                    commandId: command.id,
+                    apply: (proposal) => {
+                      if (!applyRef.current)
+                        throw new Error(
+                          "Open the project to apply assistant edits.",
+                        );
+                      return applyRef.current(proposal);
+                    },
                   },
                 ),
               };
@@ -416,7 +430,7 @@ export function useAssistant(projectId: string, project: Project) {
         );
         if (!response.ok)
           throw new Error(
-            "Open Project CAD Assistant from your Start or application menu, then choose Approve connection. Update the connector if its approval window does not open.",
+            "Open Project CAD Assistant from your Start or application menu, then choose Approve connector. Update the connector if its approval window does not open.",
           );
       } catch (failure) {
         if (!stopped) report(failure);

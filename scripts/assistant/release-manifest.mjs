@@ -41,16 +41,30 @@ export const repositoryPattern =
   /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
-/** @param {{published?: boolean, platform?: "macos" | "windows" | "linux"}} [options] */
+/** @param {{published?: boolean, platform?: string}} [options] */
 export function validateManifest(manifest, options = {}) {
-  const { published = false, platform } = options;
-  if (platform && !["macos", "windows", "linux"].includes(platform))
+  const { published = false } = options;
+  if (
+    manifest?.platforms !== undefined &&
+    (!Array.isArray(manifest.platforms) ||
+      !manifest.platforms.length ||
+      manifest.platforms.some((item) => typeof item !== "string"))
+  )
+    throw new Error("Invalid release platforms.");
+  const platform = options.platform ?? manifest?.platforms?.join(",");
+  const platforms = platform?.split(",");
+  if (
+    platforms &&
+    (new Set(platforms).size !== platforms.length ||
+      platforms.some((item) => !["macos", "windows", "linux"].includes(item)))
+  )
     throw new Error("Invalid release platform.");
   if (
     manifest?.name !== "Project CAD Assistant" ||
     !/^\d+\.\d+\.\d+$/.test(manifest.version) ||
     !Array.isArray(manifest.files) ||
-    !(platform ? [1, 2, 4, 5] : [3, 5, 10, 12]).includes(manifest.files.length)
+    manifest.files.length < 1 ||
+    manifest.files.length > 12
   ) {
     throw new Error(
       "Expected a complete Project CAD Assistant release covering macOS, Windows, and Linux on x64 and ARM64.",
@@ -84,9 +98,11 @@ export function validateManifest(manifest, options = {}) {
   if (
     !completeInventories
       .map((files) =>
-        platform
+        platforms
           ? files.filter((name) =>
-              name.startsWith(`ProjectCAD-Assistant-${platform}-`),
+              platforms.some((item) =>
+                name.startsWith(`ProjectCAD-Assistant-${item}-`),
+              ),
             )
           : files,
       )

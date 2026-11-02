@@ -8,6 +8,8 @@ import { tmpdir } from "node:os";
 import { output } from "./artifacts.mjs";
 
 const execute = promisify(execFile);
+const tar = process.platform === "win32" ? "tar.exe" : "/usr/bin/tar";
+const shell = process.env.PROJECT_CAD_BASH_BIN || "/bin/sh";
 const directory = await mkdtemp(
   join(tmpdir(), "project-cad-cross-package-check-"),
 );
@@ -67,11 +69,23 @@ try {
         assert.ok(index > 0);
         archive = join(directory, entry.filename + ".tgz");
         await writeFile(archive, data.subarray(index + marker.length));
-        const shell = join(directory, entry.filename + ".sh");
-        await writeFile(shell, data.subarray(0, index));
-        await execute("/bin/sh", ["-n", shell]);
+        const script = join(directory, entry.filename + ".sh");
+        await writeFile(script, data.subarray(0, index));
+        await execute(shell, ["-n", script]);
       }
-      await execute("/usr/bin/tar", ["-xzf", archive, "-C", extracted]);
+      const listing = (await execute(tar, ["-tvf", archive])).stdout.split(
+        /\r?\n/,
+      );
+      const executables = listing.filter((line) =>
+        /\/(?:runtime\/node|project-cad-assistant|install\.sh)$/.test(line),
+      );
+      assert.equal(
+        executables.length,
+        entry.architecture === "universal" ? 6 : 3,
+      );
+      for (const line of executables)
+        assert.equal(line[3], "x", `Missing Linux execute bit: ${line}`);
+      await execute(tar, ["-xzf", archive, "-C", extracted]);
     }
     const manifestPaths = await findManifests(extracted);
     const expected =

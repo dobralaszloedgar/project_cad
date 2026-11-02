@@ -73,7 +73,7 @@ type ChatTab = {
 const initialSettings: Settings = {
   provider: "muse",
   model: "",
-  mode: "review",
+  mode: "auto",
 };
 const blankTab = (
   settings = initialSettings,
@@ -1249,7 +1249,9 @@ export default function AssistantPanel({
                       <span>
                         {settings.mode === "read-only"
                           ? "Read-only"
-                          : "Review changes"}
+                          : settings.mode === "auto"
+                            ? "Auto apply"
+                            : "Review changes"}
                       </span>
                       <ChevronDown size={11} />
                     </>
@@ -1258,7 +1260,7 @@ export default function AssistantPanel({
                   {(close) => (
                     <>
                       <h3>Agent permissions</h3>
-                      {(["review", "read-only"] as AssistantMode[]).map(
+                      {(["auto", "review", "read-only"] as AssistantMode[]).map(
                         (mode) => (
                           <button
                             key={mode}
@@ -1271,14 +1273,18 @@ export default function AssistantPanel({
                           >
                             <span>
                               <strong>
-                                {mode === "review"
-                                  ? "Review changes"
-                                  : "Read-only"}
+                                {mode === "auto"
+                                  ? "Auto apply"
+                                  : mode === "review"
+                                    ? "Review changes"
+                                    : "Read-only"}
                               </strong>
                               <small>
-                                {mode === "review"
-                                  ? "Review proposed changes before applying them"
-                                  : "Inspect and calculate without editing the project"}
+                                {mode === "auto"
+                                  ? "Apply and save CAD edits immediately"
+                                  : mode === "review"
+                                    ? "Review proposed changes before applying them"
+                                    : "Inspect and calculate without editing the project"}
                               </small>
                             </span>
                             {settings.mode === mode ? (

@@ -122,7 +122,7 @@ export async function prepareVercelRelease(
   if (platform) {
     validateManifest(previous, { published: true });
     const retained = previous.files
-      .filter((file) => file.platform !== platform)
+      .filter((file) => !platform.split(",").includes(file.platform))
       .map((file) => {
         const location = assistantDownloadFileLocation(previous, file);
         if (new URL(location.baseUrl).hostname !== new URL(baseUrl).hostname)
@@ -274,7 +274,7 @@ async function main() {
   const { put } = await import("@vercel/blob");
   if (values.platform)
     for (const file of manifest.files.filter(
-      (file) => file.platform !== values.platform,
+      (file) => !values.platform.split(",").includes(file.platform),
     ))
       await verifyPublicFile(
         `${assistantDownloadFileLocation(manifest, file).baseUrl}/${file.filename}`,

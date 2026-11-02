@@ -18,11 +18,30 @@ import {
   type ProviderId,
 } from "../../assistant/protocol";
 
+export const connectorAccessSchema = z.enum(["yolo", "sandbox"]);
+export type ConnectorAccess = z.infer<typeof connectorAccessSchema>;
+export const defaultProjectsDirectory = join(
+  homedir(),
+  "Documents",
+  "Project CAD",
+);
+
 export const settingsSchema = z
   .object({
     websiteUrl: z.string().url().default(PROJECT_CAD_ORIGIN),
     startAtLogin: z.boolean().default(true),
     museApiKey: z.string().max(10000).default(""),
+    accessMode: connectorAccessSchema.default("yolo"),
+    projectsDirectory: z
+      .string()
+      .trim()
+      .min(1)
+      .max(4096)
+      .refine(
+        (value) => isAbsolute(value),
+        "Choose an absolute CAD projects folder path.",
+      )
+      .default(defaultProjectsDirectory),
     // Migrate existing selections while preserving the user's other settings.
     agents: agentSelectionSchema
       .nullable()

@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { tools, toolNames, type ToolName } from "../../../assistant/protocol";
 import type { ProviderInput } from "./types";
+import {
+  ProjectFiles,
+  projectFileTools,
+  type ProjectFileTool,
+} from "../project-files";
 
 export function museToolSchema(name: ToolName) {
   if (
@@ -31,12 +36,20 @@ export function museToolSchema(name: ToolName) {
 }
 
 /** A per-turn, authenticated MCP server exposing only Project CAD operations. */
-export async function projectMcp(input: ProviderInput) {
+export async function projectMcp(input: ProviderInput, files?: ProjectFiles) {
   const token = randomBytes(32).toString("hex");
   const names = toolNames.filter(
     (name) =>
       input.conversation.mode !== "read-only" || name !== "propose_actions",
   );
+  const fileNames = files
+    ? (Object.keys(projectFileTools) as ProjectFileTool[]).filter(
+        (name) =>
+          input.conversation.mode !== "read-only" ||
+          name === "list_project_files" ||
+          name === "read_project_file",
+      )
+    : [];
   const server = createServer(async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     const json = (status: number, value: unknown) => {
@@ -72,21 +85,38 @@ export async function projectMcp(input: ProviderInput) {
       else if (message.method === "ping") result = {};
       else if (message.method === "tools/list")
         result = {
-          tools: names.map((name) => ({
-            name,
-            description: tools[name].description,
-            inputSchema: museToolSchema(name),
-            // Proposals are only previews; the application owns review/apply.
-            annotations: {
-              readOnlyHint: true,
-              destructiveHint: false,
-              openWorldHint: false,
-            },
-          })),
+          tools: [
+            ...names.map((name) => ({
+              name,
+              description: tools[name].description,
+              inputSchema: museToolSchema(name),
+              // Proposals are only previews; the application owns review/apply.
+              annotations: {
+                readOnlyHint:
+                  name !== "propose_actions" ||
+                  input.conversation.mode !== "auto",
+                destructiveHint: false,
+                openWorldHint: false,
+              },
+            })),
+            ...fileNames.map((name) => ({
+              name,
+              description: projectFileTools[name].description,
+              inputSchema: z.toJSONSchema(projectFileTools[name].schema),
+              annotations: {
+                readOnlyHint:
+                  name === "read_project_file" || name === "list_project_files",
+                openWorldHint: false,
+              },
+            })),
+          ],
         };
       else if (message.method === "tools/call") {
         const name = message.params?.name as ToolName;
-        if (!names.includes(name))
+        if (
+          !names.includes(name) &&
+          !fileNames.includes(name as unknown as ProjectFileTool)
+        )
           throw new Error("Unknown or unavailable project tool.");
         try {
           const args = message.params.arguments;
@@ -99,7 +129,9 @@ export async function projectMcp(input: ProviderInput) {
               {
                 type: "text",
                 text: JSON.stringify(
-                  await input.call(name, tools[name].schema.parse(decoded)),
+                  fileNames.includes(name as unknown as ProjectFileTool)
+                    ? files!.call(name as unknown as ProjectFileTool, decoded)
+                    : await input.call(name, tools[name].schema.parse(decoded)),
                 ),
               },
             ],

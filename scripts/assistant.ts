@@ -22,7 +22,7 @@ const store = new AssistantStore(join(root, "conversations.sqlite"));
 const runtime = new AssistantRuntime(
   store,
   {
-    muse: new MuseProvider(root),
+    muse: new MuseProvider(root, () => settings),
   },
   root,
   () => settings.agents,

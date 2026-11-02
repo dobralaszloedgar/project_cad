@@ -130,6 +130,18 @@ test("Muse connector fits one screen and returns to the original project tab", a
       connector.getByRole("heading", { name: "Connect this website?" }),
     ).toBeVisible();
     await expect(connector.locator("[data-agent-row]")).toHaveCount(1);
+    await expect(
+      connector.getByRole("button", { name: "Return to project" }),
+    ).toBeHidden();
+    const approve = connector.getByRole("button", {
+      name: "Approve connector",
+      exact: true,
+    });
+    await expect(approve).toBeVisible();
+    const approveBox = await approve.boundingBox();
+    const cardBox = await connector.locator(".card").boundingBox();
+    expect(approveBox!.y).toBeGreaterThan(cardBox!.y + cardBox!.height);
+    expect(approveBox!.width).toBeGreaterThan(cardBox!.width * 0.8);
     await expect(connector.locator("body")).not.toContainText(
       /Codex|Claude|Your agents/,
     );
@@ -149,7 +161,7 @@ test("Muse connector fits one screen and returns to the original project tab", a
     await connector.setViewportSize({ width: 680, height: 620 });
     await connector.screenshot({ path: join(output, "muse-approval.png") });
     await connector
-      .getByRole("button", { name: "Approve connection", exact: true })
+      .getByRole("button", { name: "Approve connector", exact: true })
       .click();
     await expect(connector.locator("#approval")).toBeHidden();
     await expect(connector.locator("[data-status=muse]")).toHaveText("Ready");
@@ -163,6 +175,24 @@ test("Muse connector fits one screen and returns to the original project tab", a
       await connector.evaluate(() => !!window.opener && !window.opener.closed),
     ).toBe(true);
     await connector.getByText("Settings", { exact: true }).click();
+    await expect(connector.getByLabel("Connector access")).toHaveValue("yolo");
+    await connector.getByLabel("Connector access").selectOption("sandbox");
+    await connector
+      .getByLabel("CAD projects folder")
+      .fill(join(temporary, "cad-projects"));
+    await connector.getByRole("button", { name: "Save settings" }).click();
+    await expect(connector.locator("#access-summary")).toContainText("Sandbox");
+    expect(
+      JSON.parse(await readFile(join(data, "settings.json"), "utf8")),
+    ).toMatchObject({
+      accessMode: "sandbox",
+      projectsDirectory: join(temporary, "cad-projects"),
+    });
+    await connector.reload();
+    await connector.getByText("Settings", { exact: true }).click();
+    await expect(connector.getByLabel("Connector access")).toHaveValue(
+      "sandbox",
+    );
     await connector.screenshot({ path: join(output, "muse-settings.png") });
     expect(errors).toEqual([]);
     await context.close();

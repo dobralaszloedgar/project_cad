@@ -121,6 +121,8 @@ async function status() {
     managed,
     websiteUrl: settings.websiteUrl,
     startAtLogin: settings.startAtLogin,
+    accessMode: settings.accessMode,
+    projectsDirectory: settings.projectsDirectory,
     agents: settings.agents,
     connections: new ConnectionRequests(root).pending(),
     museAvailable: !!providerExecutable("muse"),

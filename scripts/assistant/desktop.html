@@ -94,7 +94,9 @@
         background: var(--surface);
       }
       .approval {
-        margin-bottom: 14px;
+        margin-top: 18px;
+        text-align: center;
+        border-color: var(--accent);
       }
       .approval p {
         overflow-wrap: anywhere;
@@ -103,6 +105,21 @@
       }
       .approval .actions {
         margin-top: 16px;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #approve {
+        width: 100%;
+        min-height: 52px;
+        font-size: 16px;
+      }
+      #deny {
+        border: 0;
+        color: var(--muted);
+      }
+      .access-summary {
+        margin-top: 12px;
+        text-align: center;
       }
       .agent-icon {
         width: 40px;
@@ -196,7 +213,9 @@
         gap: 5px;
         font-size: 13px;
       }
-      input[type="url"] {
+      input[type="url"],
+      input[type="text"],
+      select {
         width: 100%;
         font: inherit;
         background: var(--bg);
@@ -286,19 +305,6 @@
           <span class="dot"></span><span id="state">Starting…</span>
         </div>
       </header>
-      <section
-        class="approval"
-        id="approval"
-        hidden
-        aria-labelledby="approval-title"
-      >
-        <h2 id="approval-title">Connect this website?</h2>
-        <p id="request-origin"></p>
-        <div class="actions">
-          <button class="primary" id="approve">Approve connection</button
-          ><button id="deny">Decline</button>
-        </div>
-      </section>
       <section class="card" aria-label="Muse Code">
         <div class="agent" data-agent-row="muse">
           <svg
@@ -320,11 +326,50 @@
           <button id="signin" data-provider="muse">Checking…</button>
         </div>
       </section>
+      <p class="small access-summary" id="access-summary"></p>
+      <section
+        class="approval"
+        id="approval"
+        hidden
+        aria-labelledby="approval-title"
+        role="region"
+      >
+        <h2 id="approval-title">Connect this website?</h2>
+        <p id="request-origin"></p>
+        <p>Approve the connector here to finish connecting your project.</p>
+        <div class="actions">
+          <button class="primary" id="approve">Approve connector</button>
+          <button id="deny">Decline</button>
+        </div>
+      </section>
       <button class="primary return" id="return">Return to project →</button>
       <div id="message" role="status" aria-live="polite"></div>
       <details id="settings">
         <summary>Settings</summary>
         <div class="settings-fields">
+          <label
+            >Connector access
+            <select id="access-mode" aria-describedby="access-help">
+              <option value="yolo">YOLO — full device access</option>
+              <option value="sandbox">Sandbox — CAD folder + web</option>
+            </select>
+          </label>
+          <p class="small" id="access-help">
+            Both modes run without tool approval prompts. YOLO has full device
+            access. Sandbox can access only the folder below and the web, with
+            no shell commands.
+          </p>
+          <label
+            >CAD projects folder<input
+              id="projects-directory"
+              type="text"
+              required
+              spellcheck="false"
+          /></label>
+          <p class="small">
+            Use the folder where you keep your CAD projects. New chats apply and
+            save CAD edits immediately.
+          </p>
           <label
             >Project CAD website<input id="website" type="url" required
           /></label>
@@ -371,6 +416,11 @@
           $("toggle").disabled = busy || (value.running && !value.managed);
           pendingConnection = value.connections?.[0] || null;
           $("approval").hidden = !pendingConnection;
+          $("return").hidden = !!pendingConnection;
+          $("access-summary").textContent =
+            value.accessMode === "sandbox"
+              ? "Sandbox · CAD folder + web · No tool approvals"
+              : "YOLO · Full device access · No tool approvals";
           if (pendingConnection) {
             $("request-origin").textContent = pendingConnection.origin;
             projectOrigin = pendingConnection.origin;
@@ -395,6 +445,8 @@
           if (!initialized) {
             $("website").value = value.websiteUrl;
             $("autostart").checked = value.startAtLogin;
+            $("access-mode").value = value.accessMode || "yolo";
+            $("projects-directory").value = value.projectsDirectory || "";
             initialized = true;
           }
           if (value.message) message(value.message, true);
@@ -458,10 +510,13 @@
         refresh().catch((error) => message(error.message, true));
       $("save").onclick = () =>
         $("website").reportValidity() &&
+        $("projects-directory").reportValidity() &&
         action({
           action: "settings",
           websiteUrl: $("website").value,
           startAtLogin: $("autostart").checked,
+          accessMode: $("access-mode").value,
+          projectsDirectory: $("projects-directory").value,
         });
       refresh().catch((error) => message(error.message, true));
       setInterval(() => {

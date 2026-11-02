@@ -6,7 +6,12 @@ import { join } from "node:path";
 import type { ProviderStatus } from "../../../assistant/protocol";
 import { assistantInstructions } from "../../../assistant/tools";
 import { imageAttachments } from "../attachments";
-import { providerExecutable } from "../config";
+import {
+  providerExecutable,
+  defaultProjectsDirectory,
+  type ConnectorAccess,
+} from "../config";
+import { ProjectFiles } from "../project-files";
 import { projectMcp } from "./project-mcp";
 import {
   currentProjectPrompt,
@@ -30,7 +35,10 @@ const modelsSchema = z.object({
   ),
 });
 
-export function museHost(cwd: string) {
+export function museHost(
+  cwd: string,
+  access: ConnectorAccess | "catalog" = "catalog",
+) {
   const executable = providerExecutable("muse");
   if (!executable)
     throw new Error(
@@ -63,9 +71,13 @@ export function museHost(cwd: string) {
     args: [
       "serve",
       "--preset",
-      "empty",
-      "--disable-shell",
-      "--disable-write",
+      access === "yolo" ? "native-basic" : "empty",
+      ...(access === "yolo"
+        ? ["--disable-sandbox", "--trust-workspace"]
+        : ["--disable-shell", "--disable-write"]),
+      // Muse 1.4.14 calls unrestricted egress "enabled".
+      "--sandbox-network",
+      "enabled",
       "--disable-request-user-input",
       "-c",
       "hooks={}",
@@ -73,15 +85,28 @@ export function museHost(cwd: string) {
         "-c",
         `mcpServers.${name}.enabled=false`,
       ]),
-      "-c",
-      'run.toolset=["mcp__project-cad__*"]',
+      ...(access === "yolo"
+        ? []
+        : [
+            "-c",
+            `run.toolset=${JSON.stringify(access === "sandbox" ? ["web_search", "web_fetch", "mcp__project-cad__*"] : ["mcp__project-cad__*"])}`,
+          ]),
     ],
   });
 }
 
 /** Reuse the user's Muse Code authentication and live model catalog. */
 export class MuseProvider implements AssistantProvider {
-  constructor(private cwd: string = homedir()) {}
+  constructor(
+    private cwd: string = homedir(),
+    private settings: () => {
+      accessMode: ConnectorAccess;
+      projectsDirectory: string;
+    } = () => ({
+      accessMode: "yolo",
+      projectsDirectory: defaultProjectsDirectory,
+    }),
+  ) {}
   async status(): Promise<ProviderStatus> {
     const base = { id: "muse" as const, name: "Muse Code" };
     let host: ReturnType<typeof museHost> | undefined;
@@ -137,7 +162,30 @@ export class MuseProvider implements AssistantProvider {
     const guide = await input.call("get_guide", {});
     input.signal.throwIfAborted();
     const prompt = await currentProjectPrompt(input);
-    const bridge = await projectMcp(input);
+    const settings = this.settings();
+    const files = new ProjectFiles(settings.projectsDirectory);
+    // Never restore a session's former authority across a mode/folder change.
+    const access =
+      input.conversation.mode === "read-only" ? "sandbox" : settings.accessMode;
+    const contract = JSON.stringify({
+      access,
+      root: files.root,
+      mode: input.conversation.mode,
+      version: 1,
+    });
+    const resume = input.conversation.providerContext?.some(
+      (entry) =>
+        !!entry &&
+        typeof entry === "object" &&
+        "museAccess" in entry &&
+        entry.museAccess === contract,
+    )
+      ? input.conversation.providerSession
+      : undefined;
+    const bridge = await projectMcp(
+      input,
+      access === "sandbox" ? files : undefined,
+    );
     let host: ReturnType<typeof museHost> | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const stop = () => {
@@ -145,7 +193,7 @@ export class MuseProvider implements AssistantProvider {
     };
     input.signal.addEventListener("abort", stop, { once: true });
     try {
-      host = museHost(input.cwd);
+      host = museHost(files.root, access);
       timer = setTimeout(stop, 20000);
       const client = await host.initialize({
         clientInfo: { name: "project_cad", version: "1.0.0" },
@@ -160,27 +208,31 @@ export class MuseProvider implements AssistantProvider {
         config: { mcpServers: { "project-cad": bridge.config } },
       };
       const opened = await client.connection.command(
-        input.conversation.providerSession ? "session/resume" : "session/start",
-        input.conversation.providerSession
+        resume ? "session/resume" : "session/start",
+        resume
           ? {
               ...options,
-              sessionId: input.conversation.providerSession,
+              sessionId: resume,
               excludeItems: true,
             }
-          : // This host can only call our scoped MCP tools. They read/preview;
-            // applying a proposal still requires the application's user review.
-            { ...options, workspaceRoot: input.cwd, approvalMode: "allowAll" },
+          : { ...options, workspaceRoot: files.root, approvalMode: "allowAll" },
       );
       clearTimeout(timer);
       const sessionId = z
         .object({ session: z.object({ sessionId: z.string() }) })
         .parse(opened).session.sessionId;
-      const history = !input.conversation.providerSession
+      if (resume)
+        await client.connection.command("session/setApprovalMode", {
+          sessionId,
+          mode: "allowAll",
+        });
+      const history = !resume
         ? input.conversation.runs?.slice(-12).map((run) => ({
             request: run.prompt,
             response: run.text.slice(-6000),
           }))
         : [];
+      input.context([{ museAccess: contract }]);
       input.session(sessionId);
       const commandId = client.connection.mintCommandId();
       const streamed = new Map<string, string>();
@@ -231,7 +283,7 @@ export class MuseProvider implements AssistantProvider {
         if (method === "approval/requested" || method === "userInput/requested")
           done.reject(
             new Error(
-              "Muse Code requested an unsupported interactive action. Ask it to use the Project CAD tools.",
+              "Muse Code blocked an action outside the connector's available tools. No approval was granted.",
             ),
           );
       });
@@ -250,7 +302,7 @@ export class MuseProvider implements AssistantProvider {
           input: [
             {
               type: "text",
-              text: `${assistantInstructions}\n\nCurrent Project CAD AI guide (refreshed for this turn; supersedes earlier guides):\n${JSON.stringify(guide)}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
+              text: `${assistantInstructions}\n\nActive connector access: ${access}. CAD projects folder: ${files.root}. Project edit mode: ${input.conversation.mode}.\n\nCurrent Project CAD AI guide (refreshed for this turn; supersedes earlier guides):\n${JSON.stringify(guide)}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
             },
             ...imageAttachments(input.attachments).map((file) => ({
               type: "image",

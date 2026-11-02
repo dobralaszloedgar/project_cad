@@ -40,7 +40,7 @@ export default function FloatingAssistant({
   onApply: (proposal: Proposal) => Promise<string>;
   onError: (message: string) => void;
 }) {
-  const assistant = useAssistant(projectId, project);
+  const assistant = useAssistant(projectId, project, onApply);
   const [started, setStarted] = useState(false),
     [hidden, setHidden] = useState(false);
   const [read, setRead] = useState<string>(),

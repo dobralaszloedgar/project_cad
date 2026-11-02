@@ -333,18 +333,30 @@ export class AssistantRuntime {
             projectId: z.string(),
             baseRevision: z.string().length(64),
             plan: planSchema,
+            applied: z.boolean().optional(),
+            result: z.string().optional(),
           })
           .parse(result);
         if (proposal.projectId !== scope.projectId)
           throw new Error("Proposal belongs to a different project.");
-        const id = crypto.randomUUID();
-        active.run.proposals.push({ ...proposal, id, status: "pending" });
+        const applied =
+          active.chat.mode === "auto" && proposal.applied === true;
+        if (active.chat.mode === "auto" && !applied)
+          throw new Error(
+            "Project CAD did not confirm the edit was applied. Update the website and retry.",
+          );
+        active.run.proposals.push({
+          ...proposal,
+          id,
+          status: applied ? "applied" : "pending",
+        });
         step.status = "done";
         this.store.save(active.chat);
         return {
           proposalId: id,
-          status: "awaiting_user_review",
-          applied: false,
+          status: applied ? "applied" : "awaiting_user_review",
+          applied,
+          ...(applied ? { result: proposal.result } : {}),
         };
       }
       step.status = "done";
