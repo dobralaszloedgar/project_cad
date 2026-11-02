@@ -1,29 +1,35 @@
 {
   "name": "Project CAD Assistant",
-  "version": "0.1.9",
-  "platforms": [
-    "windows",
-    "linux"
-  ],
+  "version": "0.1.10",
   "files": [
-    {
-      "platform": "linux",
-      "architecture": "universal",
-      "filename": "ProjectCAD-Assistant-linux-universal.run",
-      "bytes": 97476351,
-      "sha256": "779bf5b06e43fe462c8532511990a1f76b31ddd8616a2aeec73a3570565c5cd4"
-    },
     {
       "platform": "windows",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-windows-universal-Setup.exe",
-      "bytes": 46420683,
-      "sha256": "464e3667c083cc2964d69466d61eb4ecacb09f29185dd32cec4490f2a9822fa2",
+      "bytes": 45540275,
+      "sha256": "0dcb9aa9df2e4457f9bba0f77b476cc3cacea9694c8e419fc33cb6c77011443a",
       "signed": false
+    },
+    {
+      "platform": "linux",
+      "architecture": "universal",
+      "filename": "ProjectCAD-Assistant-linux-universal.run",
+      "bytes": 97481340,
+      "sha256": "be0f75efe5ae9b10bbea435fb71508d73e45baf8fe119b5215fbb0a0b5d5fddf"
+    },
+    {
+      "platform": "macos",
+      "architecture": "universal",
+      "filename": "ProjectCAD-Assistant-macos-universal.pkg",
+      "bytes": 83637002,
+      "sha256": "ba92643d30ec81b848d8f39d8d1d8c0d050ea48185ac080f8b1b25a98304cc0f",
+      "minimumMacOS": "13.5",
+      "signed": false,
+      "notarized": false
     }
   ],
   "release": {
     "repository": "dobralaszloedgar/project_cad",
-    "tag": "v0.1.9"
+    "tag": "v0.1.10"
   }
 }
