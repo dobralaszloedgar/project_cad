@@ -1,4 +1,8 @@
-/** A single playback clock keeps a quick scroll from skipping construction. */
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
+/** A short build sequence followed by responsive, scroll-controlled camera motion. */
 export const STORY_END = 1.65;
 export const STORY_STOPS = [0, 0.53, 0.95] as const;
 
@@ -29,6 +33,7 @@ export function advancePlayback(
   requested: number,
   seconds: number,
   reduced = false,
+  sceneReady = true,
 ): PlaybackState {
   const target = Math.max(0, Math.min(STORY_END, requested));
   if (reduced)
@@ -42,11 +47,14 @@ export function advancePlayback(
       speed: 1,
     };
 
-  // Keep real-time pacing on slower devices, but show each construction step
-  // for at least one frame. A stalled tab must not swallow the whole sequence.
-  const dt = Math.min(Math.max(seconds, 0), 0.25);
+  // Keep the same pacing at low frame rates. Visibility changes reset the
+  // clock at the call site; bound isolated stalls without turning a 1 FPS
+  // device's eight-second introduction into thirty-two seconds.
+  const dt = Math.min(Math.max(Number.isFinite(seconds) ? seconds : 0, 0), 1);
   let { progress, velocity, construction, simulation, completedFor } = state;
-  let design = Math.min(1, state.design + dt / 8);
+  // Scrolling is an explicit request to move on. Never hold it behind the
+  // eight-second introductory chat, which can play at leisure while at rest.
+  let design = target > 0.12 ? 1 : Math.min(1, state.design + dt / 8);
   const speed = 1 + Math.min(2.2, Math.max(0, target - 0.53) * 6);
   if (progress < 0.18) {
     construction = 0;
@@ -55,11 +63,11 @@ export function advancePlayback(
   } else if (progress >= 0.3 && target >= 0.3) {
     construction = Math.min(
       1,
-      construction + Math.min(1 / 24, (dt * speed) / 4.8),
+      construction + Math.min(1 / 24, (dt * speed) / 2.4),
     );
     // Simulation is its own visible beat, after the last recycle connection.
     if (construction === 1 && state.construction === 1)
-      simulation = Math.min(1, simulation + dt / 1.2);
+      simulation = Math.min(1, simulation + dt / 0.45);
     if (simulation === 1) completedFor += dt;
   }
 
@@ -68,26 +76,15 @@ export function advancePlayback(
   const destination =
     design < 1
       ? 0
-      : target > 0.53 && (simulation < 1 || completedFor < 0.6)
+      : target > 0.53 && (!sceneReady || simulation < 1 || completedFor < 0.12)
         ? 0.53
         : target;
-  const limit = progress < 0.55 ? 0.34 : progress < 0.95 ? 0.18 : 0.2;
-  const steps = Math.max(1, Math.ceil(dt * 120));
-  const step = dt / steps;
-  for (let i = 0; i < steps; i++) {
-    const error = destination - progress;
-    velocity += (error * 48 - velocity * 14) * step;
-    velocity = Math.max(-limit, Math.min(limit, velocity));
-    const next = progress + velocity * step;
-    if ((destination - next) * error <= 0) {
-      progress = destination;
-      velocity = 0;
-    } else progress = next;
-  }
-  if (
-    Math.abs(destination - progress) < 0.00001 &&
-    Math.abs(velocity) < 0.001
-  ) {
+  // Frame-rate independent damping without a speed cap or a second spring.
+  // A completed story catches the scroll in well under a second, without bounce.
+  const next = progress + (destination - progress) * (1 - Math.exp(-dt * 14));
+  velocity = dt > 0 ? (next - progress) / dt : 0;
+  progress = next;
+  if (Math.abs(destination - progress) < 0.00001) {
     progress = destination;
     velocity = 0;
   }

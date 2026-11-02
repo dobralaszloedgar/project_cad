@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { z } from "zod";
 import { planSchema, type Plan } from "../domain/actions";
 import { attachmentsSchema, type AttachmentInfo } from "./attachments";
@@ -16,7 +20,7 @@ export type ProviderId = z.infer<typeof providerSchema>;
 export const agentNames: Record<ProviderId, string> = {
   codex: "Codex",
   claude: "Claude Code",
-  muse: "Muse",
+  muse: "Muse Code",
 };
 export const agentSelectionSchema = z
   .object({
@@ -31,7 +35,11 @@ export const agentSelectionSchema = z
     "Choose at least one agent and a default from your selection.",
   );
 export type AgentSelection = z.infer<typeof agentSelectionSchema>;
-export const modeSchema = z.enum(["review", "read-only"]);
+export const MUSE_AGENTS: AgentSelection = {
+  providers: ["muse"],
+  preferred: "muse",
+};
+export const modeSchema = z.enum(["auto", "review", "read-only"]);
 export type AssistantMode = z.infer<typeof modeSchema>;
 export const projectIdSchema = z.string().min(1).max(100);
 export const createChatSchema = z
@@ -195,7 +203,7 @@ export const tools = {
   },
   propose_actions: {
     description:
-      "Present a validated change batch for the user to review and apply in Project CAD. This does not edit the project or save a file. Available only in review mode.",
+      "Submit a validated change batch to Project CAD. Auto mode applies and saves it immediately; review mode waits for the user. Read-only mode rejects edits. Check the returned applied flag.",
     schema: z
       .object({ baseRevision: z.string().length(64), plan: planSchema })
       .strict(),

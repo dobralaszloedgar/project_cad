@@ -1,455 +1,537 @@
 <!doctype html>
+<!--
+Copyright © 2026 László Edgár Dobra. All rights reserved.
+Applies only to copyrightable Project CAD material owned by this holder.
+See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+-->
+
 <html lang="en">
-  <meta charset="utf-8" /><meta
-    name="viewport"
-    content="width=device-width,initial-scale=1"
-  /><title>Project CAD Assistant</title>
-  <style nonce="__NONCE__">
-    :root {
-      font:
-        15px system-ui,
-        sans-serif;
-      color: #263d36;
-      background: #f3f6f4;
-      color-scheme: light dark;
-    }
-    * {
-      box-sizing: border-box;
-    }
-    [hidden] {
-      display: none !important;
-    }
-    input[type="checkbox"] {
-      accent-color: #28715c;
-    }
-    body {
-      margin: 0;
-      padding: 40px 20px;
-    }
-    main {
-      max-width: 680px;
-      margin: auto;
-      background: #fff;
-      border: 1px solid #dce4df;
-      border-radius: 20px;
-      padding: 32px;
-      box-shadow: 0 12px 40px #20382d0a;
-    }
-    header,
-    .row,
-    .actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    header {
-      justify-content: space-between;
-      margin-bottom: 30px;
-    }
-    .brand {
-      font-size: 24px;
-      font-weight: 650;
-      color: #28715c;
-    }
-    .badge {
-      font-size: 12px;
-      padding: 7px 10px;
-      border-radius: 30px;
-      background: #e9f2ee;
-    }
-    h1 {
-      font-size: 25px;
-      letter-spacing: -0.7px;
-      margin: 0 0 12px;
-    }
-    p {
-      line-height: 1.6;
-      color: #65766f;
-    }
-    .actions {
-      flex-wrap: wrap;
-      margin: 22px 0;
-    }
-    button {
-      font: inherit;
-      border: 1px solid #d3ded7;
-      background: #fff;
-      color: #28483a;
-      border-radius: 8px;
-      padding: 10px 15px;
-      cursor: pointer;
-    }
-    button.primary {
-      background: #28715c;
-      border-color: #28715c;
-      color: white;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: wait;
-    }
-    section {
-      border-top: 1px solid #e3e9e5;
-      margin-top: 24px;
-      padding-top: 18px;
-    }
-    h2 {
-      font-size: 15px;
-      margin-bottom: 20px;
-    }
-    .row {
-      justify-content: space-between;
-      margin: 20px 0;
-    }
-    .row p {
-      font-size: 12px;
-      margin: 5px 0;
-    }
-    .row strong {
-      font-size: 14px;
-    }
-    details summary {
-      cursor: pointer;
-      font-weight: 600;
-    }
-    label {
-      display: block;
-      margin-top: 18px;
-      font-size: 13px;
-    }
-    input[type="url"],
-    input[type="password"] {
-      font: inherit;
-      color: inherit;
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #d3ded7;
-      border-radius: 7px;
-      background: transparent;
-      margin-top: 7px;
-    }
-    small {
-      display: block;
-      color: #65766f;
-      margin-top: 6px;
-      line-height: 1.5;
-    }
-    #message {
-      min-height: 24px;
-      font-size: 13px;
-      margin-top: 20px;
-    }
-    .error {
-      color: #af3832 !important;
-    }
-    footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 24px;
-      font-size: 11px;
-      color: #65766f;
-    }
-    footer button {
-      font-size: 12px;
-      padding: 7px 10px;
-    }
-    @media (max-width: 480px) {
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project CAD Assistant</title>
+    <style nonce="__NONCE__">
+      :root {
+        color-scheme: dark light;
+        --bg: #131c18;
+        --surface: #1c2821;
+        --line: #314138;
+        --ink: #e7eee9;
+        --muted: #a3b2a8;
+        --accent: #79baa0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      [hidden] {
+        display: none !important;
+      }
       body {
-        padding: 12px;
+        margin: 0;
+        min-height: 100svh;
+        padding: clamp(16px, 5vh, 48px) 20px;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.45 system-ui,
+          sans-serif;
       }
       main {
-        padding: 22px;
+        width: min(100%, 580px);
+      }
+      header,
+      .agent,
+      .actions,
+      footer {
+        display: flex;
+        align-items: center;
+        gap: 14px;
       }
       header {
-        gap: 6px;
+        margin-bottom: 28px;
       }
-      .brand {
-        font-size: 19px;
+      .logo {
+        width: 42px;
+        height: 42px;
+        flex: none;
       }
-      .row {
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: -0.5px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+      p {
+        margin: 4px 0 0;
+      }
+      .small,
+      .detail {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .connection {
+        margin-left: auto;
+        color: var(--muted);
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #cf9064;
+      }
+      [data-running="true"] .dot {
+        background: var(--accent);
+      }
+      .card,
+      .approval {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px;
+        background: var(--surface);
+      }
+      .approval {
+        margin-top: 18px;
+        text-align: center;
+        border-color: var(--accent);
+      }
+      .approval p {
+        overflow-wrap: anywhere;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .approval .actions {
+        margin-top: 16px;
+        flex-direction: column;
         gap: 10px;
       }
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        background: #15221c;
-        color: #e0eae5;
+      #approve {
+        width: 100%;
+        min-height: 52px;
+        font-size: 16px;
       }
-      main {
-        background: #1b2b23;
-        border-color: #34483c;
+      #deny {
+        border: 0;
+        color: var(--muted);
       }
-      .brand {
-        color: #83c7ae;
+      .access-summary {
+        margin-top: 12px;
+        text-align: center;
       }
-      p,
-      small,
-      footer {
-        color: #abbeb2;
+      .agent-icon {
+        width: 40px;
+        height: 40px;
+        color: #9cb4f7;
+        background: var(--bg);
+        border-radius: 10px;
+        padding: 8px;
+        flex: none;
       }
-      .badge {
-        background: #294b3a;
+      .agent-copy {
+        flex: 1;
+        min-width: 0;
       }
-      section {
-        border-color: #34483c;
+      .agent-name {
+        font-weight: 650;
+      }
+      [data-phase="ready"] .detail {
+        color: var(--accent);
       }
       button {
-        background: #25392d;
-        color: #dfe9e2;
-        border-color: #496451;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 550;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 13px;
+        color: var(--ink);
+        background: transparent;
+        cursor: pointer;
+      }
+      button:hover {
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+      }
+      button:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      .primary {
+        background: var(--accent);
+        color: #10291f;
+        border-color: transparent;
+      }
+      .primary:hover {
+        background: color-mix(in srgb, var(--accent) 85%, white);
+      }
+      .return {
+        width: 100%;
+        margin-top: 18px;
+        padding: 12px;
+        font-size: 14px;
+      }
+      #message {
+        color: var(--muted);
+        font-size: 13px;
+        overflow-wrap: anywhere;
+        margin-top: 12px;
+        max-height: 90px;
+        overflow: auto;
+      }
+      #message:empty {
+        display: none;
+      }
+      #message.error {
+        color: #f4b49a;
+      }
+      details {
+        border-top: 1px solid var(--line);
+        margin-top: 24px;
+        padding-top: 16px;
+      }
+      summary {
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .settings-fields {
+        display: grid;
+        gap: 12px;
+        padding-top: 14px;
+        max-height: 220px;
+        overflow: auto;
+      }
+      label {
+        display: grid;
+        gap: 5px;
+        font-size: 13px;
       }
       input[type="url"],
-      input[type="password"] {
-        border-color: #496451;
+      input[type="text"],
+      select {
+        width: 100%;
+        font: inherit;
+        background: var(--bg);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        padding: 9px;
+        border-radius: 7px;
       }
-    }
-  </style>
-  <main>
-    <header>
-      <span class="brand">▧ &nbsp;Project CAD</span
-      ><span class="badge" id="state">Checking…</span>
-    </header>
-    <p>Your local assistant</p>
-    <section id="approval" hidden>
-      <h1>Connect this website?</h1>
-      <p><code id="request-origin"></code></p>
-      <p id="request-agents"></p>
-      <p>
-        Allow access to the selected agents and this computer’s project
-        conversation history. Project changes still require your review.
-      </p>
-      <div class="actions">
-        <button id="approve" class="primary">Approve connection</button
-        ><button id="deny">Decline</button>
-      </div>
-    </section>
-    <div id="connect-step">
-      <h1>Connect from Project CAD</h1>
-      <p>
-        Choose your agents on the website, then connect. Connection requests
-        appear here.
-      </p>
-      <div class="actions">
-        <button class="primary" data-action="open">Open Project CAD</button>
-      </div>
-    </div>
-    <div id="setup-step" hidden>
-      <h1>Your agents</h1>
-      <p>
-        Agent choices are managed on the website. Existing sign-ins are reused.
-      </p>
-      <div class="row" data-agent-row="codex">
+      .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      input {
+        accent-color: var(--accent);
+      }
+      footer {
+        margin-top: 14px;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      footer button {
+        font-size: 12px;
+        border: 0;
+        color: var(--muted);
+        padding: 0;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f5f8f6;
+          --surface: #fff;
+          --line: #dbe4de;
+          --ink: #233c30;
+          --muted: #657b6d;
+          --accent: #79baa0;
+        }
+      }
+      @media (max-height: 650px) {
+        body {
+          padding-block: 16px;
+        }
+        header {
+          margin-bottom: 18px;
+        }
+        details {
+          margin-top: 18px;
+        }
+        .settings-fields {
+          max-height: 130px;
+        }
+      }
+      @media (max-width: 420px) {
+        body {
+          padding-inline: 14px;
+        }
+        header {
+          gap: 10px;
+        }
+        .connection {
+          font-size: 11px;
+        }
+        .card {
+          padding: 16px;
+        }
+        .agent {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <svg class="logo" viewBox="0 0 128 128" aria-hidden="true">
+          <rect width="128" height="128" rx="30" fill="#276f5b" />
+          <g fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round">
+            <rect x="28" y="28" width="27" height="27" rx="5" />
+            <rect x="73" y="73" width="27" height="27" rx="5" />
+            <path d="M42 55v30h31M55 42h32v31" />
+          </g>
+        </svg>
         <div>
-          <strong>Codex</strong>
-          <p data-agent-detail="codex"></p>
+          <h1>Project CAD</h1>
+          <p class="small">Muse connector</p>
         </div>
-        <button data-provider="codex">Set up</button>
-      </div>
-      <div class="row" data-agent-row="claude">
-        <div>
-          <strong>Claude Code</strong>
-          <p data-agent-detail="claude"></p>
+        <div class="connection" id="connection">
+          <span class="dot"></span><span id="state">Starting…</span>
         </div>
-        <button data-provider="claude">Set up</button>
-      </div>
-      <div class="row" data-agent-row="muse">
-        <div>
-          <strong>Muse</strong>
-          <p id="muse-status">Add your API key.</p>
+      </header>
+      <section class="card" aria-label="Muse Code">
+        <div class="agent" data-agent-row="muse">
+          <svg
+            class="agent-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            aria-hidden="true"
+          >
+            <path
+              d="m12 2 2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6Z"
+            />
+          </svg>
+          <div class="agent-copy">
+            <div class="agent-name">Muse Code</div>
+            <p class="detail" data-status="muse">Preparing Muse…</p>
+          </div>
+          <button id="signin" data-provider="muse">Checking…</button>
         </div>
-        <button id="configure">Configure</button>
-      </div>
-      <div class="actions">
-        <button class="primary" data-action="open">Open Project CAD</button>
-      </div>
-    </div>
-    <section>
-      <details id="settings">
-        <summary>Assistant settings</summary>
-        <label
-          >Project CAD website<input
-            id="website"
-            type="url"
-            placeholder="https://projectcad.vercel.app" /></label
-        ><small
-          >Use the website address, or localhost for local development.</small
-        ><label
-          ><input id="autostart" type="checkbox" /> Start the assistant when I
-          log in</label
-        ><label
-          >Muse API key<input
-            id="key"
-            type="password"
-            autocomplete="new-password"
-            placeholder="Leave blank to keep the saved key" /></label
-        ><small
-          >Your key stays in this computer’s private assistant settings.</small
-        ><label
-          ><input id="clear-key" type="checkbox" /> Remove the saved Muse
-          key</label
-        >
+      </section>
+      <p class="small access-summary" id="access-summary"></p>
+      <section
+        class="approval"
+        id="approval"
+        hidden
+        aria-labelledby="approval-title"
+        role="region"
+      >
+        <h2 id="approval-title">Connect this website?</h2>
+        <p id="request-origin"></p>
+        <p>Approve the connector here to finish connecting your project.</p>
         <div class="actions">
-          <button id="save" class="primary">Save settings</button>
+          <button class="primary" id="approve">Approve connector</button>
+          <button id="deny">Decline</button>
+        </div>
+      </section>
+      <button class="primary return" id="return">Return to project →</button>
+      <div id="message" role="status" aria-live="polite"></div>
+      <details id="settings">
+        <summary>Settings</summary>
+        <div class="settings-fields">
+          <label
+            >Connector access
+            <select id="access-mode" aria-describedby="access-help">
+              <option value="yolo">YOLO — full device access</option>
+              <option value="sandbox">Sandbox — CAD folder + web</option>
+            </select>
+          </label>
+          <p class="small" id="access-help">
+            Both modes run without tool approval prompts. YOLO has full device
+            access. Sandbox can access only the folder below and the web, with
+            no shell commands.
+          </p>
+          <label
+            >CAD projects folder<input
+              id="projects-directory"
+              type="text"
+              required
+              spellcheck="false"
+          /></label>
+          <p class="small">
+            Use the folder where you keep your CAD projects. New chats apply and
+            save CAD edits immediately.
+          </p>
+          <label
+            >Project CAD website<input id="website" type="url" required
+          /></label>
+          <label class="checkbox"
+            ><input id="autostart" type="checkbox" />Start at login</label
+          >
+          <button id="save">Save settings</button>
+          <button id="uninstall" data-action="uninstall" hidden>
+            Uninstall connector…
+          </button>
         </div>
       </details>
-    </section>
-    <p id="message" role="status"></p>
-    <footer>
-      <div class="actions">
-        <button id="toggle" data-action="start">Start assistant</button
-        ><button id="refresh">Refresh</button>
-      </div>
-      <button data-action="logs">Open logs</button>
-    </footer>
-  </main>
-  <script nonce="__NONCE__">
-    const $ = (id) => document.getElementById(id),
-      names = { codex: "Codex", claude: "Claude Code", muse: "Muse" };
-    let initialized = false,
-      busy = false,
-      refreshing = false,
-      pendingConnection = null;
-    async function refresh() {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        const response = await fetch("/api/state");
-        const value = await response.json();
-        if (!response.ok)
-          throw Error(
-            value.error || "Reopen Project CAD Assistant from your desktop.",
-          );
-        const agents = value.agents;
-        $("state").textContent = value.running
-          ? "Running on this computer"
-          : "Stopped";
-        $("toggle").textContent = value.running
-          ? "Stop assistant"
-          : "Start assistant";
-        $("toggle").dataset.action = value.running ? "stop" : "start";
-        $("toggle").disabled = busy || (value.running && !value.managed);
-        pendingConnection = value.connections?.[0] || null;
-        $("approval").hidden = !pendingConnection;
-        $("setup-step").hidden = !!pendingConnection || !agents;
-        $("connect-step").hidden = !!pendingConnection || !!agents;
-        if (pendingConnection) {
-          $("request-origin").textContent = pendingConnection.origin;
-          $("request-agents").textContent = pendingConnection.agents.providers
-            .map((id) => names[id])
-            .join(", ");
-        }
-        document
-          .querySelectorAll("[data-agent-row]")
-          .forEach(
-            (row) =>
-              (row.hidden = !agents?.providers.includes(row.dataset.agentRow)),
-          );
-        document.querySelectorAll("[data-agent-detail]").forEach((detail) => {
-          const isDefault =
-            agents?.providers.length > 1 &&
-            agents?.preferred === detail.dataset.agentDetail;
-          detail.textContent = isDefault ? "Default agent" : "";
-          detail.hidden = !isDefault;
-        });
-        document.querySelector("[data-provider=codex]").textContent =
-          value.codexAvailable ? "Manage sign-in" : "Set up";
-        document.querySelector("[data-provider=claude]").textContent =
-          value.claudeAvailable ? "Manage sign-in" : "Set up";
-        $("muse-status").textContent = value.museConfigured
-          ? "API key configured. Access is checked when you send a message."
-          : "Add your API key.";
-        if (!initialized) {
-          $("website").value = value.websiteUrl;
-          $("autostart").checked = value.startAtLogin;
-          initialized = true;
-        }
-        if (value.message) message(value.message, true);
-      } finally {
-        refreshing = false;
+      <footer>
+        <button id="refresh">Refresh</button
+        ><button data-action="logs">Logs</button
+        ><button id="toggle" data-action="start">Start connector</button>
+      </footer>
+    </main>
+    <script nonce="__NONCE__">
+      const $ = (id) => document.getElementById(id);
+      let initialized = false,
+        busy = false,
+        refreshing = false,
+        pendingConnection = null,
+        projectOrigin = "";
+      function message(text, error = false) {
+        $("message").textContent = text;
+        $("message").className = error ? "error" : "";
       }
-    }
-    function message(text, error = false) {
-      $("message").textContent = text;
-      $("message").className = error ? "error" : "";
-    }
-    async function action(body) {
-      busy = true;
+      async function refresh() {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+          const response = await fetch("/api/state", { cache: "no-store" });
+          const value = await response.json();
+          if (!response.ok) throw Error(value.error || "Reopen the connector.");
+          $("uninstall").hidden = !value.canUninstall;
+          $("state").textContent = value.running ? "Running" : "Stopped";
+          $("connection").dataset.running = String(value.running);
+          $("toggle").textContent = value.running
+            ? "Stop connector"
+            : "Start connector";
+          $("toggle").dataset.action = value.running ? "stop" : "start";
+          $("toggle").disabled = busy || (value.running && !value.managed);
+          pendingConnection = value.connections?.[0] || null;
+          $("approval").hidden = !pendingConnection;
+          $("return").hidden = !!pendingConnection;
+          $("access-summary").textContent =
+            value.accessMode === "sandbox"
+              ? "Sandbox · CAD folder + web · No tool approvals"
+              : "YOLO · Full device access · No tool approvals";
+          if (pendingConnection) {
+            $("request-origin").textContent = pendingConnection.origin;
+            projectOrigin = pendingConnection.origin;
+          }
+          if (!projectOrigin) projectOrigin = new URL(value.websiteUrl).origin;
+          const state = value.providerSetup?.muse,
+            row = document.querySelector("[data-agent-row=muse]");
+          row.dataset.phase = state?.phase || "checking";
+          row.querySelector("[data-status]").textContent =
+            state?.message || "Preparing Muse…";
+          $("signin").hidden = state?.phase === "ready";
+          $("signin").disabled =
+            busy || !state || ["checking", "installing"].includes(state.phase);
+          $("signin").textContent =
+            state?.phase === "signing-in"
+              ? "Sign in"
+              : state?.phase === "error"
+                ? "Retry"
+                : state?.phase === "installing"
+                  ? "Installing…"
+                  : "Checking…";
+          if (!initialized) {
+            $("website").value = value.websiteUrl;
+            $("autostart").checked = value.startAtLogin;
+            $("access-mode").value = value.accessMode || "yolo";
+            $("projects-directory").value = value.projectsDirectory || "";
+            initialized = true;
+          }
+          if (value.message) message(value.message, true);
+        } finally {
+          refreshing = false;
+        }
+      }
+      async function action(body) {
+        busy = true;
+        document.querySelectorAll("button").forEach((b) => (b.disabled = true));
+        message("");
+        try {
+          const response = await fetch("/api/action", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Project-CAD-Desktop": "1",
+            },
+            body: JSON.stringify(body),
+          });
+          const value = await response.json();
+          if (!response.ok) throw Error(value.error || "Please try again.");
+          if (!["approve-connection", "signin"].includes(body.action))
+            message(value.message || "");
+          if (body.action === "settings") $("settings").open = false;
+        } catch (error) {
+          message(error.message, true);
+        } finally {
+          busy = false;
+          document
+            .querySelectorAll("button")
+            .forEach((b) => (b.disabled = false));
+          await refresh().catch((error) => message(error.message, true));
+        }
+      }
       document
-        .querySelectorAll("button")
-        .forEach((button) => (button.disabled = true));
-      message(
-        body.action === "signin"
-          ? "Preparing your agent. Missing software will be downloaded from its official package…"
-          : "Working…",
-      );
-      try {
-        const response = await fetch("/api/action", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Project-CAD-Desktop": "1",
-          },
-          body: JSON.stringify(body),
-        });
-        const value = await response.json();
-        if (!response.ok) throw Error(value.error);
-        message(value.message || "Done.");
-        if (body.action === "settings") {
-          $("key").value = "";
-          $("clear-key").checked = false;
-          $("settings").open = false;
+        .querySelectorAll("[data-action]")
+        .forEach(
+          (b) => (b.onclick = () => action({ action: b.dataset.action })),
+        );
+      $("signin").onclick = () =>
+        action({ action: "signin", provider: "muse" });
+      $("approve").onclick = () =>
+        pendingConnection &&
+        action({ action: "approve-connection", id: pendingConnection.id });
+      $("deny").onclick = () =>
+        pendingConnection &&
+        action({ action: "deny-connection", id: pendingConnection.id });
+      $("return").onclick = () => {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(
+            { type: "project-cad-return" },
+            projectOrigin,
+          );
+          window.opener.focus();
+        } else {
+          action({ action: "open" });
         }
-      } catch (error) {
-        message(error.message, true);
-      } finally {
-        busy = false;
-        document
-          .querySelectorAll("button")
-          .forEach((button) => (button.disabled = false));
-        await refresh().catch((error) => message(error.message, true));
-      }
-    }
-    document
-      .querySelectorAll("[data-action]")
-      .forEach(
-        (button) =>
-          (button.onclick = () => action({ action: button.dataset.action })),
-      );
-    document
-      .querySelectorAll("[data-provider]")
-      .forEach(
-        (button) =>
-          (button.onclick = () =>
-            action({ action: "signin", provider: button.dataset.provider })),
-      );
-    $("approve").onclick = () =>
-      pendingConnection &&
-      action({ action: "approve-connection", id: pendingConnection.id });
-    $("deny").onclick = () =>
-      pendingConnection &&
-      action({ action: "deny-connection", id: pendingConnection.id });
-    $("refresh").onclick = () =>
-      refresh().catch((error) => message(error.message, true));
-    $("configure").onclick = () => {
-      $("settings").open = true;
-      $("key").focus();
-    };
-    $("save").onclick = () =>
-      action({
-        action: "settings",
-        websiteUrl: $("website").value,
-        startAtLogin: $("autostart").checked,
-        museApiKey: $("key").value,
-        clearMuseKey: $("clear-key").checked,
-      });
-    refresh().catch((error) => message(error.message, true));
-    setInterval(() => {
-      if (!busy && !document.hidden)
+      };
+      $("refresh").onclick = () =>
         refresh().catch((error) => message(error.message, true));
-    }, 3000);
-    window.addEventListener("focus", () => {
-      if (!busy) refresh().catch((error) => message(error.message, true));
-    });
-  </script>
+      $("save").onclick = () =>
+        $("website").reportValidity() &&
+        $("projects-directory").reportValidity() &&
+        action({
+          action: "settings",
+          websiteUrl: $("website").value,
+          startAtLogin: $("autostart").checked,
+          accessMode: $("access-mode").value,
+          projectsDirectory: $("projects-directory").value,
+        });
+      refresh().catch((error) => message(error.message, true));
+      setInterval(() => {
+        if (!busy && !document.hidden)
+          refresh().catch((error) => message(error.message, true));
+      }, 2500);
+      window.addEventListener("focus", () => {
+        if (!busy) refresh().catch((error) => message(error.message, true));
+      });
+    </script>
+  </body>
 </html>

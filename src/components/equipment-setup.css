@@ -1,3 +1,9 @@
+/*
+ * Copyright © 2026 László Edgár Dobra. All rights reserved.
+ * Applies only to copyrightable Project CAD material owned by this holder.
+ * See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+ */
+
 .equipment-editor-dialog {
   height: min(820px, calc(100dvh - 48px));
   max-height: calc(100dvh - 48px);

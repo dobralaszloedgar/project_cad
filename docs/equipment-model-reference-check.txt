@@ -1,3 +1,7 @@
+Copyright © 2026 László Edgár Dobra. All rights reserved.
+Applies only to copyrightable Project CAD material owned by this holder.
+See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 # Equipment models — reference check and application integration
 
 Reference geometry checked 27 October 2026. The sandbox and the application's 3D/Split views share recognizable examples of chemical-process equipment. These are authored visual models, not dimensioned reproductions or validated mechanical designs. Feed and Product are stream-boundary concepts in the flowsheet; supply and receiver vessels are the selected physical representations.

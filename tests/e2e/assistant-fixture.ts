@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { expect, type Page } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -137,10 +141,25 @@ export async function installAssistant(
         status: async () => ({
           id,
           name:
-            id === "claude" ? "Claude Code" : id === "codex" ? "Codex" : "Muse",
+            id === "claude"
+              ? "Claude Code"
+              : id === "codex"
+                ? "Codex"
+                : "Muse Code",
           available: true,
           message: "Browser test provider",
-          models: [{ id: "test-model", name: "Test model", default: true }],
+          models: [
+            { id: "test-model", name: "Test model", default: true },
+            ...(id === "muse"
+              ? [
+                  {
+                    id: "muse-second",
+                    name: "Muse alternate",
+                    reasoning: ["low", "high"],
+                  },
+                ]
+              : []),
+          ],
         }),
         run,
       },
@@ -156,6 +175,7 @@ export async function installAssistant(
     port: 0,
     origins: [origin],
     connections,
+    desktopOpen: true,
     selectAgents: (selection) => {
       agents = selection;
     },
@@ -201,7 +221,7 @@ export async function connectAssistant(page: Page) {
     .click();
   await page
     .getByRole("heading", {
-      name: /Choose your agents|Your assistant is ready/,
+      name: /Choose your agents|Your assistant is ready|Muse connector is ready/,
     })
     .waitFor();
   if (
@@ -209,7 +229,7 @@ export async function connectAssistant(page: Page) {
       .getByRole("heading", { name: "Choose your agents", exact: true })
       .isVisible()
   ) {
-    for (const name of ["Codex", "Claude Code", "Muse"])
+    for (const name of ["Codex", "Claude Code", "Muse Code"])
       await page.getByRole("checkbox", { name, exact: true }).check();
     await page
       .getByRole("button", { name: "Connect agents", exact: true })

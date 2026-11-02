@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import styles from "../AssistantPanel.module.css";
@@ -10,6 +14,7 @@ export default function AssistantPopover({
   align = "left",
   disabled = false,
   compact = false,
+  iconOnly = false,
 }: {
   label: string;
   trigger: ReactNode;
@@ -17,6 +22,7 @@ export default function AssistantPopover({
   align?: "left" | "right";
   disabled?: boolean;
   compact?: boolean;
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null),
@@ -51,8 +57,9 @@ export default function AssistantPopover({
       <button
         ref={button}
         type="button"
-        className={styles.control}
+        className={iconOnly ? styles.iconButton : styles.control}
         aria-label={label}
+        title={iconOnly ? label : undefined}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         disabled={disabled}

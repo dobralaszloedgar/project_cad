@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   chmodSync,
@@ -12,6 +16,7 @@ import {
   applicationOrigin,
   loadAssistantSettings,
   providerExecutable,
+  saveAssistantSettings,
 } from "../src/server/assistant/config";
 
 const directories: string[] = [];
@@ -46,6 +51,7 @@ describe("local companion configuration", () => {
   it("loads saved settings and refuses malformed settings without exposing a secret", () => {
     const root = temporary();
     expect(loadAssistantSettings(root).startAtLogin).toBe(true);
+    expect(loadAssistantSettings(root).accessMode).toBe("yolo");
     writeFileSync(
       join(root, "settings.json"),
       JSON.stringify({
@@ -55,6 +61,7 @@ describe("local companion configuration", () => {
       }),
     );
     expect(loadAssistantSettings(root)).toMatchObject({
+      accessMode: "yolo",
       startAtLogin: false,
       museApiKey: "test-only-key",
     });
@@ -135,3 +142,40 @@ describe("local companion configuration", () => {
     },
   );
 });
+
+it("persists sandbox access and the CAD folder, and rejects invalid access settings", () => {
+  const root = temporary();
+  const settings = saveAssistantSettings(root, {
+    accessMode: "sandbox",
+    projectsDirectory: root,
+  });
+  expect(loadAssistantSettings(root)).toEqual(settings);
+  expect(() =>
+    saveAssistantSettings(root, { accessMode: "allow-everything" }),
+  ).toThrow();
+  expect(() =>
+    saveAssistantSettings(root, { projectsDirectory: "../outside" }),
+  ).toThrow();
+});
+
+it.runIf(process.platform === "win32")(
+  "detects Muse Code's official Windows launcher without executing its cmd shim",
+  () => {
+    const root = temporary(),
+      directory = join(root, "Programs", "muse"),
+      version = "1.4.14-R7309.1";
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, ".muse-version"), version);
+    writeFileSync(join(directory, `muse-bin-${version}.exe`), "native fixture");
+    vi.stubEnv("PROJECT_CAD_ASSISTANT_DATA", join(root, "data"));
+    vi.stubEnv("PROJECT_CAD_MUSE_BIN", "");
+    vi.stubEnv("MUSE_INSTALL_DIR", directory);
+    vi.stubEnv("LOCALAPPDATA", root);
+    vi.stubEnv("PATH", "");
+    expect(providerExecutable("muse")).toBe(
+      join(directory, `muse-bin-${version}.exe`),
+    );
+    writeFileSync(join(directory, ".muse-version"), "../../outside");
+    expect(providerExecutable("muse")).toBeUndefined();
+  },
+);

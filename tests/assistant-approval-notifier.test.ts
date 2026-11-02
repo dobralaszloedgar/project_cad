@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -73,4 +77,41 @@ it("retries a failed window launch and rate limits new requests", async () => {
   expect(open).toHaveBeenCalledTimes(2);
   await notifier.check(20000);
   expect(open).toHaveBeenCalledTimes(3);
+});
+it("reuses the project-owned connector window and permits an explicit fallback", async () => {
+  const open = vi.fn().mockResolvedValue(undefined);
+  const { requests, notifier } = fixture(open);
+  const request = requests.create(
+    "https://projectcad.vercel.app",
+    crypto.randomUUID(),
+    { providers: ["muse"], preferred: "muse" },
+    true,
+  );
+  await notifier.check(0);
+  expect(open).not.toHaveBeenCalled();
+  requests.requestOpen(request.id);
+  await notifier.check(10000);
+  expect(open).toHaveBeenCalledOnce();
+  expect(requests.get(request.id)?.status).toBe("pending");
+});
+
+it("reopens a dismissed approval window on request without approving or replacing the connection", async () => {
+  const open = vi.fn().mockResolvedValue(undefined);
+  const { notifier, requests, request } = fixture(open);
+  const pending = request();
+  await notifier.check(0);
+  requests.requestOpen(pending.id);
+  await notifier.check(1000);
+  expect(open).toHaveBeenCalledTimes(1);
+  await notifier.check(10000);
+  expect(open).toHaveBeenCalledTimes(2);
+  expect(requests.get(pending.id)).toMatchObject({
+    nonce: pending.nonce,
+    status: "pending",
+  });
+  requests.requestOpen(pending.id);
+  await notifier.check(20000);
+  expect(open).toHaveBeenCalledTimes(2);
+  requests.decide(pending.id, false);
+  expect(() => requests.requestOpen(pending.id)).toThrow("no longer waiting");
 });

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { expect, test } from "./test";
 import { STORY_END } from "../../src/components/landing/landing-playback";
 
@@ -58,8 +62,9 @@ for (const preference of ["auto", "webgl"] as const) {
         { progress, end: STORY_END },
       );
       await expect
-        .poll(async () =>
-          Number(await canvas.getAttribute("data-story-progress")),
+        .poll(
+          async () => Number(await canvas.getAttribute("data-story-progress")),
+          { timeout: 20000 },
         )
         .toBeCloseTo(progress, 3);
       await page.screenshot({

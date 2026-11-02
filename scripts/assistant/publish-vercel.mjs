@@ -1,10 +1,17 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
+import {
+  assistantDownloadLocation,
+  assistantDownloadFileLocation,
+} from "../../src/assistant/download-location.mjs";
 import { output } from "./artifacts.mjs";
 import {
   preferredInstallers,
@@ -104,22 +111,43 @@ export async function uploadVerifiedFiles(
   }
 }
 
-export async function prepareVercelRelease(directory, baseUrl) {
+export async function prepareVercelRelease(
+  directory,
+  baseUrl,
+  { platform, previous } = {},
+) {
   const local = validateManifest(
     JSON.parse(await readFile(join(directory, "downloads.json"), "utf8")),
+    { platform },
   );
-  await verifyLocalArtifacts(directory, local);
+  await verifyLocalArtifacts(directory, local, { platform });
+  const changed = preferredInstallers(local.files);
+  let files = changed;
+  if (platform) {
+    validateManifest(previous, { published: true });
+    const retained = previous.files
+      .filter((file) => !platform.split(",").includes(file.platform))
+      .map((file) => {
+        const location = assistantDownloadFileLocation(previous, file);
+        if (new URL(location.baseUrl).hostname !== new URL(baseUrl).hostname)
+          throw new Error(
+            "Platform updates must use the existing download store.",
+          );
+        return { ...file, version: file.version ?? previous.version };
+      });
+    files = [...retained, ...changed];
+  }
   const manifest = validateManifest(
     {
       name: local.name,
       version: local.version,
-      files: preferredInstallers(local.files),
+      files,
       distribution: { provider: "vercel-blob", baseUrl },
     },
     { published: true },
   );
   const assets = [];
-  for (const file of manifest.files) {
+  for (const file of changed) {
     assets.push({ ...file, path: join(directory, file.filename) });
   }
   const generated = {
@@ -142,6 +170,7 @@ async function main() {
       "base-url": { type: "string" },
       "dry-run": { type: "boolean" },
       "sync-only": { type: "boolean" },
+      platform: { type: "string" },
     },
   });
   if (values["sync-only"]) {
@@ -175,7 +204,10 @@ async function main() {
         "Public manifest points to a different release location.",
       );
     for (const file of manifest.files)
-      await verifyPublicFile(`${baseUrl}/${file.filename}`, file);
+      await verifyPublicFile(
+        `${assistantDownloadFileLocation(manifest, file).baseUrl}/${file.filename}`,
+        file,
+      );
     await stagePublishedDownloads(manifest);
     return;
   }
@@ -183,9 +215,18 @@ async function main() {
     throw new Error(
       "Pass --base-url https://<store-id>.public.blob.vercel-storage.com/project-cad-assistant/v<version>.",
     );
+  const previous = values.platform
+    ? JSON.parse(
+        await readFile(
+          join(projectRoot, "public/downloads/assistant/downloads.json"),
+          "utf8",
+        ),
+      )
+    : undefined;
   const { manifest, assets, sourceManifest } = await prepareVercelRelease(
     values.directory,
     values["base-url"],
+    { platform: values.platform, previous },
   );
   const pins = JSON.parse(
     await readFile(new URL("./releases.json", import.meta.url), "utf8"),
@@ -196,7 +237,9 @@ async function main() {
     );
   const policy = await loadReferencePolicy();
   await checkSourceReferences(projectRoot, policy);
-  await checkPackageReferences(values.directory, sourceManifest, policy);
+  await checkPackageReferences(values.directory, sourceManifest, policy, {
+    platform: values.platform,
+  });
   for (const file of assets.filter((item) => item.data))
     assertReferenceContent(file.data, file.filename, policy);
   if (values["dry-run"]) {
@@ -214,11 +257,16 @@ async function main() {
     return;
   }
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token)
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN;
+  const oidcStore = process.env.BLOB_STORE_ID;
+  if (!token && !(oidcToken && oidcStore))
     throw new Error(
-      "Set BLOB_READ_WRITE_TOKEN for the intended public Blob store.",
+      "Set Blob read-write credentials or VERCEL_OIDC_TOKEN and BLOB_STORE_ID for the intended store.",
     );
-  const storeId = /^vercel_blob_rw_([^_]+)_/.exec(token)?.[1]?.toLowerCase();
+  const storeId =
+    oidcToken && oidcStore
+      ? oidcStore.replace(/^store_/, "").toLowerCase()
+      : /^vercel_blob_rw_([^_]+)_/.exec(token)?.[1]?.toLowerCase();
   if (
     !storeId ||
     new URL(values["base-url"]).hostname !==
@@ -228,10 +276,24 @@ async function main() {
       "The Blob credential does not match the requested download store.",
     );
   const { put } = await import("@vercel/blob");
+  if (values.platform)
+    for (const file of manifest.files.filter(
+      (file) => !values.platform.split(",").includes(file.platform),
+    ))
+      await verifyPublicFile(
+        `${assistantDownloadFileLocation(manifest, file).baseUrl}/${file.filename}`,
+        file,
+      );
   await uploadVerifiedFiles(
     values["base-url"],
     assets,
-    (pathname, data, options) => put(pathname, data, { ...options, token }),
+    (pathname, data, options) =>
+      put(pathname, data, {
+        ...options,
+        ...(oidcToken && oidcStore
+          ? { oidcToken, storeId: oidcStore }
+          : { token }),
+      }),
   );
   await stagePublishedDownloads(manifest);
   console.log(

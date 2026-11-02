@@ -1,9 +1,14 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { planSchema } from "../../domain/actions";
 import {
   createChatSchema,
+  MUSE_AGENTS,
   submitSchema,
   tools,
   publicConversation,
@@ -45,12 +50,9 @@ export class AssistantRuntime {
   private sweep: NodeJS.Timeout;
   constructor(
     readonly store: AssistantStore,
-    private adapters: Record<ProviderId, AssistantProvider>,
+    private adapters: Partial<Record<ProviderId, AssistantProvider>>,
     private root: string,
-    readonly agents: () => AgentSelection | null = () => ({
-      providers: ["codex", "claude", "muse"],
-      preferred: "codex",
-    }),
+    readonly agents: () => AgentSelection | null = () => MUSE_AGENTS,
   ) {
     this.sweep = setInterval(() => {
       for (const [key, lease] of this.leases)
@@ -79,7 +81,9 @@ export class AssistantRuntime {
     )
       return this.statusCache.value;
     const value = Promise.all(
-      (agents?.providers ?? []).map((id) => this.adapters[id].status()),
+      (agents?.providers ?? [])
+        .filter((id) => !!this.adapters[id])
+        .map((id) => this.adapters[id]!.status()),
     );
     this.statusCache = { time: Date.now(), selection, value };
     return value;
@@ -97,6 +101,16 @@ export class AssistantRuntime {
       );
     if (!claim && (!lease || lease.clientId !== scope.clientId))
       throw new Error("Reconnect this project before continuing.");
+    this.leases.set(key, { clientId: scope.clientId, time: Date.now() });
+  }
+  /** An explicit connection may take an idle project from an older browser tab. */
+  attach(scope: Scope) {
+    const key = this.key(scope);
+    const lease = this.leases.get(key);
+    if (lease && lease.clientId !== scope.clientId && this.active.has(key))
+      throw new Error(
+        "An agent is still working in another tab. Stop it there before connecting here.",
+      );
     this.leases.set(key, { clientId: scope.clientId, time: Date.now() });
   }
   private chat(scope: Scope, id: string) {
@@ -127,7 +141,7 @@ export class AssistantRuntime {
       activeConversation: this.active.get(this.key(scope))
         ? publicConversation(this.active.get(this.key(scope))!.chat)
         : undefined,
-      capabilities: ["attachments-v1", "chat-history-v1"],
+      capabilities: ["attachments-v1", "chat-history-v1", "muse-connector-v1"],
       activity:
         latest && lastRun
           ? { conversationId: latest.id, run: lastRun }
@@ -184,9 +198,12 @@ export class AssistantRuntime {
     // Request identity survives HTTP retries and companion restarts.
     if (chat.runs.some((run) => run.requestId === request.requestId))
       return publicConversation(chat);
-    if (!this.agents()?.providers.includes(chat.provider))
+    if (
+      !this.agents()?.providers.includes(chat.provider) ||
+      !this.adapters[chat.provider]
+    )
       throw new Error(
-        "This agent is not selected. Open Manage agents to enable it; your saved conversation is preserved.",
+        "This agent is not selected. Start a new Muse conversation; your saved conversation is preserved.",
       );
     if (this.active.has(key))
       throw new Error(
@@ -232,27 +249,26 @@ export class AssistantRuntime {
         ),
       600000,
     );
-    void this.adapters[chat.provider]
-      .run({
-        conversation: chat,
-        cwd,
-        prompt: request.message,
-        attachments: files,
-        signal: abort.signal,
-        text: (delta) => {
-          if (run.status === "running" && run.text.length < 100000)
-            run.text += delta.slice(0, 100000 - run.text.length);
-        },
-        session: (value) => {
-          chat.providerSession = value;
-          this.store.save(chat);
-        },
-        context: (value) => {
-          chat.providerContext = value;
-          this.store.save(chat);
-        },
-        call: (name, args) => this.call(scope, active, name, args),
-      })
+    void this.adapters[chat.provider]!.run({
+      conversation: chat,
+      cwd,
+      prompt: request.message,
+      attachments: files,
+      signal: abort.signal,
+      text: (delta) => {
+        if (run.status === "running" && run.text.length < 100000)
+          run.text += delta.slice(0, 100000 - run.text.length);
+      },
+      session: (value) => {
+        chat.providerSession = value;
+        this.store.save(chat);
+      },
+      context: (value) => {
+        chat.providerContext = value;
+        this.store.save(chat);
+      },
+      call: (name, args) => this.call(scope, active, name, args),
+    })
       .then(
         () => {
           if (run.status === "running") run.status = "completed";
@@ -321,18 +337,30 @@ export class AssistantRuntime {
             projectId: z.string(),
             baseRevision: z.string().length(64),
             plan: planSchema,
+            applied: z.boolean().optional(),
+            result: z.string().optional(),
           })
           .parse(result);
         if (proposal.projectId !== scope.projectId)
           throw new Error("Proposal belongs to a different project.");
-        const id = crypto.randomUUID();
-        active.run.proposals.push({ ...proposal, id, status: "pending" });
+        const applied =
+          active.chat.mode === "auto" && proposal.applied === true;
+        if (active.chat.mode === "auto" && !applied)
+          throw new Error(
+            "Project CAD did not confirm the edit was applied. Update the website and retry.",
+          );
+        active.run.proposals.push({
+          ...proposal,
+          id,
+          status: applied ? "applied" : "pending",
+        });
         step.status = "done";
         this.store.save(active.chat);
         return {
           proposalId: id,
-          status: "awaiting_user_review",
-          applied: false,
+          status: applied ? "applied" : "awaiting_user_review",
+          applied,
+          ...(applied ? { result: proposal.result } : {}),
         };
       }
       step.status = "done";

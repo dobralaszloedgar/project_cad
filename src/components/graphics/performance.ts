@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 /** Cap actual render pixels as well as DPR on large/high-density displays. */
 export function maximumDpr(width: number, height: number, deviceDpr: number) {
   return Math.min(
@@ -20,22 +24,26 @@ export class ResolutionController {
   }
 
   sample(delta: number, current: number, maximum: number) {
-    if (delta <= 0 || delta > 1) {
-      this.reset();
-      return current;
-    }
+    // A parent reconfiguration must never exceed the device/pixel budget.
+    current = Math.min(current, maximum);
+    if (!Number.isFinite(delta) || delta <= 0) return current;
     if (this.warmup > 0) {
-      this.warmup -= delta;
+      this.warmup -= Math.min(delta, 1);
       return current;
     }
-    this.elapsed += delta;
+    // Visibility and demand rendering reset the controller at the call site.
+    // A long frame during continuous rendering is load, not an idle gap.
+    this.elapsed += Math.min(delta, 4);
     this.frames++;
     if (this.elapsed < 2) return current;
     const fps = this.frames / this.elapsed;
     this.elapsed = this.frames = 0;
     if (fps < 42) {
       this.fastWindows = 0;
-      return Math.max(Math.min(0.75, maximum), current - 0.2);
+      return Math.max(
+        Math.min(0.75, maximum),
+        fps < 15 ? current * 0.7 : current - 0.2,
+      );
     }
     this.fastWindows = fps > 57 ? this.fastWindows + 1 : 0;
     if (this.fastWindows >= 3) {

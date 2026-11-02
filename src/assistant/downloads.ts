@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 export type AssistantDownload = {
   filename: string;
   url: string;
@@ -5,6 +9,7 @@ export type AssistantDownload = {
   platform: "macos" | "windows" | "linux";
   name: string;
   architecture: string;
+  version?: string;
 };
 export function assistantDownloads(value: unknown):
   | {
@@ -29,7 +34,7 @@ export function assistantDownloads(value: unknown):
   } catch {
     return;
   }
-  const { baseUrl, releaseUrl, checksumsUrl } = location;
+  const { releaseUrl, checksumsUrl } = location;
   const installers: AssistantDownload[] = [];
   const seen = new Set<string>();
   for (const entry of manifest.files) {
@@ -42,6 +47,12 @@ export function assistantDownloads(value: unknown):
     )
       continue;
     seen.add(entry.filename);
+    let fileBaseUrl: string;
+    try {
+      fileBaseUrl = assistantDownloadFileLocation(manifest, entry).baseUrl;
+    } catch {
+      continue;
+    }
     if (
       entry.filename === "ProjectCAD-Assistant-macos-universal.pkg" &&
       entry.platform === "macos" &&
@@ -49,7 +60,8 @@ export function assistantDownloads(value: unknown):
     )
       installers.push({
         filename: entry.filename,
-        url: `${baseUrl}/${entry.filename}`,
+        url: `${fileBaseUrl}/${entry.filename}`,
+        version: entry.version ?? manifest.version,
         bytes: entry.bytes,
         platform: "macos",
         name: "macOS",
@@ -71,7 +83,8 @@ export function assistantDownloads(value: unknown):
         continue;
       installers.push({
         filename: entry.filename,
-        url: `${baseUrl}/${entry.filename}`,
+        url: `${fileBaseUrl}/${entry.filename}`,
+        version: entry.version ?? manifest.version,
         bytes: entry.bytes,
         platform: match[1] as "windows" | "linux",
         name: match[1] === "windows" ? "Windows" : "Linux",
@@ -103,4 +116,7 @@ export function assistantDownloads(value: unknown):
       }
     : undefined;
 }
-import { assistantDownloadLocation } from "./download-location.mjs";
+import {
+  assistantDownloadLocation,
+  assistantDownloadFileLocation,
+} from "./download-location.mjs";

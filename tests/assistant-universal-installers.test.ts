@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, describe, expect, it } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -82,7 +86,8 @@ exit ${options.exitCode ?? 0}
   return { run, report, staging };
 }
 
-describe("universal Linux installer", () => {
+// These execute the Unix shell payload; Windows builds have their own installer tests.
+describe.skipIf(process.platform === "win32")("universal Linux installer", () => {
   it.each([
     ["x86_64", "x64"],
     ["amd64", "x64"],

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import { defaultPackedBed } from "@/domain/reactions/schema";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -108,6 +112,7 @@ import {
 } from "@/lib/project-file";
 import { projectFileName } from "@/lib/project-directory";
 import ProcessCanvas from "./ProcessCanvas";
+import { projectStreamColors } from "./stream-colors";
 import Plant3DLoading from "./Plant3DLoading";
 import { EquipmentSimulationError } from "@/domain/solver";
 import {
@@ -295,6 +300,13 @@ export default function Workspace({
       ? simulation
       : null;
   const result = currentSimulation?.result ?? null;
+  const streamColors = useMemo(
+    () =>
+      ready && !showProjects && view !== "3D" && compositionColors
+        ? projectStreamColors(project, result)
+        : {},
+    [project, result, compositionColors, ready, showProjects, view],
+  );
   const failure = currentSimulation?.failure;
   const statuses = useMemo(
     () =>
@@ -626,7 +638,7 @@ export default function Workspace({
           const r = calculate(next);
           setMessage(
             r.converged
-              ? "Calculated · open Results for balances and model limits."
+              ? ""
               : "Recycle did not converge. Inspect diagnostics.",
           );
         } catch (e) {
@@ -673,7 +685,7 @@ export default function Workspace({
       sound.playSimulation(calculated.converged ? "complete" : "attention");
       setMessage(
         calculated.converged
-          ? "Calculated · review model limits in Results."
+          ? ""
           : "Recycle did not converge. Final iterate only.",
       );
       setTab("Results");
@@ -2116,8 +2128,8 @@ export default function Workspace({
                 onChange={edit}
                 onAdd={add}
                 onError={setMessage}
-                result={result}
                 compositionColors={compositionColors}
+                streamColors={streamColors}
                 compare={
                   state.revisions.find((r) => r.id === compareId)?.project
                 }

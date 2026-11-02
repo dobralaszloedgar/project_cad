@@ -1,9 +1,13 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import { useEffect, useState } from "react";
 import { Check, FileText, LoaderCircle } from "lucide-react";
 import type { Conversation, Proposal } from "@/assistant/protocol";
 import type { Project } from "@/domain/schema";
-import { projectRevision } from "@/assistant/tools";
+import { projectRevision } from "@/assistant/project-revision";
 import { fileSize } from "@/assistant/attachments";
 import AssistantMarkdown from "./AssistantMarkdown";
 import AssistantError from "./AssistantError";

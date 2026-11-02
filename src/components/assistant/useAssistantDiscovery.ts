@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -34,7 +38,9 @@ export function useAssistantDiscovery(enabled: boolean) {
           credentials: "omit",
           signal: AbortSignal.any([
             controller.signal,
-            AbortSignal.timeout(1800),
+            // First contact can display the browser's local-network permission
+            // prompt. Cancelling after 1.8 s makes a running app look absent.
+            AbortSignal.timeout(30000),
           ]),
         });
         const health: unknown = response.ok ? await response.json() : null;
@@ -52,7 +58,8 @@ export function useAssistantDiscovery(enabled: boolean) {
               !(
                 "capabilities" in health &&
                 Array.isArray(health.capabilities) &&
-                health.capabilities.includes("desktop-consent-v1")
+                health.capabilities.includes("desktop-consent-v1") &&
+                health.capabilities.includes("muse-connector-v1")
               ),
           );
           if (available) setPreviouslyDetected(true);

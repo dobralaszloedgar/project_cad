@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 /** Shared by provider instructions, discovery tools, HTTP and the generated doc. */
 export const AI_GUIDE_VERSION = "project-cad-ai-guide-v1";
 
@@ -167,24 +171,28 @@ preview_actions {baseRevision,plan}: validate a batch; return normalized candida
   project and candidateRevision, counts and applied:false. No state is changed.
 simulate {baseRevision,plan?}: calculate the current project or a candidate batch;
   returns actual solver output, source revision and preview flag. Does not apply.
-propose_actions {baseRevision,plan}: present a validated batch in the app for user
-  review; applied:false until the user clicks Apply reviewed actions.
+propose_actions {baseRevision,plan}: submit a validated batch. Auto mode applies
+  and saves immediately and returns applied:true. Review mode returns applied:false
+  until the user clicks Apply reviewed actions. Read-only mode rejects edits.
 
 Before proposing, preview the complete plan and simulate it when numerical
 behavior matters. Re-read and rebuild after a stale-revision error; do not just
 replace the revision on a stale plan. A proposal is not an applied or saved edit.
-Review mode permits proposals. Read-only mode permits reading, previews and
-simulations but rejects proposals. Apply reviewed actions validates the revision,
-creates one history entry, and uses normal project saving/recovery. Keep the
-project tab connected; the local companion has no direct file-writing tools.
+Auto apply is the default for new conversations. Review mode permits proposals.
+Read-only mode permits reading, previews and simulations but rejects proposals.
+Both automatic and reviewed edits validate the revision, create one history
+entry and use normal project saving/recovery. Keep the project tab connected.
+Connector YOLO mode allows full device and web access without approval. Sandbox
+allows only its configured CAD projects folder through scoped file tools and
+web search/fetch; shell execution and other device access are unavailable.
 Rebuild/restart a source companion to load changed tools. Distributed installers
 need a new package release. Codex chats whose tool contract changed start a fresh
 provider thread with recent conversation context and the current project; their
 application history remains intact. Claude and Muse supply current tools each turn.
 Tools do not install software, alter accounts, publish projects, control the
 camera, export screenshots, or manage project folders/trash/history. Those UI
-and lifecycle operations are outside this engineering API. No autonomous save
-or hidden persistence endpoint is provided.
+and lifecycle operations are outside this engineering API. Auto edits use the
+application's existing save path, not a separate persistence endpoint.
 
 ACTION CONTRACT
 plan = {summary: nonempty string, actions: array of at most 100 actions}.

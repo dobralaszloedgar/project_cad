@@ -1,3 +1,7 @@
+# Copyright © 2026 László Edgár Dobra. All rights reserved.
+# Applies only to copyrightable Project CAD material owned by this holder.
+# See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 """Independent binary Raoult MESH solution with SciPy bounded least squares.
 
 Direct liquid mole fractions, temperatures and flows; no application imports,

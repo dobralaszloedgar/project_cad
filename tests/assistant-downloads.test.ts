@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -67,6 +71,58 @@ afterEach(async () => {
 });
 
 describe("assistant download distribution", () => {
+  it("keeps unchanged platforms on their actual release URLs and versions", () => {
+    const value = {
+      ...universalManifest(),
+      version: "0.1.2",
+      release: undefined,
+      distribution: {
+        provider: "vercel-blob",
+        baseUrl:
+          "https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v0.1.2",
+      },
+      files: universalManifest().files.map((file) => ({
+        ...file,
+        ...(file.platform !== "windows" ? { version: "0.1.0" } : {}),
+      })),
+    };
+    expect(() => validateManifest(value, { published: true })).not.toThrow();
+    const parsed = assistantDownloads(value)!;
+    for (const file of parsed.installers) {
+      const version = file.platform === "windows" ? "0.1.2" : "0.1.0";
+      expect(file.version).toBe(version);
+      expect(file.url).toBe(
+        `https://teststore.public.blob.vercel-storage.com/project-cad-assistant/v${version}/${file.filename}`,
+      );
+    }
+    for (const version of ["", "../0.1.0", "0.1.0?token=secret", null, 1]) {
+      const invalid = {
+        ...value,
+        files: value.files.map((file) => ({ ...file, version })),
+      };
+      expect(() => validateManifest(invalid, { published: true })).toThrow();
+      expect(assistantDownloads(invalid)).toBeUndefined();
+    }
+  });
+
+  it("requires both Windows architectures when a platform release is requested", () => {
+    const value = {
+      ...manifest(),
+      files: manifest().files.filter((file) => file.platform === "windows"),
+    };
+    expect(() =>
+      validateManifest(value, { platform: "windows" }),
+    ).not.toThrow();
+    expect(() => validateManifest(value)).toThrow();
+    expect(() =>
+      validateManifest(
+        { ...value, files: value.files.slice(0, 2) },
+        { platform: "windows" },
+      ),
+    ).toThrow();
+    expect(() => validateManifest(value, { platform: "linux" })).toThrow();
+  });
+
   it("offers one universal installer per platform, including from the full build inventory", () => {
     const value = universalManifest();
     const full = {

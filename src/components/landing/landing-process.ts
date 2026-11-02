@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import type { Kind } from "@/domain/schema";
 
 /** The same illustrative process drives the drawing and the 3D reveal. */
@@ -66,7 +70,7 @@ export const storyEquipment: {
     kind: "Product",
     tag: "P-101",
     name: "Distillate",
-    position: [10.5, 0, -5.5],
+    position: [10.5, 0, -4.75],
     turn: 1,
     color: "#37c6a0",
   },

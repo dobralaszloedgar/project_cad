@@ -1,3 +1,7 @@
+Copyright © 2026 László Edgár Dobra. All rights reserved.
+Applies only to copyrightable Project CAD material owned by this holder.
+See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 PROJECT CAD — LOCAL ENGINEERING WORKSPACE
 
 Requirements: Node.js >= 20.9; npm. Built and checked with Node 26.9.0.

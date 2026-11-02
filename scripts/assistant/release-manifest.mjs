@@ -1,7 +1,14 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
+import {
+  assistantDownloadLocation,
+  assistantDownloadFileLocation,
+} from "../../src/assistant/download-location.mjs";
 
 export const artifactPattern =
   /^ProjectCAD-Assistant-(?:macos-universal\.(?:pkg|zip)|windows-(?:(?:x64|arm64)(?:-Setup\.exe|\.zip)|universal-Setup\.exe)|linux-(?:(?:x64|arm64)\.(?:run|tar\.gz)|universal\.run))$/;
@@ -38,12 +45,30 @@ export const repositoryPattern =
   /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 
-export function validateManifest(manifest, { published = false } = {}) {
+/** @param {{published?: boolean, platform?: string}} [options] */
+export function validateManifest(manifest, options = {}) {
+  const { published = false } = options;
+  if (
+    manifest?.platforms !== undefined &&
+    (!Array.isArray(manifest.platforms) ||
+      !manifest.platforms.length ||
+      manifest.platforms.some((item) => typeof item !== "string"))
+  )
+    throw new Error("Invalid release platforms.");
+  const platform = options.platform ?? manifest?.platforms?.join(",");
+  const platforms = platform?.split(",");
+  if (
+    platforms &&
+    (new Set(platforms).size !== platforms.length ||
+      platforms.some((item) => !["macos", "windows", "linux"].includes(item)))
+  )
+    throw new Error("Invalid release platform.");
   if (
     manifest?.name !== "Project CAD Assistant" ||
     !/^\d+\.\d+\.\d+$/.test(manifest.version) ||
     !Array.isArray(manifest.files) ||
-    ![3, 5, 10, 12].includes(manifest.files.length)
+    manifest.files.length < 1 ||
+    manifest.files.length > 12
   ) {
     throw new Error(
       "Expected a complete Project CAD Assistant release covering macOS, Windows, and Linux on x64 and ARM64.",
@@ -59,7 +84,10 @@ export function validateManifest(manifest, { published = false } = {}) {
       !Number.isSafeInteger(file.bytes) ||
       file.bytes <= 0 ||
       typeof file.sha256 !== "string" ||
-      !/^[a-f0-9]{64}$/.test(file.sha256)
+      !/^[a-f0-9]{64}$/.test(file.sha256) ||
+      (file.version !== undefined &&
+        (typeof file.version !== "string" ||
+          !/^\d+\.\d+\.\d+$/.test(file.version)))
     ) {
       throw new Error("Invalid, duplicate, or incomplete release artifact.");
     }
@@ -72,13 +100,25 @@ export function validateManifest(manifest, { published = false } = {}) {
     names.add(file.filename);
   }
   if (
-    !completeInventories.some(
-      (files) =>
-        files.length === names.size && files.every((name) => names.has(name)),
-    )
+    !completeInventories
+      .map((files) =>
+        platforms
+          ? files.filter((name) =>
+              platforms.some((item) =>
+                name.startsWith(`ProjectCAD-Assistant-${item}-`),
+              ),
+            )
+          : files,
+      )
+      .some(
+        (files) =>
+          files.length === names.size && files.every((name) => names.has(name)),
+      )
   )
     throw new Error("Missing or unexpected release targets.");
   const location = assistantDownloadLocation(manifest);
+  for (const file of manifest.files)
+    assistantDownloadFileLocation(manifest, file);
   if (published && !location.baseUrl.startsWith("https://"))
     throw new Error("The website requires a versioned public release.");
   return manifest;
@@ -88,15 +128,24 @@ export function preferredInstallers(files) {
   const universal = files.filter((file) =>
     universalInstallerPattern.test(file.filename),
   );
-  return universal.length === 3
-    ? universal
-    : files.filter((file) => installerPattern.test(file.filename));
+  const universalPlatforms = new Set(universal.map((file) => file.platform));
+  return files.filter(
+    (file) =>
+      installerPattern.test(file.filename) &&
+      (!universalPlatforms.has(file.platform) ||
+        universalInstallerPattern.test(file.filename)),
+  );
 }
 
-export async function verifyLocalArtifacts(directory, manifest) {
-  validateManifest(manifest);
-  const installersOnly =
-    manifest.files.length === 3 || manifest.files.length === 5;
+export async function verifyLocalArtifacts(
+  directory,
+  manifest,
+  { platform } = {},
+) {
+  validateManifest(manifest, { platform });
+  const installersOnly = manifest.files.every((file) =>
+    installerPattern.test(file.filename),
+  );
   if (installersOnly) {
     const checksums = await readFile(join(directory, "SHA256SUMS.txt"), "utf8");
     const expected = manifest.files

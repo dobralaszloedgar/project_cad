@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import {
   useEffect,
@@ -8,6 +12,7 @@ import {
 } from "react";
 import {
   Archive,
+  ArrowDownToLine,
   ArrowUp,
   Check,
   ChevronDown,
@@ -46,6 +51,7 @@ import {
 } from "@/assistant/attachments";
 import AssistantSetup from "./AssistantSetup";
 import AssistantPopover from "./assistant/AssistantPopover";
+import AssistantDownloads from "./assistant/AssistantDownloads";
 import AssistantTranscript from "./assistant/AssistantTranscript";
 import AssistantAgentStatus from "./assistant/AssistantAgentStatus";
 import AssistantError from "./assistant/AssistantError";
@@ -69,9 +75,9 @@ type ChatTab = {
   paused: boolean;
 };
 const initialSettings: Settings = {
-  provider: "codex",
+  provider: "muse",
   model: "",
-  mode: "review",
+  mode: "auto",
 };
 const blankTab = (
   settings = initialSettings,
@@ -536,7 +542,7 @@ export default function AssistantPanel({
                     className={styles.option}
                     onClick={() => void assistant.refreshProviders()}
                   >
-                    <RefreshCw size={14} /> Refresh providers
+                    <RefreshCw size={14} /> Refresh models
                   </button>
                   <button
                     className={styles.option}
@@ -545,7 +551,7 @@ export default function AssistantPanel({
                       close();
                     }}
                   >
-                    <Folder size={14} /> Manage agents
+                    <Folder size={14} /> Connector settings
                   </button>
                   <button
                     className={styles.option}
@@ -569,6 +575,15 @@ export default function AssistantPanel({
                   </button>
                 </>
               )}
+            </AssistantPopover>
+            <AssistantPopover
+              label="Download connector"
+              trigger={<ArrowDownToLine size={16} />}
+              align="right"
+              compact
+              iconOnly
+            >
+              {() => <AssistantDownloads />}
             </AssistantPopover>
             <button
               type="button"
@@ -1133,34 +1148,6 @@ export default function AssistantPanel({
                 {(close) => (
                   <>
                     <h3>Model</h3>
-                    <div
-                      className={styles.providerOptions}
-                      role="group"
-                      aria-label="Assistant provider"
-                    >
-                      {(
-                        assistant.agents?.providers ??
-                        assistant.providers.map((item) => item.id)
-                      ).map((id) => (
-                        <button
-                          key={id}
-                          aria-pressed={settings.provider === id}
-                          onClick={() =>
-                            changeSettings({
-                              provider: id,
-                              model: "",
-                              reasoning: undefined,
-                            })
-                          }
-                        >
-                          {id === "codex"
-                            ? "Codex"
-                            : id === "claude"
-                              ? "Claude Code"
-                              : "Muse"}
-                        </button>
-                      ))}
-                    </div>
                     <div role="group" aria-label="Assistant model">
                       {provider?.models.map((item) => (
                         <button
@@ -1185,7 +1172,7 @@ export default function AssistantPanel({
                     ) : null}
                     <button
                       className={styles.option}
-                      aria-label="Refresh providers"
+                      aria-label="Refresh models"
                       onClick={() => void assistant.refreshProviders()}
                     >
                       <RefreshCw size={13} /> Refresh models
@@ -1266,7 +1253,9 @@ export default function AssistantPanel({
                       <span>
                         {settings.mode === "read-only"
                           ? "Read-only"
-                          : "Review changes"}
+                          : settings.mode === "auto"
+                            ? "Auto apply"
+                            : "Review changes"}
                       </span>
                       <ChevronDown size={11} />
                     </>
@@ -1275,7 +1264,7 @@ export default function AssistantPanel({
                   {(close) => (
                     <>
                       <h3>Agent permissions</h3>
-                      {(["review", "read-only"] as AssistantMode[]).map(
+                      {(["auto", "review", "read-only"] as AssistantMode[]).map(
                         (mode) => (
                           <button
                             key={mode}
@@ -1288,14 +1277,18 @@ export default function AssistantPanel({
                           >
                             <span>
                               <strong>
-                                {mode === "review"
-                                  ? "Review changes"
-                                  : "Read-only"}
+                                {mode === "auto"
+                                  ? "Auto apply"
+                                  : mode === "review"
+                                    ? "Review changes"
+                                    : "Read-only"}
                               </strong>
                               <small>
-                                {mode === "review"
-                                  ? "Review proposed changes before applying them"
-                                  : "Inspect and calculate without editing the project"}
+                                {mode === "auto"
+                                  ? "Apply and save CAD edits immediately"
+                                  : mode === "review"
+                                    ? "Review proposed changes before applying them"
+                                    : "Inspect and calculate without editing the project"}
                               </small>
                             </span>
                             {settings.mode === mode ? (

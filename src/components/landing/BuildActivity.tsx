@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import { useState } from "react";
@@ -21,8 +25,14 @@ export default function BuildActivity({
 }) {
   const [built, setBuilt] = useState(construction.get());
   const [simulated, setSimulated] = useState(simulation.get());
-  useMotionValueEvent(construction, "change", setBuilt);
-  useMotionValueEvent(simulation, "change", setSimulated);
+  useMotionValueEvent(construction, "change", (value) =>
+    setBuilt(
+      Math.floor(value * constructionSteps.length) / constructionSteps.length,
+    ),
+  );
+  useMotionValueEvent(simulation, "change", (value) =>
+    setSimulated(Math.floor(value * 20) / 20),
+  );
   const completion = useTransform(
     () => construction.get() * 0.8 + simulation.get() * 0.2,
   );

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,15 +13,11 @@ import type {
   ProviderInput,
 } from "../src/server/assistant/providers/types";
 import { currentProjectPrompt } from "../src/server/assistant/providers/types";
-import type { ProviderId, StoredConversation } from "../src/assistant/protocol";
+import type { ProviderId } from "../src/assistant/protocol";
 import { executeProjectTool, projectRevision } from "../src/assistant/tools";
 import { heatingExample } from "../src/domain/examples";
 import { projectSchema } from "../src/domain/schema";
 import { createAssistantServer } from "../src/server/assistant/http";
-import {
-  MuseProvider,
-  MUSE_MODEL,
-} from "../src/server/assistant/providers/muse";
 import { vi } from "vitest";
 import {
   codexSessionState,
@@ -71,7 +71,7 @@ function setup(
     runtime.create(owner, {
       projectId: owner.projectId,
       projectName: "Test",
-      provider: "codex",
+      provider: "muse",
       model: "test-model",
       mode,
     });
@@ -409,96 +409,6 @@ it("requires explicit connection, binds tokens to an allowed origin, and rejects
   ).toBe(400);
 });
 
-it("Muse streams text and replays function results without storing responses remotely", async () => {
-  vi.stubEnv("META_AI_ENABLED", "true");
-  vi.stubEnv("MODEL_API_KEY", "test-only");
-  let requests = 0;
-  const bodies: Record<string, unknown>[] = [],
-    text: string[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (_url, options) => {
-      bodies.push(JSON.parse(options.body));
-      requests++;
-      const output =
-        requests === 1
-          ? [
-              {
-                type: "function_call",
-                name: "get_project",
-                arguments: "{}",
-                call_id: "call-one",
-              },
-            ]
-          : [
-              {
-                type: "message",
-                role: "assistant",
-                content: [{ type: "output_text", text: "Project read." }],
-              },
-            ];
-      const events =
-        requests === 1
-          ? []
-          : [{ type: "response.output_text.delta", delta: "Project read." }];
-      events.push({
-        type: "response.completed",
-        response: { model: MUSE_MODEL, output },
-      } as never);
-      return new Response(
-        events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
-      );
-    }),
-  );
-  const chat = { providerContext: [] } as unknown as StoredConversation;
-  const image = Buffer.alloc(1_200_000);
-  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(image);
-  await new MuseProvider().run({
-    conversation: chat,
-    prompt: "Read project",
-    attachments: [
-      {
-        id: crypto.randomUUID(),
-        name: "process.png",
-        type: "image/png",
-        size: image.length,
-        data: image.toString("base64"),
-      },
-    ],
-    cwd: "/tmp",
-    signal: new AbortController().signal,
-    text: (delta) => text.push(delta),
-    context: (items) => {
-      chat.providerContext = items;
-    },
-    session: () => {},
-    call: async () => ({ projectId: "one" }),
-  });
-  expect(text.join("")).toBe("Project read.");
-  expect(requests).toBe(2);
-  expect(bodies[0].store).toBe(false);
-  expect(bodies[0].input).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        content: expect.arrayContaining([
-          expect.objectContaining({
-            type: "input_image",
-            image_url: `data:image/png;base64,${image.toString("base64")}`,
-          }),
-        ]),
-      }),
-    ]),
-  );
-  expect(bodies[1].input).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        type: "function_call_output",
-        call_id: "call-one",
-      }),
-    ]),
-  );
-});
-
 it("stores original attachments without exposing bytes in polling and deduplicates retries", async () => {
   let received: ProviderInput | undefined;
   const { runtime, owner, create, root } = setup(async (input) => {
@@ -577,4 +487,28 @@ it("renames and archives conversations without losing history or crossing projec
   expect(() =>
     runtime.updateConversation(other, chat.id, { title: "Wrong" }),
   ).toThrow();
+});
+
+it("lets a newly approved tab take an idle project without interrupting an active run", async () => {
+  const idle = setup();
+  const next = { ...idle.owner, clientId: crypto.randomUUID() };
+  idle.runtime.attach(next);
+  expect(() => idle.runtime.snapshot(next)).not.toThrow();
+  expect(() => idle.runtime.snapshot(idle.owner)).toThrow("another tab");
+  const busy = setup(async (input) => {
+    await new Promise<void>((resolve) =>
+      input.signal.addEventListener("abort", () => resolve(), { once: true }),
+    );
+  });
+  const chat = await busy.create();
+  busy.runtime.start(busy.owner, chat.id, {
+    requestId: crypto.randomUUID(),
+    message: "Work",
+  });
+  await tick();
+  expect(() =>
+    busy.runtime.attach({ ...busy.owner, clientId: crypto.randomUUID() }),
+  ).toThrow("still working");
+  busy.runtime.detach(busy.owner);
+  await tick();
 });

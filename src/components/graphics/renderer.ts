@@ -1,5 +1,10 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { WebGPURenderer } from "three/webgpu";
 import { isSoftwareRenderer } from "./diagnostics";
+import { withGraphicsDeadline } from "./deadline";
 
 export type GraphicsPreference = "auto" | "webgl";
 export type GraphicsInfo = {
@@ -91,7 +96,22 @@ export async function createSceneRenderer({
     forceWebGL:
       preference === "webgl" || !window.isSecureContext || !navigator.gpu,
   });
-  await renderer.init();
+  const initialization = renderer.init();
+  try {
+    await withGraphicsDeadline(
+      initialization,
+      10_000,
+      "Graphics initialization timed out",
+    );
+  } catch (error) {
+    // If a slow driver finishes after the fallback has mounted, release the
+    // abandoned context instead of leaking it behind the page.
+    void initialization.then(
+      () => renderer.dispose(),
+      () => {},
+    );
+    throw error;
+  }
   const info = graphicsInfo(renderer);
   canvas.dataset.graphicsBackend = info.backend;
   canvas.dataset.graphicsGpu = info.gpu;
@@ -110,11 +130,17 @@ export async function createSceneRenderer({
 export async function waitForSceneFrame(
   renderer: WebGPURenderer,
   signal: AbortSignal,
+  milliseconds = 5_000,
 ) {
   if (signal.aborted) return;
   const backend = renderer.backend as typeof renderer.backend & BackendDetails;
   if (backend.isWebGPUBackend && backend.device) {
-    await backend.device.queue.onSubmittedWorkDone();
+    await withGraphicsDeadline(
+      backend.device.queue.onSubmittedWorkDone(),
+      milliseconds,
+      "The 3D preview did not finish rendering",
+      signal,
+    );
     return;
   }
   const gl = backend.getContext() as WebGL2RenderingContext;
@@ -123,14 +149,22 @@ export async function waitForSceneFrame(
   gl.flush();
   await new Promise<void>((resolve, reject) => {
     let frame = 0;
+    let finished = false;
     const finish = (error?: Error) => {
+      if (finished) return;
+      finished = true;
       cancelAnimationFrame(frame);
+      clearTimeout(timeout);
       signal.removeEventListener("abort", abort);
       gl.deleteSync(sync);
       if (error) reject(error);
       else resolve();
     };
     const abort = () => finish();
+    const timeout = setTimeout(
+      () => finish(new Error("The 3D preview did not finish rendering")),
+      milliseconds,
+    );
     const check = () => {
       if (signal.aborted) return finish();
       const result = gl.clientWaitSync(sync, 0, 0);

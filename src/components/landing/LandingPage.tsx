@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import {
@@ -7,29 +11,31 @@ import {
   useRef,
   useState,
   type MouseEvent,
-  type ReactNode,
 } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowDown, ArrowRight, ArrowUpRight, Pause, Play } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Monitor, X } from "lucide-react";
 import {
   motion,
   MotionConfig,
   useMotionValueEvent,
   useScroll,
-  useSpring,
   useTransform,
   animate,
 } from "motion/react";
 import WorldBackdrop from "./WorldBackdrop";
+import SceneBoundary from "./SceneBoundary";
+import SceneFallback from "./SceneFallback";
 import { useMotionPreference } from "./use-motion-preference";
 import styles from "./LandingPage.module.css";
 import CadWorkbench, { createCadBridge } from "./CadWorkbench";
 import BuildActivity from "./BuildActivity";
 import DesignChat from "./DesignChat";
 import BrandMark from "@/components/BrandMark";
+import SiteLinks from "@/components/site/SiteLinks";
 import { useStoryPlayback } from "./use-story-playback";
 import { STORY_END, STORY_STOPS } from "./landing-playback";
+import { tourStopAt } from "./landing-motion";
 import { AccelerationNotice } from "../graphics/AccelerationHelp";
 import type { GraphicsInfo } from "../graphics/renderer";
 
@@ -38,41 +44,23 @@ const LandingExperience = dynamic(() => import("./LandingExperience"), {
   loading: () => null,
 });
 const spring = { stiffness: 300, damping: 30, mass: 1 };
-// Entering the GPU-heavy workspace starts a new document, releasing this scene
-// before the equipment sandbox creates its own renderer.
-const MotionLink = motion.a;
 const chapters = ["Design", "Build", "Explore"];
 
-function EntryLink({ href, children }: { href: string; children: ReactNode }) {
-  const x = useSpring(0, spring);
-  const y = useSpring(0, spring);
-  const reduced = useMotionPreference();
-  const move = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (reduced) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    x.set((event.clientX - rect.left - rect.width / 2) * 0.1);
-    y.set((event.clientY - rect.top - rect.height / 2) * 0.1);
-  };
-  return (
-    <MotionLink
-      href={href}
-      className={styles.primaryLink}
-      style={{ x, y }}
-      onMouseMove={move}
-      onMouseLeave={() => {
-        x.set(0);
-        y.set(0);
-      }}
-      whileTap={{ scale: 0.97 }}
-    >
-      {children}
-      <ArrowUpRight size={17} strokeWidth={1.5} />
-    </MotionLink>
-  );
-}
-
-export default function LandingPage() {
+export default function LandingPage({
+  isPhone,
+  workspaceBlocked,
+}: {
+  isPhone: boolean;
+  workspaceBlocked: boolean;
+}) {
   const root = useRef<HTMLElement>(null);
+  const [workspaceNoticeVisible, setWorkspaceNoticeVisible] =
+    useState(workspaceBlocked);
+  const openWorkspace = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!isPhone) return;
+    event.preventDefault();
+    setWorkspaceNoticeVisible(true);
+  };
   const cadBridge = useMemo(() => createCadBridge(), []);
   const { scrollYProgress } = useScroll({
     target: root,
@@ -80,27 +68,28 @@ export default function LandingPage() {
   });
   const scrollJourney = useRef<ReturnType<typeof animate> | null>(null);
   const reduced = useMotionPreference();
-  const pointerX = useSpring(0, { stiffness: 65, damping: 22 });
-  const pointerY = useSpring(0, { stiffness: 65, damping: 22 });
   const [chapter, setChapter] = useState(0);
-  const [motionEnabled, setMotionEnabled] = useState(true);
   const [visible, setVisible] = useState(true);
-  const [transparent, setTransparent] = useState(true);
   const [sceneReady, setSceneReady] = useState(false);
   const [sceneRequested, setSceneRequested] = useState(false);
+  const scenePreloaded = useRef(false);
   const [sceneUnavailable, setSceneUnavailable] = useState(false);
   const [graphicsInfo, setGraphicsInfo] = useState<GraphicsInfo | null>(null);
   const onSceneReady = useCallback(() => setSceneReady(true), []);
   const onSceneUnavailable = useCallback(() => setSceneUnavailable(true), []);
-  const {
-    progress,
-    design,
-    construction,
-    simulation,
-    replayDesign,
-    sendDesign,
-  } = useStoryPlayback(scrollYProgress, motionEnabled, visible, reduced);
+  const { progress, design, construction, simulation } = useStoryPlayback(
+    scrollYProgress,
+    visible,
+    reduced,
+    sceneReady || sceneUnavailable,
+  );
   const prepareScene = () => {
+    // Fetch the next chapter on navigation intent while the chat finishes.
+    // Geometry and GPU setup still wait until the introduction is complete.
+    if (!scenePreloaded.current && scrollYProgress.get() * STORY_END >= 0.27) {
+      scenePreloaded.current = true;
+      void import("./LandingExperience").catch(() => {});
+    }
     // Prepare 3D only when the finished chat leads into Build. Staying in
     // Design keeps geometry creation and shader compilation off the page.
     if (
@@ -118,7 +107,8 @@ export default function LandingPage() {
     (value) => value / STORY_END,
   );
   const chapterRef = useRef(0);
-  const playing = motionEnabled && !reduced && visible;
+  const tourStopRef = useRef(0);
+  const playing = !reduced && visible;
   const sceneOpacity = useTransform(progress, [0.12, 0.3], [0, 1]);
   const heroOpacity = useTransform(progress, [0, 0.16, 0.29], [1, 1, 0]);
   const heroY = useTransform(progress, [0, 0.28], [0, 70]);
@@ -149,7 +139,11 @@ export default function LandingPage() {
       chapterRef.current = next;
       setChapter(next);
     }
-    setTourStop(value < 1.07 ? 0 : value < 1.29 ? 1 : value < 1.49 ? 2 : 3);
+    const stop = tourStopAt(value);
+    if (stop !== tourStopRef.current) {
+      tourStopRef.current = stop;
+      setTourStop(stop);
+    }
   });
   useEffect(() => {
     const onVisibility = () => setVisible(!document.hidden);
@@ -168,22 +162,18 @@ export default function LandingPage() {
     if (reduced) window.scrollTo({ top: target, behavior: "instant" });
     else
       scrollJourney.current = animate(window.scrollY, target, {
-        type: "spring",
-        stiffness: 26,
-        damping: 13,
-        mass: 1.2,
-        restDelta: 0.5,
-        restSpeed: 0.5,
+        duration: 0.5,
+        ease: [0.22, 1, 0.36, 1],
         onUpdate: (value) =>
           window.scrollTo({ top: value, behavior: "instant" }),
       });
   };
   const goTo = (index: number) => travelTo(STORY_STOPS[index]);
   const tourCopy = [
-    "Step inside your process.",
-    "Follow the heat.",
-    "Inside the reaction.",
-    "Separation, tray by tray.",
+    "Your process, brought to life.",
+    "H-101 · Heat exchanger",
+    "R-101 · Packed-bed reactor",
+    "D-101 · Distillation column",
   ][tourStop];
 
   return (
@@ -200,31 +190,15 @@ export default function LandingPage() {
           sceneUnavailable ? "unavailable" : sceneReady ? "live" : "preparing"
         }
       >
-        <Link className={styles.skipLink} href="/workspace?home=1">
+        <Link
+          className={styles.skipLink}
+          href="/workspace?home=1"
+          prefetch={false}
+          onClick={openWorkspace}
+        >
           Skip the story and open workspace
         </Link>
-        <div
-          className={styles.stage}
-          data-landing-stage
-          onPointerMove={(event) => {
-            if (
-              !playing ||
-              !sceneReady ||
-              chapter === 0 ||
-              event.pointerType === "touch"
-            )
-              return;
-            const rect = event.currentTarget.getBoundingClientRect();
-            pointerX.set((event.clientX - rect.left) / rect.width - 0.5);
-            pointerY.set((event.clientY - rect.top) / rect.height - 0.5);
-          }}
-          onPointerLeave={() => {
-            if (playing) {
-              pointerX.set(0);
-              pointerY.set(0);
-            }
-          }}
-        >
+        <div className={styles.stage} data-landing-stage>
           <header className={styles.header}>
             <Link
               href="/"
@@ -250,11 +224,34 @@ export default function LandingPage() {
               ))}
             </nav>
             {/* Full navigation releases the landing WebGL context before setup. */}
-            <a href="/workspace?home=1" className={styles.workspaceLink}>
+            <a
+              href="/workspace?home=1"
+              className={styles.workspaceLink}
+              onClick={openWorkspace}
+            >
               Open workspace
               <ArrowUpRight size={16} />
             </a>
           </header>
+
+          {workspaceNoticeVisible ? (
+            <div className={styles.workspaceNotice} role="status">
+              <Monitor size={22} aria-hidden="true" />
+              <p>
+                <strong>Please use a PC to open the workspace.</strong>
+                <span>
+                  You can keep exploring the landing page on your phone.
+                </span>
+              </p>
+              <button
+                type="button"
+                aria-label="Dismiss workspace message"
+                onClick={() => setWorkspaceNoticeVisible(false)}
+              >
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
 
           {graphicsInfo?.software && !sceneUnavailable ? (
             <AccelerationNotice className={styles.graphicsNotice} />
@@ -262,24 +259,26 @@ export default function LandingPage() {
 
           <motion.div
             className={styles.experienceStage}
-            style={{ opacity: sceneOpacity }}
+            style={{
+              opacity: sceneReady || sceneUnavailable ? sceneOpacity : 0,
+            }}
             data-shared-scene
           >
             {sceneRequested ? (
-              <LandingExperience
-                onReady={onSceneReady}
-                onUnavailable={onSceneUnavailable}
-                onGraphicsInfo={setGraphicsInfo}
-                progress={progress}
-                cadBridge={cadBridge}
-                construction={construction}
-                simulation={simulation}
-                playing={playing && sceneReady && chapter !== 0}
-                transparent={transparent}
-                reduced={reduced}
-                pointerX={pointerX}
-                pointerY={pointerY}
-              />
+              <SceneBoundary
+                fallback={<SceneFallback onUnavailable={onSceneUnavailable} />}
+              >
+                <LandingExperience
+                  onReady={onSceneReady}
+                  onUnavailable={onSceneUnavailable}
+                  onGraphicsInfo={setGraphicsInfo}
+                  progress={progress}
+                  cadBridge={cadBridge}
+                  construction={construction}
+                  simulation={simulation}
+                  playing={playing && sceneReady && chapter === 2}
+                />
+              </SceneBoundary>
             ) : null}
           </motion.div>
           <WorldBackdrop />
@@ -306,8 +305,14 @@ export default function LandingPage() {
                 style={{ y: reduced ? 0 : heroY }}
               >
                 <span className={styles.eyebrow}>FROM IDEA TO PROCESS</span>
-                <h1 id="design-title">Design.</h1>
-                <p>Start with a conversation.</p>
+                <h1 id="design-title">Design</h1>
+                <p>Describe a process. Make it a working layout.</p>
+                <p className={styles.demoNote}>
+                  Scripted demo.{" "}
+                  <Link href="/privacy#ai-assistant" prefetch={false}>
+                    How connected AI uses your data
+                  </Link>
+                </p>
                 <button
                   className={styles.textLink}
                   onClick={() => goTo(1)}
@@ -316,13 +321,7 @@ export default function LandingPage() {
                   Watch it build <ArrowRight size={16} />
                 </button>
               </motion.div>
-              <DesignChat
-                design={design}
-                reduced={reduced}
-                onReplay={replayDesign}
-                onSend={sendDesign}
-                onBuild={() => goTo(1)}
-              />
+              <DesignChat design={design} reduced={reduced} />
             </div>
           </motion.section>
 
@@ -339,14 +338,14 @@ export default function LandingPage() {
               simulation={simulation}
             />
             <div className={styles.sceneCaption}>
-              <h2 id="build-title">Build.</h2>
+              <h2 id="build-title">Build</h2>
               <p>Connected. Simulated. Ready.</p>
-            </div>
-            <div className={styles.sceneActions}>
-              <button className={styles.textLink} onClick={() => goTo(2)}>
-                Step inside
-                <ArrowRight size={18} />
-              </button>
+              <p className={styles.modelNote}>
+                Model-based estimates. Engineering review required.{" "}
+                <Link href="/terms#engineering" prefetch={false}>
+                  Model limits
+                </Link>
+              </p>
             </div>
           </motion.section>
 
@@ -362,23 +361,10 @@ export default function LandingPage() {
               className={styles.sceneCaption}
               style={{ y: reduced ? 0 : exploreY }}
             >
-              <h2 id="explore-title">Explore.</h2>
+              <h2 id="explore-title">Explore</h2>
               <p>{tourCopy}</p>
+              <p className={styles.modelNote}>Illustrative 3D view.</p>
             </motion.div>
-            <div className={styles.sceneActions}>
-              <EntryLink href="/sandbox/equipment">Explore in 3D</EntryLink>
-              <button
-                className={styles.shellSwitch}
-                role="switch"
-                aria-checked={transparent}
-                onClick={() => setTransparent((value) => !value)}
-              >
-                Transparent shells
-                <span className={styles.switch} data-on={transparent}>
-                  <motion.i animate={{ x: transparent ? 16 : 0 }} />
-                </span>
-              </button>
-            </div>
           </motion.section>
 
           <nav className={styles.sceneRail} aria-label="Scene navigation">
@@ -395,50 +381,38 @@ export default function LandingPage() {
             ))}
           </nav>
           <footer className={styles.footer}>
-            <div className={styles.positionLabel}>
-              <span>0{chapter + 1}</span>
-              <i />
-              03
+            <div className={styles.storyControls}>
+              <button
+                className={styles.scrollCue}
+                onClick={() =>
+                  chapter !== 2
+                    ? goTo(chapter + 1)
+                    : travelTo(tourStop === 3 ? 0 : [1.2, 1.4, 1.65][tourStop])
+                }
+              >
+                <span>
+                  {chapter === 0
+                    ? "Scroll to build"
+                    : chapter === 1
+                      ? "Scroll to explore"
+                      : tourStop === 3
+                        ? "Back to the beginning"
+                        : tourStop === 0
+                          ? "Scroll to look closer"
+                          : "Keep exploring"}
+                </span>
+                <ArrowDown
+                  size={17}
+                  className={tourStop === 3 ? styles.upArrow : undefined}
+                />
+              </button>
             </div>
-            <button
-              className={styles.scrollCue}
-              onClick={() =>
-                chapter !== 2
-                  ? goTo(chapter + 1)
-                  : travelTo(tourStop === 3 ? 0 : [1.25, 1.4, 1.65][tourStop])
-              }
-            >
-              <span>
-                {chapter === 0
-                  ? "Scroll to build"
-                  : chapter === 1
-                    ? "Scroll to explore"
-                    : tourStop === 3
-                      ? "Back to the beginning"
-                      : tourStop === 0
-                        ? "Scroll to look closer"
-                        : "Keep exploring"}
-              </span>
-              <ArrowDown
-                size={17}
-                className={tourStop === 3 ? styles.upArrow : undefined}
-              />
-            </button>
-            <button
-              className={styles.pause}
-              onClick={() => setMotionEnabled((value) => !value)}
-              aria-label={motionEnabled ? "Pause motion" : "Resume motion"}
-              aria-pressed={!motionEnabled}
-              disabled={reduced}
-              title={
-                reduced
-                  ? "Reduced motion is enabled in your device settings"
-                  : undefined
-              }
-            >
-              {playing ? <Pause size={14} /> : <Play size={14} />}
-              <span>{playing ? "Pause motion" : "Motion paused"}</span>
-            </button>
+            <div className={styles.footerInfo}>
+              <small className={styles.copyright}>
+                © 2026 László Edgár Dobra. All rights reserved.
+              </small>
+              <SiteLinks />
+            </div>
           </footer>
           <motion.div
             className={styles.scrollProgress}

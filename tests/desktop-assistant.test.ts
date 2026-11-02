@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { it, expect } from "vitest";
 import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:net";
@@ -98,6 +102,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     XDG_CONFIG_HOME: join(temporary, "config"),
     XDG_DATA_HOME: join(temporary, "share"),
     PROJECT_CAD_NO_DESKTOP_OPEN: "1",
+    PROJECT_CAD_DISABLE_AGENT_SETUP: "1",
     PROJECT_CAD_ASSISTANT_STARTUP_NAME: `ProjectCADAssistant-Test-${desktopPort}`,
   };
   let child = spawn(
@@ -140,7 +145,10 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     }
     expect(token, logs).not.toBe("");
     expect((await command("status")).running).toBe(true);
-    expect((await command("status")).agents).toBeNull();
+    expect((await command("status")).agents).toEqual({
+      providers: ["muse"],
+      preferred: "muse",
+    });
     expect((await fetch(origin + "/api/state")).status).toBe(403);
     expect(
       (
@@ -160,7 +168,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
     expect(page.headers.get("content-security-policy")).toContain(
       "frame-ancestors 'none'",
     );
-    expect(await page.text()).toContain("Your local assistant");
+    expect(await page.text()).toContain("Muse connector");
     // A fresh installation listens for consent, but cannot launch any provider.
     const endpoint = `http://127.0.0.1:${assistantPort}`;
     const consent = await (
@@ -175,7 +183,10 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
           }),
       )
     ).text();
-    expect((await command("status")).agents).toBeNull();
+    expect((await command("status")).agents).toEqual({
+      providers: ["muse"],
+      preferred: "muse",
+    });
     const csrf = consent.match(/name="csrf" value="([a-f0-9]+)"/)![1];
     expect(
       (
@@ -204,7 +215,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       body: JSON.stringify({ action: "signin", provider: "codex" }),
     });
     expect(unselected.status).toBe(400);
-    expect(await unselected.text()).toContain("Choose this agent");
+    expect(await unselected.text()).toContain("Unknown desktop action");
     const save = (requestOrigin: string) =>
       fetch(origin + "/api/action", {
         method: "POST",
@@ -228,7 +239,7 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
       await fetch(origin + "/api/state", { headers: { Cookie: cookie } })
     ).text();
     expect(state).not.toContain("test-key-never-returned");
-    expect(JSON.parse(state).museConfigured).toBe(true);
+    expect(JSON.parse(state)).toHaveProperty("museAvailable");
     expect(JSON.parse(state).agents).toEqual({
       providers: ["muse"],
       preferred: "muse",
@@ -486,18 +497,65 @@ it("runs the packaged desktop controller with authenticated settings and gracefu
         .get("upgrade-history")?.data,
     ).toBe(savedChat);
     preserved.close();
+    if (process.platform === "win32") {
+      const registryKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${environment.PROJECT_CAD_ASSISTANT_STARTUP_NAME}`;
+      const registry = await promisify(execFile)(
+        "reg.exe",
+        ["QUERY", registryKey],
+        { windowsHide: true },
+      );
+      expect(registry.stdout).toContain("uninstall-windows.ps1");
+      expect(registry.stdout).toContain(installed);
+      // This is the disposable installation, with a live worker and saved history.
+      await promisify(execFile)(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          join(installed, "uninstall-windows.ps1"),
+          "-Quiet",
+        ],
+        {
+          env: environment,
+          windowsHide: true,
+          timeout: 30000,
+        },
+      );
+      await expect(stat(installed)).rejects.toMatchObject({ code: "ENOENT" });
+      expect(await readFile(join(data, "settings.json"), "utf8")).toBe(
+        settingsBefore,
+      );
+      const historyAfterUninstall = new DatabaseSync(
+        join(data, "conversations.sqlite"),
+      );
+      expect(
+        historyAfterUninstall
+          .prepare("SELECT data FROM conversations WHERE id=?")
+          .get("upgrade-history")?.data,
+      ).toBe(savedChat);
+      historyAfterUninstall.close();
+      await expect(
+        promisify(execFile)("reg.exe", ["QUERY", registryKey], {
+          windowsHide: true,
+        }),
+      ).rejects.toThrow();
+    }
   } finally {
     if (token) await command("shutdown").catch(() => {});
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        child.kill();
-        resolve();
-      }, 10000);
-      child.once("exit", () => {
-        clearTimeout(timer);
-        resolve();
+    if (child.exitCode === null)
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          child.kill();
+          resolve();
+        }, 10000);
+        child.once("exit", () => {
+          clearTimeout(timer);
+          resolve();
+        });
       });
-    });
     await rm(temporary, { recursive: true, force: true });
   }
-}, 60000);
+}, 90000);

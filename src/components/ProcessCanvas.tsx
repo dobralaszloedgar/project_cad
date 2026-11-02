@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import {
   memo,
@@ -60,10 +64,9 @@ import {
   useCanvasWheelNavigation,
 } from "./useCanvasWheelNavigation";
 import { equipmentPort, equipmentSize, streamPath } from "./flow-geometry";
-import type { Result } from "@/domain/solver";
 import { diff } from "@/lib/revisions";
 import { availableStreamName } from "@/domain/stream-names";
-import { projectStreamColors, streamColor } from "./stream-colors";
+import { streamColor } from "./stream-palette";
 import { inlineStreamLabelPosition } from "./stream-label-placement";
 import {
   routeStreams,
@@ -359,6 +362,7 @@ const PipeEdge = memo(function PipeEdge(props: EdgeProps<Pipe>) {
 });
 const nodeTypes = { equipment: UnitNode };
 const edgeTypes = { pipe: PipeEdge };
+const noStreamColors: Record<string, string> = {};
 interface Props {
   project: Project;
   fitRequest?: number;
@@ -371,8 +375,9 @@ interface Props {
   onChange: (project: Project, label: string) => void;
   onAdd: (kind: Kind, position?: { x: number; y: number }) => void;
   onError: (message: string) => void;
-  result: Result | null;
   compositionColors: boolean;
+  /** Calculated by the workspace; presentations use their fixed color indices. */
+  streamColors?: Record<string, string>;
   compare?: Project;
   /** A fixed, read-only view of the same canvas for embedded walkthroughs. */
   presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
@@ -387,9 +392,9 @@ function Inner(props: Props) {
     onChange,
     onAdd,
     onError,
-    result,
     compare,
     compositionColors,
+    streamColors = noStreamColors,
     fitRequest = 0,
     presentation,
     statuses,
@@ -651,10 +656,7 @@ function Inner(props: Props) {
       })),
     [baseNodes, positions, measurements, selection],
   );
-  const colors = useMemo(
-    () => (compositionColors ? projectStreamColors(project, result) : {}),
-    [project, result, compositionColors],
-  );
+  const colors = compositionColors ? streamColors : noStreamColors;
   const routes = useMemo(() => {
     const endpoint = (
       id: string,

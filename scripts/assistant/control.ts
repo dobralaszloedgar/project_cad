@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { execFile, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -15,9 +19,11 @@ import { promisify } from "node:util";
 import {
   loadAssistantSettings,
   providerExecutable,
+  saveAssistantSettings,
 } from "../../src/server/assistant/config";
 
 import { installProvider } from "../../src/server/assistant/install-provider";
+import { providerStatus } from "../../src/server/assistant/provider-setup";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
 
 const execute = promisify(execFile);
@@ -119,11 +125,11 @@ async function status() {
     managed,
     websiteUrl: settings.websiteUrl,
     startAtLogin: settings.startAtLogin,
+    accessMode: settings.accessMode,
+    projectsDirectory: settings.projectsDirectory,
     agents: settings.agents,
     connections: new ConnectionRequests(root).pending(),
-    codexAvailable: !!providerExecutable("codex"),
-    claudeAvailable: !!providerExecutable("claude"),
-    museConfigured: !!settings.museApiKey || !!process.env.MODEL_API_KEY,
+    museAvailable: !!providerExecutable("muse"),
     message: !settings.agents
       ? "Return to Project CAD and connect. Your selected agents will appear here."
       : running
@@ -211,10 +217,14 @@ async function main() {
     return;
   }
   if (command === "approve-connection" || command === "deny-connection") {
-    new ConnectionRequests(root).decide(
-      provider,
-      command === "approve-connection",
-    );
+    const requests = new ConnectionRequests(root);
+    const pending = requests.get(provider);
+    requests.decide(provider, command === "approve-connection");
+    if (command === "approve-connection" && pending)
+      saveAssistantSettings(root, {
+        ...loadAssistantSettings(root),
+        agents: pending.agents,
+      });
     console.log(
       JSON.stringify({
         ...(await status()),
@@ -247,16 +257,24 @@ async function main() {
     return;
   }
   if (
-    command === "install-provider" &&
-    (provider === "codex" || provider === "claude")
+    (command === "install-provider" ||
+      command === "prepare-provider" ||
+      command === "provider-status") &&
+    provider === "muse"
   ) {
     if (!loadAssistantSettings(root).agents?.providers.includes(provider))
       throw new Error(
         "Choose this agent in Manage agents before setting it up.",
       );
-    console.log(
-      JSON.stringify(await installProvider(provider, resources, root)),
-    );
+    if (command === "provider-status") {
+      console.log(JSON.stringify(await providerStatus(provider, root)));
+      return;
+    }
+    const installed = await installProvider(provider, resources, root);
+    const ready =
+      command === "prepare-provider" &&
+      (await providerStatus(provider, root)).available;
+    console.log(JSON.stringify({ ...installed, ready }));
     return;
   }
   if (command === "open") {

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import {
   useCallback,
@@ -40,7 +44,7 @@ export default function FloatingAssistant({
   onApply: (proposal: Proposal) => Promise<string>;
   onError: (message: string) => void;
 }) {
-  const assistant = useAssistant(projectId, project);
+  const assistant = useAssistant(projectId, project, onApply);
   const [started, setStarted] = useState(false),
     [hidden, setHidden] = useState(false);
   const [read, setRead] = useState<string>(),

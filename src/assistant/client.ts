@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "../domain/schema";
@@ -5,6 +9,7 @@ import { executeProjectTool } from "./tools";
 import type { ChatAttachment } from "./attachments";
 import {
   ASSISTANT_ENDPOINT,
+  MUSE_AGENTS,
   agentSelectionSchema,
   type AgentSelection,
   type AssistantSnapshot,
@@ -15,7 +20,7 @@ import {
   type AssistantMode,
   type Proposal,
 } from "./protocol";
-import { rememberAgentSelection, savedAgentSelection } from "./selection";
+import { rememberAgentSelection } from "./selection";
 
 const tokenKey = "project-cad.assistant-token";
 let browserIdentity: Promise<string> | undefined;
@@ -87,7 +92,11 @@ async function request<T>(
     );
   return value;
 }
-export function useAssistant(projectId: string, project: Project) {
+export function useAssistant(
+  projectId: string,
+  project: Project,
+  onApply?: (proposal: Proposal) => Promise<string>,
+) {
   const [token, setToken] = useState(() =>
     typeof window === "undefined" ? "" : sessionStorage.getItem(tokenKey) || "",
   );
@@ -100,7 +109,7 @@ export function useAssistant(projectId: string, project: Project) {
     token: string;
     promise: Promise<void>;
   } | null>(null);
-  const [agents, setAgents] = useState<AgentSelection | null>(null);
+  const [agents, setAgents] = useState<AgentSelection | null>(MUSE_AGENTS);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [conversation, setConversation] = useState<Conversation>();
   const [activeConversation, setActiveConversation] = useState<Conversation>();
@@ -113,7 +122,24 @@ export function useAssistant(projectId: string, project: Project) {
   const [clientId, setClientId] = useState("");
   const selected = useRef<string | undefined>(undefined);
   const projectRef = useRef(project);
+  const applyRef = useRef(onApply);
   const pairCleanup = useRef<(() => void) | null>(null);
+  const pairOpen = useRef<(() => Promise<void>) | null>(null);
+  const connectorWindow = useRef<Window | null>(null);
+  useEffect(() => {
+    const returnToProject = (event: MessageEvent) => {
+      if (
+        event.source !== connectorWindow.current ||
+        !/^http:\/\/127\.0\.0\.1:\d+$/.test(event.origin) ||
+        event.data?.type !== "project-cad-return"
+      )
+        return;
+      window.focus();
+    };
+    window.addEventListener("message", returnToProject);
+    return () => window.removeEventListener("message", returnToProject);
+  }, []);
+  const [openingApproval, setOpeningApproval] = useState(false);
   const retry = useRef<{
     chatId: string;
     message: string;
@@ -123,7 +149,8 @@ export function useAssistant(projectId: string, project: Project) {
   const loadLatest = useRef(true);
   useEffect(() => {
     projectRef.current = project;
-  }, [project]);
+    applyRef.current = onApply;
+  }, [project, onApply]);
   useEffect(() => () => pairCleanup.current?.(), []);
   useEffect(() => {
     let alive = true;
@@ -146,7 +173,7 @@ export function useAssistant(projectId: string, project: Project) {
     }
     setError(
       failure instanceof TypeError
-        ? "The local assistant is unavailable. Open Project CAD Assistant on this laptop, then connect again."
+        ? "The browser could not reach Project CAD Assistant. Open the app, allow local network access in this website’s browser permissions, then connect again."
         : failure instanceof Error
           ? failure.message
           : "Assistant request failed.",
@@ -165,7 +192,8 @@ export function useAssistant(projectId: string, project: Project) {
       "/providers?refresh=1",
     )
       .then((value) => {
-        if (providerRequest.current === pending) setProviders(value);
+        if (providerRequest.current === pending)
+          setProviders(value.filter((provider) => provider.id === "muse"));
       })
       .catch((failure) => {
         if (providerRequest.current === pending) report(failure);
@@ -223,6 +251,13 @@ export function useAssistant(projectId: string, project: Project) {
             (id ? `&conversationId=${encodeURIComponent(id)}` : ""),
         );
         if (!alive) return;
+        if (!value.capabilities?.includes("muse-connector-v1")) {
+          setUpdateRequired(true);
+          setConnected(false);
+          setToken("");
+          sessionStorage.removeItem(tokenKey);
+          return;
+        }
         if (hadPollError) {
           setError("");
           hadPollError = false;
@@ -232,11 +267,11 @@ export function useAssistant(projectId: string, project: Project) {
         setCapabilities(value.capabilities ?? []);
         if (value.agents) {
           setAgents((previous) =>
-            JSON.stringify(previous) === JSON.stringify(value.agents)
+            JSON.stringify(previous) === JSON.stringify(MUSE_AGENTS)
               ? previous
-              : value.agents!,
+              : MUSE_AGENTS,
           );
-          rememberAgentSelection(value.agents);
+          rememberAgentSelection();
         }
         setActiveConversation(value.activeConversation);
         setActivity(value.activity);
@@ -269,6 +304,14 @@ export function useAssistant(projectId: string, project: Project) {
                     projectId,
                     project: projectRef.current,
                     mode: command.mode,
+                    commandId: command.id,
+                    apply: (proposal) => {
+                      if (!applyRef.current)
+                        throw new Error(
+                          "Open the project to apply assistant edits.",
+                        );
+                      return applyRef.current(proposal);
+                    },
                   },
                 ),
               };
@@ -311,14 +354,22 @@ export function useAssistant(projectId: string, project: Project) {
     };
   }, [token, clientId, projectId, path, report]);
   function connect(selection?: AgentSelection, onConnected?: () => void) {
-    const chosen = agentSelectionSchema.safeParse(
-      selection ?? agents ?? savedAgentSelection(),
-    );
+    const chosen = agentSelectionSchema.safeParse(MUSE_AGENTS);
     if (!chosen.success) {
       setError("Choose your agents before connecting.");
       return;
     }
     pairCleanup.current?.();
+    // Reserve the same named window during the click, before asynchronous work.
+    // Its opener lets the connector focus this exact project tab afterward.
+    const windowName = `project-cad-muse-connector-${clientId}`;
+    let popup = window.open(
+      "about:blank",
+      windowName,
+      "popup,width=680,height=620",
+    );
+    let approvalUrl = "";
+    connectorWindow.current = popup;
     setConnecting(true);
     setError("");
     const nonce = crypto.randomUUID();
@@ -332,9 +383,12 @@ export function useAssistant(projectId: string, project: Project) {
       clearTimeout(timer);
       setConnecting(false);
       pairCleanup.current = null;
+      pairOpen.current = null;
+      setOpeningApproval(false);
     };
     const cancel = () => {
       cleanup();
+      if (popup && !popup.closed) popup.close();
       if (id)
         void fetch(`${ASSISTANT_ENDPOINT}/connections/${id}/cancel`, {
           method: "POST",
@@ -349,6 +403,45 @@ export function useAssistant(projectId: string, project: Project) {
       controller.signal,
       AbortSignal.timeout(120000),
     ]);
+    pairOpen.current = async () => {
+      if (!id || stopped) return;
+      setOpeningApproval(true);
+      setError("");
+      try {
+        if (approvalUrl) {
+          if (popup && !popup.closed) popup.location.href = approvalUrl;
+          else
+            popup = window.open(
+              approvalUrl,
+              windowName,
+              "popup,width=680,height=620",
+            );
+          connectorWindow.current = popup;
+          if (popup) {
+            popup.focus();
+            return;
+          }
+        }
+        const response = await fetch(
+          `${ASSISTANT_ENDPOINT}/connections/${id}/open`,
+          {
+            method: "POST",
+            credentials: "omit",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+            signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            "Open Project CAD Assistant from your Start or application menu, then choose Approve connector. Update the connector if its approval window does not open.",
+          );
+      } catch (failure) {
+        if (!stopped) report(failure);
+      } finally {
+        if (!stopped) setOpeningApproval(false);
+      }
+    };
     const poll = async () => {
       try {
         const response = await fetch(
@@ -379,8 +472,17 @@ export function useAssistant(projectId: string, project: Project) {
           throw new Error(
             "The connection response was invalid. Try connecting again.",
           );
+        // A fresh approval is an explicit handoff from an idle older tab.
+        // Older companions have no attach endpoint and retain their lease rules.
+        try {
+          await request(value.token, clientId, path("/attach"), {});
+        } catch (failure) {
+          if (!(failure instanceof ConnectionError && failure.status === 404))
+            throw failure;
+        }
+        if (stopped) return;
         setAgents(accepted.data);
-        rememberAgentSelection(accepted.data);
+        rememberAgentSelection();
         sessionStorage.setItem(tokenKey, value.token);
         setToken(value.token);
         setError("");
@@ -405,7 +507,11 @@ export function useAssistant(projectId: string, project: Project) {
       credentials: "omit",
       signal,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nonce, agents: chosen.data }),
+      body: JSON.stringify({
+        nonce,
+        agents: chosen.data,
+        browserWindow: !!popup,
+      }),
     })
       .then(async (response) => {
         if (stopped) return;
@@ -422,6 +528,14 @@ export function useAssistant(projectId: string, project: Project) {
         if (typeof value.id !== "string" || !/^[a-f0-9]{64}$/.test(value.id))
           throw new Error("The connection request was invalid. Try again.");
         id = value.id;
+        if (popup && !popup.closed) {
+          if (
+            value.windowUrl === `${ASSISTANT_ENDPOINT}/connections/${id}/window`
+          ) {
+            approvalUrl = value.windowUrl;
+            popup.location.href = approvalUrl;
+          } else popup.close();
+        }
         void poll();
       })
       .catch((failure) => {
@@ -580,6 +694,7 @@ export function useAssistant(projectId: string, project: Project) {
   return {
     connected,
     connecting,
+    openingApproval,
     providers,
     checkingProviders,
     updateRequired,
@@ -593,6 +708,7 @@ export function useAssistant(projectId: string, project: Project) {
     error,
     sending,
     connect,
+    openApproval: () => void pairOpen.current?.(),
     select,
     send,
     stop,

@@ -1,5 +1,13 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { test, expect } from "@playwright/test";
-import { installAssistant, approveAssistant } from "./assistant-fixture";
+import {
+  installAssistant,
+  approveAssistant,
+  pendingAssistantConnection,
+} from "./assistant-fixture";
 import {
   downloads,
   mockAssistantDownloads,
@@ -12,6 +20,33 @@ const readyHealth = {
   version: 1,
   capabilities: ["desktop-consent-v1"],
 };
+
+test("a lost approval window can be reopened without restarting or approving the connection", async ({
+  page,
+}) => {
+  const cleanup = await installAssistant(page);
+  try {
+    await page.goto(route);
+    await page
+      .getByRole("button", { name: "Connect assistant", exact: true })
+      .click();
+    const pending = await pendingAssistantConnection(page);
+    await page
+      .getByRole("button", { name: "Open approval window", exact: true })
+      .click();
+    await expect
+      .poll(async () => (await pendingAssistantConnection(page)).openRevision)
+      .toBeGreaterThan(0);
+    expect((await pendingAssistantConnection(page)).id).toBe(pending.id);
+    await expect(page.getByText("Waiting for your approval")).toBeVisible();
+    await approveAssistant(page);
+    await expect(
+      page.getByRole("heading", { name: "You’re all connected" }),
+    ).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
 
 // These cases cover the connection stages for a returning user. Fresh agent
 // selection is exercised in assistant-agent-selection.spec.ts.

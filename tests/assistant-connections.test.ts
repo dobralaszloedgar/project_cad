@@ -1,7 +1,12 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { request as httpRequest } from "node:http";
 import { ConnectionRequests } from "../src/server/assistant/connections";
 import { createAssistantServer } from "../src/server/assistant/http";
 import { AssistantRuntime } from "../src/server/assistant/runtime";
@@ -11,7 +16,7 @@ import type { AssistantProvider } from "../src/server/assistant/providers/types"
 
 const origin = "https://projectcad.vercel.app";
 const otherOrigin = "https://another-project.example";
-const agents: AgentSelection = { providers: ["codex"], preferred: "codex" };
+const agents: AgentSelection = { providers: ["muse"], preferred: "muse" };
 const cleanup: (() => void | Promise<void>)[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -44,6 +49,9 @@ async function fixture(seed?: (requests: ConnectionRequests) => void) {
     port: 0,
     origins: [origin, otherOrigin],
     connections: requests,
+    desktopOpen: true,
+    desktopWindow: async () =>
+      "http://127.0.0.1:43119/open?ticket=private-ticket",
     selectAgents,
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -93,6 +101,46 @@ it("discards old pending and approved connection requests when the replacement s
   expect(
     (await (await request(`/connections/${fresh.id}`)).json()).status,
   ).toBe("connected");
+});
+it("keeps the desktop ticket out of fetch responses and only redirects a top-level window", async () => {
+  const { request, requests, endpoint } = await fixture();
+  const response = await request("/connections", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      nonce: crypto.randomUUID(),
+      agents,
+      browserWindow: true,
+    }),
+  });
+  const pending = await response.json();
+  expect(pending.windowUrl).toMatch(/\/connections\/[a-f0-9]{64}\/window$/);
+  const route = `/connections/${pending.id}/window`;
+  const blocked = await request(route);
+  expect(blocked.status).toBe(403);
+  expect(blocked.headers.get("access-control-allow-origin")).toBeNull();
+  expect(await blocked.text()).not.toContain("private-ticket");
+  const headers = {
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Dest": "document",
+  };
+  // Undici deliberately overwrites Sec-Fetch-Mode; use raw HTTP to model the
+  // browser navigation (the real redirect is also covered in Playwright).
+  const navigate = () =>
+    new Promise<{ status?: number; location?: string }>((resolve) => {
+      httpRequest(endpoint + route, { headers }, (response) => {
+        response.resume();
+        resolve({
+          status: response.statusCode,
+          location: response.headers.location,
+        });
+      }).end();
+    });
+  const navigation = await navigate();
+  expect(navigation.status).toBe(303);
+  expect(navigation.location).toContain("private-ticket");
+  requests.decide(pending.id, true);
+  expect((await navigate()).status).toBe(403);
 });
 
 it("preserves the live connector's approvals when a second instance cannot bind", async () => {
@@ -170,6 +218,28 @@ it("requires a private desktop decision before issuing an origin-bound session",
   ).toBe(200);
   expect((await request("/providers", { headers })).status).toBe(401);
   expect(requests.get(pending.id)).toBeNull();
+});
+
+it("lets only the requesting website reopen a pending approval without issuing a token", async () => {
+  const { create, request, requests } = await fixture();
+  const pending = await create();
+  const path = `/connections/${pending.id}/open`;
+  const init = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  };
+  expect((await request(path, init, otherOrigin)).status).toBe(404);
+  expect((await request(path, { method: "POST" })).status).toBe(400);
+  expect(requests.get(pending.id)?.openRevision).toBe(0);
+  expect((await request(path)).status).toBe(405);
+  const response = await request(path, init);
+  expect(response.status).toBe(202);
+  expect(await response.json()).toEqual({ opening: true });
+  expect(requests.get(pending.id)?.openRevision).toBeGreaterThan(0);
+  expect(await (await request(`/connections/${pending.id}`)).json()).toEqual({
+    status: "pending",
+  });
 });
 
 it("keeps declined, cancelled, and expired requests from granting access", async () => {

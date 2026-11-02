@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { mockAssistantDownloads } from "./assistant-download-fixture";
 import { test, expect } from "./test";
 import {
@@ -211,7 +215,7 @@ test("an installed assistant goes straight to connect and remembers the selected
     await panel
       .getByRole("button", { name: "Manage agents", exact: true })
       .click();
-    await panel.getByRole("checkbox", { name: "Muse", exact: true }).check();
+    await panel.getByRole("checkbox", { name: "Muse Code", exact: true }).check();
     await panel
       .getByLabel("Default agent", { exact: true })
       .selectOption("muse");

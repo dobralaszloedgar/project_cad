@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { randomBytes } from "node:crypto";
 import {
   mkdirSync,
@@ -19,6 +23,8 @@ const requestSchema = z.object({
   nonce: z.string().uuid(),
   agents: agentSelectionSchema,
   expires: z.number(),
+  openRevision: z.number().int().nonnegative().default(0),
+  browserWindow: z.boolean().default(false),
 });
 export type ConnectionRequest = z.infer<typeof requestSchema>;
 
@@ -55,7 +61,16 @@ export class ConnectionRequests {
       } catch {
         /* No local decision yet. */
       }
-      return { ...request, status };
+      let openRevision = 0;
+      try {
+        const value = Number(
+          readFileSync(join(directory, "open-request"), "utf8"),
+        );
+        if (Number.isSafeInteger(value) && value > 0) openRevision = value;
+      } catch {
+        /* No explicit request to reopen the approval window. */
+      }
+      return { ...request, openRevision, status };
     } catch {
       return null;
     }
@@ -71,7 +86,12 @@ export class ConnectionRequests {
       .map((id) => this.get(id))
       .filter((request) => request?.status === "pending");
   }
-  create(origin: string, nonce: string, agents: AgentSelection) {
+  create(
+    origin: string,
+    nonce: string,
+    agents: AgentSelection,
+    browserWindow = false,
+  ) {
     if (this.pending().length >= 20)
       throw new Error(
         "Too many pending connections. Cancel one in the assistant and try again.",
@@ -81,6 +101,7 @@ export class ConnectionRequests {
       origin,
       nonce,
       agents,
+      browserWindow,
       expires: Date.now() + 120000,
     });
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
@@ -106,6 +127,20 @@ export class ConnectionRequests {
     writeFileSync(join(this.path(id), "decision"), decision, {
       mode: 0o600,
       flag: "wx",
+    });
+  }
+  requestOpen(id: string) {
+    const request = this.get(id);
+    if (!request || request.status !== "pending")
+      throw new Error(
+        "This connection is no longer waiting for approval. Connect again from the website.",
+      );
+    // The desktop observes this marker. It never grants consent or exposes its
+    // private launch ticket to the website. Coalesce rapid repeat clicks.
+    const now = Date.now();
+    if (now - request.openRevision < 10000) return;
+    writeFileSync(join(this.path(id), "open-request"), String(now), {
+      mode: 0o600,
     });
   }
   remove(id: string) {

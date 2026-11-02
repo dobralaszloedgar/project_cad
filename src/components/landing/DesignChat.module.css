@@ -1,65 +1,372 @@
+/*
+ * Copyright © 2026 László Edgár Dobra. All rights reserved.
+ * Applies only to copyrightable Project CAD material owned by this holder.
+ * See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+ */
+
 .demo {
+  container-type: size;
   position: relative;
   width: 100%;
-  height: min(620px, 100%);
+  height: min(570px, 100%);
   min-width: 0;
   min-height: 0;
   align-self: center;
 }
-.cursorLayer {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
+.window {
+  height: 100%;
+  border: 1px solid #e1e7e3;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow:
+    0 10px 40px #2637300b,
+    0 2px 6px #26373005;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  transform-origin: bottom right;
+  transition:
+    opacity 240ms ease,
+    transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
-.cursor {
-  --cursor-glow: #43c481;
+.window[data-open="true"] {
+  opacity: 1;
+  transform: none;
+}
+.panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #273b33;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 25px;
+}
+.header > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.header > svg {
+  color: #69776f;
+}
+.connected {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #286f5c;
+  font-size: 10px;
+}
+.connected i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 25px;
+  padding: 0 0 15px;
+  border-bottom: 1px solid #edf0ed;
+  color: #69776f;
+  font-size: 11px;
+}
+.project > span {
+  margin-left: auto;
+  font-size: 10px;
+}
+.conversation {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px 25px 12px;
+}
+.welcome {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.welcome > span {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border: 1px solid #dee6e1;
+  border-radius: 18px;
+  background: #eff4f1;
+  color: #286f5c;
+  margin-bottom: 22px;
+}
+.welcome h2 {
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.6px;
+  line-height: 1.2;
+}
+.welcome p {
+  margin-top: 12px;
+  color: #69776f;
+  font-size: 12px;
+}
+.userMessage {
+  margin: 0 0 24px 30px;
+  padding: 13px 16px;
+  background: #f2f5f2;
+  border-radius: 12px 12px 3px 12px;
+}
+.author {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: #69776f;
+  font-size: 10px;
+  margin-bottom: 10px;
+}
+.response > p {
+  margin: 0;
+}
+.steps {
+  display: grid;
+  gap: 7px;
+  margin-top: 15px;
+  color: #69776f;
+  font-size: 11px;
+}
+.steps > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0.4;
+}
+.steps > span[data-done="true"] {
+  opacity: 1;
+}
+.steps svg {
+  color: #286f5c;
+}
+.result {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  margin-top: 18px;
+  border: 1px solid #dce7df;
+  border-radius: 9px;
+  background: #f7faf7;
+  color: #286f5c;
+  font-size: 12px;
+}
+.result small {
+  display: block;
+  color: #69776f;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.composerArea {
+  padding: 15px 20px 18px;
+}
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  border: 1px solid #e1e7e3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #69776f;
+}
+.composer > span {
+  flex: 1;
+  font-size: 12px;
+  color: #273b33;
+}
+.composer > span[data-placeholder="true"] {
+  color: #929b95;
+}
+.composer > svg {
+  flex-shrink: 0;
+}
+.composer i {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #286f5c;
+  color: white;
+  flex-shrink: 0;
+}
+.controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #69776f;
+  font-size: 10px;
+  margin-top: 12px;
+}
+.controls span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.launcher {
   position: absolute;
-  transform-origin: 0 0;
-  will-change: transform, opacity;
+  right: 0;
+  bottom: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  color: white;
+  background: #286f5c;
+  transition: opacity 180ms;
+}
+.launcher[data-open="true"] {
+  opacity: 0;
+}
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  pointer-events: none;
+  transform-origin: top left;
 }
 .cursor svg {
   display: block;
-  transform: translate(-3px, -3px);
-  filter: drop-shadow(
-      0 0 6px color-mix(in srgb, var(--cursor-glow) 90%, transparent)
-    )
-    drop-shadow(
-      0 0 15px color-mix(in srgb, var(--cursor-glow) 48%, transparent)
-    );
-}
-.click {
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-}
-.demoLabel {
-  color: var(--assistant-muted);
-  font-size: 10px;
-  padding: 4px 8px;
-}
-.build {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  margin-top: 12px;
-  padding: 10px 12px;
-  color: #fff;
-  background: var(--assistant-brand);
-  border: 0;
-  border-radius: 8px;
-  font-size: 12px;
-}
-.build:hover {
-  filter: brightness(1.08);
 }
 @media (max-width: 700px) {
   .demo {
     height: 100%;
     align-self: stretch;
+  }
+  .header {
+    padding: 16px 18px;
+    gap: 12px;
+  }
+  .project {
+    margin-inline: 18px;
+    padding-bottom: 10px;
+  }
+  .conversation {
+    padding: 16px 18px 8px;
+  }
+  .composerArea {
+    padding: 10px 14px 12px;
+  }
+  .userMessage {
+    margin: 0 0 15px 16px;
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+  .response > p {
+    font-size: 12px;
+  }
+  .result {
+    margin-top: 12px;
+    padding: 9px 10px;
+  }
+  .welcome h2 {
+    font-size: 19px;
+  }
+}
+@media (max-height: 740px) {
+  .steps {
+    display: none;
+  }
+  .header {
+    padding-block: 14px;
+  }
+  .conversation {
+    padding-top: 14px;
+  }
+  .welcome > span {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    margin-bottom: 12px;
+  }
+}
+@media (max-width: 700px) and (max-height: 650px) {
+  .header {
+    padding-block: 12px;
+  }
+  .response > p {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .project,
+  .controls,
+  .author {
+    display: none;
+  }
+  .composer {
+    min-height: 40px;
+    padding-block: 5px;
+  }
+  .conversation {
+    padding-block: 8px;
+  }
+  .result {
+    padding-block: 7px;
+    margin-top: 9px;
+  }
+  .result small {
+    display: none;
+  }
+  .userMessage {
+    margin-bottom: 8px;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+}
+/* Keep the full response visible when the surrounding page leaves less room. */
+@container (max-height: 450px) {
+  .header {
+    padding-block: 10px;
+  }
+  .conversation {
+    padding-block: 10px;
+  }
+  .userMessage {
+    margin-bottom: 10px;
+    padding-block: 8px;
+  }
+  .author {
+    margin-bottom: 6px;
+  }
+  .steps {
+    gap: 3px;
+    margin-top: 8px;
+  }
+  .result {
+    padding-block: 7px;
+    margin-top: 8px;
+  }
+  .composerArea {
+    padding-block: 8px;
+  }
+  .controls {
+    margin-top: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .window,
+  .launcher {
+    transition: none;
   }
 }

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 /** Visual tray count shared by the flowsheet and physical model. */
 export const columnTrayLimits = { min: 2, max: 80, default: 8 } as const;
 

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import type { Chemical as ChemicalComponent } from "../thermo/data";
 import type { RateLaw, RateVariable } from "./rateLawSchema";
 import { compileRateExpression, reservedRateSymbols } from "./rateExpression";

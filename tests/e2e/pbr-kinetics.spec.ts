@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { expect, test, type Page } from "./test";
 import { loadProject } from "./project-fixture";
 import { reactionProject } from "../helpers/reactions";

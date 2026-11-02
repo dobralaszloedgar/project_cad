@@ -1,4 +1,9 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import { homedir } from "node:os";
 import { join, relative } from "node:path";
@@ -210,7 +215,11 @@ export async function checkSourceReferences(root, policy = undefined) {
   return { files };
 }
 
-export async function checkDirectoryReferences(directory, policy) {
+export async function checkDirectoryReferences(
+  directory,
+  policy,
+  { verifiedNodeHashes = new Set() } = {},
+) {
   let files = 0;
   async function visit(folder) {
     for (const entry of await readdir(folder, { withFileTypes: true })) {
@@ -219,6 +228,22 @@ export async function checkDirectoryReferences(directory, policy) {
       assertReferenceContent(Buffer.from(label), label, policy);
       if (entry.isDirectory()) await visit(path);
       else {
+        // Upstream Node includes ICU locales, certificates, and library comments.
+        // Exempt content only when it is byte-for-byte the pinned official runtime.
+        if (
+          entry.isFile() &&
+          /(^|\/)runtime\/(?:arm64\/|x64\/)?node(?:\.exe)?$/.test(
+            label.replaceAll("\\", "/"),
+          ) &&
+          verifiedNodeHashes.has(
+            createHash("sha256")
+              .update(await readFile(path))
+              .digest("hex"),
+          )
+        ) {
+          files++;
+          continue;
+        }
         await inspectFile(path, label, policy);
         files++;
       }

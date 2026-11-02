@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -5,9 +9,8 @@ import { AssistantStore } from "../src/server/assistant/store";
 import { AssistantRuntime } from "../src/server/assistant/runtime";
 import { createAssistantServer } from "../src/server/assistant/http";
 import { ConnectionRequests } from "../src/server/assistant/connections";
-import { CodexProvider } from "../src/server/assistant/providers/codex";
-import { ClaudeProvider } from "../src/server/assistant/providers/claude";
 import { MuseProvider } from "../src/server/assistant/providers/muse";
+import { desktopWindow } from "../src/server/assistant/desktop-window";
 import {
   assistantOrigins,
   loadAssistantSettings,
@@ -19,17 +22,11 @@ const root =
   join(homedir(), ".project-cad", "assistant");
 mkdirSync(root, { recursive: true, mode: 0o700 });
 let settings = loadAssistantSettings(root);
-if (settings.museApiKey && !process.env.MODEL_API_KEY) {
-  process.env.MODEL_API_KEY = settings.museApiKey;
-  process.env.META_AI_ENABLED = "true";
-}
 const store = new AssistantStore(join(root, "conversations.sqlite"));
 const runtime = new AssistantRuntime(
   store,
   {
-    codex: new CodexProvider(root),
-    claude: new ClaudeProvider(root),
-    muse: new MuseProvider(),
+    muse: new MuseProvider(root, () => settings),
   },
   root,
   () => settings.agents,
@@ -45,6 +42,11 @@ const server = createAssistantServer(runtime, {
   port,
   origins,
   connections: new ConnectionRequests(root),
+  desktopOpen: process.env.PROJECT_CAD_DESKTOP_MANAGED === "1",
+  desktopWindow:
+    process.env.PROJECT_CAD_DESKTOP_MANAGED === "1"
+      ? () => desktopWindow(root)
+      : undefined,
   selectAgents: (agents) => {
     settings = saveAssistantSettings(root, {
       ...loadAssistantSettings(root),

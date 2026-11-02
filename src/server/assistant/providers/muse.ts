@@ -1,189 +1,329 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
+import { spawnMspConnection } from "@muse-code/sdk";
 import { z } from "zod";
-import {
-  tools,
-  toolNames,
-  type ToolName,
-  type ProviderStatus,
-} from "../../../assistant/protocol";
+import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import type { ProviderStatus } from "../../../assistant/protocol";
 import { assistantInstructions } from "../../../assistant/tools";
 import { imageAttachments } from "../attachments";
+import {
+  providerExecutable,
+  defaultProjectsDirectory,
+  type ConnectorAccess,
+} from "../config";
+import { ProjectFiles } from "../project-files";
+import { projectMcp } from "./project-mcp";
 import {
   currentProjectPrompt,
   type AssistantProvider,
   type ProviderInput,
 } from "./types";
 
-export const MUSE_MODEL = "muse-spark-1.3";
-const responseSchema = z.object({
-  model: z.string(),
-  status: z.string().optional(),
-  output: z.array(z.record(z.string(), z.unknown())),
+const modelsSchema = z.object({
+  models: z.array(
+    z.object({
+      modelId: z.string(),
+      displayLabel: z.string(),
+      isDefault: z.boolean(),
+      variants: z
+        .union([z.array(z.string()), z.object({}).passthrough()])
+        .optional(),
+      reasoningEffortVariants: z
+        .array(z.object({ tier: z.string() }))
+        .optional(),
+    }),
+  ),
 });
-/** Stateless replay keeps the transcript local; provider-side response storage is disabled. */
+
+export function museHost(
+  cwd: string,
+  access: ConnectorAccess | "catalog" = "catalog",
+) {
+  const executable = providerExecutable("muse");
+  if (!executable)
+    throw new Error(
+      "Set up Muse Code in Project CAD Assistant to install it and sign in.",
+    );
+  let inherited: string[] = [];
+  try {
+    const settings = JSON.parse(
+      readFileSync(
+        join(
+          process.env.XDG_CONFIG_HOME || join(homedir(), ".config"),
+          "muse",
+          "settings.json",
+        ),
+        "utf8",
+      ),
+    );
+    inherited = Object.keys(settings.mcpServers ?? settings.mcp_servers ?? {});
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      throw new Error(
+        "Muse Code settings could not be read. Repair them in Muse Code and retry.",
+      );
+  }
+  return spawnMspConnection({
+    command: executable,
+    cwd,
+    env: process.env,
+    shutdownTimeoutMs: 1000,
+    args: [
+      "serve",
+      "--preset",
+      access === "yolo" ? "native-basic" : "empty",
+      ...(access === "yolo"
+        ? ["--disable-sandbox", "--trust-workspace"]
+        : ["--disable-shell", "--disable-write"]),
+      // Muse 1.4.14 calls unrestricted egress "enabled".
+      "--sandbox-network",
+      "enabled",
+      "--disable-request-user-input",
+      "-c",
+      "hooks={}",
+      ...inherited.flatMap((name) => [
+        "-c",
+        `mcpServers.${name}.enabled=false`,
+      ]),
+      ...(access === "yolo"
+        ? []
+        : [
+            "-c",
+            `run.toolset=${JSON.stringify(access === "sandbox" ? ["web_search", "web_fetch", "mcp__project-cad__*"] : ["mcp__project-cad__*"])}`,
+          ]),
+    ],
+  });
+}
+
+/** Reuse the user's Muse Code authentication and live model catalog. */
 export class MuseProvider implements AssistantProvider {
+  constructor(
+    private cwd: string = homedir(),
+    private settings: () => {
+      accessMode: ConnectorAccess;
+      projectsDirectory: string;
+    } = () => ({
+      accessMode: "yolo",
+      projectsDirectory: defaultProjectsDirectory,
+    }),
+  ) {}
   async status(): Promise<ProviderStatus> {
-    const available =
-      process.env.META_AI_ENABLED === "true" &&
-      !!process.env.MODEL_API_KEY &&
-      (!process.env.META_MODEL || process.env.META_MODEL === MUSE_MODEL);
-    return {
-      id: "muse",
-      name: "Muse",
-      available,
-      message: available
-        ? "Muse API configured. Access is checked when you send a message."
-        : "Open Project CAD Assistant settings and add your Muse API key, then refresh providers.",
-      models: [{ id: MUSE_MODEL, name: "Muse Spark 1.3", default: true }],
-    };
+    const base = { id: "muse" as const, name: "Muse Code" };
+    let host: ReturnType<typeof museHost> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      host = museHost(this.cwd);
+      timer = setTimeout(() => void host?.close(), 15000);
+      const client = await host.initialize({
+        clientInfo: { name: "project_cad", version: "1.0.0" },
+        capabilities: { experimentalApi: true },
+      });
+      const [account, catalog] = await Promise.all([
+        client.connection.request("account/read", {}),
+        client.connection.request("model/list", {}),
+      ]);
+      const available =
+        account.state === "accountLogin" ||
+        account.state === "apiKey" ||
+        account.credentialRequired === false;
+      return {
+        ...base,
+        available,
+        message: available
+          ? "Signed in through Muse Code."
+          : "Sign in to Muse Code in Project CAD Assistant.",
+        models: modelsSchema.parse(catalog).models.map((model) => ({
+          id: model.modelId,
+          name: model.displayLabel,
+          default: model.isDefault,
+          // Described tiers can be only a subset. `variants` is the full list.
+          reasoning: Array.isArray(model.variants)
+            ? model.variants
+            : (model.reasoningEffortVariants?.map((e) => e.tier) ?? []),
+        })),
+      };
+    } catch (error) {
+      return {
+        ...base,
+        available: false,
+        models: [],
+        message:
+          error instanceof Error ? error.message : "Muse Code is unavailable.",
+      };
+    } finally {
+      clearTimeout(timer);
+      await host?.close();
+    }
   }
   async run(input: ProviderInput) {
-    if (!(await this.status()).available)
-      throw new Error("Muse is not configured.");
+    input.signal.throwIfAborted();
+    // Read through the connected website on every turn, including resumed
+    // sessions, so an older installed connector cannot supply a stale guide.
+    const guide = await input.call("get_guide", {});
+    input.signal.throwIfAborted();
     const prompt = await currentProjectPrompt(input);
-    const history = [
-      ...(input.conversation.providerContext || []),
-      {
-        role: "user",
-        content: [
-          { type: "input_text", text: prompt },
-          ...imageAttachments(input.attachments).map((file) => ({
-            type: "input_image",
-            image_url: `data:${file.type};base64,${file.data}`,
-          })),
-        ],
-      },
-    ];
-    const toolDefinitions = toolNames
-      .filter(
-        (name) =>
-          input.conversation.mode !== "read-only" || name !== "propose_actions",
-      )
-      .map((name) => ({
-        type: "function",
-        name,
-        description: tools[name].description,
-        parameters: z.toJSONSchema(tools[name].schema),
-      }));
-    for (let round = 0; round < 12; round++) {
-      const body = JSON.stringify(history);
-      const textOnly = JSON.stringify(history, (key, value) =>
-        key === "image_url" &&
-        typeof value === "string" &&
-        value.startsWith("data:image/")
-          ? "[attached image]"
-          : value,
-      );
-      if (body.length > 16_000_000 || textOnly.length > 1_500_000)
-        throw new Error(
-          "This conversation is full. Start a new conversation to continue.",
-        );
-      const response = await fetch("https://api.meta.ai/v1/responses", {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.MODEL_API_KEY}`,
+    const settings = this.settings();
+    const files = new ProjectFiles(settings.projectsDirectory);
+    // Never restore a session's former authority across a mode/folder change.
+    const access =
+      input.conversation.mode === "read-only" ? "sandbox" : settings.accessMode;
+    const contract = JSON.stringify({
+      access,
+      root: files.root,
+      mode: input.conversation.mode,
+      version: 1,
+    });
+    const resume = input.conversation.providerContext?.some(
+      (entry) =>
+        !!entry &&
+        typeof entry === "object" &&
+        "museAccess" in entry &&
+        entry.museAccess === contract,
+    )
+      ? input.conversation.providerSession
+      : undefined;
+    const bridge = await projectMcp(
+      input,
+      access === "sandbox" ? files : undefined,
+    );
+    let host: ReturnType<typeof museHost> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = () => {
+      void host?.close();
+    };
+    input.signal.addEventListener("abort", stop, { once: true });
+    try {
+      host = museHost(files.root, access);
+      timer = setTimeout(stop, 20000);
+      const client = await host.initialize({
+        clientInfo: { name: "project_cad", version: "1.0.0" },
+        capabilities: {
+          experimentalApi: true,
+          requestedCapabilities: ["sessionMcp"],
         },
-        body: JSON.stringify({
-          model: MUSE_MODEL,
-          instructions: assistantInstructions,
-          input: history,
-          tools: toolDefinitions,
-          include: ["reasoning.encrypted_content"],
-          max_output_tokens: 8000,
-          store: false,
-          stream: true,
-        }),
-        signal: AbortSignal.any([input.signal, AbortSignal.timeout(90000)]),
       });
-      if (!response.ok)
-        throw new Error(
-          `Muse request failed (${response.status}). Check model access and API configuration.`,
-        );
-      if (!response.body) throw new Error("Muse returned no response.");
-      let buffer = "",
-        total = 0,
-        final: unknown;
-      const reader = response.body.getReader(),
-        decoder = new TextDecoder();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          total += value.byteLength;
-          if (total > 2_000_000)
-            throw new Error("Muse response exceeded the size limit.");
-          buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split(/\r?\n\r?\n/);
-          buffer = events.pop() || "";
-          for (const event of events) {
-            const raw = event
-              .split(/\r?\n/)
-              .filter((line) => line.startsWith("data:"))
-              .map((line) => line.slice(5).trimStart())
-              .join("\n");
-            if (!raw || raw === "[DONE]") continue;
-            const data = JSON.parse(raw);
-            if (
-              data.type === "response.output_text.delta" &&
-              typeof data.delta === "string"
-            )
-              input.text(data.delta);
-            if (data.type === "response.completed") final = data.response;
-            if (
-              ["error", "response.failed", "response.incomplete"].includes(
-                data.type,
-              )
-            )
-              throw new Error(
-                "Muse could not finish this response. Try a shorter request.",
-              );
+      input.signal.throwIfAborted();
+      const options = {
+        modelId: input.conversation.model,
+        config: { mcpServers: { "project-cad": bridge.config } },
+      };
+      const opened = await client.connection.command(
+        resume ? "session/resume" : "session/start",
+        resume
+          ? {
+              ...options,
+              sessionId: resume,
+              excludeItems: true,
+            }
+          : { ...options, workspaceRoot: files.root, approvalMode: "allowAll" },
+      );
+      clearTimeout(timer);
+      const sessionId = z
+        .object({ session: z.object({ sessionId: z.string() }) })
+        .parse(opened).session.sessionId;
+      if (resume)
+        await client.connection.command("session/setApprovalMode", {
+          sessionId,
+          mode: "allowAll",
+        });
+      const history = !resume
+        ? input.conversation.runs?.slice(-12).map((run) => ({
+            request: run.prompt,
+            response: run.text.slice(-6000),
+          }))
+        : [];
+      input.context([{ museAccess: contract }]);
+      input.session(sessionId);
+      const commandId = client.connection.mintCommandId();
+      const streamed = new Map<string, string>();
+      const done = Promise.withResolvers<void>();
+      void done.promise.catch(() => {});
+      client.connection.onNotification(({ method, params }) => {
+        if (!params || params.sessionId !== sessionId) return;
+        if (method === "item/started" || method === "item/completed") {
+          const item = params.item as {
+            kind?: string;
+            itemId: string;
+            turnId?: string;
+            text?: string;
+          };
+          if (item?.kind !== "agentMessage" || item.turnId !== commandId)
+            return;
+          if (!streamed.has(item.itemId)) streamed.set(item.itemId, "");
+          if (method === "item/completed" && item.text) {
+            const previous = streamed.get(item.itemId)!;
+            if (item.text.startsWith(previous))
+              input.text(item.text.slice(previous.length));
+            streamed.set(item.itemId, item.text);
           }
         }
-      } finally {
-        await reader.cancel().catch(() => {});
-      }
-      const result = responseSchema.parse(final);
-      if (
-        result.model !== MUSE_MODEL &&
-        !result.model.startsWith(`${MUSE_MODEL}-`)
-      )
-        throw new Error("Muse returned an unexpected model identity.");
-      history.push(...result.output);
-      const calls = result.output.filter(
-        (item) => item.type === "function_call",
-      );
-      for (const call of calls) {
-        if (typeof call.call_id !== "string")
-          throw new Error("Muse returned an invalid tool call.");
-        let output: unknown;
-        try {
-          if (
-            !toolNames.includes(call.name as ToolName) ||
-            typeof call.arguments !== "string"
-          )
-            throw new Error("Unknown project tool.");
-          output = await input.call(
-            call.name as ToolName,
-            JSON.parse(call.arguments),
+        if (
+          method === "item/delta" &&
+          params.field === "text" &&
+          typeof params.itemId === "string" &&
+          streamed.has(params.itemId) &&
+          typeof params.delta === "string"
+        ) {
+          streamed.set(
+            params.itemId,
+            streamed.get(params.itemId)! + params.delta,
           );
-        } catch (error) {
-          output = {
-            error:
-              error instanceof Error ? error.message : "Project tool failed.",
-          };
+          input.text(params.delta);
         }
-        history.push({
-          type: "function_call_output",
-          call_id: call.call_id,
-          output: JSON.stringify(output),
-        });
-      }
-      input.context(history);
-      if (!calls.length) return;
+        if (method === "turn/completed" && params.turnId === commandId) {
+          if (params.terminal === "completed") done.resolve();
+          else
+            done.reject(
+              new Error(
+                (params.error as { message?: string } | undefined)?.message ||
+                  "Muse Code stopped before completing the request.",
+              ),
+            );
+        }
+        if (method === "approval/requested" || method === "userInput/requested")
+          done.reject(
+            new Error(
+              "Muse Code blocked an action outside the connector's available tools. No approval was granted.",
+            ),
+          );
+      });
+      void client.connection.closed.then(() =>
+        done.reject(
+          new Error("Muse Code disconnected before completing the request."),
+        ),
+      );
+      await client.connection.command(
+        "turn/start",
+        {
+          sessionId,
+          ...(input.conversation.reasoning
+            ? { reasoningEffort: input.conversation.reasoning }
+            : {}),
+          input: [
+            {
+              type: "text",
+              text: `${assistantInstructions}\n\nActive connector access: ${access}. CAD projects folder: ${files.root}. Project edit mode: ${input.conversation.mode}.\n\nCurrent Project CAD AI guide (refreshed for this turn; supersedes earlier guides):\n${JSON.stringify(guide)}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
+            },
+            ...imageAttachments(input.attachments).map((file) => ({
+              type: "image",
+              mediaType: file.type,
+              base64Data: file.data,
+            })),
+          ],
+        },
+        { commandId },
+      );
+      await done.promise;
+      input.signal.throwIfAborted();
+    } finally {
+      clearTimeout(timer);
+      input.signal.removeEventListener("abort", stop);
+      await host?.close();
+      bridge.close();
     }
-    throw new Error(
-      "Muse reached the tool limit. Send a follow-up to continue.",
-    );
   }
 }

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { expect, test } from "@playwright/test";
 import { folderText, installFolderPicker } from "./folder-fixture";
 import { startNewProject, submitNewProject } from "./project-create-fixture";
@@ -10,7 +14,7 @@ test("landing opens the dashboard and asks for a folder only when creating a pro
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Design.", exact: true }),
+    page.getByRole("heading", { name: "Design", exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Open workspace", exact: true }).click();
   await expect(page).toHaveURL(/\/workspace\?home=1$/);

@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { createServer } from "node:http";
 import { spawn, execFile, type ChildProcess } from "node:child_process";
 import {
@@ -32,8 +36,10 @@ import {
   loadAssistantSettings,
   providerExecutable,
   settingsSchema,
+  saveAssistantSettings,
 } from "../../src/server/assistant/config";
-import { installProvider } from "../../src/server/assistant/install-provider";
+import { ProviderSetup } from "../../src/server/assistant/provider-setup";
+import { agentNames, type ProviderId } from "../../src/assistant/protocol";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
 import { ApprovalNotifier } from "../../src/server/assistant/approval-notifier";
 import { removePreviousInstallations } from "./install-cleanup.mjs";
@@ -196,6 +202,73 @@ async function integration(folder: string, enabled: boolean, remove = false) {
         ["DELETE", key, "/v", name, "/f"],
         { windowsHide: true },
       ).catch(() => {});
+    if (
+      !remove &&
+      (await exists(join(folder, "uninstall-windows.ps1"))) &&
+      (await exists(join(folder, "runtime", "node.exe")))
+    ) {
+      // Register every installation, including portable/CLI upgrades. Replacing
+      // the app folder used to leave Windows pointing at a deleted Uninstall.exe.
+      const manifest = JSON.parse(
+        await readFile(join(folder, "manifest.json"), "utf8"),
+      );
+      const uninstallKey = `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${name}`;
+      const shell = windowsExecutable("WindowsPowerShell/v1.0/powershell.exe");
+      const uninstall = `"${shell}" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${join(folder, "uninstall-windows.ps1")}"`;
+      for (const [field, value] of Object.entries({
+        DisplayName: "Project CAD Assistant",
+        DisplayVersion: manifest.version,
+        DisplayIcon: join(folder, launcherName),
+        InstallLocation: folder,
+        UninstallString: uninstall,
+      }))
+        await execute(
+          windowsExecutable("reg.exe"),
+          ["ADD", uninstallKey, "/v", field, "/t", "REG_SZ", "/d", value, "/f"],
+          { windowsHide: true },
+        );
+      for (const field of ["NoModify", "NoRepair"])
+        await execute(
+          windowsExecutable("reg.exe"),
+          [
+            "ADD",
+            uninstallKey,
+            "/v",
+            field,
+            "/t",
+            "REG_DWORD",
+            "/d",
+            "1",
+            "/f",
+          ],
+          { windowsHide: true },
+        );
+      const menu = join(
+        process.env.APPDATA || join(homedir(), "AppData", "Roaming"),
+        "Microsoft",
+        "Windows",
+        "Start Menu",
+        "Programs",
+        "Project CAD",
+      );
+      await mkdir(menu, { recursive: true });
+      const shortcut = join(
+        menu,
+        (name === "ProjectCADAssistant" ? "Project CAD Assistant" : name) +
+          ".lnk",
+      );
+      const script = `$link = (New-Object -ComObject WScript.Shell).CreateShortcut(${powershell(shortcut)}); $link.TargetPath = ${powershell(join(folder, launcherName))}; $link.WorkingDirectory = ${powershell(folder)}; $link.Save()`;
+      await execute(
+        shell,
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-EncodedCommand",
+          Buffer.from(script, "utf16le").toString("base64"),
+        ],
+        { windowsHide: true },
+      );
+    }
   } else if (process.platform === "linux") {
     const config = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
     const data =
@@ -238,25 +311,29 @@ async function openTarget(target: string) {
       { timeout: 15000 },
     );
 }
-async function signIn(provider: "codex" | "claude") {
-  if (!loadAssistantSettings(root).agents?.providers.includes(provider))
-    throw new Error("Choose this agent in Manage agents before setting it up.");
-  const installed = await installProvider(provider, resources, root);
-  const args = provider === "codex" ? ["login"] : ["auth", "login"];
+async function signIn(provider: ProviderId, executable: string) {
+  const args = ["login"];
   if (process.platform === "win32") {
     const file = join(root, `signin-${provider}.ps1`);
     await writeFile(
       file,
-      `\uFEFF& ${powershell(installed.path)} ${args.map(powershell).join(" ")}\nWrite-Host 'Return to Project CAD and refresh providers.'\nRead-Host 'Press Enter to close'\n`,
+      `\uFEFF$Host.UI.RawUI.WindowTitle = ${powershell(`Sign in to ${agentNames[provider]} · Project CAD`)}\n& ${powershell(executable)} ${args.map(powershell).join(" ")}\nWrite-Host 'Return to Project CAD. Your sign-in will be detected automatically.'\nRead-Host 'Press Enter to close'\n`,
       { mode: 0o600 },
     );
-    const child = spawn(
-      windowsExecutable("WindowsPowerShell/v1.0/powershell.exe"),
-      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", file],
-      { detached: true, stdio: "ignore", windowsHide: false },
+    const shell = windowsExecutable("WindowsPowerShell/v1.0/powershell.exe");
+    // A detached Node child has no Windows console. Start-Process creates the
+    // interactive sign-in window instead of silently running login invisibly.
+    const command = `Start-Process -FilePath ${powershell(shell)} -WindowStyle Normal -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',${powershell('"' + file + '"')})`;
+    await execute(
+      shell,
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        Buffer.from(command, "utf16le").toString("base64"),
+      ],
+      { windowsHide: true, timeout: 15000 },
     );
-    child.on("error", () => {});
-    child.unref();
   } else {
     const candidates = [
       "/usr/bin/x-terminal-emulator",
@@ -273,24 +350,19 @@ async function signIn(provider: "codex" | "claude") {
     ).find(Boolean);
     if (!terminal)
       throw new Error(
-        `Installed ${provider === "codex" ? "Codex" : "Claude Code"}. Sign in from a terminal: "${installed.path}" ${args.join(" ")}`,
+        `Installed ${agentNames[provider]}. Sign in from a terminal: "${executable}" ${args.join(" ")}`,
       );
     const child = spawn(
       terminal,
-      [
-        terminal.includes("gnome-terminal") ? "--" : "-e",
-        installed.path,
-        ...args,
-      ],
+      [terminal.includes("gnome-terminal") ? "--" : "-e", executable, ...args],
       { detached: true, stdio: "ignore" },
     );
-    child.on("error", () => {});
+    await new Promise<void>((resolve, reject) => {
+      child.once("spawn", resolve);
+      child.once("error", reject);
+    });
     child.unref();
   }
-  return {
-    message:
-      "Complete provider sign-in in the terminal, then refresh providers in Project CAD.",
-  };
 }
 async function install(source: string, destination?: string, noStart = false) {
   source = resolve(source);
@@ -371,6 +443,8 @@ async function serve() {
     retries = 0;
   let lifecycle = Promise.resolve();
   let approvalTimer: ReturnType<typeof setInterval> | undefined;
+  const setup = new ProviderSetup(root, resources, signIn);
+  let setupTimer: ReturnType<typeof setInterval> | undefined;
   function exclusive<T>(work: () => Promise<T>) {
     const result = lifecycle.then(work);
     lifecycle = result.then(
@@ -418,6 +492,7 @@ async function serve() {
             process.env.PATH || "",
           ].join(delimiter),
           PROJECT_CAD_ASSISTANT_DATA: root,
+          PROJECT_CAD_DESKTOP_MANAGED: "1",
         },
         stdio: ["ignore", log, log, "ipc"],
         windowsHide: true,
@@ -456,11 +531,16 @@ async function serve() {
       managed: !!worker,
       websiteUrl: settings.websiteUrl,
       startAtLogin: settings.startAtLogin,
+      accessMode: settings.accessMode,
+      projectsDirectory: settings.projectsDirectory,
       agents: settings.agents,
       connections: new ConnectionRequests(root).pending(),
-      museConfigured: !!settings.museApiKey,
-      codexAvailable: !!providerExecutable("codex"),
-      claudeAvailable: !!providerExecutable("claude"),
+      museAvailable: !!providerExecutable("muse"),
+      providerSetup: setup.states,
+      canUninstall:
+        process.platform === "win32" &&
+        (await exists(join(resources, "uninstall-windows.ps1"))) &&
+        (await exists(join(resources, "runtime", "node.exe"))),
       message: workerError || approvalError,
     };
   }
@@ -468,6 +548,8 @@ async function serve() {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(approvalTimer);
+    clearInterval(setupTimer);
+    setupTimer = undefined;
     approvalTimer = undefined;
     await exclusive(stopWorker);
     server.closeAllConnections();
@@ -586,14 +668,21 @@ async function serve() {
         value.action === "approve-connection" ||
         value.action === "deny-connection"
       ) {
-        new ConnectionRequests(root).decide(
-          value.id,
-          value.action === "approve-connection",
-        );
+        const requests = new ConnectionRequests(root);
+        const pending = requests.get(value.id);
+        requests.decide(value.id, value.action === "approve-connection");
+        if (value.action === "approve-connection" && pending) {
+          saveAssistantSettings(root, {
+            ...loadAssistantSettings(root),
+            agents: pending.agents,
+          });
+          if (process.env.PROJECT_CAD_DISABLE_AGENT_SETUP !== "1")
+            setup.ensure(pending.agents.providers);
+        }
         return json(200, {
           message:
             value.action === "approve-connection"
-              ? "Connection approved. Return to your project."
+              ? "Connected."
               : "Connection declined.",
         });
       }
@@ -603,6 +692,9 @@ async function serve() {
           ...previous,
           websiteUrl: value.websiteUrl,
           startAtLogin: value.startAtLogin,
+          accessMode: value.accessMode ?? previous.accessMode,
+          projectsDirectory:
+            value.projectsDirectory ?? previous.projectsDirectory,
           museApiKey: value.clearMuseKey
             ? ""
             : value.museApiKey || previous.museApiKey,
@@ -621,11 +713,21 @@ async function serve() {
           message: "Settings saved. Reconnect the assistant in Project CAD.",
         });
       }
-      if (
-        value.action === "signin" &&
-        ["codex", "claude"].includes(value.provider)
-      )
-        return json(200, await signIn(value.provider));
+      if (value.action === "signin" && value.provider === "muse") {
+        if (
+          !loadAssistantSettings(root).agents?.providers.includes(
+            value.provider,
+          )
+        )
+          throw new Error(
+            "Choose this agent on the website before setting it up.",
+          );
+        void setup.prepare(value.provider);
+        return json(202, {
+          message:
+            "Checking your agent. Sign-in opens automatically if needed.",
+        });
+      }
       if (value.action === "open") {
         await openTarget(loadAssistantSettings(root).websiteUrl);
         return json(200, {});
@@ -633,6 +735,36 @@ async function serve() {
       if (value.action === "logs") {
         await openTarget(logs);
         return json(200, {});
+      }
+      if (value.action === "uninstall" && process.platform === "win32") {
+        const file = join(resources, "uninstall-windows.ps1");
+        await access(file);
+        const child = spawn(
+          windowsExecutable("WindowsPowerShell/v1.0/powershell.exe"),
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            file,
+          ],
+          {
+            detached: true,
+            stdio: "ignore",
+            windowsHide: true,
+            cwd: homedir(),
+          },
+        );
+        await new Promise<void>((resolve, reject) => {
+          child.once("spawn", resolve);
+          child.once("error", reject);
+        });
+        child.unref();
+        return json(200, {
+          message:
+            "Confirm removal in the uninstall window. Your projects, conversations, and sign-ins will be kept.",
+        });
       }
       if (["start", "stop"].includes(value.action))
         return json(200, await command(value.action));
@@ -661,18 +793,40 @@ async function serve() {
   const approvals = new ApprovalNotifier(
     new ConnectionRequests(root),
     async () => {
-      await openTarget(launchTicket().url);
+      const launch = launchTicket();
+      const ticket = new URL(launch.url).searchParams.get("ticket")!;
+      await openTarget(launch.url);
+      // Dispatching a URL can succeed without a browser opening it. Do not
+      // suppress retries until the browser has redeemed the private ticket.
+      if (process.env.PROJECT_CAD_NO_DESKTOP_OPEN !== "1") {
+        for (let attempt = 0; attempt < 100 && tickets.has(ticket); attempt++)
+          await pause(100);
+        if (tickets.has(ticket)) {
+          tickets.delete(ticket);
+          throw new Error(
+            "The browser did not open the approval window. Open Project CAD Assistant from your Start or application menu.",
+          );
+        }
+      }
       approvalError = "";
     },
   );
   approvalTimer = setInterval(() => {
     if (!shuttingDown)
-      void approvals.check().catch(() => {
+      void approvals.check().catch((error) => {
+        console.error(
+          "Could not open the approval window:",
+          error instanceof Error ? error.message : "Desktop launch failed",
+        );
         approvalError =
           "Open Project CAD Assistant from your Start or application menu to approve the connection.";
       });
   }, 1000);
   approvalTimer.unref();
+  if (process.env.PROJECT_CAD_DISABLE_AGENT_SETUP !== "1")
+    setup.ensure(loadAssistantSettings(root).agents?.providers ?? []);
+  setupTimer = setInterval(() => void setup.refresh(), 5000);
+  setupTimer.unref();
 }
 
 async function main() {

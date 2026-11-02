@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 import { test, expect, type Page } from "./test";
 import { mkdir } from "node:fs/promises";
 import { connectAssistant, installAssistant } from "./assistant-fixture";
@@ -20,7 +24,7 @@ test.afterEach(async ({ page }) => {
   expect(errors.get(page)).toEqual([]);
   await dispose?.();
 });
-async function start(page: Page) {
+async function start(page: Page, mode: "auto" | "review" = "review") {
   await page.goto("/workspace");
   await expect(
     page.getByRole("button", { name: "Run simulation" }),
@@ -29,6 +33,13 @@ async function start(page: Page) {
   await expect(
     page.getByRole("button", { name: "Choose provider and model" }),
   ).toContainText("Test model");
+  await expect(
+    page.getByRole("button", { name: "Agent permissions" }),
+  ).toContainText("Auto apply");
+  if (mode === "review") {
+    await page.getByRole("button", { name: "Agent permissions" }).click();
+    await page.getByRole("button", { name: /^Review changes/ }).click();
+  }
 }
 async function send(page: Page, prompt: string) {
   await page.getByLabel("Process prompt").fill(prompt);
@@ -148,6 +159,38 @@ test("offers the packaged companion and keeps source setup optional", async ({
   await expect(
     page.getByRole("button", { name: "Connect assistant", exact: true }),
   ).toBeEnabled();
+});
+
+test("auto applies by default, saves once, and preserves the edit after reload", async ({
+  page,
+}) => {
+  await start(page, "auto");
+  await send(page, "Set the reactor temperature to 500 K.");
+  const proposal = page.getByRole("region", {
+    name: "Review proposed changes",
+  });
+  await expect(proposal).toContainText("Changes applied");
+  await expect(proposal).toContainText("Applied and saved");
+  await expect(
+    page.getByRole("button", { name: "Apply reviewed actions" }),
+  ).toHaveCount(0);
+  await send(page, "read the latest project");
+  await expect(page.locator(".chat-response").last()).toContainText(
+    "6 equipment",
+  );
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
+  await expect(proposal).toContainText("Changes applied");
+  await page.getByRole("button", { name: "Close assistant panel" }).click();
+  await page.getByRole("button", { name: "Results", exact: true }).click();
+  await page.getByRole("button", { name: /^Revisions/ }).click();
+  await expect(
+    page
+      .locator(".revision-row")
+      .filter({ hasText: "Apply assistant changes" }),
+  ).toHaveCount(1);
 });
 
 test("reviews changes, saves one revision, resumes history, and reads the latest project", async ({

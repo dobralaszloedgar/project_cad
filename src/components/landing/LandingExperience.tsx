@@ -1,3 +1,7 @@
+// Copyright © 2026 László Edgár Dobra. All rights reserved.
+// Applies only to copyrightable Project CAD material owned by this holder.
+// See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
+
 "use client";
 
 import {
@@ -8,19 +12,16 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Lightformer } from "@react-three/drei";
-import {
-  CatmullRomCurve3,
-  Fog,
-  MathUtils,
-  PerspectiveCamera,
-  Vector3,
-} from "three";
-import type { MotionValue } from "motion/react";
+import { Fog, MathUtils, PerspectiveCamera, Vector3, Vector4 } from "three";
+import { useMotionValue, type MotionValue } from "motion/react";
 import { RendererRuntime } from "../graphics/RendererRuntime";
-import { AccelerationHelp } from "../graphics/AccelerationHelp";
+import Fallback from "./SceneFallback";
+import { compileHiddenMaterials } from "../graphics/compile-scene";
+import { withGraphicsDeadline } from "../graphics/deadline";
 import { StudioEnvironment } from "../graphics/StudioEnvironment";
 import {
   createSceneRenderer,
@@ -41,7 +42,8 @@ import {
   CAD_CENTER_Z,
 } from "./landing-construction";
 import { makeLandingSystem, reveal } from "./landing-system";
-import styles from "./LandingPage.module.css";
+import { tourStopAt, tourWeights } from "./landing-motion";
+import { equipmentView } from "./landing-camera";
 
 export type ExperienceProps = {
   onReady: () => void;
@@ -51,11 +53,7 @@ export type ExperienceProps = {
   cadBridge: CadBridge;
   construction: MotionValue<number>;
   simulation: MotionValue<number>;
-  pointerX: MotionValue<number>;
-  pointerY: MotionValue<number>;
   playing: boolean;
-  transparent: boolean;
-  reduced: boolean;
 };
 
 function PlaybackTelemetry({
@@ -64,7 +62,11 @@ function PlaybackTelemetry({
   simulation,
 }: ExperienceProps) {
   const gl = useThree((state) => state.gl);
+  const previous = useRef("");
   useFrame(() => {
+    const stamp = `${progress.get()}/${construction.get()}/${simulation.get()}`;
+    if (stamp === previous.current) return;
+    previous.current = stamp;
     gl.domElement.setAttribute(
       "data-construction",
       construction.get().toFixed(4),
@@ -82,9 +84,6 @@ function CameraRig({
   progress,
   construction,
   simulation,
-  pointerX,
-  pointerY,
-  reduced,
   system,
 }: ExperienceProps & { system: SystemExample }) {
   const { camera, size, invalidate, gl, get } = useThree();
@@ -95,27 +94,22 @@ function CameraRig({
       right: new Vector3(),
       up: new Vector3(),
       offset: new Vector3(),
-      tourTarget: new Vector3(),
     }),
     [],
   );
   const tour = useMemo(
-    () => ({
-      camera: new CatmullRomCurve3([
-        new Vector3(),
-        new Vector3(-0.7, 3.8, 4.5),
-        new Vector3(-7.6, 4.5, -6.5),
-        new Vector3(13.6, 6.4, -10.8),
-      ]),
-      target: new CatmullRomCurve3([
-        new Vector3(),
-        new Vector3(-4, 1.2, -2),
-        new Vector3(-0.5, 1.8, -2),
-        new Vector3(6.5, 3.9, -2),
-      ]),
-    }),
-    [],
+    () =>
+      ["heater", "reactor", "column"].map((id) =>
+        equipmentView(
+          system.equipment.find((item) => item.id === id)!,
+          size.width,
+          size.height,
+          38,
+        ),
+      ),
+    [system, size.width, size.height],
   );
+  const previous = useRef("");
   const bounds = useMemo(() => {
     const points: Vector3[] = [];
     for (const item of system.equipment) {
@@ -131,21 +125,25 @@ function CameraRig({
     return points;
   }, [system]);
   useEffect(() => {
-    const unsub = [progress, construction, simulation, pointerX, pointerY].map(
-      (value) => value.on("change", invalidate),
+    const unsub = [progress, construction, simulation].map(
+      // Motion updates can arrive during the renderer's current frame. Queue a
+      // second frame so demand rendering presents the newly committed values.
+      (value) => value.on("change", () => invalidate(2)),
     );
     return () => unsub.forEach((fn) => fn());
-  }, [progress, construction, simulation, pointerX, pointerY, invalidate]);
+  }, [progress, construction, simulation, invalidate]);
   useFrame(() => {
     if (!(camera instanceof PerspectiveCamera)) return;
     const p = progress.get();
+    const stamp = `${p}/${size.width}/${size.height}`;
+    if (stamp === previous.current) return;
+    previous.current = stamp;
     const intoDrawing = reveal(p, 0.1, 0.34);
     const unfold = reveal(p, 0.55, 0.87);
     const orbit = reveal(p, 0.55, 0.94);
     const portrait = size.width / size.height < 0.85;
     const { target, direction, right, up, offset } = vectors;
-    const pointer = reduced ? 0 : pointerX.get() * 0.14 * (1 - intoDrawing);
-    const angle = 0.32 * orbit + pointer;
+    const angle = 0.32 * orbit;
     const elevation =
       MathUtils.lerp(-0.1, Math.PI / 2 - 0.001, intoDrawing) - orbit * 1.08;
     direction.set(
@@ -159,8 +157,6 @@ function CameraRig({
       MathUtils.lerp(CAD_CENTER_Z + (portrait ? 2.6 : 1.1), -1.3, unfold) *
         intoDrawing,
     );
-    if (!reduced)
-      target.setY(target.y + pointerY.get() * 0.2 * (1 - intoDrawing));
     right.set(0, 1, 0).cross(direction).normalize();
     up.copy(direction).cross(right).normalize();
     const vertical = Math.tan(MathUtils.degToRad(camera.fov) / 2);
@@ -184,21 +180,15 @@ function CameraRig({
       : MathUtils.lerp(1.38, 1.12, unfold);
     const distance = MathUtils.lerp(introDistance, fit * margin, intoDrawing);
     camera.position.copy(target).addScaledVector(direction, distance);
-    // Continue past the overview along a single, tangent-continuous camera path.
-    // Both position and look-at travel together, keeping each component in view.
-    tour.camera.points[0].copy(camera.position);
-    tour.target.points[0].copy(target);
     const tourProgress = reveal(p, 1, 1.65);
     if (tourProgress > 0) {
-      tour.camera.getPoint(tourProgress, camera.position);
-      tour.target.getPoint(tourProgress, vectors.tourTarget);
-      if (portrait) {
-        camera.position
-          .sub(vectors.tourTarget)
-          .multiplyScalar(1 + 0.5 * reveal(p, 1, 1.12))
-          .add(vectors.tourTarget);
+      const weights = tourWeights(p);
+      camera.position.multiplyScalar(weights[0]);
+      target.multiplyScalar(weights[0]);
+      for (let i = 0; i < tour.length; i++) {
+        camera.position.addScaledVector(tour[i].position, weights[i + 1]);
+        target.addScaledVector(tour[i].target, weights[i + 1]);
       }
-      target.copy(vectors.tourTarget);
     }
     camera.lookAt(target);
     // Portrait screens need a more distant camera to fit the same plant. Keep
@@ -217,13 +207,7 @@ function CameraRig({
     gl.domElement.setAttribute("data-tour", tourProgress.toFixed(4));
     gl.domElement.setAttribute(
       "data-focus",
-      p < 1.07
-        ? "overview"
-        : p < 1.29
-          ? "heater"
-          : p < 1.49
-            ? "reactor"
-            : "column",
+      ["overview", "heater", "reactor", "column"][tourStopAt(p)],
     );
     gl.domElement.setAttribute(
       "data-camera-pose",
@@ -246,63 +230,90 @@ function CameraRig({
   return null;
 }
 
-function Experience(props: ExperienceProps) {
+function Experience(
+  props: ExperienceProps & {
+    onFrameloopChange: (mode: "always" | "demand") => void;
+  },
+) {
+  const { onFrameloopChange } = props;
   const system = useMemo(() => makeLandingSystem(), []);
+  const invalidate = useThree((state) => state.invalidate);
+  const preparing = useRef(true);
+  const renderProgress = useMotionValue(0.95);
+  useEffect(
+    () => props.progress.on("change", invalidate),
+    [props.progress, invalidate],
+  );
+  useFrame(() => {
+    if (!preparing.current) renderProgress.set(props.progress.get());
+  }, -3);
+  const width = useThree((state) => state.size.width);
+  const setFrameloop = useThree((state) => state.setFrameloop);
+  const get = useThree((state) => state.get);
+  const playing = props.playing && width > 700;
+  useEffect(() => {
+    // On phones the machinery rests between gestures. Scrolling and resizing
+    // still render on demand, leaving the browser free to handle touch input.
+    const update = () => {
+      // Only the overview has moving machinery. The inspected cutaways can
+      // sleep between scroll events on desktop too.
+      const mode = playing && props.progress.get() < 1.16 ? "always" : "demand";
+      if (get().frameloop !== mode) setFrameloop(mode);
+      onFrameloopChange(mode);
+      get().gl.domElement.dataset.renderLoop = mode;
+    };
+    update();
+    return props.progress.on("change", update);
+  }, [playing, props.progress, onFrameloopChange, get, setFrameloop]);
   return (
     <>
       <PlaybackTelemetry {...props} />
-      <CameraRig {...props} system={system} />
-      <CadProjection bridge={props.cadBridge} />
-      <color attach="background" args={["#fafbf9"]} />
+      <CameraRig {...props} progress={renderProgress} system={system} />
+      <CadProjection bridge={props.cadBridge} progress={renderProgress} />
       <fog attach="fog" args={["#e9efea", 32, 100]} />
-      <ambientLight intensity={0.32} />
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[5, 10, 6]} intensity={2} color="#fff5e9" />
       <directionalLight
-        position={[2, 15, 12]}
-        intensity={1.25}
-        color="#a8d4df"
-      />
-      <directionalLight
-        position={[-12, 9, 4]}
-        intensity={0.75}
-        color="#6eabc5"
+        position={[-6, 4, -4]}
+        intensity={1.2}
+        color="#dcebf0"
       />
       <directionalLight
         position={[12, 8, -6]}
-        intensity={1.45}
+        intensity={0.65}
         color="#ffd09a"
       />
-      <StudioEnvironment resolution={64} intensity={0.5}>
+      <StudioEnvironment resolution={64} intensity={0.55}>
         <Lightformer
           position={[-6, 8, 5]}
           scale={[8, 15, 1]}
-          intensity={4}
+          intensity={2}
           color="#d8faff"
           target={[0, 3, 0]}
         />
         <Lightformer
           position={[8, 6, 3]}
           scale={[8, 12, 1]}
-          intensity={5}
+          intensity={2.5}
           color="#ffe8ca"
           target={[0, 3, 0]}
         />
         <Lightformer
           position={[0, 13, -5]}
           scale={[20, 7, 1]}
-          intensity={5}
+          intensity={2.5}
           color="#e6f7ff"
           target={[0, 2, 0]}
         />
       </StudioEnvironment>
       <MorphingProcess
         system={system}
-        progress={props.progress}
+        progress={renderProgress}
         bridge={props.cadBridge}
-        transparent={props.transparent}
-        playing={props.playing}
+        playing={playing}
       />
       <ShaderWarmup
-        transparent={props.transparent}
+        preparing={preparing}
         onReady={props.onReady}
         onUnavailable={props.onUnavailable}
       />
@@ -311,50 +322,73 @@ function Experience(props: ExperienceProps) {
 }
 
 function ShaderWarmup({
-  transparent,
+  preparing,
   onReady,
   onUnavailable,
 }: {
-  transparent: boolean;
+  preparing: RefObject<boolean>;
   onReady: () => void;
   onUnavailable: () => void;
 }) {
   const { gl, scene, camera, invalidate } = useThree();
-  const warmup = useRef({ compiled: false, frames: 0, reported: false });
-  const readyFrame = useRef<number | null>(null);
+  const viewport = useMemo(() => new Vector4(), []);
+  const warmup = useRef({ compiled: false, waiting: false, ready: false });
   const completion = useRef<AbortController | null>(null);
   useFrame(() => {
     const state = warmup.current;
-    if (!state.compiled || state.reported) return;
-    // Shader compilation alone doesn't mean pixels have reached the screen.
-    // Present two complete frames, including the environment and camera pose,
-    // beneath the opening preview before allowing the composited handoff.
-    if (++state.frames < 3) {
-      invalidate();
-      return;
+    if (!state.compiled || state.waiting) return;
+    const renderer = sceneRenderer(gl);
+    if (preparing.current) {
+      // First-use driver compilation needs an actual draw. A small hidden
+      // viewport exercises every material without rasterizing a full screen.
+      renderer.getViewport(viewport);
+      renderer.setViewport(0, 0, 64, 64);
     }
-    state.reported = true;
-    readyFrame.current = requestAnimationFrame(() => {
-      const controller = new AbortController();
-      completion.current = controller;
-      void waitForSceneFrame(sceneRenderer(gl), controller.signal)
-        .then(() => {
-          if (controller.signal.aborted) return;
-          gl.domElement.setAttribute("data-ready", "true");
-          onReady();
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) onUnavailable();
-        });
-    });
-  });
+    try {
+      renderer.render(scene, camera);
+    } finally {
+      if (preparing.current) renderer.setViewport(viewport);
+    }
+    if (state.ready) return;
+    // Compile and upload the complete plant before its first visible reveal.
+    // Only one frame is in flight during preparation, so slower drivers do not
+    // accumulate a queue of expensive draws while the drawing is still active.
+    state.waiting = true;
+    const controller = new AbortController();
+    completion.current = controller;
+    void waitForSceneFrame(renderer, controller.signal, 15_000)
+      .then(() => {
+        if (controller.signal.aborted) return;
+        state.waiting = false;
+        if (preparing.current) {
+          // Restore and present the actual story pose before exposing Canvas.
+          preparing.current = false;
+          invalidate();
+          return;
+        }
+        state.ready = true;
+        gl.domElement.setAttribute("data-ready", "true");
+        onReady();
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) onUnavailable();
+      });
+  }, 1);
   useEffect(() => {
     let active = true;
-    warmup.current = { compiled: false, frames: 0, reported: false };
+    const controller = new AbortController();
+    warmup.current = { compiled: false, waiting: false, ready: false };
+    gl.domElement.setAttribute("data-ready", "false");
     const frame = requestAnimationFrame(() => {
-      // Compile hidden equipment too, before scrolling reveals its materials.
-      void gl
-        .compileAsync(scene, camera)
+      void withGraphicsDeadline(
+        Promise.resolve().then(() => {
+          controller.signal.throwIfAborted();
+          return compileHiddenMaterials(sceneRenderer(gl), scene, camera);
+        }),
+        30_000,
+        "The 3D preview could not finish preparing",
+        controller.signal,
+      )
         .then(() => {
           if (!active) return;
           warmup.current.compiled = true;
@@ -366,23 +400,12 @@ function ShaderWarmup({
     });
     return () => {
       active = false;
+      controller.abort();
       cancelAnimationFrame(frame);
-      if (readyFrame.current !== null) cancelAnimationFrame(readyFrame.current);
       completion.current?.abort();
     };
-  }, [gl, scene, camera, invalidate, transparent, onReady, onUnavailable]);
+  }, [gl, scene, camera, invalidate, onReady, onUnavailable]);
   return null;
-}
-
-function Fallback({ onUnavailable }: { onUnavailable?: () => void }) {
-  useEffect(() => onUnavailable?.(), [onUnavailable]);
-  return (
-    <div className={styles.plantFallback}>
-      <span>Explore the equipment collection</span>
-      <AccelerationHelp />
-      <a href="/sandbox/equipment">Open the 3D sandbox ↗</a>
-    </div>
-  );
 }
 
 /** One renderer, one camera, one coordinate system for the entire story. */
@@ -390,6 +413,8 @@ function Fallback({ onUnavailable }: { onUnavailable?: () => void }) {
 // tree during that handoff; start its animation after the entrance settles.
 export default memo(function LandingExperience(props: ExperienceProps) {
   const [lost, setLost] = useState(false);
+  const [dpr, setDpr] = useState(1);
+  const [frameloop, setFrameloop] = useState<"always" | "demand">("demand");
   const [visible, setVisible] = useState(true);
   const handleUnavailable = useCallback(() => setLost(true), []);
   const fallback = <Fallback onUnavailable={props.onUnavailable} />;
@@ -400,8 +425,8 @@ export default memo(function LandingExperience(props: ExperienceProps) {
       ) : (
         <Canvas
           aria-label="Live equipment, a flowsheet and a continuously unfolding 3D process plant"
-          dpr={[1, 1.75]}
-          frameloop={props.playing && visible ? "always" : "demand"}
+          dpr={dpr}
+          frameloop={frameloop}
           camera={{ position: [0, 8, 24], fov: 38, near: 0.1, far: 220 }}
           gl={createLandingRenderer}
           // Canvas fallback children are mounted even when WebGL is supported.
@@ -409,6 +434,8 @@ export default memo(function LandingExperience(props: ExperienceProps) {
           fallback={<Fallback />}
         >
           <RendererRuntime
+            dprLimit={1.25}
+            onDprChange={setDpr}
             onLost={handleUnavailable}
             onVisible={setVisible}
             onInfo={props.onGraphicsInfo}
@@ -416,6 +443,7 @@ export default memo(function LandingExperience(props: ExperienceProps) {
           <Suspense fallback={null}>
             <Experience
               {...props}
+              onFrameloopChange={setFrameloop}
               playing={props.playing && visible}
               onUnavailable={handleUnavailable}
             />
