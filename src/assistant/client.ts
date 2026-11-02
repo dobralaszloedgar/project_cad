@@ -285,7 +285,9 @@ export function useAssistant(
         if (id === selected.current) {
           setConversation(value.conversation);
           if (!id && loadLatest.current) {
-            const latest = value.conversations.find((item) => !item.archived);
+            const latest = value.conversations.find(
+              (item) => !item.archived && item.provider === "muse",
+            );
             selected.current = latest?.id;
             setSelectedId(latest?.id);
           }
