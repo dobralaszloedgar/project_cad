@@ -70,6 +70,9 @@ export class AssistantRuntime {
   private key(scope: Pick<Scope, "origin" | "projectId">) {
     return JSON.stringify([scope.origin, scope.projectId]);
   }
+  get busy() {
+    return this.active.size > 0;
+  }
   providers(refresh = false) {
     const agents = this.agents();
     const selection = JSON.stringify(agents);

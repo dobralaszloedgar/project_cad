@@ -11,6 +11,11 @@ import { ConnectionRequests } from "../src/server/assistant/connections";
 import { createAssistantServer } from "../src/server/assistant/http";
 import { AssistantRuntime } from "../src/server/assistant/runtime";
 import { AssistantStore } from "../src/server/assistant/store";
+import { connectorSettings } from "../src/server/assistant/connector-settings";
+import {
+  loadAssistantSettings,
+  saveAssistantSettings,
+} from "../src/server/assistant/config";
 import type { AgentSelection, ProviderId } from "../src/assistant/protocol";
 import type { AssistantProvider } from "../src/server/assistant/providers/types";
 
@@ -53,6 +58,7 @@ async function fixture(seed?: (requests: ConnectionRequests) => void) {
     desktopWindow: async () =>
       "http://127.0.0.1:43119/open?ticket=private-ticket",
     selectAgents,
+    connectorSettings: connectorSettings(root),
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -84,6 +90,98 @@ async function fixture(seed?: (requests: ConnectionRequests) => void) {
   };
   return { root, requests, selectAgents, request, create, runtime, endpoint };
 }
+
+it("only exposes connector preferences to the approved origin, without local credentials", async () => {
+  const { root, requests, request, create } = await fixture();
+  saveAssistantSettings(root, {
+    museApiKey: "private-test-key",
+    startAtLogin: false,
+  });
+  expect((await request("/connector/settings")).status).toBe(401);
+  const pending = await create();
+  requests.decide(pending.id, true);
+  const { token } = await (await request(`/connections/${pending.id}`)).json();
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "X-Project-CAD-Client": crypto.randomUUID(),
+  };
+  expect(
+    (await request("/connector/settings", { headers }, otherOrigin)).status,
+  ).toBe(401);
+  const value = await (
+    await request("/connector/settings", { headers })
+  ).json();
+  expect(Object.keys(value).sort()).toEqual([
+    "accessMode",
+    "projectsDirectory",
+  ]);
+  expect(value.accessMode).toBe("yolo");
+  expect(JSON.stringify(value)).not.toContain("private-test-key");
+});
+
+it("saves in-app access settings without replacing credentials, startup preferences, or origin", async () => {
+  const { root, requests, request, create } = await fixture();
+  const previous = saveAssistantSettings(root, {
+    museApiKey: "private-test-key",
+    startAtLogin: false,
+  });
+  const pending = await create();
+  requests.decide(pending.id, true);
+  const { token } = await (await request(`/connections/${pending.id}`)).json();
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "X-Project-CAD-Client": crypto.randomUUID(),
+    "Content-Type": "application/json",
+  };
+  const preferences = {
+    accessMode: "sandbox",
+    projectsDirectory: join(root, "cad-projects"),
+  };
+  const response = await request("/connector/settings", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(preferences),
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(preferences);
+  expect(loadAssistantSettings(root)).toEqual({ ...previous, ...preferences });
+  for (const invalid of [
+    { ...preferences, projectsDirectory: "../outside" },
+    { ...preferences, websiteUrl: otherOrigin },
+    { ...preferences, museApiKey: "changed" },
+  ]) {
+    expect(
+      (
+        await request("/connector/settings", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(invalid),
+        })
+      ).status,
+    ).toBe(400);
+  }
+  expect(loadAssistantSettings(root)).toEqual({ ...previous, ...preferences });
+});
+
+it("keeps connector access stable while an agent response is running", async () => {
+  const { root, requests, request, create, runtime } = await fixture();
+  const pending = await create();
+  requests.decide(pending.id, true);
+  const { token } = await (await request(`/connections/${pending.id}`)).json();
+  vi.spyOn(runtime, "busy", "get").mockReturnValue(true);
+  const response = await request("/connector/settings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-Project-CAD-Client": crypto.randomUUID(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ accessMode: "sandbox", projectsDirectory: root }),
+  });
+  expect(response.status).toBe(409);
+  expect((await response.json()).error).toContain("current response");
+  expect(loadAssistantSettings(root).accessMode).toBe("yolo");
+});
 
 it("discards old pending and approved connection requests when the replacement starts", async () => {
   const previous: string[] = [];

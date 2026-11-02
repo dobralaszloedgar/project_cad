@@ -108,7 +108,9 @@ try {
         manifest.platform,
         entry.platform === "windows" ? "win32" : "linux",
       );
-      for (const [file, hash] of Object.entries(manifest.files))
+      for (const [file, hash] of Object.entries(manifest.files)) {
+        if (entry.platform === "linux")
+          assert.ok(!file.includes("\\"), `Non-POSIX Linux manifest path: ${file}`);
         assert.equal(
           createHash("sha256")
             .update(await readFile(join(folder, file)))
@@ -116,6 +118,7 @@ try {
           hash,
           file,
         );
+      }
       if (entry.platform === "windows") {
         pe(
           await readFile(join(folder, "runtime/node.exe")),

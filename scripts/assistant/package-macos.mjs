@@ -62,6 +62,9 @@ try {
     await copyFile(runtimes[arch].node, join(directory, 'node')); await chmod(join(directory, 'node'), 0o755);
   }
   await copyFile(runtimes.arm64.license, join(resources, 'Node-LICENSE.txt'));
+  // The needed binaries and license are copied; discard extracted headers and
+  // tools before creating the large installer archives.
+  for (const arch of ['arm64', 'x64']) await rm(join(staging, `node-${arch}`), { recursive: true, force: true });
   console.log('Building the native launcher for Apple silicon and Intel…');
   const sdk = (await execute('/usr/bin/xcrun', ['--show-sdk-path'])).stdout.trim();
   const swift = join(root, 'scripts', 'assistant', 'native', 'ProjectCADAssistant.swift');
@@ -83,6 +86,7 @@ try {
   await execute('/bin/sh', ['-n', join(scripts, 'postinstall')]);
   const empty = join(staging, 'empty'); await mkdir(empty);
   await execute('/usr/bin/pkgbuild', ['--root', empty, '--scripts', scripts, '--identifier', 'com.projectcad.assistant', '--version', release.version, '--install-location', '/', join(staging, 'Assistant.pkg')], { timeout: 180000 });
+  await rm(scripts, { recursive: true, force: true });
   // The bootstrap installs the bundle, so the package builder cannot measure it.
   const expanded = join(staging, 'expanded-component');
   await execute('/usr/sbin/pkgutil', ['--expand', join(staging, 'Assistant.pkg'), expanded]);
@@ -95,7 +99,7 @@ try {
   await execute('/usr/sbin/pkgutil', ['--flatten', expanded, join(staging, 'Assistant.pkg')]);
   const pages = join(staging, 'pages'); await mkdir(pages);
   for (const [name, title, body] of [
-    ['welcome', 'Project CAD Assistant', 'Install the local companion for Codex, Claude Code, and Muse. The private runtime is included. Existing settings, conversations, and project files are preserved.'],
+    ['welcome', 'Project CAD Assistant', 'Install the local companion for Muse in Project CAD. Setup closes the previous assistant and its running session before replacing it. Existing settings, conversations, and project files are preserved. The private runtime is included.'],
     ['conclusion', 'Connect from Project CAD', 'Open Project CAD Assistant from Applications in your home folder, then return to the website and connect. Approve the request inside the assistant app. Your selected agents appear there automatically. Complete any sign-in there if needed. Startup at login can be changed in assistant settings.'],
   ]) await writeFile(join(pages, `${name}.html`), `<!doctype html><html><meta charset="utf-8"><style>body{font:13px -apple-system,Helvetica;color:CanvasText;background:Canvas;line-height:1.6;padding:18px}h1{color:#286e5c;font-size:25px}p{max-width:440px}</style><h1>${title}</h1><p>${body}</p></html>`);
   await writeFile(join(staging, 'Distribution'), `<?xml version="1.0" encoding="utf-8"?><installer-gui-script minSpecVersion="2"><title>Project CAD Assistant</title><welcome file="welcome.html" mime-type="text/html"/><conclusion file="conclusion.html" mime-type="text/html"/><options customize="never" require-scripts="true" hostArchitectures="arm64,x86_64"/><domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/><allowed-os-versions><os-version min="13.5"/></allowed-os-versions><choices-outline><line choice="assistant"/></choices-outline><choice id="assistant" visible="false"><pkg-ref id="com.projectcad.assistant"/></choice><pkg-ref id="com.projectcad.assistant" version="${escaped(release.version)}">Assistant.pkg</pkg-ref></installer-gui-script>`);

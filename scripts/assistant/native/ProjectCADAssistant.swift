@@ -83,6 +83,7 @@ final class CompanionModel: ObservableObject {
     private var refreshing = false
     private var attemptedSetup = Set<String>()
     private var waitingSignIns = Set<String>()
+    private var approvedProjectOrigin: String?
     @Published var readyAgents = Set<String>()
 
     init() { loadSettings() }
@@ -106,6 +107,7 @@ final class CompanionModel: ObservableObject {
                 if !signedIn.isEmpty && self.waitingSignIns.isEmpty { self.message = "Ready." }
                 self.settings.agents = status.agents
                 self.prepareNextAgent()
+                self.returnWhenReady()
             }
         }
     }
@@ -165,7 +167,7 @@ final class CompanionModel: ObservableObject {
                 let result = try control(["prepare-provider", provider])
                 guard let value = try JSONSerialization.jsonObject(with: result) as? [String: Any], let binary = value["path"] as? String else { throw NSError(domain: "ProjectCAD", code: 1) }
                 if value["ready"] as? Bool == true {
-                    DispatchQueue.main.async { self.readyAgents.insert(provider); self.busy = false; self.message = "Ready."; self.prepareNextAgent() }
+                    DispatchQueue.main.async { self.readyAgents.insert(provider); self.busy = false; self.message = "Ready."; self.prepareNextAgent(); self.returnWhenReady() }
                     return
                 }
                 let quote = "'" + binary.replacingOccurrences(of: "'", with: "'\\''") + "'"
@@ -182,12 +184,28 @@ final class CompanionModel: ObservableObject {
             } catch { DispatchQueue.main.async { self.busy = false; self.failure = true; self.message = error.localizedDescription; self.prepareNextAgent() } }
         }
     }
-    func openProject() {
-        guard let url = URL(string: settings.websiteUrl),
+    func approve(_ request: PendingConnection) {
+        perform("approve-connection", arguments: [request.id]) { _ in
+            self.approvedProjectOrigin = request.origin
+            self.returnWhenReady()
+        }
+    }
+    private func returnWhenReady() {
+        guard let origin = approvedProjectOrigin, readyAgents.contains("muse"), status?.connections?.isEmpty != false else { return }
+        if openProject(origin) { approvedProjectOrigin = nil; NSApp.hide(nil) }
+    }
+    func returnToProject() {
+        if openProject(approvedProjectOrigin ?? settings.websiteUrl) { NSApp.hide(nil) }
+    }
+    @discardableResult func openProject(_ origin: String) -> Bool {
+        guard let url = URL(string: origin),
               let application = NSWorkspace.shared.urlForApplication(toOpen: url),
-              let bundle = Bundle(url: application)?.bundleIdentifier else { return }
+              let bundle = Bundle(url: application)?.bundleIdentifier else { return false }
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first
-        let target = (url.scheme ?? "https") + "://" + (url.host ?? "") + (url.port.map { ":\($0)" } ?? "") + "/workspace"
+        let scheme = url.scheme ?? "https"
+        let host = url.host ?? ""
+        let port = url.port.map { ":\($0)" } ?? ""
+        let target = "\(scheme)://\(host)\(port)/workspace"
         let escaped = target.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
         if running != nil && ["com.apple.Safari", "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser"].contains(bundle) {
             let select = bundle == "com.apple.Safari" ? "set current tab of w to tab i of w" : "set active tab index of w to i"
@@ -207,12 +225,13 @@ final class CompanionModel: ObservableObject {
             end tell
             """
             var error: NSDictionary?
-            if NSAppleScript(source: script)?.executeAndReturnError(&error).booleanValue == true { return }
+            if NSAppleScript(source: script)?.executeAndReturnError(&error).booleanValue == true { return true }
             // If automation is unavailable, activate the existing browser rather
             // than opening another project tab.
-            if error != nil { running?.activate(options: [.activateAllWindows]); return }
-        } else if let running { running.activate(options: [.activateAllWindows]); return }
-        NSWorkspace.shared.open(url)
+            if error != nil { return running?.activate(options: [.activateAllWindows]) ?? false }
+        } else if let running { return running.activate(options: [.activateAllWindows]) }
+        guard let workspace = URL(string: target) else { return false }
+        return NSWorkspace.shared.open(workspace)
     }
 
 }
@@ -236,7 +255,7 @@ struct CompanionView: View {
                 Text(request.agents.providers.map { agentNames[$0] ?? $0 }.joined(separator: ", ")).foregroundStyle(.secondary)
 
                 Text("Approve the connector here to finish connecting your project.").font(.callout).foregroundStyle(.secondary)
-                Button { model.perform("approve-connection", arguments: [request.id]) } label: {
+                Button { model.approve(request) } label: {
                     Text("Approve connector").font(.headline).frame(maxWidth: .infinity, minHeight: 38)
                 }.buttonStyle(.borderedProminent).tint(accent).controlSize(.large).disabled(model.busy)
                 HStack { Spacer(); Button("Decline") { model.perform("deny-connection", arguments: [request.id]) }.disabled(model.busy); Spacer() }
@@ -245,7 +264,7 @@ struct CompanionView: View {
             }
             if model.status?.connections?.first == nil { HStack {
                 Spacer()
-                Button("Return to project", action: model.openProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
+                Button("Return to project", action: model.returnToProject).buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
             } }
             Divider()
             Text(model.settings.accessMode == "sandbox" ? "Sandbox · CAD folder + web · No tool approvals" : "YOLO · Full device access · No tool approvals").font(.caption).foregroundStyle(.secondary)
@@ -254,7 +273,7 @@ struct CompanionView: View {
                 Text(model.message).font(.caption).foregroundStyle(model.failure ? Color.red : Color.secondary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
             }.frame(minHeight: 32, alignment: .topLeading)
             HStack {
-                Button("Settings…") { model.showSettings = true }.disabled(model.busy)
+                Button("Settings…") { model.loadSettings(); model.showSettings = true }.disabled(model.busy)
                 Button("Open logs") { NSWorkspace.shared.open(dataDirectory.appendingPathComponent("logs")) }
                 Spacer()
                 Group {

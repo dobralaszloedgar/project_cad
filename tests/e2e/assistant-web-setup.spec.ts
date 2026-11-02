@@ -138,7 +138,7 @@ test("keeps agent changes on the approval screen until consent succeeds", async 
       .click();
 
     await expect(
-      page.getByText("Waiting for your approval", { exact: true }),
+      page.getByText("Approval needed in the desktop app", { exact: true }),
     ).toBeVisible();
     await expect(page.getByLabel("Process prompt")).toHaveCount(0);
     await page.screenshot({

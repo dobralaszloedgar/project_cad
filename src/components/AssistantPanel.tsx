@@ -37,12 +37,7 @@ import {
   X,
 } from "lucide-react";
 import type { Project } from "@/domain/schema";
-import {
-  agentNames,
-  type AssistantMode,
-  type Proposal,
-  type ProviderId,
-} from "@/assistant/protocol";
+import { type AssistantMode, type Proposal } from "@/assistant/protocol";
 import type { AssistantClient } from "@/assistant/client";
 import {
   fileSize,
@@ -50,6 +45,7 @@ import {
   type ChatAttachment,
 } from "@/assistant/attachments";
 import AssistantSetup from "./AssistantSetup";
+import AssistantConnectorSettings from "./assistant/AssistantConnectorSettings";
 import AssistantPopover from "./assistant/AssistantPopover";
 import AssistantDownloads from "./assistant/AssistantDownloads";
 import AssistantTranscript from "./assistant/AssistantTranscript";
@@ -59,7 +55,7 @@ import { useDictation } from "./assistant/useDictation";
 import styles from "./AssistantPanel.module.css";
 
 type Settings = {
-  provider: ProviderId;
+  provider: "muse";
   model: string;
   mode: AssistantMode;
   reasoning?: string;
@@ -92,7 +88,7 @@ const blankTab = (
 });
 const commands = [
   { name: "/new", detail: "Start a new conversation" },
-  { name: "/model", detail: "Choose a provider and model" },
+  { name: "/model", detail: "Choose a Muse model" },
   { name: "/stop", detail: "Stop the active response" },
   { name: "/help", detail: "Show keyboard shortcuts" },
 ];
@@ -116,15 +112,8 @@ export default function AssistantPanel({
   open: boolean;
   requestedConversation?: { id: string };
 }) {
-  const preferredAgent = assistant.agents?.preferred;
   const [tabs, setTabs] = useState<ChatTab[]>(() => [
-    blankTab(
-      {
-        ...initialSettings,
-        provider: preferredAgent ?? initialSettings.provider,
-      },
-      "draft",
-    ),
+    blankTab(initialSettings, "draft"),
   ]);
   const [active, setActive] = useState("draft");
   const [setup, setSetup] = useState<false | "agents" | "update">(false),
@@ -158,22 +147,21 @@ export default function AssistantPanel({
     chat?.provider ??
     assistant.conversations.find((item) => item.id === tab.conversationId)
       ?.provider;
-  const legacyConversation = !!savedProvider && savedProvider !== "muse";
+  const savedConversation = !!savedProvider && savedProvider !== "muse";
   const busy =
     assistant.sending ||
     !!assistant.activeConversation ||
     !!chat?.runs.some((run) => run.status === "running");
-  const settings = chat
-    ? {
-        provider: chat.provider,
-        model: chat.model,
-        mode: chat.mode,
-        reasoning: chat.reasoning,
-      }
-    : tab.settings;
-  const provider = assistant.providers.find(
-    (item) => item.id === settings.provider,
-  );
+  const settings: Settings =
+    chat && !savedConversation
+      ? {
+          provider: "muse",
+          model: chat.model,
+          mode: chat.mode,
+          reasoning: chat.reasoning,
+        }
+      : tab.settings;
+  const provider = assistant.providers.find((item) => item.id === "muse");
   const model =
     provider?.models.find((item) => item.id === settings.model) ??
     provider?.models.find((item) => item.default) ??
@@ -184,9 +172,9 @@ export default function AssistantPanel({
       ? commands.filter((command) => command.name.startsWith(tab.prompt))
       : [];
   const canSend =
-    assistant.connected &&
-    !legacyConversation &&
     (!tab.conversationId || !!chat) &&
+    !savedConversation &&
+    assistant.connected &&
     !!assistant.agents?.providers.includes(settings.provider) &&
     !!provider?.available &&
     !!model &&
@@ -206,33 +194,13 @@ export default function AssistantPanel({
         ),
       })),
     setError,
-    open && assistant.connected && !history,
+    open && assistant.connected && !history && !savedConversation,
     active,
   );
 
   function updateTab(id: string, update: (value: ChatTab) => ChatTab) {
     setTabs((items) =>
       items.map((item) => (item.id === id ? update(item) : item)),
-    );
-  }
-  const [adoptedAgent, setAdoptedAgent] = useState(preferredAgent);
-  // Adopt a newly approved default before rendering a draft with the old agent.
-  if (preferredAgent && preferredAgent !== adoptedAgent) {
-    setAdoptedAgent(preferredAgent);
-    setTabs((items) =>
-      items.map((item) =>
-        item.conversationId || item.queue.length
-          ? item
-          : {
-              ...item,
-              settings: {
-                ...item.settings,
-                provider: preferredAgent,
-                model: "",
-                reasoning: undefined,
-              },
-            },
-      ),
     );
   }
   useEffect(() => {
@@ -293,6 +261,7 @@ export default function AssistantPanel({
   }, [busy, assistant.connected, queueCount]);
 
   function selectTab(item: ChatTab) {
+    // Explicit navigation must not also be adopted into the initial draft tab.
     adopted.current = true;
     if (log.current) scrollPositions.current.set(active, log.current.scrollTop);
     activeTab.current = item.id;
@@ -301,17 +270,8 @@ export default function AssistantPanel({
     setHistory(false);
     setError("");
   }
-  function newChat(
-    next = preferredAgent && preferredAgent !== settings.provider
-      ? {
-          ...settings,
-          provider: preferredAgent,
-          model: "",
-          reasoning: undefined,
-        }
-      : settings,
-  ) {
-    const created = blankTab(next);
+  function newChat(next = settings) {
+    const created = blankTab({ ...next, provider: "muse" });
     setTabs((items) => [...items, created]);
     selectTab(created);
     setHelp(false);
@@ -336,7 +296,7 @@ export default function AssistantPanel({
       remaining.push(
         blankTab({
           ...settings,
-          provider: preferredAgent ?? settings.provider,
+          provider: "muse",
           model: "",
           reasoning: undefined,
         }),
@@ -358,23 +318,33 @@ export default function AssistantPanel({
     const currentChat = target.conversationId
       ? assistant.getConversation(target.conversationId)
       : undefined;
+    if (target.conversationId && !currentChat) {
+      pendingTab.current = null;
+      setError("Wait for this conversation to finish loading.");
+      return false;
+    }
+    if (currentChat && currentChat.provider !== "muse") {
+      pendingTab.current = null;
+      setError(
+        "Start a Muse conversation to continue. This saved conversation is available in history.",
+      );
+      return false;
+    }
     const chosen = currentChat ?? target.settings;
-    const available = assistant.providers.find(
-      (item) => item.id === chosen.provider,
-    );
+    const available = assistant.providers.find((item) => item.id === "muse");
     const targetModel =
       available?.models.find((item) => item.id === chosen.model) ??
       available?.models.find((item) => item.default) ??
       available?.models[0];
     if (!available?.available || !targetModel) {
       pendingTab.current = null;
-      setError(available?.message || "Choose an available provider and model.");
+      setError(available?.message || "Choose an available Muse model.");
       return false;
     }
     const result = await assistant.send(
       message || "Review these files.",
       {
-        provider: chosen.provider,
+        provider: "muse",
         model: targetModel.id,
         mode: chosen.mode,
         reasoning: chosen.reasoning,
@@ -460,7 +430,7 @@ export default function AssistantPanel({
     if (
       !files.length ||
       !assistant.connected ||
-      legacyConversation ||
+      savedConversation ||
       readingFiles
     )
       return;
@@ -512,8 +482,8 @@ export default function AssistantPanel({
       className={styles.panel}
       onDragEnter={(event) => {
         if (
+          !savedConversation &&
           assistant.connected &&
-          !legacyConversation &&
           event.dataTransfer.types.includes("Files")
         ) {
           event.preventDefault();
@@ -523,8 +493,8 @@ export default function AssistantPanel({
       }}
       onDragOver={(event) => {
         if (
+          !savedConversation &&
           assistant.connected &&
-          !legacyConversation &&
           event.dataTransfer.types.includes("Files")
         )
           event.preventDefault();
@@ -536,7 +506,8 @@ export default function AssistantPanel({
         event.preventDefault();
         dragDepth.current = 0;
         setDrop(false);
-        void addFiles(Array.from(event.dataTransfer.files));
+        if (!savedConversation)
+          void addFiles(Array.from(event.dataTransfer.files));
       }}
     >
       <header className={styles.header}>
@@ -548,7 +519,7 @@ export default function AssistantPanel({
               trigger={
                 <span className={styles.connectionPill}>
                   <i />
-                  Project CAD
+                  Connected
                 </span>
               }
             >
@@ -556,8 +527,8 @@ export default function AssistantPanel({
                 <>
                   <h3>Connected to this computer</h3>
                   <p>
-                    Conversations and submitted files are saved by your local
-                    assistant.
+                    Your assistant runs in the background. You can manage its
+                    access here and close the desktop window.
                   </p>
                   <p>{provider?.message}</p>
                   <button
@@ -706,12 +677,20 @@ export default function AssistantPanel({
       ) : null}
       {!assistant.connected || setup ? (
         <div className={styles.connectionScreen}>
-          <AssistantSetup
-            assistant={assistant}
-            open={open}
-            updating={setup === "update"}
-            onBack={() => setSetup(false)}
-          />
+          {assistant.connected && setup === "agents" ? (
+            <AssistantConnectorSettings
+              assistant={assistant}
+              onBack={() => setSetup(false)}
+              onUpdate={() => setSetup("update")}
+            />
+          ) : (
+            <AssistantSetup
+              assistant={assistant}
+              open={open}
+              updating={setup === "update"}
+              onBack={() => setSetup(false)}
+            />
+          )}
         </div>
       ) : history ? (
         <div className={styles.historyView}>
@@ -798,9 +777,10 @@ export default function AssistantPanel({
                     >
                       <strong>{item.title}</strong>
                       <small>
-                        {agentNames[item.provider]} ·{" "}
-                        {item.provider !== "muse" ? "Read-only · " : null}
-                        {new Date(item.updatedAt).toLocaleDateString()}
+                        {item.provider === "muse"
+                          ? "Muse"
+                          : "Saved conversation"}{" "}
+                        · {new Date(item.updatedAt).toLocaleDateString()}
                       </small>
                     </button>
                     <button
@@ -873,7 +853,7 @@ export default function AssistantPanel({
             ) : chat?.runs.length ? (
               <AssistantTranscript
                 chat={chat}
-                readOnly={legacyConversation}
+                readOnly={savedConversation}
                 project={project}
                 appliedProposalIds={appliedProposalIds}
                 onUpdate={() => setSetup("update")}
@@ -895,461 +875,480 @@ export default function AssistantPanel({
               </div>
             )}
           </div>
-          {legacyConversation ? (
-            <div className={styles.composerArea}>
-              <div className={styles.agentStatus}>
-                <strong>
-                  {agentNames[savedProvider]} conversation · Read-only
-                </strong>
+          <div className={styles.composerArea}>
+            {savedConversation ? (
+              <section
+                className={styles.agentStatus}
+                aria-label="Saved conversation"
+              >
+                <strong>This conversation is saved</strong>
                 <p>
-                  This conversation is saved for reference. New conversations
-                  use Muse.
+                  Muse is your assistant in Project CAD. Start a new
+                  conversation to keep working; this history stays available
+                  here.
                 </p>
                 <button
                   className="btn btn-primary"
                   onClick={() => newChat(initialSettings)}
                 >
-                  Start a Muse conversation
+                  New Muse conversation
                 </button>
-              </div>
-            </div>
-          ) : null}
-          <div className={styles.composerArea} hidden={legacyConversation}>
-            <AssistantAgentStatus
-              id={settings.provider}
-              provider={provider}
-              selected={
-                !!assistant.agents?.providers.includes(settings.provider)
-              }
-              checking={assistant.checkingProviders}
-              onCheck={() => void assistant.refreshProviders()}
-              onManage={() => setSetup("agents")}
-            />
-            {error || assistant.error ? (
-              <AssistantError
-                message={error || assistant.error}
-                onUpdate={() => setSetup("update")}
-              />
-            ) : null}
-            {tab.queue.length ? (
-              <div className={styles.queue} aria-label="Queued messages">
-                <div className={styles.queueHeading}>
-                  <span>
-                    {tab.queue.length} queued{tab.paused ? " · Paused" : ""}
-                  </span>
-                  <button
-                    className={styles.iconButton}
-                    aria-label={tab.paused ? "Resume queue" : "Pause queue"}
-                    onClick={() =>
-                      updateTab(active, (item) => ({
-                        ...item,
-                        paused: !item.paused,
-                      }))
-                    }
-                  >
-                    {tab.paused ? <Play size={13} /> : <Pause size={13} />}
-                  </button>
-                </div>
-                {tab.queue.map((item) => (
-                  <div key={item.id}>
-                    <span>
-                      {item.message || "Attached files"}
-                      {item.files.length ? ` · ${item.files.length} files` : ""}
-                    </span>
-                    <button
-                      className={styles.iconButton}
-                      aria-label={`Edit queued message: ${item.message || "Attached files"}`}
-                      onClick={() =>
-                        updateTab(active, (value) => ({
-                          ...value,
-                          prompt: [value.prompt, item.message]
-                            .filter(Boolean)
-                            .join("\n"),
-                          files: [...value.files, ...item.files].slice(0, 8),
-                          queue: value.queue.filter(
-                            (entry) => entry.id !== item.id,
-                          ),
-                        }))
-                      }
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <button
-                      className={styles.iconButton}
-                      aria-label={`Remove queued message: ${item.message || "Attached files"}`}
-                      onClick={() =>
-                        updateTab(active, (value) => ({
-                          ...value,
-                          queue: value.queue.filter(
-                            (entry) => entry.id !== item.id,
-                          ),
-                        }))
-                      }
-                    >
-                      <X size={12} />
-                    </button>
+              </section>
+            ) : (
+              <>
+                <AssistantAgentStatus
+                  provider={provider}
+                  selected={
+                    !!assistant.agents?.providers.includes(settings.provider)
+                  }
+                  checking={assistant.checkingProviders}
+                  onCheck={() => void assistant.refreshProviders()}
+                  onManage={() => setSetup("agents")}
+                />
+                {error || assistant.error ? (
+                  <AssistantError
+                    message={error || assistant.error}
+                    onUpdate={() => setSetup("update")}
+                  />
+                ) : null}
+                {tab.queue.length ? (
+                  <div className={styles.queue} aria-label="Queued messages">
+                    <div className={styles.queueHeading}>
+                      <span>
+                        {tab.queue.length} queued{tab.paused ? " · Paused" : ""}
+                      </span>
+                      <button
+                        className={styles.iconButton}
+                        aria-label={tab.paused ? "Resume queue" : "Pause queue"}
+                        onClick={() =>
+                          updateTab(active, (item) => ({
+                            ...item,
+                            paused: !item.paused,
+                          }))
+                        }
+                      >
+                        {tab.paused ? <Play size={13} /> : <Pause size={13} />}
+                      </button>
+                    </div>
+                    {tab.queue.map((item) => (
+                      <div key={item.id}>
+                        <span>
+                          {item.message || "Attached files"}
+                          {item.files.length
+                            ? ` · ${item.files.length} files`
+                            : ""}
+                        </span>
+                        <button
+                          className={styles.iconButton}
+                          aria-label={`Edit queued message: ${item.message || "Attached files"}`}
+                          onClick={() =>
+                            updateTab(active, (value) => ({
+                              ...value,
+                              prompt: [value.prompt, item.message]
+                                .filter(Boolean)
+                                .join("\n"),
+                              files: [...value.files, ...item.files].slice(
+                                0,
+                                8,
+                              ),
+                              queue: value.queue.filter(
+                                (entry) => entry.id !== item.id,
+                              ),
+                            }))
+                          }
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          className={styles.iconButton}
+                          aria-label={`Remove queued message: ${item.message || "Attached files"}`}
+                          onClick={() =>
+                            updateTab(active, (value) => ({
+                              ...value,
+                              queue: value.queue.filter(
+                                (entry) => entry.id !== item.id,
+                              ),
+                            }))
+                          }
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : null}
-            {help ? (
-              <div className={styles.help}>
-                <button
-                  className={styles.iconButton}
-                  aria-label="Close shortcuts"
-                  onClick={() => setHelp(false)}
-                >
-                  <X size={13} />
-                </button>
-                <p>
-                  Enter to send · Shift + Enter for a new line · Tab to queue
-                </p>
-                <p>/new · /model · /stop · /help</p>
-              </div>
-            ) : null}
-            {tab.files.length ? (
-              <div className={styles.fileList} aria-label="Attachments">
-                {tab.files.map((file) => (
-                  <span key={file.id} className={styles.fileChip}>
-                    <FileText size={16} />
-                    <span>
-                      {file.name}
-                      <small>{fileSize(file.size)}</small>
-                    </span>
+                ) : null}
+                {help ? (
+                  <div className={styles.help}>
                     <button
                       className={styles.iconButton}
-                      aria-label={`Remove ${file.name}`}
-                      onClick={() =>
+                      aria-label="Close shortcuts"
+                      onClick={() => setHelp(false)}
+                    >
+                      <X size={13} />
+                    </button>
+                    <p>
+                      Enter to send · Shift + Enter for a new line · Tab to
+                      queue
+                    </p>
+                    <p>/new · /model · /stop · /help</p>
+                  </div>
+                ) : null}
+                {tab.files.length ? (
+                  <div className={styles.fileList} aria-label="Attachments">
+                    {tab.files.map((file) => (
+                      <span key={file.id} className={styles.fileChip}>
+                        <FileText size={16} />
+                        <span>
+                          {file.name}
+                          <small>{fileSize(file.size)}</small>
+                        </span>
+                        <button
+                          className={styles.iconButton}
+                          aria-label={`Remove ${file.name}`}
+                          onClick={() =>
+                            updateTab(active, (item) => ({
+                              ...item,
+                              files: item.files.filter(
+                                (value) => value.id !== file.id,
+                              ),
+                            }))
+                          }
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {matches.length ? (
+                  <div
+                    className={styles.commands}
+                    role="listbox"
+                    aria-label="Chat commands"
+                  >
+                    {matches.map((command, index) => (
+                      <button
+                        key={command.name}
+                        role="option"
+                        aria-selected={index === commandIndex % matches.length}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          updateTab(active, (item) => ({
+                            ...item,
+                            prompt: command.name,
+                          }));
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        <strong>{command.name}</strong>
+                        <span>{command.detail}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <form
+                  className={styles.composer}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void send();
+                  }}
+                  onPaste={(event) => {
+                    if (event.clipboardData.files.length) {
+                      event.preventDefault();
+                      void addFiles(Array.from(event.clipboardData.files));
+                    }
+                  }}
+                >
+                  <div className={styles.composerField}>
+                    <input
+                      ref={upload}
+                      type="file"
+                      multiple
+                      className={styles.fileInput}
+                      aria-label="Attach files"
+                      tabIndex={-1}
+                      onChange={(event) => {
+                        void addFiles(Array.from(event.target.files ?? []));
+                        event.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.iconButton}
+                      aria-label="Add files"
+                      title="Attach files · 5 MB each, 10 MB total"
+                      disabled={
+                        readingFiles ||
+                        !assistant.capabilities.includes("attachments-v1")
+                      }
+                      onClick={() => upload.current?.click()}
+                    >
+                      {readingFiles ? (
+                        <LoaderCircle size={17} className={styles.spinner} />
+                      ) : (
+                        <Paperclip size={17} />
+                      )}
+                    </button>
+                    <textarea
+                      ref={inputRef}
+                      aria-label="Process prompt"
+                      placeholder="Message Assistant…"
+                      rows={1}
+                      maxLength={12000}
+                      value={tab.prompt}
+                      onChange={(event) => {
                         updateTab(active, (item) => ({
                           ...item,
-                          files: item.files.filter(
-                            (value) => value.id !== file.id,
-                          ),
-                        }))
+                          prompt: event.target.value,
+                        }));
+                        setCommandIndex(0);
+                      }}
+                      onKeyDown={inputKey}
+                    />
+                    <button
+                      type="button"
+                      className={styles.iconButton}
+                      aria-label={
+                        dictation.listening
+                          ? "Stop dictation"
+                          : "Start dictation"
                       }
+                      aria-pressed={dictation.listening}
+                      data-listening={dictation.listening || undefined}
+                      title={
+                        dictation.supported
+                          ? "Dictate a message"
+                          : "Dictation is not supported in this browser"
+                      }
+                      disabled={!dictation.supported}
+                      onClick={dictation.toggle}
                     >
-                      <X size={12} />
+                      <Mic size={17} />
                     </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {matches.length ? (
-              <div
-                className={styles.commands}
-                role="listbox"
-                aria-label="Chat commands"
-              >
-                {matches.map((command, index) => (
-                  <button
-                    key={command.name}
-                    role="option"
-                    aria-selected={index === commandIndex % matches.length}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      updateTab(active, (item) => ({
-                        ...item,
-                        prompt: command.name,
-                      }));
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    <strong>{command.name}</strong>
-                    <span>{command.detail}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <form
-              className={styles.composer}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send();
-              }}
-              onPaste={(event) => {
-                if (event.clipboardData.files.length) {
-                  event.preventDefault();
-                  void addFiles(Array.from(event.clipboardData.files));
-                }
-              }}
-            >
-              <div className={styles.composerField}>
-                <input
-                  ref={upload}
-                  type="file"
-                  multiple
-                  className={styles.fileInput}
-                  aria-label="Attach files"
-                  tabIndex={-1}
-                  onChange={(event) => {
-                    void addFiles(Array.from(event.target.files ?? []));
-                    event.target.value = "";
-                  }}
-                />
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label="Add files"
-                  title="Attach files · 5 MB each, 10 MB total"
-                  disabled={
-                    readingFiles ||
-                    !assistant.capabilities.includes("attachments-v1")
-                  }
-                  onClick={() => upload.current?.click()}
-                >
-                  {readingFiles ? (
-                    <LoaderCircle size={17} className={styles.spinner} />
+                  </div>
+                  {busy ? (
+                    <>
+                      {hasContent ? (
+                        <button
+                          className={styles.send}
+                          type="submit"
+                          aria-label="Queue message"
+                          disabled={!canSend}
+                        >
+                          <ArrowUp size={18} />
+                        </button>
+                      ) : null}
+                      <button
+                        className={styles.send}
+                        type="button"
+                        aria-label="Stop response"
+                        onClick={() => void stop()}
+                      >
+                        <Square size={14} fill="currentColor" />
+                      </button>
+                    </>
                   ) : (
-                    <Paperclip size={17} />
-                  )}
-                </button>
-                <textarea
-                  ref={inputRef}
-                  aria-label="Process prompt"
-                  placeholder="Message Assistant…"
-                  rows={1}
-                  maxLength={12000}
-                  value={tab.prompt}
-                  onChange={(event) => {
-                    updateTab(active, (item) => ({
-                      ...item,
-                      prompt: event.target.value,
-                    }));
-                    setCommandIndex(0);
-                  }}
-                  onKeyDown={inputKey}
-                />
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label={
-                    dictation.listening ? "Stop dictation" : "Start dictation"
-                  }
-                  aria-pressed={dictation.listening}
-                  data-listening={dictation.listening || undefined}
-                  title={
-                    dictation.supported
-                      ? "Dictate a message"
-                      : "Dictation is not supported in this browser"
-                  }
-                  disabled={!dictation.supported}
-                  onClick={dictation.toggle}
-                >
-                  <Mic size={17} />
-                </button>
-              </div>
-              {busy ? (
-                <>
-                  {hasContent ? (
                     <button
                       className={styles.send}
                       type="submit"
-                      aria-label="Queue message"
-                      disabled={!canSend}
+                      aria-label="Send message"
+                      disabled={!canSend || !hasContent}
                     >
-                      <ArrowUp size={18} />
+                      <ArrowUp size={19} />
                     </button>
-                  ) : null}
-                  <button
-                    className={styles.send}
-                    type="button"
-                    aria-label="Stop response"
-                    onClick={() => void stop()}
+                  )}
+                </form>
+                <div className={styles.composerControls}>
+                  <AssistantPopover
+                    label="Choose provider and model"
+                    compact
+                    trigger={
+                      <>
+                        <MessageCircle size={13} />
+                        <span>Muse</span>
+                        <span className={styles.divider}>/</span>
+                        <span className={styles.modelName}>
+                          {model?.name || "Select model"}
+                        </span>
+                        <ChevronDown size={12} />
+                      </>
+                    }
                   >
-                    <Square size={14} fill="currentColor" />
-                  </button>
-                </>
-              ) : (
-                <button
-                  className={styles.send}
-                  type="submit"
-                  aria-label="Send message"
-                  disabled={!canSend || !hasContent}
-                >
-                  <ArrowUp size={19} />
-                </button>
-              )}
-            </form>
-            <div className={styles.composerControls}>
-              <AssistantPopover
-                label="Choose provider and model"
-                compact
-                trigger={
-                  <>
-                    <MessageCircle size={13} />
-                    <span>
-                      {provider?.name || agentNames[settings.provider]}
-                    </span>
-                    <span className={styles.divider}>/</span>
-                    <span className={styles.modelName}>
-                      {model?.name || "Select model"}
-                    </span>
-                    <ChevronDown size={12} />
-                  </>
-                }
-              >
-                {(close) => (
-                  <>
-                    <h3>Model</h3>
-                    <div role="group" aria-label="Assistant model">
-                      {provider?.models.map((item) => (
+                    {(close) => (
+                      <>
+                        <h3>Model</h3>
+                        <div role="group" aria-label="Assistant model">
+                          {provider?.models.map((item) => (
+                            <button
+                              className={styles.option}
+                              key={item.id}
+                              aria-pressed={model?.id === item.id}
+                              onClick={() => {
+                                changeSettings({
+                                  model: item.id,
+                                  reasoning: undefined,
+                                });
+                                close();
+                              }}
+                            >
+                              <span>{item.name}</span>
+                              {model?.id === item.id ? (
+                                <Check size={14} />
+                              ) : null}
+                            </button>
+                          ))}
+                        </div>
+                        {!provider?.available ? (
+                          <p>
+                            {provider?.message ||
+                              "Refresh to load Muse models."}
+                          </p>
+                        ) : null}
                         <button
                           className={styles.option}
-                          key={item.id}
-                          aria-pressed={model?.id === item.id}
-                          onClick={() => {
-                            changeSettings({
-                              model: item.id,
-                              reasoning: undefined,
-                            });
-                            close();
-                          }}
+                          aria-label="Refresh models"
+                          onClick={() => void assistant.refreshProviders()}
                         >
-                          <span>{item.name}</span>
-                          {model?.id === item.id ? <Check size={14} /> : null}
+                          <RefreshCw size={13} /> Refresh models
                         </button>
-                      ))}
-                    </div>
-                    {!provider?.available ? (
-                      <p>{provider?.message || "Refresh to load providers."}</p>
-                    ) : null}
-                    <button
-                      className={styles.option}
-                      aria-label="Refresh models"
-                      onClick={() => void assistant.refreshProviders()}
+                      </>
+                    )}
+                  </AssistantPopover>
+                  {efforts.length ? (
+                    <AssistantPopover
+                      label="Model performance"
+                      trigger={
+                        <>
+                          <Gauge size={13} />
+                          <span>{settings.reasoning || "Default"}</span>
+                          <ChevronDown size={11} />
+                        </>
+                      }
                     >
-                      <RefreshCw size={13} /> Refresh models
-                    </button>
-                  </>
-                )}
-              </AssistantPopover>
-              {efforts.length ? (
-                <AssistantPopover
-                  label="Model performance"
-                  trigger={
-                    <>
-                      <Gauge size={13} />
-                      <span>{settings.reasoning || "Default"}</span>
-                      <ChevronDown size={11} />
-                    </>
-                  }
-                >
-                  {(close) => (
-                    <>
-                      <h3>Reasoning level</h3>
-                      {["", ...efforts].map((effort) => (
-                        <button
-                          className={styles.option}
-                          key={effort}
-                          aria-pressed={(settings.reasoning || "") === effort}
-                          onClick={() => {
-                            changeSettings({ reasoning: effort || undefined });
-                            close();
-                          }}
-                        >
-                          {effort || "Default"}
-                          {(settings.reasoning || "") === effort ? (
-                            <Check size={13} />
-                          ) : null}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </AssistantPopover>
-              ) : null}
-              <div className={styles.composerRight}>
-                <AssistantPopover
-                  label="Project context"
-                  align="right"
-                  trigger={
-                    <>
-                      <Folder size={13} />
-                      <span className={styles.contextName}>{project.name}</span>
-                      <ChevronDown size={11} />
-                    </>
-                  }
-                >
-                  {() => (
-                    <>
-                      <h3>Project context</h3>
-                      <p>
-                        <strong>{project.name}</strong>
-                      </p>
-                      <p>
-                        {folderName
-                          ? `Folder: ${folderName}`
-                          : "Saved on this device"}
-                      </p>
-                      <p>
-                        The assistant reads the latest equipment, streams and
-                        physical model from this project for every turn.
-                      </p>
-                    </>
-                  )}
-                </AssistantPopover>
-                <AssistantPopover
-                  label="Agent permissions"
-                  align="right"
-                  trigger={
-                    <>
-                      <ShieldCheck size={13} />
-                      <span>
-                        {settings.mode === "read-only"
-                          ? "Read-only"
-                          : settings.mode === "auto"
-                            ? "Auto apply"
-                            : "Review changes"}
-                      </span>
-                      <ChevronDown size={11} />
-                    </>
-                  }
-                >
-                  {(close) => (
-                    <>
-                      <h3>Agent permissions</h3>
-                      {(["auto", "review", "read-only"] as AssistantMode[]).map(
-                        (mode) => (
-                          <button
-                            key={mode}
-                            className={styles.option}
-                            aria-pressed={settings.mode === mode}
-                            onClick={() => {
-                              changeSettings({ mode });
-                              close();
-                            }}
-                          >
-                            <span>
-                              <strong>
-                                {mode === "auto"
-                                  ? "Auto apply"
-                                  : mode === "review"
-                                    ? "Review changes"
-                                    : "Read-only"}
-                              </strong>
-                              <small>
-                                {mode === "auto"
-                                  ? "Apply and save CAD edits immediately"
-                                  : mode === "review"
-                                    ? "Review proposed changes before applying them"
-                                    : "Inspect and calculate without editing the project"}
-                              </small>
-                            </span>
-                            {settings.mode === mode ? (
-                              <Check size={14} />
-                            ) : null}
-                          </button>
-                        ),
+                      {(close) => (
+                        <>
+                          <h3>Reasoning level</h3>
+                          {["", ...efforts].map((effort) => (
+                            <button
+                              className={styles.option}
+                              key={effort}
+                              aria-pressed={
+                                (settings.reasoning || "") === effort
+                              }
+                              onClick={() => {
+                                changeSettings({
+                                  reasoning: effort || undefined,
+                                });
+                                close();
+                              }}
+                            >
+                              {effort || "Default"}
+                              {(settings.reasoning || "") === effort ? (
+                                <Check size={13} />
+                              ) : null}
+                            </button>
+                          ))}
+                        </>
                       )}
-                    </>
-                  )}
-                </AssistantPopover>
-              </div>
-            </div>
-            {!assistant.capabilities.includes("attachments-v1") ? (
-              <p className={styles.hint}>
-                Update Project CAD Assistant to send files.
-              </p>
-            ) : null}
+                    </AssistantPopover>
+                  ) : null}
+                  <div className={styles.composerRight}>
+                    <AssistantPopover
+                      label="Project context"
+                      align="right"
+                      trigger={
+                        <>
+                          <Folder size={13} />
+                          <span className={styles.contextName}>
+                            {project.name}
+                          </span>
+                          <ChevronDown size={11} />
+                        </>
+                      }
+                    >
+                      {() => (
+                        <>
+                          <h3>Project context</h3>
+                          <p>
+                            <strong>{project.name}</strong>
+                          </p>
+                          <p>
+                            {folderName
+                              ? `Folder: ${folderName}`
+                              : "Saved on this device"}
+                          </p>
+                          <p>
+                            The assistant reads the latest equipment, streams
+                            and physical model from this project for every turn.
+                          </p>
+                        </>
+                      )}
+                    </AssistantPopover>
+                    <AssistantPopover
+                      label="Agent permissions"
+                      align="right"
+                      trigger={
+                        <>
+                          <ShieldCheck size={13} />
+                          <span>
+                            {settings.mode === "read-only"
+                              ? "Read-only"
+                              : settings.mode === "auto"
+                                ? "Auto apply"
+                                : "Review changes"}
+                          </span>
+                          <ChevronDown size={11} />
+                        </>
+                      }
+                    >
+                      {(close) => (
+                        <>
+                          <h3>Agent permissions</h3>
+                          {(
+                            ["auto", "review", "read-only"] as AssistantMode[]
+                          ).map((mode) => (
+                            <button
+                              key={mode}
+                              className={styles.option}
+                              aria-pressed={settings.mode === mode}
+                              onClick={() => {
+                                changeSettings({ mode });
+                                close();
+                              }}
+                            >
+                              <span>
+                                <strong>
+                                  {mode === "auto"
+                                    ? "Auto apply"
+                                    : mode === "review"
+                                      ? "Review changes"
+                                      : "Read-only"}
+                                </strong>
+                                <small>
+                                  {mode === "auto"
+                                    ? "Apply and save CAD edits immediately"
+                                    : mode === "review"
+                                      ? "Review proposed changes before applying them"
+                                      : "Inspect and calculate without editing the project"}
+                                </small>
+                              </span>
+                              {settings.mode === mode ? (
+                                <Check size={14} />
+                              ) : null}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </AssistantPopover>
+                  </div>
+                </div>
+                {!assistant.capabilities.includes("attachments-v1") ? (
+                  <p className={styles.hint}>
+                    Update Project CAD Assistant to send files.
+                  </p>
+                ) : null}
+              </>
+            )}
           </div>
         </>
       )}

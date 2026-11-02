@@ -25,6 +25,7 @@ import {
 import { installProvider } from "../../src/server/assistant/install-provider";
 import { providerStatus } from "../../src/server/assistant/provider-setup";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
+import { assistantHealthy } from "./local-health";
 
 const execute = promisify(execFile);
 // A separate label lets package verification exercise updates without stopping
@@ -69,22 +70,7 @@ async function launchctl(args: string[], tolerateMissing = false) {
     );
   }
 }
-async function health() {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/health`, {
-      signal: AbortSignal.timeout(1500),
-      redirect: "error",
-    });
-    const value = await response.json();
-    return (
-      response.ok &&
-      value.name === "Project CAD assistant" &&
-      value.version === 1
-    );
-  } catch {
-    return false;
-  }
-}
+const health = () => assistantHealthy(port);
 function plist() {
   const environment = {
     PATH: [
@@ -139,11 +125,43 @@ async function status() {
         : "Assistant is stopped.",
   };
 }
+function processRunning(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+    throw error;
+  }
+}
+async function serviceProcesses(description: string) {
+  const pid = Number(description.match(/^\s*pid = (\d+)\s*$/m)?.[1]);
+  if (!pid) return [];
+  // Include provider/session children already owned by this service. launchd
+  // terminates the job; we only observe these exact PIDs, never kill by name.
+  const processes = (
+    await execute("/bin/ps", ["-axo", "pid=,ppid="], { timeout: 10000 })
+  ).stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.trim().split(/\s+/).map(Number));
+  const owned = new Set([pid]);
+  for (const parent of owned)
+    for (const [child, ppid] of processes)
+      if (ppid === parent) owned.add(child);
+  return [...owned];
+}
 async function stop() {
-  if (await launchctl(["print", service], true)) {
+  const registered = await launchctl(["print", service], true);
+  if (registered) {
+    const pids = await serviceProcesses(registered);
     await launchctl(["bootout", service]);
     const until = Date.now() + 15000;
-    while (await health()) {
+    while (
+      pids.some(processRunning) ||
+      (await health()) ||
+      (await launchctl(["print", service], true))
+    ) {
       if (Date.now() > until)
         throw new Error(
           "The assistant is still stopping. Wait a moment and try again.",

@@ -3,6 +3,11 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import { createServer } from "node:http";
+import {
+  ownedProcessTree,
+  waitForProcessTreeExit,
+  type OwnedProcess,
+} from "./process-tree";
 import { spawn, execFile, type ChildProcess } from "node:child_process";
 import {
   createHash,
@@ -132,11 +137,61 @@ async function control(action: string) {
   return value;
 }
 async function shutdownExisting() {
+  const stoppingFile = join(root, "desktop-stopping.json");
+  const pending = JSON.parse(
+    await readFile(stoppingFile, "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "{}";
+      throw error;
+    }),
+  );
+  if (
+    pending.processes !== undefined &&
+    (pending.port !== port ||
+      !Array.isArray(pending.processes) ||
+      pending.processes.some(
+        (entry: OwnedProcess) =>
+          !Number.isSafeInteger(entry.pid) ||
+          entry.pid <= 0 ||
+          !Number.isSafeInteger(entry.parent) ||
+          typeof entry.started !== "string" ||
+          !entry.started,
+      ))
+  )
+    throw new Error("Invalid saved assistant shutdown state.");
+  const saved = JSON.parse(
+    await readFile(stateFile, "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "{}";
+      throw error;
+    }),
+  );
+  const current =
+    saved.port === port && Number.isSafeInteger(saved.pid)
+      ? await ownedProcessTree(saved.pid)
+      : [];
+  // Retain process identities across a failed update. The controller may have
+  // exited and reparented a still-running session before the next installer try.
+  const owned: OwnedProcess[] = [
+    ...new Map<string, OwnedProcess>(
+      [...(pending.processes ?? []), ...current].map((entry: OwnedProcess) => [
+        `${entry.pid}:${entry.started}`,
+        entry,
+      ]),
+    ).values(),
+  ];
+  if (owned.length) {
+    const temporary = `${stoppingFile}.${randomUUID()}.tmp`;
+    await writeFile(temporary, JSON.stringify({ port, processes: owned }), {
+      mode: 0o600,
+    });
+    await rename(temporary, stoppingFile);
+  }
   async function requireStoppedWorker() {
+    await waitForProcessTreeExit(owned);
     if (await assistantHealth())
       throw new Error(
         "Close the running Project CAD assistant before updating. Its previous session is still active.",
       );
+    await rm(stoppingFile, { force: true });
   }
   try {
     await control("shutdown");
@@ -153,6 +208,7 @@ async function shutdownExisting() {
     await requireStoppedWorker();
     return;
   }
+  await waitForProcessTreeExit(owned, 20000);
   for (let i = 0; i < 100; i++) {
     if (
       !(await fetch(origin + "/health", {
@@ -442,6 +498,7 @@ async function serve() {
     approvalError = "",
     retries = 0;
   let lifecycle = Promise.resolve();
+  let stoppingProcesses: OwnedProcess[] = [];
   let approvalTimer: ReturnType<typeof setInterval> | undefined;
   const setup = new ProviderSetup(root, resources, signIn);
   let setupTimer: ReturnType<typeof setInterval> | undefined;
@@ -460,22 +517,22 @@ async function serve() {
     stoppingWorker = true;
     const child = worker;
     if (child && child.exitCode === null && child.signalCode === null) {
+      const owned = child.pid ? await ownedProcessTree(child.pid) : [];
+      stoppingProcesses = [
+        ...new Map(
+          [...stoppingProcesses, ...owned].map((entry) => [entry.pid, entry]),
+        ).values(),
+      ];
       if (child.connected) child.send({ type: "project-cad-shutdown" });
       else child.kill();
-      for (
-        let i = 0;
-        i < 100 && child.exitCode === null && child.signalCode === null;
-        i++
-      )
-        await pause(100);
-      if (child.exitCode === null && child.signalCode === null) {
-        child.kill("SIGKILL");
-        await pause(200);
-      }
     }
+    await waitForProcessTreeExit(stoppingProcesses);
+    stoppingProcesses = [];
     worker = undefined;
   }
   async function startWorker() {
+    await waitForProcessTreeExit(stoppingProcesses);
+    stoppingProcesses = [];
     if (await assistantHealth()) return;
     stoppingWorker = false;
     workerError = "";
@@ -551,7 +608,17 @@ async function serve() {
     clearInterval(setupTimer);
     setupTimer = undefined;
     approvalTimer = undefined;
-    await exclusive(stopWorker);
+    try {
+      await exclusive(stopWorker);
+    } catch (error) {
+      shuttingDown = false;
+      workerError =
+        error instanceof Error
+          ? error.message
+          : "Could not stop the assistant session.";
+      console.error(workerError);
+      return;
+    }
     server.closeAllConnections();
     server.close();
     closeSync(log);

@@ -145,7 +145,7 @@ test("download, setup and automatic detection lead into a real chat", async ({
       .click();
 
     await expect(
-      panel.getByRole("heading", { name: "Approve in Project CAD Assistant" }),
+      panel.getByRole("heading", { name: "One last step in the desktop app" }),
     ).toBeVisible();
     await approveAssistant(page);
     await expect(panel.getByLabel("Process prompt")).toBeVisible();
@@ -215,7 +215,9 @@ test("an installed assistant goes straight to connect and remembers the selected
     await panel
       .getByRole("button", { name: "Manage agents", exact: true })
       .click();
-    await panel.getByRole("checkbox", { name: "Muse Code", exact: true }).check();
+    await panel
+      .getByRole("checkbox", { name: "Muse Code", exact: true })
+      .check();
     await panel
       .getByLabel("Default agent", { exact: true })
       .selectOption("muse");

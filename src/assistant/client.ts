@@ -16,11 +16,11 @@ import {
   type Conversation,
   type ConversationSummary,
   type ProviderStatus,
-  type ProviderId,
   type AssistantMode,
   type Proposal,
 } from "./protocol";
 import { rememberAgentSelection } from "./selection";
+import type { ConnectorPreferences } from "./connector";
 
 const tokenKey = "project-cad.assistant-token";
 let browserIdentity: Promise<string> | undefined;
@@ -206,6 +206,20 @@ export function useAssistant(
       });
     return pending.promise;
   }, [token, clientId, report]);
+  const getConnectorSettings = useCallback(
+    () => request<ConnectorPreferences>(token, clientId, "/connector/settings"),
+    [token, clientId],
+  );
+  const saveConnectorSettings = useCallback(
+    (value: ConnectorPreferences) =>
+      request<ConnectorPreferences>(
+        token,
+        clientId,
+        "/connector/settings",
+        value,
+      ),
+    [token, clientId],
+  );
   useEffect(() => {
     void refreshProviders();
     return () => {
@@ -561,7 +575,7 @@ export function useAssistant(
   async function send(
     message: string,
     settings: {
-      provider: ProviderId;
+      provider: "muse";
       model: string;
       reasoning?: string;
       mode: AssistantMode;
@@ -582,7 +596,12 @@ export function useAssistant(
           token,
           clientId,
           path("/conversations"),
-          { projectId, projectName: projectRef.current.name, ...settings },
+          {
+            projectId,
+            projectName: projectRef.current.name,
+            ...settings,
+            provider: "muse",
+          },
         );
         chatId = created.id;
         cache.current.set(chatId, created);
@@ -716,6 +735,8 @@ export function useAssistant(
     stop,
     decide,
     refreshProviders,
+    getConnectorSettings,
+    saveConnectorSettings,
     updateConversation,
     getConversation: (id: string) => cache.current.get(id),
     disconnect,

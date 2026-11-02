@@ -30,17 +30,21 @@ const tar = process.platform === "win32" ? "tar.exe" : "/usr/bin/tar";
 // Windows filesystem modes cannot retain Unix execute bits. GNU tar writes
 // explicit package modes so Linux runtimes/launchers remain executable.
 const archiveTar =
-  process.platform === "win32"
-    ? process.env.PROJECT_CAD_LINUX_TAR_BIN ||
-      join(
+  process.env.PROJECT_CAD_LINUX_TAR_BIN ||
+  (process.platform === "win32"
+    ? join(
         process.env.ProgramFiles || "C:/Program Files",
         "Git/usr/bin/tar.exe",
       )
-    : tar;
+    : tar);
+const tarHelp = (await execute(archiveTar, ["--help"])).stdout;
+const metadataOptions = ["--no-xattrs", "--no-acls", "--no-fflags"].filter(
+  (option) => tarHelp.includes(option),
+);
 const archiveOptions =
   process.platform === "win32"
-    ? ["--force-local", "--mode=0755"]
-    : ["--no-xattrs", "--no-acls", "--no-fflags"];
+    ? ["--force-local", "--mode=0755", ...metadataOptions]
+    : metadataOptions;
 const archiveEnv = {
   ...process.env,
   COPYFILE_DISABLE: "1",
@@ -173,7 +177,7 @@ try {
         : "Run ./install.sh, or use the .run installer. Then open Project CAD Assistant from your application menu. For a portable session, run ./project-cad-assistant from the extracted folder.";
     await writeFile(
       join(bundle, "README.txt"),
-      `Project CAD Assistant ${release.version}\n${targetName} ${arch}\n\n${start}\n\nThe Node runtime is included. Settings open in your browser on this computer, at 127.0.0.1:43119. The project connection uses 127.0.0.1:43118.\n\nSet the Project CAD website in assistant Settings. For local development, start the website at http://127.0.0.1:3000. In the project website, choose your agents and connect the assistant. Approve the request in the assistant app. Your choices appear there automatically. Missing agents install automatically and sign-in opens when needed, then return to your project.\n\nYour project files remain in the folder you selected. Conversations and settings are kept in your home folder under .project-cad/assistant. Updating or uninstalling the application preserves them.\n\nStartup at login can be changed in Settings. Close the settings browser tab freely; the assistant keeps running.\n\n${platform === "win32" ? "Requires 64-bit Windows 11 or Windows Server 2022 or newer. This local build is not code-signed. To uninstall, use Windows Settings > Apps (when installed with Setup.exe)." : "Requires desktop Linux with glibc 2.28 or newer (for example Ubuntu 22.04+ or Debian 12+), tar, xdg-open, and a terminal emulator for provider sign-in. Alpine/musl is not supported by this package. Installation is per user; do not run with sudo. To remove the application, run project-cad-assistant uninstall first, then delete ~/.local/share/project-cad-assistant. Your .project-cad history folder remains."}\n`,
+      `Project CAD Assistant ${release.version}\n${targetName} ${arch}\n\n${start}\n\nThe Node runtime is included. Settings open in your browser on this computer, at 127.0.0.1:43119. The project connection uses 127.0.0.1:43118.\n\nSet the Project CAD website in assistant Settings. For local development, start the website at http://127.0.0.1:3000. In the project website, choose Connect assistant. Approve the request in the assistant app. Missing Muse software installs automatically and reuses your existing sign-in; complete sign-in if prompted. The connector returns you to the project when Muse is ready.\n\nYour project files remain in the folder you selected. Conversations and settings are kept in your home folder under .project-cad/assistant. Updating or uninstalling the application preserves them.\n\nStartup at login can be changed in Settings. Close the settings browser tab freely; the assistant keeps running.\n\n${platform === "win32" ? "Requires 64-bit Windows 11 or Windows Server 2022 or newer. This local build is not code-signed. To uninstall, use Windows Settings > Apps (when installed with Setup.exe)." : "Requires desktop Linux with glibc 2.28 or newer (for example Ubuntu 22.04+ or Debian 12+), tar, xdg-open, and a terminal emulator for provider sign-in. Alpine/musl is not supported by this package. Installation is per user; do not run with sudo. To remove the application, run project-cad-assistant uninstall first, then delete ~/.local/share/project-cad-assistant. Your .project-cad history folder remains."}\n`,
     );
     if (platform === "win32") {
       await writeFile(

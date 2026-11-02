@@ -140,7 +140,7 @@ for (const [provider, name] of [
       page.getByRole("tab", { name: "New conversation", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText(`${name} conversation · Read-only`, { exact: true }),
+      page.getByRole("region", { name: "Saved conversation", exact: true }),
     ).toBeVisible();
     await expect(page.getByLabel("Process prompt")).toBeHidden();
     await expect(model).toBeHidden();
@@ -159,13 +159,13 @@ for (const [provider, name] of [
     await page.screenshot({
       path: test.info().outputPath("saved-history.png"),
     });
-    await page.getByText("Saved error details", { exact: true }).click();
+    await page.getByText("Earlier response could not finish", { exact: true }).click();
     await expect(
       page.getByText(old.runs[0].error!, { exact: true }),
     ).toBeVisible();
 
     await page
-      .getByRole("button", { name: "Start a Muse conversation", exact: true })
+      .getByRole("button", { name: "New Muse conversation", exact: true })
       .click();
     await expect(model).toContainText("Muse");
     await page.getByLabel("Process prompt").fill("read the current project");
@@ -201,7 +201,7 @@ test("resumes an existing Muse chat even when legacy and archived chats are newe
   ).toContainText("Muse");
   await expect(
     page.getByRole("button", {
-      name: "Start a Muse conversation",
+      name: "New Muse conversation",
       exact: true,
     }),
   ).toHaveCount(0);

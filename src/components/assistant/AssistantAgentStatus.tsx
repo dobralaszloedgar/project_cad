@@ -4,22 +4,16 @@
 
 "use client";
 import { LoaderCircle, RefreshCw } from "lucide-react";
-import {
-  agentNames,
-  type ProviderId,
-  type ProviderStatus,
-} from "@/assistant/protocol";
+import type { ProviderStatus } from "@/assistant/protocol";
 import styles from "../AssistantPanel.module.css";
 
 export default function AssistantAgentStatus({
-  id,
   provider,
   selected,
   checking,
   onCheck,
   onManage,
 }: {
-  id: ProviderId;
   provider?: ProviderStatus;
   selected: boolean;
   checking: boolean;
@@ -27,7 +21,7 @@ export default function AssistantAgentStatus({
   onManage: () => void;
 }) {
   if (selected && provider?.available && provider.models.length) return null;
-  const name = agentNames[id];
+  const name = "Muse";
   return (
     <section
       className={styles.agentStatus}
@@ -36,7 +30,7 @@ export default function AssistantAgentStatus({
     >
       <strong>
         {!selected
-          ? `${name} isn’t selected`
+          ? "Connect Muse to continue"
           : !provider && checking
             ? `Checking ${name}`
             : provider?.available
@@ -45,7 +39,7 @@ export default function AssistantAgentStatus({
       </strong>
       <p>
         {!selected
-          ? "Start a new Muse conversation. Your previous conversation is saved."
+          ? "Connect Project CAD Assistant to use Muse in your project. Your saved conversations stay available."
           : !provider && checking
             ? "Checking your agent’s sign-in and available models…"
             : provider?.available

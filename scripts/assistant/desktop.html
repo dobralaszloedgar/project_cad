@@ -400,6 +400,7 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
         busy = false,
         refreshing = false,
         pendingConnection = null,
+        returnAfterApproval = false,
         projectOrigin = "";
       function message(text, error = false) {
         $("message").textContent = text;
@@ -456,6 +457,14 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
             initialized = true;
           }
           if (value.message) message(value.message, true);
+          if (
+            returnAfterApproval &&
+            !pendingConnection &&
+            state?.phase === "ready"
+          ) {
+            returnAfterApproval = false;
+            returnToProject();
+          }
         } finally {
           refreshing = false;
         }
@@ -478,6 +487,7 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
           if (!["approve-connection", "signin"].includes(body.action))
             message(value.message || "");
           if (body.action === "settings") $("settings").open = false;
+          if (body.action === "approve-connection") returnAfterApproval = true;
         } catch (error) {
           message(error.message, true);
         } finally {
@@ -501,17 +511,19 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
       $("deny").onclick = () =>
         pendingConnection &&
         action({ action: "deny-connection", id: pendingConnection.id });
-      $("return").onclick = () => {
+      function returnToProject() {
         if (window.opener && !window.opener.closed) {
           window.opener.postMessage(
             { type: "project-cad-return" },
             projectOrigin,
           );
           window.opener.focus();
+          window.close();
         } else {
-          action({ action: "open" });
+          window.location.assign(new URL("/workspace", projectOrigin).href);
         }
-      };
+      }
+      $("return").onclick = returnToProject;
       $("refresh").onclick = () =>
         refresh().catch((error) => message(error.message, true));
       $("save").onclick = () =>
@@ -526,7 +538,7 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
         });
       refresh().catch((error) => message(error.message, true));
       setInterval(() => {
-        if (!busy && !document.hidden)
+        if (!busy && (!document.hidden || returnAfterApproval))
           refresh().catch((error) => message(error.message, true));
       }, 2500);
       window.addEventListener("focus", () => {

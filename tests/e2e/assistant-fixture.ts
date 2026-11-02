@@ -16,8 +16,13 @@ import type {
 import type { ProviderId, AgentSelection } from "../../src/assistant/protocol";
 import { newUnit, type Project } from "../../src/domain/schema";
 import { ConnectionRequests } from "../../src/server/assistant/connections";
+import { connectorSettings } from "../../src/server/assistant/connector-settings";
 
 const consentRequests = new WeakMap<Page, ConnectionRequests>();
+const stores = new WeakMap<Page, AssistantStore>();
+export function assistantHistory(page: Page) {
+  return stores.get(page)!;
+}
 export async function pendingAssistantConnection(page: Page) {
   const requests = consentRequests.get(page)!;
   await expect.poll(() => requests.pending().length).toBeGreaterThan(0);
@@ -34,9 +39,11 @@ export async function installAssistant(
   createAdapters?: (
     root: string,
   ) => Partial<Record<ProviderId, AssistantProvider>>,
+  options?: { connectorSettings?: boolean },
 ) {
   const root = mkdtempSync(join(tmpdir(), "project-cad-browser-assistant-"));
   const store = new AssistantStore(join(root, "history.sqlite"));
+  stores.set(page, store);
   const run = async (input: ProviderInput) => {
     if (input.prompt.includes("attached files")) {
       input.text(
@@ -176,6 +183,10 @@ export async function installAssistant(
     origins: [origin],
     connections,
     desktopOpen: true,
+    connectorSettings:
+      options?.connectorSettings === false
+        ? undefined
+        : connectorSettings(root),
     selectAgents: (selection) => {
       agents = selection;
     },
@@ -207,6 +218,7 @@ export async function installAssistant(
     closing = true;
     await page.context().close();
     consentRequests.delete(page);
+    stores.delete(page);
     runtime.close();
     await new Promise((resolve) => setTimeout(resolve, 20));
     server.closeAllConnections();

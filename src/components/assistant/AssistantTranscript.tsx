@@ -48,6 +48,7 @@ export default function AssistantTranscript({
     };
   }, [project, readOnly]);
   async function apply(proposal: Proposal) {
+    if (readOnly) return;
     setApplying(proposal.id);
     try {
       const result = await onApply(proposal);
@@ -111,14 +112,11 @@ export default function AssistantTranscript({
             </p>
           ) : null}
           {run.error ? (
-            readOnly ? (
-              <details className={styles.details}>
-                <summary>Saved error details</summary>
-                <p>{run.error}</p>
-              </details>
-            ) : (
-              <AssistantError message={run.error} onUpdate={onUpdate} />
-            )
+            <AssistantError
+              message={run.error}
+              onUpdate={onUpdate}
+              historical={readOnly}
+            />
           ) : null}
           {run.proposals.map((proposal) => (
             <div
@@ -165,7 +163,12 @@ export default function AssistantTranscript({
                 <summary>Full change details</summary>
                 <pre>{JSON.stringify(proposal.plan.actions, null, 2)}</pre>
               </details>
-              {proposal.status === "pending" && !readOnly ? (
+              {proposal.status === "pending" && readOnly ? (
+                <p>
+                  Saved proposal. Ask Muse for a fresh review before applying
+                  changes.
+                </p>
+              ) : proposal.status === "pending" ? (
                 <>
                   <div className={styles.actions}>
                     <button
@@ -204,11 +207,7 @@ export default function AssistantTranscript({
                   ) : null}
                 </>
               ) : (
-                <p>
-                  {proposal.status === "pending"
-                    ? "Saved proposal. Start a Muse conversation to request new changes."
-                    : proposal.result}
-                </p>
+                <p>{proposal.result}</p>
               )}
             </div>
           ))}

@@ -21,6 +21,7 @@ import {
 import { AssistantRuntime } from "./runtime";
 import { applicationOrigin } from "./config";
 import { ConnectionRequests } from "./connections";
+import type { ConnectorSettingsService } from "./connector-settings";
 
 const escape = (value: string) =>
   value.replace(
@@ -55,6 +56,7 @@ export function createAssistantServer(
     connections?: ConnectionRequests;
     desktopOpen?: boolean;
     desktopWindow?: () => Promise<string>;
+    connectorSettings?: ConnectorSettingsService;
   },
 ) {
   const origins = new Set(options.origins),
@@ -115,6 +117,7 @@ export function createAssistantServer(
             ...(connections ? ["desktop-consent-v1"] : []),
             ...(connections && options.desktopOpen ? ["desktop-open-v1"] : []),
             ...(options.desktopWindow ? ["desktop-window-v1"] : []),
+            ...(options.connectorSettings ? ["connector-settings-v1"] : []),
           ],
         });
       const windowRequest = /^\/connections\/([a-f0-9]{64})\/window$/.exec(
@@ -363,6 +366,30 @@ export function createAssistantServer(
         .string()
         .uuid()
         .parse(req.headers["x-project-cad-client"]);
+      if (url.pathname === "/connector/settings") {
+        if (!options.connectorSettings)
+          return json(res, 404, {
+            error: "Update the assistant to manage its settings here.",
+          });
+        if (req.method === "GET")
+          return json(res, 200, options.connectorSettings.read());
+        if (
+          req.method !== "POST" ||
+          !req.headers["content-type"]?.startsWith("application/json")
+        )
+          return json(res, 405, { error: "Expected a JSON POST request." });
+        const preferences = JSON.parse(await readBody(req, 8192));
+        if (runtime.busy)
+          return json(res, 409, {
+            error:
+              "Wait for the current response to finish, or stop it before changing connector access.",
+          });
+        return json(
+          res,
+          200,
+          options.connectorSettings.save(preferences),
+        );
+      }
       if (url.pathname === "/providers" && req.method === "GET")
         return json(
           res,
@@ -373,15 +400,19 @@ export function createAssistantServer(
           url.searchParams.get("projectId"),
         ),
         scope = { origin: origin!, projectId, clientId };
-      if (req.method === "GET" && url.pathname === "/state")
-        return json(
-          res,
-          200,
-          runtime.snapshot(
-            scope,
-            url.searchParams.get("conversationId") || undefined,
-          ),
+      if (req.method === "GET" && url.pathname === "/state") {
+        const snapshot = runtime.snapshot(
+          scope,
+          url.searchParams.get("conversationId") || undefined,
         );
+        return json(res, 200, {
+          ...snapshot,
+          capabilities: [
+            ...(snapshot.capabilities ?? []),
+            ...(options.connectorSettings ? ["connector-settings-v1"] : []),
+          ],
+        });
+      }
       if (
         req.method !== "POST" ||
         !req.headers["content-type"]?.startsWith("application/json")

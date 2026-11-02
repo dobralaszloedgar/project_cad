@@ -4,7 +4,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const output = fileURLToPath(new URL('../../dist/assistant/', import.meta.url));
@@ -35,7 +35,12 @@ export async function finalizeManifest(directory, platform, architecture) {
       const file = join(folder, name);
       if (file === path) continue;
       if ((await stat(file)).isDirectory()) await walk(file);
-      else files[file.slice(directory.length + 1)] = createHash('sha256').update(await readFile(file)).digest('hex');
+      else {
+        const relative = file.slice(directory.length + 1);
+        // POSIX targets cannot resolve a Windows build host's backslashes.
+        const key = platform === 'win32' ? relative : relative.split(sep).join('/');
+        files[key] = createHash('sha256').update(await readFile(file)).digest('hex');
+      }
     }
   }
   await walk(directory);

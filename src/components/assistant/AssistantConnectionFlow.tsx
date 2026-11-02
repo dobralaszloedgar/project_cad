@@ -254,7 +254,7 @@ export default function AssistantConnectionFlow({
     download: updating ? "Update Project CAD Assistant" : "Connect Muse",
     setup: "Open your download",
     connect: "Muse connector is ready",
-    approval: "Approve in Project CAD Assistant",
+    approval: "One last step in the desktop app",
     connected: "You’re all connected",
   };
   const descriptions = {
@@ -264,7 +264,8 @@ export default function AssistantConnectionFlow({
       : "The connector downloads automatically. Muse installs when you open it.",
     setup: "Install the connector, then return here.",
     connect: "Connect, then approve this website in the assistant app.",
-    approval: "Approve this website in the connector window.",
+    approval:
+      "Open Project CAD Assistant and click Approve connector. You’ll return here automatically when Muse is ready.",
     connected: "Choose a Muse model and start chatting.",
   };
 
@@ -671,8 +672,7 @@ export default function AssistantConnectionFlow({
           {stage === "approval" ? (
             <div className={styles.actions}>
               <div className={styles.approvalStatus} role="status">
-                <LoaderCircle size={16} className={styles.spinner} /> Waiting
-                for your approval
+                <Plug size={16} /> Approval needed in the desktop app
               </div>
               {onOpenApproval ? (
                 <button
@@ -682,8 +682,8 @@ export default function AssistantConnectionFlow({
                 >
                   <ExternalLink size={16} />{" "}
                   {openingApproval
-                    ? "Opening approval window…"
-                    : "Open approval window"}
+                    ? "Opening Project CAD Assistant…"
+                    : "Open Project CAD Assistant"}
                 </button>
               ) : null}
               <p className={styles.fileInfo}>

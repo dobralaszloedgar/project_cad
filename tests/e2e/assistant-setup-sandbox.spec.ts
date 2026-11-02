@@ -32,13 +32,15 @@ test("a lost approval window can be reopened without restarting or approving the
       .click();
     const pending = await pendingAssistantConnection(page);
     await page
-      .getByRole("button", { name: "Open approval window", exact: true })
+      .getByRole("button", { name: "Open Project CAD Assistant", exact: true })
       .click();
     await expect
       .poll(async () => (await pendingAssistantConnection(page)).openRevision)
       .toBeGreaterThan(0);
     expect((await pendingAssistantConnection(page)).id).toBe(pending.id);
-    await expect(page.getByText("Waiting for your approval")).toBeVisible();
+    await expect(
+      page.getByText("Approval needed in the desktop app"),
+    ).toBeVisible();
     await approveAssistant(page);
     await expect(
       page.getByRole("heading", { name: "You’re all connected" }),
@@ -332,7 +334,7 @@ test("an existing assistant skips installation and completes real approval", asy
       .click();
 
     await expect(
-      page.getByRole("heading", { name: "Approve in Project CAD Assistant" }),
+      page.getByRole("heading", { name: "One last step in the desktop app" }),
     ).toBeVisible();
     await approveAssistant(page);
     await expect(
@@ -409,7 +411,7 @@ test("connection works with popups blocked and never opens another page", async 
       .getByRole("button", { name: "Connect assistant", exact: true })
       .click();
     await expect(
-      page.getByText("Waiting for your approval", { exact: true }),
+      page.getByText("Approval needed in the desktop app", { exact: true }),
     ).toBeVisible();
     await approveAssistant(page);
     await expect(

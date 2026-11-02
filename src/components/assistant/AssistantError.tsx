@@ -8,10 +8,19 @@ import styles from "../AssistantPanel.module.css";
 export default function AssistantError({
   message,
   onUpdate,
+  historical = false,
 }: {
   message: string;
   onUpdate?: () => void;
+  historical?: boolean;
 }) {
+  if (historical)
+    return (
+      <details className={styles.details}>
+        <summary>Earlier response could not finish</summary>
+        <p className={styles.error}>{message}</p>
+      </details>
+    );
   const schemaError =
     message.includes("invalid type: integer") &&
     message.includes("as u128, expected any value");

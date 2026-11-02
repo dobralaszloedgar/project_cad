@@ -367,7 +367,7 @@ function MacInstaller() {
         <strong>Welcome to the Project CAD Assistant Installer</strong>
         <div>
           <h3>Project CAD Assistant</h3>
-          <p>Install the local companion for Codex, Claude Code, and Muse.</p>
+          <p>Install the local companion for Muse in Project CAD.</p>
           <p>
             The private runtime is included. Existing settings, conversations,
             and project files are preserved.

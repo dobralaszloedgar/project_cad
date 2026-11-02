@@ -81,9 +81,10 @@ test("Muse connector fits one screen and returns to the original project tab", a
       }
     }
     if (!token) throw Error("Desktop did not start: " + processLog);
-    const page = await browser.newPage({
+    const context = await browser.newContext({
       viewport: { width: 1100, height: 950 },
     });
+    const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
@@ -92,7 +93,6 @@ test("Muse connector fits one screen and returns to the original project tab", a
     await page.route("**/favicon.ico", (route) =>
       route.fulfill({ status: 204 }),
     );
-    const context = page.context();
     await context.grantPermissions(["local-network-access"]);
     await context.route(origin + "/api/state", async (route) => {
       const response = await route.fetch();
@@ -125,7 +125,7 @@ test("Muse connector fits one screen and returns to the original project tab", a
     await page.goto(projectUrl);
     const opened = page.waitForEvent("popup");
     await page.getByRole("button", { name: "Connect Muse" }).click();
-    const connector = await opened;
+    let connector = await opened;
     await connector.waitForURL(origin + "/", { timeout: 15000 }).catch(() => {
       throw Error(JSON.stringify({ url: connector.url(), errors, processLog }));
     });
@@ -164,20 +164,19 @@ test("Muse connector fits one screen and returns to the original project tab", a
     }
     await connector.setViewportSize({ width: 680, height: 620 });
     await connector.screenshot({ path: join(output, "muse-approval.png") });
+    const closed = connector.waitForEvent("close");
     await connector
       .getByRole("button", { name: "Approve connector", exact: true })
       .click();
-    await expect(connector.locator("#approval")).toBeHidden();
-    await expect(connector.locator("[data-status=muse]")).toHaveText("Ready");
-    await connector.screenshot({ path: join(output, "muse-ready.png") });
-    const count = context.pages().length;
-    await connector.getByRole("button", { name: "Return to project" }).click();
+    await closed;
     await expect(page.locator("#returned")).toHaveText("Returned");
     expect(page.url()).toBe(projectUrl);
-    expect(context.pages()).toHaveLength(count);
-    expect(
-      await connector.evaluate(() => !!window.opener && !window.opener.closed),
-    ).toBe(true);
+    expect(context.pages()).toHaveLength(1);
+    // Explicitly reopening the companion still provides recovery/settings.
+    connector = await context.newPage();
+    connector.on("pageerror", (error) => errors.push(error.message));
+    await connector.goto((await command("ticket")).url);
+    await expect(connector.locator("[data-status=muse]")).toHaveText("Ready");
     await connector.getByText("Settings", { exact: true }).click();
     await expect(connector.getByLabel("Connector access")).toHaveValue("yolo");
     await connector.getByLabel("Connector access").selectOption("sandbox");

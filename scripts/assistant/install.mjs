@@ -28,14 +28,16 @@ try {
   await mkdir(dirname(destination), { recursive: true });
   await cp(source, staging, { recursive: true, preserveTimestamps: true });
   await execute(runtime(staging), [controller(staging), 'doctor'], { timeout: 10000 });
+  // Use the incoming controller: old versions can report stopped as soon as
+  // HTTP closes, before their process and launchd registration have exited.
+  // This also handles a leftover service when the old bundle is missing.
+  // --no-start only controls what happens after installation.
+  await execute(join(staging, 'Contents', 'MacOS', 'ProjectCADAssistant'), ['--quit-for-update', destination], { timeout: 15000 });
+  const stopped = await execute(runtime(staging), [controller(staging), 'stop'], { timeout: 60000 });
+  const state = JSON.parse(stopped.stdout);
+  if (state.running !== false || state.managed !== false)
+    throw new Error('Close the running Project CAD assistant before updating. The existing installation has not been replaced.');
   if (await exists(destination)) {
-    // Replacing the bundle must also replace the running app and its service.
-    // --no-start controls what happens after installation, not whether the old
-    // connector may keep running with sessions from the previous version.
-    await execute(join(staging, 'Contents', 'MacOS', 'ProjectCADAssistant'), ['--quit-for-update', destination], { timeout: 15000 });
-    const stopped = await execute(runtime(destination), [controller(destination), 'stop'], { timeout: 25000 });
-    if (JSON.parse(stopped.stdout).running)
-      throw new Error('Close the running Project CAD assistant before updating.');
     await rename(destination, previous); backedUp = true;
   }
   await rename(staging, destination); promoted = true;
