@@ -16,6 +16,14 @@ it("carries distinct column outlet colors through the pipes and product drums", 
   const colors = landingComposition(makeLandingSystem());
   const column = colors.equipment.column;
   expect(column.ports.out).not.toBe(column.ports.out2);
+  const channels = (hex: string) =>
+    [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const top = channels(column.ports.out!),
+    bottom = channels(column.ports.out2!);
+  // Merely unequal greens still look identical through the inspection shell.
+  expect(
+    Math.hypot(...top.map((value, index) => value - bottom[index])),
+  ).toBeGreaterThan(140);
   expect(colors.streams.distillate).toBe(column.ports.out);
   expect(colors.equipment.light.color).toBe(column.ports.out);
   for (const id of ["bottoms", "product", "recycle"])
@@ -58,6 +66,10 @@ it("uses a converged application result for the landing example", async () => {
     await import("../src/components/equipment-3d/composition-colors");
   const calculated = simulate(landingExample.project);
   expect(calculated.converged).toBe(true);
+  const top = calculated.streams.distillate,
+    bottom = calculated.streams.bottoms;
+  expect(top.a / (top.a + top.b)).toBeGreaterThan(0.85);
+  expect(bottom.b / (bottom.a + bottom.b)).toBeGreaterThan(0.9);
   expect(projectCompositionColors(landingExample.project, calculated)).toEqual(
     landingExample.colors,
   );

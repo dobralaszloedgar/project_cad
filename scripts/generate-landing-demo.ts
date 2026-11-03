@@ -22,6 +22,7 @@ import { projectRevision } from "../src/assistant/project-revision";
 import { simulate } from "../src/domain/solver";
 import { equipmentStatuses } from "../src/domain/equipment-status";
 import { projectCompositionColors } from "../src/components/equipment-3d/composition-colors";
+import { defaultDistillation } from "../src/domain/equipment/distillation-schema";
 
 const units = storyEquipment.map((item) => {
   const unit = newUnit(
@@ -132,10 +133,17 @@ const project = projectSchema.parse({
     colorIndex: index % 8,
   })),
 });
+// Show both binary components using the same model and palette as the editor.
+// A pure-A feed with the legacy single-contact separator made every outlet look
+// green. Declared FUG key recoveries give the example readable, solved products.
+project.units.find((unit) => unit.id === "F-101")!.params.fractionA = 0.6;
+project.units.find((unit) => unit.id === "D-101")!.params.distillation =
+  defaultDistillation(["A", "B"], 6);
 const result = simulate(project);
 if (!result.converged)
   throw new Error("Landing example must converge before export");
 const colors = projectCompositionColors(project, result);
+for (const stream of drawing.streams) stream.color = colors.streams[stream.id];
 const equipment = storyEquipment.map(({ name, ...item }) => {
   const unit = project.units.find((unit) => unit.id === item.tag)!;
   return {

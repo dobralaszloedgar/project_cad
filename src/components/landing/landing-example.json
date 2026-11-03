@@ -15,7 +15,7 @@
           "temperature": 300,
           "pressure": 101325,
           "flow": 10,
-          "fractionA": 1,
+          "fractionA": 0.6,
           "residenceTime": 10,
           "reactorMode": "residence-time",
           "catalystMass": 10,
@@ -151,7 +151,30 @@
           "recycleFraction": 0.5,
           "relativeVolatility": 3,
           "distillateFraction": 0.5,
-          "trayCount": 8
+          "trayCount": 8,
+          "distillation": {
+            "method": "fug",
+            "condenserType": "total",
+            "lightKey": "A",
+            "heavyKey": "B",
+            "relativeVolatilities": {
+              "A": 6,
+              "B": 1
+            },
+            "lightRecovery": 0.95,
+            "heavyRecovery": 0.95,
+            "feedLiquidFraction": 1,
+            "refluxMode": "multiplier",
+            "refluxMultiplier": 1.5,
+            "refluxRatio": 2.5,
+            "distillateTemperature": 350,
+            "bottomsTemperature": 370,
+            "distillateFlow": 5,
+            "feedTray": 4,
+            "pressureDrop": 0,
+            "maxIterations": 200,
+            "tolerance": 1e-8
+          }
         }
       },
       {
@@ -338,18 +361,18 @@
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": 55.50000000000068,
+        "molarEnthalpy": -7944.5,
         "molecularWeight": 0.028,
         "partialPressures": [
-          101325,
-          0
+          60795,
+          40530
         ],
         "phase": "vapor",
         "saturationPressures": null,
         "temperature": 300,
         "vaporComposition": [
-          1,
-          0
+          0.6,
+          0.4
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -365,22 +388,22 @@
         "componentResidual": 0,
         "enthalpyResidual": null,
         "equilibriumResidual": 0,
-        "gasMolarVolume": 0.024617209824287906,
+        "gasMolarVolume": 0.026448495719579124,
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -1730.1202979853772,
-        "molecularWeight": 0.028000000000000004,
+        "molarEnthalpy": -10927.244091446511,
+        "molecularWeight": 0.028,
         "partialPressures": [
-          92278.6011653316,
-          9046.398834668422
+          42291.74611898912,
+          59033.25388101088
         ],
         "phase": "vapor",
         "saturationPressures": null,
-        "temperature": 300,
+        "temperature": 322.31714205260295,
         "vaporComposition": [
-          0.9107189851007312,
-          0.0892810148992689
+          0.41738708234877,
+          0.58261291765123
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -400,18 +423,18 @@
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": 2769.879702014623,
-        "molecularWeight": 0.028000000000000004,
+        "molarEnthalpy": -7096.7583530246,
+        "molecularWeight": 0.028,
         "partialPressures": [
-          92278.6011653316,
-          9046.398834668422
+          42291.74611898912,
+          59033.25388101088
         ],
         "phase": "vapor",
         "saturationPressures": null,
         "temperature": 450,
         "vaporComposition": [
-          0.9107189851007312,
-          0.0892810148992689
+          0.41738708234877,
+          0.58261291765123
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -431,18 +454,18 @@
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -578.1326602677391,
-        "molecularWeight": 0.027999999999999997,
+        "molarEnthalpy": -8503.002902334092,
+        "molecularWeight": 0.028000000000000004,
         "partialPressures": [
-          75316.73353491856,
-          26008.266465081437
+          35167.35967104991,
+          66157.6403289501
         ],
         "phase": "vapor",
         "saturationPressures": null,
         "temperature": 450,
         "vaporComposition": [
-          0.743318366986613,
-          0.256681633013387
+          0.3470748548832954,
+          0.6529251451167046
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -462,18 +485,18 @@
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -5078.132660267739,
-        "molecularWeight": 0.027999999999999997,
+        "molarEnthalpy": -13003.002902334092,
+        "molecularWeight": 0.028000000000000004,
         "partialPressures": [
-          75316.73353491856,
-          26008.266465081437
+          35167.35967104991,
+          66157.6403289501
         ],
         "phase": "vapor",
         "saturationPressures": null,
         "temperature": 300,
         "vaporComposition": [
-          0.743318366986613,
-          0.256681633013387
+          0.3470748548832954,
+          0.6529251451167046
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -489,22 +512,22 @@
         "componentResidual": 0,
         "enthalpyResidual": null,
         "equilibriumResidual": 0,
-        "gasMolarVolume": 0.024617209824287906,
+        "gasMolarVolume": 0.02872007812833589,
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -3069.2841266195474,
-        "molecularWeight": 0.027999999999999997,
+        "molarEnthalpy": -246.33206398212587,
+        "molecularWeight": 0.028,
         "partialPressures": [
-          85494.06241851371,
-          15830.937581486285
+          92196.46830585055,
+          9128.531694149448
         ],
         "phase": "vapor",
         "saturationPressures": null,
-        "temperature": 300,
+        "temperature": 350,
         "vaporComposition": [
-          0.8437607936690226,
-          0.1562392063309774
+          0.9099083968008936,
+          0.09009160319910632
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -520,22 +543,22 @@
         "componentResidual": 0,
         "enthalpyResidual": null,
         "equilibriumResidual": 0,
-        "gasMolarVolume": 0.024617209824287906,
+        "gasMolarVolume": 0.030361225449955082,
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -7086.98119391593,
-        "molecularWeight": 0.028,
+        "molarEnthalpy": -17300.182099339923,
+        "molecularWeight": 0.028000000000000004,
         "partialPressures": [
-          65139.40465132342,
-          36185.59534867658
+          2757.6505642191255,
+          98567.3494357809
         ],
         "phase": "vapor",
         "saturationPressures": null,
-        "temperature": 300,
+        "temperature": 370,
         "vaporComposition": [
-          0.6428759403042035,
-          0.3571240596957965
+          0.02721589503300395,
+          0.9727841049669962
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -551,22 +574,22 @@
         "componentResidual": 0,
         "enthalpyResidual": null,
         "equilibriumResidual": 0,
-        "gasMolarVolume": 0.024617209824287906,
+        "gasMolarVolume": 0.030361225449955082,
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -7086.98119391593,
-        "molecularWeight": 0.028,
+        "molarEnthalpy": -17300.182099339923,
+        "molecularWeight": 0.028000000000000004,
         "partialPressures": [
-          65139.40465132342,
-          36185.59534867658
+          2757.6505642191255,
+          98567.3494357809
         ],
         "phase": "vapor",
         "saturationPressures": null,
-        "temperature": 300,
+        "temperature": 370,
         "vaporComposition": [
-          0.6428759403042035,
-          0.3571240596957965
+          0.02721589503300395,
+          0.9727841049669962
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -582,22 +605,22 @@
         "componentResidual": 0,
         "enthalpyResidual": null,
         "equilibriumResidual": 0,
-        "gasMolarVolume": 0.024617209824287906,
+        "gasMolarVolume": 0.030361225449955082,
         "iterations": 0,
         "kValues": null,
         "liquidComposition": null,
-        "molarEnthalpy": -7086.98119391593,
-        "molecularWeight": 0.028,
+        "molarEnthalpy": -17300.182099339923,
+        "molecularWeight": 0.028000000000000004,
         "partialPressures": [
-          65139.40465132342,
-          36185.59534867658
+          2757.6505642191255,
+          98567.3494357809
         ],
         "phase": "vapor",
         "saturationPressures": null,
-        "temperature": 300,
+        "temperature": 370,
         "vaporComposition": [
-          0.6428759403042035,
-          0.3571240596957965
+          0.02721589503300395,
+          0.9727841049669962
         ],
         "vaporFraction": 1,
         "warnings": [
@@ -622,56 +645,56 @@
       "feed-blend": {
         "temperature": 300,
         "pressure": 101325,
-        "a": 10,
-        "b": 0
+        "a": 6,
+        "b": 4
       },
       "blend-heat": {
-        "temperature": 300,
+        "temperature": 322.31714205260295,
         "pressure": 101325,
-        "a": 12.142919801166379,
-        "b": 1.1904135319729292
+        "a": 6.127379318715691,
+        "b": 8.552948793584711
       },
       "heat-react": {
         "temperature": 450,
         "pressure": 101325,
-        "a": 12.142919801166379,
-        "b": 1.1904135319729292
+        "a": 6.127379318715691,
+        "b": 8.552948793584711
       },
       "react-cool": {
         "temperature": 450,
         "pressure": 101325,
-        "a": 9.910911559677285,
-        "b": 3.4224217734620233
+        "a": 5.095172749215824,
+        "b": 9.585155363084578
       },
       "cool-separate": {
         "temperature": 300,
         "pressure": 101325,
-        "a": 9.910911559677285,
-        "b": 3.4224217734620233
+        "a": 5.095172749215824,
+        "b": 9.585155363084578
       },
       "distillate": {
-        "temperature": 300,
+        "temperature": 350,
         "pressure": 101325,
-        "a": 5.625071957711628,
-        "b": 1.0415947088580255
+        "a": 4.840414111755033,
+        "b": 0.4792577681542293
       },
       "bottoms": {
-        "temperature": 300,
+        "temperature": 370,
         "pressure": 101325,
-        "a": 4.285839601965656,
-        "b": 2.3808270646039977
+        "a": 0.2547586374607915,
+        "b": 9.10589759493035
       },
       "product": {
-        "temperature": 300,
+        "temperature": 370,
         "pressure": 101325,
-        "a": 2.142919800982828,
-        "b": 1.1904135323019989
+        "a": 0.12737931873039576,
+        "b": 4.552948797465175
       },
       "recycle": {
-        "temperature": 300,
+        "temperature": 370,
         "pressure": 101325,
-        "a": 2.142919800982828,
-        "b": 1.1904135323019989
+        "a": 0.12737931873039576,
+        "b": 4.552948797465175
       }
     },
     "equipment": {
@@ -684,12 +707,12 @@
         "extent": 0
       },
       "H-101": {
-        "duty": 59999.999999126885,
+        "duty": 56232.78746952095,
         "extent": 0
       },
       "R-101": {
-        "duty": -44640.1648297819,
-        "extent": 2.232008241489094,
+        "duty": -20644.131389997332,
+        "extent": 1.0322065694998666,
         "profile": [
           {
             "catalystMass": 0,
@@ -697,174 +720,192 @@
           },
           {
             "catalystMass": 0.25,
-            "conversion": 0.005064878517445861
+            "conversion": 0.004601221035398978
           },
           {
             "catalystMass": 0.5,
-            "conversion": 0.010104104040495238
+            "conversion": 0.009181270835781359
           },
           {
             "catalystMass": 0.75,
-            "conversion": 0.015117806498448357
+            "conversion": 0.013740246814679046
           },
           {
             "catalystMass": 1,
-            "conversion": 0.020106115162529324
+            "conversion": 0.01827824593740275
           },
           {
             "catalystMass": 1.25,
-            "conversion": 0.0250691586492192
+            "conversion": 0.022795364723104356
           },
           {
             "catalystMass": 1.5,
-            "conversion": 0.030007064923572187
+            "conversion": 0.027291699246829795
           },
           {
             "catalystMass": 1.75,
-            "conversion": 0.03491996130251505
+            "conversion": 0.03176734514156247
           },
           {
             "catalystMass": 2,
-            "conversion": 0.03980797445812976
+            "conversion": 0.03622239760025732
           },
           {
             "catalystMass": 2.25,
-            "conversion": 0.044671230420919604
+            "conversion": 0.04065695137786541
           },
           {
             "catalystMass": 2.5,
-            "conversion": 0.04950985458305868
+            "conversion": 0.045071100793349354
           },
           {
             "catalystMass": 2.75,
-            "conversion": 0.05432397170162494
+            "conversion": 0.04946493973168938
           },
           {
             "catalystMass": 3,
-            "conversion": 0.059113705901816894
+            "conversion": 0.053838561645880176
           },
           {
             "catalystMass": 3.25,
-            "conversion": 0.06387918068015402
+            "conversion": 0.05819205955891851
           },
           {
             "catalystMass": 3.5,
-            "conversion": 0.06862051890766094
+            "conversion": 0.0625255260657818
           },
           {
             "catalystMass": 3.75,
-            "conversion": 0.0733378428330354
+            "conversion": 0.06683905333539751
           },
           {
             "catalystMass": 4,
-            "conversion": 0.0780312740858004
+            "conversion": 0.07113273311260351
           },
           {
             "catalystMass": 4.25,
-            "conversion": 0.08270093367944016
+            "conversion": 0.07540665672009936
           },
           {
             "catalystMass": 4.5,
-            "conversion": 0.08734694201452031
+            "conversion": 0.0796609150603887
           },
           {
             "catalystMass": 4.75,
-            "conversion": 0.09196941888179225
+            "conversion": 0.08389559861771269
           },
           {
             "catalystMass": 5,
-            "conversion": 0.09656848346528174
+            "conversion": 0.08811079745997447
           },
           {
             "catalystMass": 5.25,
-            "conversion": 0.10114425434536196
+            "conversion": 0.09230660124065483
           },
           {
             "catalystMass": 5.5,
-            "conversion": 0.10569684950181092
+            "conversion": 0.09648309920071911
           },
           {
             "catalystMass": 5.75,
-            "conversion": 0.11022638631685336
+            "conversion": 0.10064038017051526
           },
           {
             "catalystMass": 6,
-            "conversion": 0.11473298157818729
+            "conversion": 0.10477853257166311
           },
           {
             "catalystMass": 6.25,
-            "conversion": 0.11921675148199529
+            "conversion": 0.10889764441893512
           },
           {
             "catalystMass": 6.5,
-            "conversion": 0.1236778116359403
+            "conversion": 0.1129978033221283
           },
           {
             "catalystMass": 6.75,
-            "conversion": 0.1281162770621466
+            "conversion": 0.11707909648792762
           },
           {
             "catalystMass": 7,
-            "conversion": 0.13253226220016523
+            "conversion": 0.12114161072176083
           },
           {
             "catalystMass": 7.25,
-            "conversion": 0.136925880909925
+            "conversion": 0.12518543242964475
           },
           {
             "catalystMass": 7.5,
-            "conversion": 0.14129724647466782
+            "conversion": 0.12921064762002293
           },
           {
             "catalystMass": 7.75,
-            "conversion": 0.1456464716038699
+            "conversion": 0.13321734190559514
           },
           {
             "catalystMass": 8,
-            "conversion": 0.1499736684361475
+            "conversion": 0.13720560050513816
           },
           {
             "catalystMass": 8.25,
-            "conversion": 0.15427894854214858
+            "conversion": 0.14117550824531835
           },
           {
             "catalystMass": 8.5,
-            "conversion": 0.1585624229274292
+            "conversion": 0.14512714956249584
           },
           {
             "catalystMass": 8.75,
-            "conversion": 0.16282420203531575
+            "conversion": 0.14906060850452035
           },
           {
             "catalystMass": 9,
-            "conversion": 0.16706439574975268
+            "conversion": 0.15297596873251898
           },
           {
             "catalystMass": 9.25,
-            "conversion": 0.17128311339813554
+            "conversion": 0.15687331352267533
           },
           {
             "catalystMass": 9.5,
-            "conversion": 0.17548046375412996
+            "conversion": 0.16075272576800104
           },
           {
             "catalystMass": 9.75,
-            "conversion": 0.1796565550404761
+            "conversion": 0.16461428798009858
           },
           {
             "catalystMass": 10,
-            "conversion": 0.18381149493177912
+            "conversion": 0.1684580822909163
           }
         ],
-        "conversion": 0.18381149493177912
+        "conversion": 0.1684580822909163
       },
       "C-101": {
-        "duty": -59999.99999912688,
+        "duty": -66061.4765053518,
         "extent": 0
       },
       "D-101": {
-        "duty": 0,
-        "extent": 0
+        "duty": 27636.88590788527,
+        "extent": 0,
+        "distillation": {
+          "method": "fug",
+          "condenserType": "total",
+          "solverVersion": "project-column-fug-v1",
+          "minimumStages": 3.2866453670089926,
+          "theoreticalStages": 9,
+          "minimumRefluxRatio": 0.35875194893253526,
+          "refluxRatio": 0.5381279233988029,
+          "underwoodRoot": 2.193484107866719,
+          "distillateMolS": 5.319671879909262,
+          "bottomsMolS": 9.36065623239114,
+          "rectifyingVaporMolS": 8.18233586180784,
+          "strippingVaporMolS": 8.18233586180784,
+          "warnings": [
+            "FUG preliminary design: supplied constant relative volatilities, adjacent keys, constant molar overflow and declared feed q. Stages include an equilibrium reboiler and exclude the total condenser. Actual trays require efficiencies; no azeotrope prediction or hydraulics.",
+            "FUG product temperatures are specified. Net duty is only the selected-model outlet-minus-feed enthalpy balance at those temperatures; condenser and reboiler duties and stage profiles are unavailable."
+          ]
+        }
       },
       "S-101": {
         "duty": 0,
@@ -880,37 +921,46 @@
       }
     },
     "converged": true,
-    "iterations": 18,
-    "residual": 2.7643306420865187e-10,
+    "iterations": 26,
+    "residual": 8.522964668461254e-10,
     "history": [
       1,
-      0.232785945416005,
-      0.06569734956262156,
-      0.019078427576849445,
-      0.00551447666128684,
-      0.0015764519251273191,
-      0.00044578763701660055,
-      0.00012487420113098749,
-      0.00003470188255990555,
-      0.000009578676198406036,
-      0.0000026288297208828175,
-      7.179121298686622e-7,
-      1.9521514957794903e-7,
-      5.288346906723108e-8,
-      1.4278482481932553e-8,
-      3.843794639373712e-9,
-      1.0320252541048384e-9,
-      2.7643306420865187e-10
+      0.3003010274933829,
+      0.11643280627193138,
+      0.048977718145715866,
+      0.021270114411297936,
+      0.009362114773306148,
+      0.004144876514816946,
+      0.0018397734898124376,
+      0.0008175433811797465,
+      0.0003634765420585619,
+      0.0001616364649288872,
+      0.00007188621078505358,
+      0.00003197209482033233,
+      0.000014220181995906207,
+      0.000006324745070204944,
+      0.0000028130832799137175,
+      0.0000012511889693204939,
+      5.564979380079523e-7,
+      2.475166172088519e-7,
+      1.1008933022148774e-7,
+      4.896504169134862e-8,
+      2.1778453482565268e-8,
+      9.686523934597687e-9,
+      4.308329066362935e-9,
+      1.916239474006901e-9,
+      8.522964668461254e-10
     ],
-    "massResidual": -4.0745185003743245e-12,
-    "energyResidual": 0.000006573325663339347,
-    "conversion": 0.2232008241305543,
-    "heatDuty": -44640.16482978189,
+    "massResidual": -1.0906470171434535e-10,
+    "energyResidual": 0.0000692132452968508,
+    "conversion": 0.1720344282524285,
+    "heatDuty": -2835.934517942922,
     "warnings": [
       "Synthetic A/B species; equal 28 g/mol molecular weight and constant 30 J/(mol·K) heat capacity.",
       "Isothermal first-order synthetic A → B; no catalyst transport, pressure drop, reversible kinetics or mechanical design. Catalyst-weight and residence-time modes use distinct rate-constant units.",
       "A splitter divides all components in the same proportions; it does not selectively separate chemicals.",
-      "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility of the first component to the remaining components (equal volatility). No stage count, latent heat or reboiler/condenser duties."
+      "FUG preliminary design: supplied constant relative volatilities, adjacent keys, constant molar overflow and declared feed q. Stages include an equilibrium reboiler and exclude the total condenser. Actual trays require efficiencies; no azeotrope prediction or hydraulics.",
+      "FUG product temperatures are specified. Net duty is only the selected-model outlet-minus-feed enthalpy balance at those temperatures; condenser and reboiler duties and stage profiles are unavailable."
     ],
     "tearId": "recycle"
   },
@@ -928,78 +978,78 @@
       }
     ],
     "streams": {
-      "feed-blend": "#299b83",
-      "blend-heat": "#399c7d",
-      "heat-react": "#399c7d",
-      "react-cool": "#579d73",
-      "cool-separate": "#579d73",
-      "distillate": "#459c79",
-      "bottoms": "#699e6d",
-      "product": "#699e6d",
-      "recycle": "#699e6d"
+      "feed-blend": "#719f6a",
+      "blend-heat": "#92a05e",
+      "heat-react": "#92a05e",
+      "react-cool": "#9fa15a",
+      "cool-separate": "#9fa15a",
+      "distillate": "#399c7d",
+      "bottoms": "#d8a446",
+      "product": "#d8a446",
+      "recycle": "#d8a446"
     },
     "equipment": {
       "F-101": {
-        "color": "#299b83",
+        "color": "#719f6a",
         "ports": {
-          "out": "#299b83"
+          "out": "#719f6a"
         }
       },
       "M-101": {
-        "color": "#399c7d",
+        "color": "#92a05e",
         "ports": {
-          "in": "#299b83",
-          "in2": "#699e6d",
-          "out": "#399c7d"
+          "in": "#719f6a",
+          "in2": "#d8a446",
+          "out": "#92a05e"
         }
       },
       "H-101": {
-        "color": "#399c7d",
+        "color": "#92a05e",
         "ports": {
-          "in": "#399c7d",
-          "out": "#399c7d"
+          "in": "#92a05e",
+          "out": "#92a05e"
         }
       },
       "R-101": {
-        "color": "#399c7d",
+        "color": "#92a05e",
         "ports": {
-          "in": "#399c7d",
-          "out": "#579d73"
+          "in": "#92a05e",
+          "out": "#9fa15a"
         }
       },
       "C-101": {
-        "color": "#579d73",
+        "color": "#9fa15a",
         "ports": {
-          "in": "#579d73",
-          "out": "#579d73"
+          "in": "#9fa15a",
+          "out": "#9fa15a"
         }
       },
       "D-101": {
-        "color": "#579d73",
+        "color": "#9fa15a",
         "ports": {
-          "in": "#579d73",
-          "out": "#459c79",
-          "out2": "#699e6d"
+          "in": "#9fa15a",
+          "out": "#399c7d",
+          "out2": "#d8a446"
         }
       },
       "P-101": {
-        "color": "#459c79",
+        "color": "#399c7d",
         "ports": {
-          "in": "#459c79"
+          "in": "#399c7d"
         }
       },
       "S-101": {
-        "color": "#699e6d",
+        "color": "#d8a446",
         "ports": {
-          "in": "#699e6d",
-          "out": "#699e6d",
-          "out2": "#699e6d"
+          "in": "#d8a446",
+          "out": "#d8a446",
+          "out2": "#d8a446"
         }
       },
       "P-102": {
-        "color": "#699e6d",
+        "color": "#d8a446",
         "ports": {
-          "in": "#699e6d"
+          "in": "#d8a446"
         }
       }
     }
@@ -1158,6 +1208,22 @@
     "D-101": {
       "state": "warning",
       "issues": [
+        {
+          "kind": "warning",
+          "message": "FUG preliminary design: supplied constant relative volatilities, adjacent keys, constant molar overflow and declared feed q. Stages include an equilibrium reboiler and exclude the total condenser. Actual trays require efficiencies; no azeotrope prediction or hydraulics.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "FUG product temperatures are specified. Net duty is only the selected-model outlet-minus-feed enthalpy balance at those temperatures; condenser and reboiler duties and stage profiles are unavailable.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
         {
           "kind": "warning",
           "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
