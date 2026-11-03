@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { MotionValue } from "motion/react";
 import { useMotionPreference } from "./use-motion-preference";
 
@@ -72,16 +72,25 @@ export default function ScrollStoryMedia({
   onUnavailable: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
+  const [failedNative, setFailedNative] = useState<string | null>(null);
+  const recoveryPosition = useRef<{
+    time: number;
+    intro: boolean;
+    tour: boolean;
+    rate: number;
+  } | null>(null);
   const variant = useSyncExternalStore(
     subscribeOrientation,
     readOrientation,
     () => "desktop",
   );
-  const quality = useSyncExternalStore(
+  const requestedQuality = useSyncExternalStore(
     subscribeQuality,
     readQuality,
     () => "fast",
   );
+  const nativeKey = `${variant}:${requestedQuality}`;
+  const quality = failedNative === nativeKey ? "fast" : requestedQuality;
   const reduced = useMotionPreference();
   const fps = quality === "120" ? 120 : 60;
   const file = variant + (quality === "120" ? "-120" : "");
@@ -89,15 +98,20 @@ export default function ScrollStoryMedia({
   useEffect(() => {
     const v = video.current;
     if (!v) return;
+    const recovery = recoveryPosition.current;
+    recoveryPosition.current = null;
+    let restoring = recovery !== null;
+    let restoreRequested = false;
     const w = window as StoryWindow;
     let disposed = false,
       busy = false,
       raf = 0,
       frame = 0,
       started = 0;
-    let intro = scroll.get() < 0.001 && !reduced,
-      tour = false;
-    let wanted = timeAt(scroll.get() * 1.65);
+    let intro = recovery?.intro ?? (scroll.get() < 0.001 && !reduced),
+      tour = recovery?.tour ?? false;
+    let wanted = recovery?.time ?? timeAt(scroll.get() * 1.65);
+    if (recovery) v.playbackRate = recovery.rate;
     const qa = {
       requests: 0,
       seeks: 0,
@@ -110,7 +124,16 @@ export default function ScrollStoryMedia({
     if (process.env.NODE_ENV === "development") w.storyQA = qa;
     const issue = () => {
       raf = 0;
-      if (disposed || !v.duration || intro || tour || busy || v.seeking) return;
+      if (
+        disposed ||
+        restoring ||
+        !v.duration ||
+        intro ||
+        tour ||
+        busy ||
+        v.seeking
+      )
+        return;
       if (v.ended && wanted >= v.duration - 1 / fps) return;
       const next = Math.max(0, Math.min(v.duration - 1 / fps, wanted));
       if (Math.abs(v.currentTime - next) < 0.6 / fps) return;
@@ -139,13 +162,26 @@ export default function ScrollStoryMedia({
         qa.lastWanted = 8;
         schedule();
       });
+    const restore = () => {
+      if (!restoring || restoreRequested || !v.duration) return;
+      restoreRequested = true;
+      v.currentTime = Math.max(0, Math.min(v.duration - 1 / fps, wanted));
+    };
     const ready = () => {
       onReady();
+      if (restoring) {
+        restore();
+        return;
+      }
       if (intro || tour) play();
       else schedule();
     };
     const seeked = () => {
       busy = false;
+      if (restoring && restoreRequested) {
+        restoring = false;
+        if (intro || tour) play();
+      }
       if (started) {
         if (process.env.NODE_ENV === "development")
           qa.latencies.push(performance.now() - started);
@@ -155,6 +191,10 @@ export default function ScrollStoryMedia({
     };
     const present = (_now: number, metadata: VideoFrameCallbackMetadata) => {
       if (disposed) return;
+      if (restoring) {
+        frame = v.requestVideoFrameCallback(present);
+        return;
+      }
       qa.presented++;
       qa.lastPresented = metadata.mediaTime;
       const progress = progressAt(metadata.mediaTime);
@@ -186,9 +226,23 @@ export default function ScrollStoryMedia({
         if (root) scrollTo(0, root.offsetHeight - innerHeight);
       }
     };
-    const unavailable = () => onUnavailable();
+    const unavailable = () => {
+      if (disposed) return;
+      if (quality === "120") {
+        // Decode errors can arrive after playback has already started. Retain
+        // both scroll position and playback intent when loading the web export.
+        recoveryPosition.current = {
+          time: intro || tour ? v.currentTime : wanted,
+          intro,
+          tour,
+          rate: v.playbackRate,
+        };
+        setFailedNative(nativeKey);
+      } else onUnavailable();
+    };
     const onTime = () => {
-      if (!v.requestVideoFrameCallback) shown.set(progressAt(v.currentTime));
+      if (!restoring && !v.requestVideoFrameCallback)
+        shown.set(progressAt(v.currentTime));
     };
     const stopTour = () => {
       if (!tour) return;
@@ -220,6 +274,7 @@ export default function ScrollStoryMedia({
     if (v.requestVideoFrameCallback)
       frame = v.requestVideoFrameCallback(present);
     v.addEventListener("loadeddata", ready);
+    v.addEventListener("loadedmetadata", restore);
     v.addEventListener("seeked", seeked);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("ended", ended);
@@ -228,7 +283,8 @@ export default function ScrollStoryMedia({
     if (v.error) unavailable();
     else if (v.readyState >= 2) ready();
     const stop = scroll.on("change", request);
-    const recovery = setInterval(() => {
+    if (restoring && v.readyState >= 1) restore();
+    const seekRecovery = setInterval(() => {
       if (busy && !v.seeking) {
         busy = false;
         schedule();
@@ -238,17 +294,28 @@ export default function ScrollStoryMedia({
       disposed = true;
       stop();
       cancelAnimationFrame(raf);
-      clearInterval(recovery);
+      clearInterval(seekRecovery);
       if (frame) v.cancelVideoFrameCallback(frame);
       v.pause();
       v.removeEventListener("loadeddata", ready);
+      v.removeEventListener("loadedmetadata", restore);
       v.removeEventListener("seeked", seeked);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("ended", ended);
       v.removeEventListener("error", unavailable);
       if (w.storyControl?.playAll === playAll) delete w.storyControl;
     };
-  }, [scroll, shown, onReady, onUnavailable, variant, reduced, quality, fps]);
+  }, [
+    scroll,
+    shown,
+    onReady,
+    onUnavailable,
+    variant,
+    reduced,
+    quality,
+    fps,
+    nativeKey,
+  ]);
 
   return (
     <div
@@ -265,7 +332,6 @@ export default function ScrollStoryMedia({
       <video
         ref={video}
         src={`/landing-media/${file}.mp4`}
-        onError={onUnavailable}
         poster={`/landing-media/${variant}-poster.png`}
         muted
         playsInline

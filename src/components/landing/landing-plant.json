@@ -84,7 +84,8 @@
       ],
       "color": "#e7ad49",
       "title": "Separate",
-      "trayCount": 8
+      "trayCount": 8,
+      "condenserType": "total"
     },
     {
       "id": "light",

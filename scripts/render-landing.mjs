@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { chromium } from "@playwright/test";
+import { verifyMediaPlayback } from "./verify-landing-media.mjs";
 
 const args = process.argv.slice(2);
 const option = (name, fallback) =>
@@ -29,11 +30,61 @@ const ffprobe =
   spawnSync("which", ["ffprobe"], { encoding: "utf8" }).stdout.trim();
 if (!ffmpeg || !ffprobe)
   throw new Error("Install ffmpeg and ffprobe before rendering");
+// Native 120 FPS masters use HEVC. Chrome's hardware decoder failed on the
+// high-resolution H.264 exports once the detailed 3D footage began. The public
+// CPU-friendly derivatives below remain H.264 for broad browser support.
+const nativeEncoding =
+  process.platform === "darwin"
+    ? [
+        "-c:v",
+        "hevc_videotoolbox",
+        "-allow_sw",
+        "0",
+        "-profile:v",
+        "main",
+        "-q:v",
+        "85",
+      ]
+    : [
+        "-c:v",
+        "libx265",
+        "-preset",
+        "fast",
+        "-crf",
+        "14",
+        "-x265-params",
+        "keyint=6:min-keyint=6:scenecut=0:bframes=0",
+      ];
+const nativeOutput = [
+  ...nativeEncoding,
+  "-g",
+  "6",
+  "-bf",
+  "0",
+  "-pix_fmt",
+  "yuv420p",
+  "-tag:v",
+  "hvc1",
+  "-movflags",
+  "+faststart",
+  "-colorspace",
+  "bt709",
+  "-color_primaries",
+  "bt709",
+  "-color_trc",
+  "bt709",
+];
 const fps = 120,
   duration = 34.2,
   frames = Math.round(duration * fps);
 const refreshDesign = args.includes("--refresh-design");
-const captureFrames = refreshDesign ? 10 * fps : frames;
+const refreshProcess = args.includes("--refresh-process");
+if (refreshDesign && refreshProcess)
+  throw new Error("Choose one refresh interval");
+const refreshing = refreshDesign || refreshProcess;
+const captureStart = refreshProcess ? 8 * fps : 0;
+const captureEnd = refreshDesign ? 10 * fps : frames;
+const captureFrames = captureEnd - captureStart;
 function state(t) {
   if (t <= 8) return { p: 0, d: t / 8, c: 0, s: 0 };
   if (t <= 10) return { p: 0.18 + ((t - 8) / 2) * 0.18, d: 1, c: 0, s: 0 };
@@ -59,7 +110,7 @@ const probe = (file) => {
       "-select_streams",
       "v:0",
       "-show_entries",
-      "stream=width,height,avg_frame_rate,nb_read_frames,duration",
+      "stream=codec_name,width,height,avg_frame_rate,nb_read_frames,duration",
       "-of",
       "json",
       file,
@@ -204,6 +255,7 @@ try {
       ["design", 7.3],
       ["build", 15],
       ["plant", 25],
+      ["column", 34],
     ]) {
       await advance(t);
       if (label === "design") {
@@ -233,12 +285,16 @@ try {
         png,
       );
     }
+    if (args.includes("--preflight-only")) {
+      await context.close();
+      continue;
+    }
     const final = path.join(out, `${config.name}-120.mp4`);
     const temp = path.join(
       out,
-      `${config.name}-${refreshDesign ? "design" : "120"}.pending.mp4`,
+      `${config.name}-${refreshDesign ? "design" : refreshProcess ? "process" : "120"}.pending.mp4`,
     );
-    if (refreshDesign) {
+    if (refreshing) {
       const existing = probe(final);
       if (
         existing.width !== width ||
@@ -247,7 +303,7 @@ try {
         Number(existing.nb_read_frames) !== frames
       )
         throw new Error(
-          "Design refresh requires a verified full native export",
+          "A partial refresh requires a verified full native export",
         );
     }
     const encoder = spawn(
@@ -268,32 +324,7 @@ try {
         "-an",
         "-vf",
         "scale=out_color_matrix=bt709",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-threads",
-        "6",
-        "-crf",
-        "12",
-        "-g",
-        "6",
-        "-keyint_min",
-        "6",
-        "-sc_threshold",
-        "0",
-        "-bf",
-        "0",
-        "-pix_fmt",
-        "yuv420p",
-        "-movflags",
-        "+faststart",
-        "-colorspace",
-        "bt709",
-        "-color_primaries",
-        "bt709",
-        "-color_trc",
-        "bt709",
+        ...nativeOutput,
         temp,
       ],
       { stdio: ["pipe", "ignore", "pipe"] },
@@ -305,7 +336,7 @@ try {
     );
     const closed = once(encoder, "close");
     try {
-      for (let i = 0; i < captureFrames; i++) {
+      for (let i = captureStart; i < captureEnd; i++) {
         await advance(i / fps);
         const png = await capture();
         if (png.readUInt32BE(16) !== width || png.readUInt32BE(20) !== height)
@@ -319,7 +350,7 @@ try {
           fs.writeFileSync(path.join(evidence, `${config.name}-${i}.png`), png);
         if (!encoder.stdin.write(png)) await once(encoder.stdin, "drain");
         if (i && i % 240 === 0)
-          console.log(`${config.name} ${i}/${captureFrames}`);
+          console.log(`${config.name} ${i - captureStart}/${captureFrames}`);
       }
       encoder.stdin.end();
       const [code] = await closed;
@@ -333,33 +364,32 @@ try {
         JSON.stringify({ errors, externalAssistantRequests: requests }),
       );
     let assembled = temp;
-    if (refreshDesign) {
-      const prefix = probe(temp);
-      if (Number(prefix.nb_read_frames) !== captureFrames)
-        throw new Error("Incomplete design refresh");
-      const tail = path.join(evidence, `${config.name}-retained-tail.mp4`);
-      const list = path.join(evidence, `${config.name}-concat.txt`);
+    if (refreshing) {
+      const refreshed = probe(temp);
+      if (Number(refreshed.nb_read_frames) !== captureFrames)
+        throw new Error("Incomplete interval refresh");
       assembled = path.join(out, `${config.name}-120.pending.mp4`);
-      await transcode(["-ss", "10", "-i", final, "-an", "-c:v", "copy", tail]);
-      // Ten seconds is an exact GOP boundary in the native 120 FPS exports.
-      const escaped = (file) => "file '" + file.replaceAll("'", "'\\''") + "'";
-      fs.writeFileSync(list, [escaped(temp), escaped(tail)].join("\n") + "\n");
+      // Decode and trim at exact timeline times: hardware encoders may insert
+      // extra keyframes, so stream-copy cuts are not reliable frame boundaries.
+      const filter = refreshDesign
+        ? "[0:v]setpts=PTS-STARTPTS[first];[1:v]trim=start=10,setpts=PTS-STARTPTS[second];[first][second]concat=n=2:v=1:a=0[joined]"
+        : "[0:v]trim=end=8,setpts=PTS-STARTPTS[first];[1:v]setpts=PTS-STARTPTS[second];[first][second]concat=n=2:v=1:a=0[joined]";
+      const inputs = refreshDesign ? [temp, final] : [final, temp];
       await transcode([
-        "-f",
-        "concat",
-        "-safe",
-        "0",
         "-i",
-        list,
+        inputs[0],
+        "-i",
+        inputs[1],
+        "-filter_complex",
+        filter,
+        "-map",
+        "[joined]",
         "-an",
-        "-c:v",
-        "copy",
-        "-movflags",
-        "+faststart",
+        "-r",
+        String(fps),
+        ...nativeOutput,
         assembled,
       ]);
-      fs.unlinkSync(tail);
-      fs.unlinkSync(list);
     }
     const meta = probe(assembled);
     if (
@@ -369,21 +399,25 @@ try {
       Number(meta.nb_read_frames) !== frames
     )
       throw new Error("Incorrect final export: " + JSON.stringify(meta));
+    const playback = await verifyMediaPlayback(browser, assembled);
     fs.renameSync(assembled, final);
-    if (refreshDesign) fs.unlinkSync(temp);
+    if (refreshing) fs.unlinkSync(temp);
     const previous = ledger.findIndex((item) => item.name === config.name);
     if (previous >= 0) ledger.splice(previous, 1);
     ledger.push({
       ...config,
       gpu,
       ...meta,
+      playback,
       file: final,
       bytes: fs.statSync(final).size,
       errors,
       externalAssistantRequests: requests,
       ...(refreshDesign
         ? { refreshedSeconds: [0, 10], retainedSeconds: [10, duration] }
-        : {}),
+        : refreshProcess
+          ? { refreshedSeconds: [8, duration], retainedSeconds: [0, 8] }
+          : {}),
     });
     fs.writeFileSync(
       path.join(evidence, "render-ledger.json"),
@@ -460,4 +494,8 @@ try {
 }
 await Promise.all(derivatives);
 if (derivativeErrors.length) throw new Error(derivativeErrors.join("\n"));
-console.log("All landing media exports verified.");
+console.log(
+  args.includes("--preflight-only")
+    ? "Landing render preflight passed."
+    : "All landing media exports verified.",
+);

@@ -212,7 +212,7 @@
     {
       "id": "feed-blend",
       "name": "S01",
-      "color": "#b43f44",
+      "color": "#719f6a",
       "points": [
         {
           "nodeId": "F-101",
@@ -244,7 +244,7 @@
     {
       "id": "blend-heat",
       "name": "S02",
-      "color": "#985500",
+      "color": "#92a05e",
       "points": [
         {
           "nodeId": "M-101",
@@ -268,7 +268,7 @@
     {
       "id": "heat-react",
       "name": "S03",
-      "color": "#8f6f00",
+      "color": "#92a05e",
       "points": [
         {
           "nodeId": "H-101",
@@ -304,7 +304,7 @@
     {
       "id": "react-cool",
       "name": "S04",
-      "color": "#167848",
+      "color": "#9fa15a",
       "points": [
         {
           "nodeId": "R-101",
@@ -340,7 +340,7 @@
     {
       "id": "cool-separate",
       "name": "S05",
-      "color": "#087b89",
+      "color": "#9fa15a",
       "points": [
         {
           "nodeId": "C-101",
@@ -372,7 +372,7 @@
     {
       "id": "distillate",
       "name": "S06",
-      "color": "#345fb4",
+      "color": "#399c7d",
       "points": [
         {
           "nodeId": "D-101",
@@ -404,7 +404,7 @@
     {
       "id": "bottoms",
       "name": "S07",
-      "color": "#7646a7",
+      "color": "#d8a446",
       "points": [
         {
           "nodeId": "D-101",
@@ -444,7 +444,7 @@
     {
       "id": "product",
       "name": "S08",
-      "color": "#a13c7d",
+      "color": "#d8a446",
       "points": [
         {
           "nodeId": "S-101",
@@ -476,7 +476,7 @@
     {
       "id": "recycle",
       "name": "Recycle",
-      "color": "#b43f44",
+      "color": "#d8a446",
       "points": [
         {
           "nodeId": "S-101",

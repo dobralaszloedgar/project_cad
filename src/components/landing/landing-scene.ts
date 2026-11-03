@@ -200,7 +200,7 @@ export async function createLandingScene(
           flat.flatMap((point) => point.toArray()),
         ),
         new Line2NodeMaterial({
-          color: stream.color,
+          color: colors.streams[stream.id] ?? stream.color,
           linewidth: 1.8,
           transparent: true,
           depthWrite: false,

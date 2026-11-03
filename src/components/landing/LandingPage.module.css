@@ -19,7 +19,9 @@
 .story {
   cursor: auto;
   position: relative;
-  height: 620svh;
+  /* Keep native scrolling; 70% of the former progress per scrolled pixel. */
+  --story-scroll-sensitivity: 0.7;
+  height: calc(100dvh + (620svh - 100dvh) / var(--story-scroll-sensitivity));
   color: var(--ink);
   background: #fafbf9;
   font: 400 15px/1.5 var(--font-sans);
