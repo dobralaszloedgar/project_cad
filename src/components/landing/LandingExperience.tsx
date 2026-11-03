@@ -7,7 +7,7 @@
 import { memo, useEffect, useRef } from "react";
 import { ACESFilmicToneMapping } from "three";
 import type { MotionValue } from "motion/react";
-import type { CadBridge } from "./CadWorkbench";
+import type { CadBridge } from "./landing-bridge";
 import { createSceneRenderer, waitForSceneFrame } from "../graphics/renderer";
 import { compileHiddenMaterials } from "../graphics/compile-scene";
 import { maximumDpr, ResolutionController } from "../graphics/performance";
@@ -17,6 +17,7 @@ import { worksheetProjection, worksheetTransform } from "./landing-camera";
 import { reveal, tourStopAt } from "./landing-motion";
 
 export type ExperienceProps = {
+  capture?: boolean;
   onReady: () => void;
   onUnavailable: () => void;
   progress: MotionValue<number>;
@@ -28,6 +29,7 @@ export type ExperienceProps = {
 /** One persistent scene, rendered only for input, resize, or active playback. */
 export default memo(function LandingExperience({
   progress,
+  capture = false,
   cadBridge,
   construction,
   simulation,
@@ -90,10 +92,12 @@ export default memo(function LandingExperience({
       if (!bounds.width || !bounds.height || !renderer) return;
       width = bounds.width;
       height = bounds.height;
-      maximum = Math.min(
-        software ? 1 : 1.5,
-        maximumDpr(width, height, devicePixelRatio),
-      );
+      maximum = capture
+        ? devicePixelRatio
+        : Math.min(
+            software ? 1 : 1.5,
+            maximumDpr(width, height, devicePixelRatio),
+          );
       ratio = Math.min(ratio, maximum);
       renderer.setPixelRatio(ratio);
       renderer.setSize(width, height, false);
@@ -127,7 +131,7 @@ export default memo(function LandingExperience({
         const pose = Math.max(0.55, p);
         if (!resized && pose === drawnProgress) return;
         if (idle) resolution.reset();
-        else if (previousFrame && p > 0.55) {
+        else if (!capture && previousFrame && p > 0.55) {
           const next = resolution.sample(
             (time - previousFrame) / 1000,
             ratio,
@@ -190,10 +194,20 @@ export default memo(function LandingExperience({
         // Match the editor's R3F color pipeline, which applies filmic tone mapping.
         renderer.toneMapping = ACESFilmicToneMapping;
         software = canvas.dataset.graphicsSoftware === "true";
-        ratio = software ? 1 : Math.min(1.5, devicePixelRatio || 1);
+        if (capture && software)
+          throw new Error("Native GPU capture requires hardware graphics");
+        ratio = capture
+          ? devicePixelRatio || 1
+          : software
+            ? 1
+            : Math.min(1.5, devicePixelRatio || 1);
         resize();
         observer.observe(canvas);
-        view = await createLandingScene(renderer, controller.signal);
+        view = await createLandingScene(
+          renderer,
+          controller.signal,
+          cadBridge.routes,
+        );
         if (disposed) {
           view.dispose();
           return;
@@ -234,6 +248,14 @@ export default memo(function LandingExperience({
       renderer?.dispose();
       canvas.remove();
     };
-  }, [progress, cadBridge, construction, simulation, onReady, onUnavailable]);
+  }, [
+    progress,
+    cadBridge,
+    construction,
+    simulation,
+    onReady,
+    onUnavailable,
+    capture,
+  ]);
   return <div ref={hostRef} style={{ width: "100%", height: "100%" }} />;
 });

@@ -33,6 +33,13 @@ export default async function Page({
   return (
     <LandingPage
       isPhone={isPhone}
+      mode={
+        process.env.NODE_ENV === "development" && query.render === "capture"
+          ? "capture"
+          : process.env.NODE_ENV === "development" && query.render === "live"
+            ? "live"
+            : "media"
+      }
       workspaceBlocked={
         isPhone &&
         (query.workspace === "desktop-required" ||

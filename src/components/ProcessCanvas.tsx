@@ -427,7 +427,12 @@ interface Props {
   streamColors?: Record<string, string>;
   compare?: Project;
   /** A fixed, read-only view of the same canvas for embedded walkthroughs. */
-  presentation?: { viewport: Viewport; colorMode?: "light" | "dark" };
+  presentation?: {
+    viewport: Viewport;
+    colorMode?: "light" | "dark";
+    showStatus?: boolean;
+    showControls?: boolean;
+  };
 }
 function Inner(props: Props) {
   const {
@@ -689,8 +694,14 @@ function Inner(props: Props) {
           reconnecting?.target === unit.id
             ? reconnecting.targetPort
             : undefined,
-        status: presentation ? undefined : statuses?.[unit.id],
-        onNavigate: presentation ? undefined : onNavigateIssue,
+        status:
+          presentation && !presentation.showStatus
+            ? undefined
+            : statuses?.[unit.id],
+        onNavigate:
+          presentation && !presentation.showStatus
+            ? undefined
+            : onNavigateIssue,
         change: changes?.added.some((n) => n.id === unit.id)
           ? "added"
           : changes?.changed.some((n) => n.id === unit.id)
@@ -1115,7 +1126,7 @@ function Inner(props: Props) {
         deleteKeyCode={null}
       >
         {showGrid ? <Background color="var(--grid)" gap={24} size={1} /> : null}
-        {!presentation && (
+        {(!presentation || presentation.showControls) && (
           <Controls
             showInteractive={false}
             showZoom={false}

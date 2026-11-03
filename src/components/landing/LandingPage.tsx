@@ -28,9 +28,8 @@ import SceneBoundary from "./SceneBoundary";
 import SceneFallback from "./SceneFallback";
 import { useMotionPreference } from "./use-motion-preference";
 import styles from "./LandingPage.module.css";
-import CadWorkbench, { createCadBridge } from "./CadWorkbench";
-import BuildActivity from "./BuildActivity";
-import DesignChat from "./DesignChat";
+import { createCadBridge } from "./landing-bridge";
+import ScrollStoryMedia from "./ScrollStoryMedia";
 import BrandMark from "@/components/BrandMark";
 import SiteLinks from "@/components/site/SiteLinks";
 import { useStoryPlayback } from "./use-story-playback";
@@ -41,15 +40,20 @@ const LandingExperience = dynamic(() => import("./LandingExperience"), {
   ssr: false,
   loading: () => null,
 });
+const CadWorkbench = dynamic(() => import("./CadWorkbench"), { ssr: false });
+const DesignChat = dynamic(() => import("./DesignChat"), { ssr: false });
+const BuildActivity = dynamic(() => import("./BuildActivity"), { ssr: false });
 const spring = { stiffness: 300, damping: 30, mass: 1 };
 const chapters = ["Design", "Build", "Explore"];
 
 export default function LandingPage({
   isPhone,
   workspaceBlocked,
+  mode = "media",
 }: {
   isPhone: boolean;
   workspaceBlocked: boolean;
+  mode?: "media" | "live" | "capture";
 }) {
   const root = useRef<HTMLElement>(null);
   const [workspaceNoticeVisible, setWorkspaceNoticeVisible] =
@@ -78,8 +82,17 @@ export default function LandingPage({
     scrollYProgress,
     visible,
     reduced,
+    mode === "media",
+    mode === "capture",
   );
+  useEffect(() => {
+    if (mode !== "media" || !sceneUnavailable) return;
+    const update = () => progress.set(scrollYProgress.get() * STORY_END);
+    update();
+    return scrollYProgress.on("change", update);
+  }, [mode, sceneUnavailable, progress, scrollYProgress]);
   const prepareScene = () => {
+    if (mode === "media") return;
     // Load the 3D code on navigation intent while the chat finishes.
     if (!scenePreloaded.current && scrollYProgress.get() * STORY_END >= 0.08) {
       scenePreloaded.current = true;
@@ -252,40 +265,57 @@ export default function LandingPage({
             </div>
           ) : null}
 
-          <motion.div
-            className={styles.experienceStage}
-            style={{
-              opacity: sceneReady || sceneUnavailable ? sceneOpacity : 0,
-            }}
-            data-shared-scene
-          >
-            {sceneUnavailable ? (
+          {mode === "media" ? (
+            sceneUnavailable ? (
               <SceneFallback />
-            ) : sceneRequested ? (
-              <SceneBoundary
-                fallback={<SceneFallback onUnavailable={onSceneUnavailable} />}
+            ) : (
+              <ScrollStoryMedia
+                scroll={scrollYProgress}
+                shown={progress}
+                onReady={onSceneReady}
+                onUnavailable={onSceneUnavailable}
+              />
+            )
+          ) : (
+            <>
+              <motion.div
+                className={styles.experienceStage}
+                style={{
+                  opacity: sceneReady || sceneUnavailable ? sceneOpacity : 0,
+                }}
+                data-shared-scene
               >
-                <LandingExperience
-                  onReady={onSceneReady}
-                  onUnavailable={onSceneUnavailable}
-                  progress={progress}
-                  cadBridge={cadBridge}
-                  construction={construction}
-                  simulation={simulation}
-                />
-              </SceneBoundary>
-            ) : null}
-          </motion.div>
-          <WorldBackdrop />
-          <div className={styles.sceneVeil} aria-hidden="true" />
-          <CadWorkbench
-            progress={progress}
-            construction={construction}
-            simulation={simulation}
-            bridge={cadBridge}
-            fallback={sceneUnavailable || !sceneReady}
-          />
-
+                {sceneUnavailable ? (
+                  <SceneFallback />
+                ) : sceneRequested ? (
+                  <SceneBoundary
+                    fallback={
+                      <SceneFallback onUnavailable={onSceneUnavailable} />
+                    }
+                  >
+                    <LandingExperience
+                      onReady={onSceneReady}
+                      onUnavailable={onSceneUnavailable}
+                      capture={mode === "capture"}
+                      progress={progress}
+                      cadBridge={cadBridge}
+                      construction={construction}
+                      simulation={simulation}
+                    />
+                  </SceneBoundary>
+                ) : null}
+              </motion.div>
+              <WorldBackdrop />
+              <div className={styles.sceneVeil} aria-hidden="true" />
+              <CadWorkbench
+                progress={progress}
+                construction={construction}
+                simulation={simulation}
+                bridge={cadBridge}
+                fallback={sceneUnavailable || !sceneReady}
+              />
+            </>
+          )}
           <motion.section
             className={styles.chapter}
             style={{ opacity: heroOpacity }}
@@ -305,7 +335,9 @@ export default function LandingPage({
                 </h1>
                 <p>Turn your process description into a working layout.</p>
               </motion.div>
-              <DesignChat design={design} reduced={reduced} />
+              {mode !== "media" ? (
+                <DesignChat design={design} reduced={reduced} />
+              ) : null}
             </div>
           </motion.section>
 
@@ -317,10 +349,12 @@ export default function LandingPage({
             aria-labelledby="build-title"
             data-scene="build"
           >
-            <BuildActivity
-              construction={construction}
-              simulation={simulation}
-            />
+            {mode !== "media" ? (
+              <BuildActivity
+                construction={construction}
+                simulation={simulation}
+              />
+            ) : null}
             <div className={styles.sceneCaption}>
               <h2 id="build-title" className={styles.chapterTitle}>
                 Build

@@ -5,7 +5,7 @@
 import { build } from "esbuild";
 import { expect, it } from "vitest";
 
-it("lazy loads 3D while keeping calculation and editor code out of the landing", async () => {
+it("keeps normal playback light while deferring shared editor assets to authoring", async () => {
   const result = await build({
     entryPoints: ["src/components/landing/LandingPage.tsx"],
     bundle: true,
@@ -35,8 +35,6 @@ it("lazy loads 3D while keeping calculation and editor code out of the landing",
       .filter(([, input]) => input.bytesInOutput > 0)
       .map(([name]) => name),
   );
-  expect(bundled).not.toContain("src/domain/thermo/kernel.wasm.json");
-  expect(bundled).not.toContain("src/domain/solver.ts");
   const initial = new Set<string>();
   const visit = (name: string) => {
     const output = result.metafile.outputs[name];
@@ -57,6 +55,8 @@ it("lazy loads 3D while keeping calculation and editor code out of the landing",
       ),
     ),
   ).toBe(false);
+  expect(initial.has("src/domain/solver.ts")).toBe(false);
+  expect(initial.has("src/domain/thermo/kernel.wasm.json")).toBe(false);
   expect(bundled).toContain("src/components/equipment-3d/models.ts");
   expect(bundled).toContain("src/components/equipment-3d/process-contents.ts");
 });

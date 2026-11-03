@@ -6,10 +6,15 @@
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import { dockSize, type DockCorner, type DockPoint } from "./dock";
-
-const properties = ["width", "height", "radius", "docking", "offset"] as const;
-type Property = (typeof properties)[number];
-type Spring = { value: number; velocity: number };
+import {
+  advanceMorph,
+  createMorphSprings,
+  morphGeometry,
+  morphSettled,
+  morphTargets,
+  settleMorph,
+  type MorphSprings,
+} from "./assistant-morph-motion";
 type Options = {
   surface: RefObject<HTMLDivElement | null>;
   content: RefObject<HTMLElement | null>;
@@ -37,7 +42,14 @@ export function useAssistantMorph({
   ready,
   immediate,
 }: Options) {
-  const state = useRef<Record<Property, Spring> | null>(null);
+  const state = useRef<MorphSprings | null>(null);
+  const {
+    left: panelLeft,
+    top: panelTop,
+    width: panelWidth,
+    height: panelHeight,
+  } = panel;
+  const { x: pointX, y: pointY } = point;
   const width =
     mode === "panel"
       ? panel.width
@@ -49,57 +61,33 @@ export function useAssistantMorph({
   const radius = mode === "panel" ? 20 : mode === "activity" ? 24 : 14;
 
   useLayoutEffect(() => {
+    const panel = {
+      left: panelLeft,
+      top: panelTop,
+      width: panelWidth,
+      height: panelHeight,
+    };
+    const point = { x: pointX, y: pointY };
     const skin = surfaceRef.current,
       text = contentRef.current;
     if (!ready || !skin || !text || !panel.width || !panel.height) return;
-    const targets = {
-      width,
-      height,
-      radius,
-      docking: mode === "panel" ? 1 : 0,
-      offset: mode === "activity" ? -2 : 0,
-    };
+    const targets = morphTargets(panel, mode, activityWidth);
     const first = !state.current;
-    const springs = (state.current ??= Object.fromEntries(
-      properties.map((key) => [key, { value: targets[key], velocity: 0 }]),
-    ) as Record<Property, Spring>);
-    const settled = () =>
-      properties.every(
-        (key) =>
-          Math.abs(springs[key].value - targets[key]) < 0.1 &&
-          Math.abs(springs[key].velocity) < 0.5,
-      );
-    const finish = () => {
-      for (const key of properties)
-        springs[key] = { value: targets[key], velocity: 0 };
-    };
+    const springs = (state.current ??= createMorphSprings(targets));
+    const settled = () => morphSettled(springs, targets);
+    const finish = () => settleMorph(springs, targets);
     const paint = () => {
-      const w = Math.max(dockSize, springs.width.value),
-        h = Math.max(dockSize, springs.height.value);
-      const r = Math.min(springs.radius.value, w / 2, h / 2);
-      const x = corner.endsWith("left") ? 0 : dockSize - w;
-      const y = corner.startsWith("top")
-        ? springs.offset.value
-        : dockSize - h - springs.offset.value;
-      const sx = w / panel.width,
-        sy = h / panel.height;
-      skin.style.transform = `translate3d(${x}px,${y}px,0) scale(${sx},${sy})`;
+      const geometry = morphGeometry(springs, panel, point, corner);
+      skin.style.transform = geometry.surfaceTransform;
       // Keep the visible corners round while scaling only the empty surface.
-      skin.style.borderRadius = `${r / sx}px / ${r / sy}px`;
-      const docking = Math.min(1, Math.max(0, springs.docking.value));
-      const insetX = Math.min(8, (w - dockSize) / 2);
-      const insetY = Math.min(4, (h - dockSize) / 2);
-      const cx =
-        (corner.endsWith("left") ? w - dockSize - insetX : -insetX) * docking;
-      const cy =
-        (corner.startsWith("top") ? insetY : dockSize - h + insetY) * docking;
+      skin.style.borderRadius = geometry.surfaceRadius;
       if (controlRef.current)
-        controlRef.current.style.transform = `translate3d(${cx}px,${cy}px,0)`;
-      text.style.clipPath = `inset(${Math.max(0, point.y + y - panel.top)}px ${Math.max(0, panel.left + panel.width - point.x - x - w)}px ${Math.max(0, panel.top + panel.height - point.y - y - h)}px ${Math.max(0, point.x + x - panel.left)}px round ${r}px)`;
+        controlRef.current.style.transform = geometry.controlTransform;
+      text.style.clipPath = geometry.clipPath;
       if (mode === "activity" && activityRef.current) {
-        activityRef.current.style.width = `${w}px`;
-        activityRef.current.style.left = `${point.x + x}px`;
-        activityRef.current.style.top = `${point.y + y}px`;
+        activityRef.current.style.width = `${geometry.width}px`;
+        activityRef.current.style.left = `${geometry.left}px`;
+        activityRef.current.style.top = `${geometry.top}px`;
       }
     };
     const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -116,16 +104,8 @@ export function useAssistantMorph({
     const tick = (now: number) => {
       const dt = Math.min((now - previous) / 1000, 0.064);
       previous = now;
-      const frequency = 30,
-        decay = Math.exp(-frequency * dt);
       // Integrate a critically damped spring without resetting reversal velocity.
-      for (const key of properties) {
-        const spring = springs[key],
-          distance = spring.value - targets[key];
-        const c = spring.velocity + frequency * distance;
-        spring.value = targets[key] + (distance + c * dt) * decay;
-        spring.velocity = (spring.velocity - frequency * c * dt) * decay;
-      }
+      advanceMorph(springs, targets, dt);
       const done = reducedMotion.matches || settled();
       if (done) finish();
       paint();
@@ -173,15 +153,16 @@ export function useAssistantMorph({
     ready,
     immediate,
     corner,
-    point.x,
-    point.y,
-    panel.width,
-    panel.height,
-    panel.left,
-    panel.top,
+    pointX,
+    pointY,
+    panelWidth,
+    panelHeight,
+    panelLeft,
+    panelTop,
     surfaceRef,
     contentRef,
     controlRef,
     activityRef,
+    activityWidth,
   ]);
 }

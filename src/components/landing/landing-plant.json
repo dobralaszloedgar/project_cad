@@ -1,7 +1,7 @@
 {
   "id": "landing-process",
-  "title": "From idea to process",
-  "description": "Reaction, separation and recycle.",
+  "title": "Reaction, separation & recycle",
+  "description": "Example data · reaction, separation and recycle.",
   "operation": "An illustrative process walkthrough.",
   "equipment": [
     {
@@ -29,7 +29,8 @@
       "turn": 1,
       "color": "#37c6a0",
       "title": "Blend",
-      "trayCount": 8
+      "trayCount": 8,
+      "branchCount": 2
     },
     {
       "id": "heater",
@@ -110,7 +111,8 @@
       ],
       "color": "#e7ad49",
       "title": "Recycle",
-      "trayCount": 8
+      "trayCount": 8,
+      "branchCount": 2
     },
     {
       "id": "bottom",

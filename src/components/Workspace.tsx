@@ -10,33 +10,24 @@ import { useRouter } from "next/navigation";
 import {
   Download,
   Play,
-  Box,
-  PanelTop,
-  Columns2,
   Info,
   Trash2,
   X,
-  Home,
-  Compass,
   ChevronRight,
   Thermometer,
   FlaskConical,
-  Pencil,
-  Maximize,
-  Minimize,
   MessageCircle,
   Settings2,
   ChartNoAxesColumnIncreasing,
-  CircleHelp,
-  AlignHorizontalJustifyStart,
   HardDrive,
   Ruler,
   Palette,
 } from "lucide-react";
 import { useCanvasFullscreen } from "./useCanvasFullscreen";
 import Dialog from "./Dialog";
-import BrandMark from "./BrandMark";
 import EquipmentLibrary from "./EquipmentLibrary";
+import CanvasToolbar from "./CanvasToolbar";
+import WorkspaceHeader from "./WorkspaceHeader";
 import { EquipmentPanelIcon } from "./EquipmentIcon";
 import Templates from "./Templates";
 import { plantTemplate } from "@/domain/plant-templates";
@@ -1683,96 +1674,69 @@ export default function Workspace({
       data-palette={palette.id}
       tabIndex={-1}
     >
-      <header className="app-header" inert={!ready || projectBusy}>
-        <button
-          className="brand"
-          onClick={() => void openProjects()}
-          aria-label="Project CAD home"
-        >
-          <BrandMark size={29} />
-          <span>Project CAD</span>
-        </button>
-        <span className="header-divider" />
-        <div className="header-navigation">
-          <button
-            className="icon-button"
-            aria-label="Open projects"
-            title="Projects"
-            onClick={() => void openProjects()}
-          >
-            <Home size={18} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label="Landing page"
-            title="Landing page"
-            onClick={() => void openLanding()}
-          >
-            <Compass size={18} />
-          </button>
-        </div>
-        <div className="project-heading">
-          <h1>{projectDisplayName({ fileName, workspace: state })}</h1>
-        </div>
-        <div className="header-actions">
-          <CanvasSoundToggle sound={sound} />
-          {view !== "2D" ? <div ref={setGraphicsSettingsContainer} /> : null}
-          <ThermodynamicSelector
-            key={`${projectId}:${state.revisions.length}`}
-            settings={project.thermo ?? defaultThermo}
-            open={thermoDialog === "model"}
-            onOpenChange={(open) => {
-              if (open) openThermodynamics("model");
-              else {
-                setThermoDialog(null);
-                void flushCurrentProject().catch((error) =>
-                  setMessage(errorMessage(error)),
-                );
-              }
-            }}
-            onApply={(settings) => applyThermodynamics(settings, false)}
-            onError={setMessage}
-          />
-          <button
-            className="species-count"
-            aria-label="Project components"
-            aria-haspopup="dialog"
-            title="Components"
-            onClick={() => openThermodynamics("components")}
-          >
-            <FlaskConical size={16} />
-            <span>
-              {project.thermo?.mixture === "catalog"
-                ? (project.thermo.catalog?.chemicals.length ?? 0)
-                : 2}
-            </span>
-          </button>
-          <button
-            className="icon-button units-button"
-            aria-label="Units"
-            aria-haspopup="dialog"
-            aria-expanded={drawer === "Units"}
-            aria-controls="workspace-units-panel"
-            title="Units"
-            onClick={(event) =>
-              drawer === "Units"
-                ? closeDrawer()
-                : openPanel("Units", event.currentTarget)
+      <WorkspaceHeader
+        inert={!ready || projectBusy}
+        title={projectDisplayName({ fileName, workspace: state })}
+        onProjects={() => void openProjects()}
+        onLanding={() => void openLanding()}
+      >
+        <CanvasSoundToggle sound={sound} />
+        {view !== "2D" ? <div ref={setGraphicsSettingsContainer} /> : null}
+        <ThermodynamicSelector
+          key={`${projectId}:${state.revisions.length}`}
+          settings={project.thermo ?? defaultThermo}
+          open={thermoDialog === "model"}
+          onOpenChange={(open) => {
+            if (open) openThermodynamics("model");
+            else {
+              setThermoDialog(null);
+              void flushCurrentProject().catch((error) =>
+                setMessage(errorMessage(error)),
+              );
             }
-          >
-            <Ruler size={16} aria-hidden="true" />
-          </button>
-          <button
-            className="btn btn-primary simulate-button"
-            aria-label="Run simulation"
-            onClick={run}
-            disabled={!ready}
-          >
-            <Play size={13} fill="currentColor" />
-            Simulate
-          </button>
-        </div>
-      </header>
+          }}
+          onApply={(settings) => applyThermodynamics(settings, false)}
+          onError={setMessage}
+        />
+        <button
+          className="species-count"
+          aria-label="Project components"
+          aria-haspopup="dialog"
+          title="Components"
+          onClick={() => openThermodynamics("components")}
+        >
+          <FlaskConical size={16} />
+          <span>
+            {project.thermo?.mixture === "catalog"
+              ? (project.thermo.catalog?.chemicals.length ?? 0)
+              : 2}
+          </span>
+        </button>
+        <button
+          className="icon-button units-button"
+          aria-label="Units"
+          aria-haspopup="dialog"
+          aria-expanded={drawer === "Units"}
+          aria-controls="workspace-units-panel"
+          title="Units"
+          onClick={(event) =>
+            drawer === "Units"
+              ? closeDrawer()
+              : openPanel("Units", event.currentTarget)
+          }
+        >
+          <Ruler size={16} aria-hidden="true" />
+        </button>
+        <button
+          className="btn btn-primary simulate-button"
+          aria-label="Run simulation"
+          onClick={run}
+          disabled={!ready}
+        >
+          <Play size={13} fill="currentColor" />
+          Simulate
+        </button>
+      </WorkspaceHeader>
       {saveNotice}
       <div className="editor-body" inert={!ready || projectBusy}>
         <section
@@ -1957,107 +1921,20 @@ export default function Workspace({
               )}
             </aside>
           ) : null}
-          <div className="canvas-toolbar">
-            <nav
-              className="tool-group workspace-mode-tools"
-              aria-label="Workspace panels"
-            >
-              <button
-                className={drawer === "Equipment" ? "active" : ""}
-                aria-expanded={drawer === "Equipment"}
-                aria-controls="workspace-equipment-panel"
-                onClick={() =>
-                  drawer === "Equipment"
-                    ? closeDrawer()
-                    : openPanel("Equipment")
-                }
-              >
-                <EquipmentPanelIcon size={18} />
-                <span>Equipment</span>
-              </button>
-              <span className="tool-divider" />
-              <button
-                className={drawer === "Results" ? "active" : ""}
-                aria-expanded={drawer === "Results"}
-                aria-controls="workspace-results-panel"
-                onClick={() =>
-                  drawer === "Results" ? closeDrawer() : openPanel("Results")
-                }
-              >
-                <ChartNoAxesColumnIncreasing size={18} />
-                <span>Results</span>
-              </button>
-            </nav>
-            <div className="canvas-right-tools">
-              <div className="canvas-view-controls">
-                <div className="view-switch" aria-label="Canvas view">
-                  {[
-                    { name: "2D", label: "2D flowsheet", icon: PanelTop },
-                    { name: "3D", label: "3D schematic", icon: Box },
-                    { name: "Split", label: "Split", icon: Columns2 },
-                  ].map((item) => (
-                    <button
-                      key={item.name}
-                      aria-label={item.label}
-                      aria-pressed={view === item.name}
-                      className={view === item.name ? "active" : ""}
-                      onClick={() => setView(item.name)}
-                    >
-                      <item.icon size={15} />
-                      <span>{item.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="tool-group canvas-edit-tools">
-                <button
-                  aria-label="Properties"
-                  title="Edit selected equipment"
-                  disabled={!selected}
-                  onClick={() => setPropertiesOpen(true)}
-                >
-                  <Pencil size={16} />
-                  <span>Edit</span>
-                </button>
-                <button
-                  aria-label="Arrange"
-                  title="Arrange equipment"
-                  onClick={arrange}
-                  disabled={!project.units.length}
-                >
-                  <AlignHorizontalJustifyStart size={16} />
-                  <span>Arrange</span>
-                </button>
-                <button
-                  className="toolbar-icon"
-                  aria-label={
-                    isFullscreen ? "Exit full screen" : "Maximize canvas"
-                  }
-                  aria-pressed={isFullscreen}
-                  title={
-                    isFullscreen
-                      ? "Exit full screen (hold Esc for 2 seconds)"
-                      : "Full screen (F11)"
-                  }
-                  onClick={toggleFullscreen}
-                >
-                  {isFullscreen ? (
-                    <Minimize size={16} />
-                  ) : (
-                    <Maximize size={16} />
-                  )}
-                </button>
-                <button
-                  className="toolbar-icon"
-                  aria-label="Workspace help"
-                  title="Workspace help"
-                  onClick={() => setHelpOpen(true)}
-                >
-                  <CircleHelp size={15} />
-                </button>
-              </div>
-            </div>
-          </div>
+          <CanvasToolbar
+            drawer={drawer}
+            closeDrawer={closeDrawer}
+            openPanel={openPanel}
+            view={view}
+            setView={setView}
+            selected={selected}
+            setPropertiesOpen={setPropertiesOpen}
+            arrange={arrange}
+            canArrange={!!project.units.length}
+            isFullscreen={isFullscreen}
+            toggleFullscreen={toggleFullscreen}
+            setHelpOpen={setHelpOpen}
+          />
           <div
             className={`canvas-body ${view === "Split" ? "split-view" : ""}`}
           >

@@ -43,3 +43,7 @@ public/downloads/assistant/*
 !public/downloads/assistant/downloads.json
 .vercel
 !public/downloads/assistant/downloads.json.license
+
+# Native 4K/120 FPS review exports are regenerated locally; deploy the smaller web derivatives.
+public/landing-media/*-120.mp4
+public/landing-media/*.pending.mp4

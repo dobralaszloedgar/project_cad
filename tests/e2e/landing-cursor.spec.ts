@@ -12,7 +12,7 @@ for (const viewport of [
     page,
   }, info) => {
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto("/?render=live");
     const cursor = page.locator("[data-demo-cursor]");
     await expect(cursor).toBeVisible();
     await expect(cursor.locator("svg")).toHaveCSS("filter", "none");

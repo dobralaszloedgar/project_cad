@@ -5,7 +5,7 @@
 /** Offline authoring only: the landing page imports the fixed output, never the
  * editor, solver or routing engines. Run with node --import tsx scripts/generate-landing-demo.ts. */
 import { writeFileSync } from "node:fs";
-import { newUnit, visiblePorts } from "../src/domain/schema";
+import { newUnit, visiblePorts, projectSchema } from "../src/domain/schema";
 import { equipmentPort, equipmentSize } from "../src/components/flow-geometry";
 import {
   routeStreams,
@@ -17,6 +17,11 @@ import {
   storyEquipment,
   storyStreams,
 } from "../src/components/landing/landing-process";
+
+import { projectRevision } from "../src/assistant/project-revision";
+import { simulate } from "../src/domain/solver";
+import { equipmentStatuses } from "../src/domain/equipment-status";
+import { projectCompositionColors } from "../src/components/equipment-3d/composition-colors";
 
 const units = storyEquipment.map((item) => {
   const unit = newUnit(
@@ -100,11 +105,47 @@ const drawing = {
     ...routes.get(stream.id)!,
   })),
 };
-const equipment = storyEquipment.map(({ name, ...item }) => ({
-  ...item,
-  title: name,
-  trayCount: 8,
-}));
+// The illustration is a real, solver-checked project. Capture never contacts an AI
+// provider or runs a solver while scrolling.
+const tagFor = (id: string) =>
+  storyEquipment.find((item) => item.id === id)!.tag;
+const project = projectSchema.parse({
+  version: 1,
+  name: "Reaction, separation & recycle",
+  units: units.map((unit) => ({
+    ...newUnit(unit.kind, unit.id, unit.x, unit.y),
+    name: unit.name,
+    params: {
+      ...newUnit(unit.kind, unit.id, unit.x, unit.y).params,
+      trayCount: 8,
+      ...(["Mixer", "Splitter"].includes(unit.kind) ? { branchCount: 2 } : {}),
+    },
+  })),
+  edges: storyStreams.map((stream, index) => ({
+    id: stream.id,
+    name: drawing.streams[index].name,
+    source: tagFor(stream.from[0]),
+    target: tagFor(stream.to[0]),
+    sourcePort: ["b", "bottom"].includes(stream.from[1]) ? "out2" : "out",
+    targetPort: stream.to[1] === "dose" ? "in2" : "in",
+    color: "teal",
+    colorIndex: index % 8,
+  })),
+});
+const result = simulate(project);
+if (!result.converged)
+  throw new Error("Landing example must converge before export");
+const colors = projectCompositionColors(project, result);
+const equipment = storyEquipment.map(({ name, ...item }) => {
+  const unit = project.units.find((unit) => unit.id === item.tag)!;
+  return {
+    ...item,
+    title: name,
+    trayCount: unit.params.trayCount,
+    branchCount: unit.params.branchCount,
+    condenserType: unit.params.distillation?.condenserType,
+  };
+});
 const rack = {
   start: -11.7,
   end: 10.5,
@@ -115,8 +156,8 @@ const rack = {
 const footprint = equipmentFootprint(equipment);
 const system = {
   id: "landing-process",
-  title: "From idea to process",
-  description: "Reaction, separation and recycle.",
+  title: project.name,
+  description: "Example data · reaction, separation and recycle.",
   operation: "An illustrative process walkthrough.",
   equipment,
   streams: routePlant(equipment, storyStreams, rack),
@@ -127,13 +168,26 @@ const system = {
     previousEquipmentArea: footprint.area,
   },
 };
+const emptyProject = { ...project, units: [], edges: [] };
+const example = {
+  project,
+  result,
+  colors,
+  emptyProject,
+  baseRevision: await projectRevision(emptyProject),
+  readyStatuses: equipmentStatuses(project, null),
+  calculatedStatuses: equipmentStatuses(project, result),
+};
 for (const [name, data] of [
   ["landing-drawing", drawing],
   ["landing-plant", system],
+  ["landing-example", example],
 ] as const) {
   writeFileSync(
     new URL(`../src/components/landing/${name}.json`, import.meta.url),
     JSON.stringify(data, null, 2) + "\n",
   );
 }
-console.log("Wrote fixed landing worksheet and 3D routes.");
+console.log(
+  `Wrote landing example, worksheet and routes; converged in ${result.iterations} iterations.`,
+);

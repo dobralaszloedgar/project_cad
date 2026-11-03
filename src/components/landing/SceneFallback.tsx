@@ -4,6 +4,8 @@
 
 "use client";
 
+import { EquipmentIcon } from "../EquipmentIcon";
+import type { Kind } from "@/domain/schema";
 import { useEffect } from "react";
 import drawing from "./landing-drawing.json";
 import styles from "./LandingPage.module.css";
@@ -38,17 +40,10 @@ export default function SceneFallback({
             key={unit.id}
             transform={"translate(" + unit.x + "," + unit.y + ")"}
           >
-            <rect
-              width={unit.width}
-              height={unit.height}
-              rx={12}
-              fill="#fafbf9"
-              stroke="#286f60"
-              strokeWidth={2}
-            />
+            <EquipmentIcon kind={unit.kind as Kind} size={128} trayCount={8} />
             <text
               x={unit.width / 2}
-              y={unit.height / 2 - 5}
+              y={-24}
               textAnchor="middle"
               fill="#263730"
               fontSize={20}
@@ -57,7 +52,7 @@ export default function SceneFallback({
             </text>
             <text
               x={unit.width / 2}
-              y={unit.height / 2 + 24}
+              y={-7}
               textAnchor="middle"
               fill="#53666b"
               fontSize={16}
