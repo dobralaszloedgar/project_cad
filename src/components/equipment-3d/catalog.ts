@@ -21,11 +21,11 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     tag: "F-101",
     assembly: "Feed supply tank",
     description:
-      "A dedicated supply vessel with a conical roof and a valved discharge line.",
+      "A supply vessel with dished heads, bolted access covers and a valved discharge line.",
     color: "#367f70",
     height: 2.8,
     features: [
-      ["Storage vessel", "Welded shell, conical roof and vent"],
+      ["Storage vessel", "Brushed shell, dished heads and roof vent"],
       ["Discharge assembly", "Flanged outlet and isolation valve"],
       ["Level indication", "External sight glass and scale"],
     ],
@@ -36,7 +36,7 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     tag: "P-101",
     assembly: "Product receiver",
     description:
-      "A horizontal collection vessel on twin saddles, with a top inspection hatch.",
+      "A horizontal collection vessel with dished ends, contoured saddles and a bolted inspection hatch.",
     color: "#367f70",
     height: 2.2,
     features: [
@@ -57,7 +57,7 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     features: [
       ["Drive assembly", "Horizontal finned motor and coupling bell"],
       ["Mixing internals", "Rotating bowl and stationary liquid pickup"],
-      ["Process connections", "Axial feed, dosing branch and upper discharge"],
+      ["Process connections", "Four feed branches and upper discharge"],
     ],
     section:
       "Inspect the horizontal spindle, bowl vanes and stationary pickup.",
@@ -67,11 +67,11 @@ export const equipmentCatalog: Record<Kind, EquipmentDetail> = {
     tag: "S-101",
     assembly: "Distribution manifold",
     description:
-      "One inlet divides into two individually valved outlet branches on a compact skid.",
+      "One inlet divides into up to four individually valved outlet branches on a compact skid.",
     color: "#367f70",
     height: 2.15,
     features: [
-      ["Branch manifold", "One inlet, two material outlets"],
+      ["Branch manifold", "One inlet, four material outlets"],
       ["Valve assemblies", "Handwheels, stems and bolted flanges"],
       ["Pipe supports", "Anchored stanchions and common base"],
     ],

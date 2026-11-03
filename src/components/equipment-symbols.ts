@@ -16,8 +16,8 @@ const defaultColumn = columnSymbol();
 export const equipmentSymbols: Record<Kind, string> = {
   Feed: boundary,
   Product: boundary,
-  Mixer: `<path d="M40 28l48 36-48 36Z" ${body}/>`,
-  Splitter: `<path d="M40 64l48-36v72Z" ${body}/>`,
+  Mixer: `<path d="M40 16l48 48-48 48Z" ${body}/>`,
+  Splitter: `<path d="M40 64l48-48v96Z" ${body}/>`,
   Heater: `<circle cx="64" cy="64" r="32" ${body}/><path d="M32 64h10l9-16 13 32 13-32 9 16h10" ${accent}/><path d="M64 120V96m-5 7 5-7 5 7" ${accent}/>`,
   Cooler: `<circle cx="64" cy="64" r="32" ${body}/><path d="M32 64h10l9-16 13 32 13-32 9 16h10" ${accent}/><path d="M64 96v24m-5-7 5 7 5-7" ${accent}/>`,
   PBR: `<rect x="32" y="20" width="64" height="88" rx="23" ${body}/><path d="M34 35h60M34 59h60M34 70h60M34 94h60" ${stroke}/>${[42, 52, 77, 87].map((y) => [44, 57, 70, 83].map((x) => `<circle cx="${x}" cy="${y}" r="2.8" ${stroke}/>`).join("")).join("")}<path d="M43 65h42" ${stroke}/>`,
@@ -27,8 +27,8 @@ export const equipmentSymbols: Record<Kind, string> = {
 export const equipmentConnectors: Record<Kind, string> = {
   Feed: "M104 64H120",
   Product: "M8 64H28",
-  Mixer: "M8 40H40M8 88H40M88 64H120",
-  Splitter: "M8 64H40M88 40H120M88 88H120",
+  Mixer: "M8 28H40M8 52H40M8 76H40M8 100H40M88 64H120",
+  Splitter: "M8 64H40M88 28H120M88 52H120M88 76H120M88 100H120",
   Heater: "M8 64H32M96 64H120",
   Cooler: "M8 64H32M96 64H120",
   PBR: "M64 8V20M64 108V120",

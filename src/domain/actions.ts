@@ -23,6 +23,7 @@ const updateParamsSchema = z
     flow: paramsSchema.shape.flow.removeDefault().optional(),
     fractionA: paramsSchema.shape.fractionA.removeDefault().optional(),
     composition: paramsSchema.shape.composition,
+    splitFractions: paramsSchema.shape.splitFractions,
     packedBed: paramsSchema.shape.packedBed.nullable(),
     distillation: distillationPatchSchema.nullable().optional(),
     residenceTime: paramsSchema.shape.residenceTime.removeDefault().optional(),
@@ -84,7 +85,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   z
     .object({
       type: z.literal("rename_project"),
-      name: projectSchema.shape.name,
+      name: projectSchema.in.shape.name,
     })
     .strict(),
   z

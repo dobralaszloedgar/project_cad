@@ -32,6 +32,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import type { Kind } from "@/domain/schema";
 import { pipeCurve } from "./operation";
 import type { SystemExample } from "./system-geometry";
+import { extraMixerInlets, splitterBranches } from "./junction-layout";
 import {
   columnLayout,
   columnOverhead,
@@ -39,7 +40,11 @@ import {
 } from "./column-layout";
 import { distributorBores, packedBedLayout } from "./packed-bed-layout";
 import { createCatalystPacking } from "./packed-bed-packing";
-import { finishColumnSteel, refluxTeeGeometry } from "./column-details";
+import { refluxTeeGeometry } from "./column-details";
+import {
+  DEFAULT_EQUIPMENT_ACCENT,
+  finishEquipmentSteel,
+} from "./equipment-materials";
 
 type Point = [number, number, number];
 type Axis = "x" | "y" | "z";
@@ -47,9 +52,8 @@ type Finish =
   | "steel"
   | "satin"
   | "dark"
-  | "teal"
+  | "accent"
   | "copper"
-  | "blue"
   | "rubber"
   | "gold"
   | "liquid"
@@ -61,9 +65,8 @@ const finishes: Record<Finish, [string, number, number]> = {
   motor: ["#657383", 0.35, 0.42],
   satin: ["#d6deda", 0.65, 0.34],
   dark: ["#46585d", 0.7, 0.35],
-  teal: ["#286f60", 0.45, 0.3],
+  accent: [DEFAULT_EQUIPMENT_ACCENT, 0.45, 0.3],
   copper: ["#bd7847", 0.72, 0.28],
-  blue: ["#5189aa", 0.5, 0.3],
   rubber: ["#283735", 0.05, 0.8],
   gold: ["#b99659", 0.55, 0.4],
   liquid: ["#4b9c8d", 0.25, 0.22],
@@ -474,12 +477,12 @@ class Fabricator {
     this.assemblies.push(assembly);
   }
 
-  valve(position: Point, finish: Finish = "teal", axis: Axis = "x") {
+  valve(position: Point, finish: Finish = "accent", axis: Axis = "x") {
     this.at(position, axis === "z" ? [0, Math.PI / 2, 0] : [0, 0, 0], () => {
-      this.enclosure(() => this.cylinder([0, 0, 0], 0.11, 0.26, finish, "x"));
+      this.enclosure(() => this.cylinder([0, 0, 0], 0.11, 0.26, "steel", "x"));
       this.flange([-0.15, 0, 0], 0.145, "x");
       this.flange([0.15, 0, 0], 0.145, "x");
-      this.cylinder([0, 0.12, 0], 0.075, 0.2, finish);
+      this.cylinder([0, 0.12, 0], 0.075, 0.2, "steel");
       this.cylinder([0, 0.3, 0], 0.025, 0.22, "steel");
       this.ring([0, 0.42, 0], 0.145, 0.02, finish);
       this.rod([-0.145, 0.42, 0], [0.145, 0.42, 0], 0.012, finish);
@@ -602,7 +605,7 @@ class Fabricator {
           ? new MeshPhysicalMaterial({
               color: "#bad8d4",
               transparent: true,
-              opacity: 0.16,
+              opacity: 0.24,
               metalness: 0,
               roughness: 0.12,
               clearcoat: 1,
@@ -621,6 +624,7 @@ class Fabricator {
             }),
       );
       mesh.name = `${kind}-${key}`;
+      mesh.userData.finish = finish;
       mesh.userData.enclosure = enclosure;
       mesh.castShadow = !(this.transparent && enclosure);
       mesh.renderOrder = this.transparent && enclosure ? 2 : 0;
@@ -689,12 +693,22 @@ function feed(f: Fabricator, section: boolean) {
   f.skid(1.9, 1.5);
   f.supports(0.58, 0.65);
   f.shell([0, 1.35, 0], 0.67, 1.65, section, "satin");
-  f.enclosure(() => {
-    f.cylinder([0, 0.52, 0], 0.42, 0.23, "steel", "y", 0.67);
-    f.cylinder([0, 2.3, 0], 0.69, 0.3, "teal", "y", 0.12);
-  });
-  for (const y of [0.55, 1.1, 1.65, 2.17])
-    f.ring([0, y, 0], 0.674, 0.015, "steel");
+  vesselHead(f, [0, 0.525, 0], 0.67, 0.2, false, section);
+  vesselHead(f, [0, 2.175, 0], 0.67, 0.28, true, section);
+  f.ring([0, 1.35, 0], 0.672, 0.008, "steel");
+  // Welded leg shoes and diagonal braces tie the vessel into its skid.
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * TAU) / 4;
+    const x = Math.cos(a),
+      z = Math.sin(a);
+    f.box([x * 0.59, 0.59, z * 0.59], [0.16, 0.23, 0.16], "steel");
+    f.rod(
+      [x * 0.58, 0.55, z * 0.58],
+      [x * 0.58, 0.2, Math.sign(z) * 0.75],
+      0.022,
+      "dark",
+    );
+  }
   f.pipe(
     [
       [0, 2.44, 0],
@@ -704,7 +718,14 @@ function feed(f: Fabricator, section: boolean) {
     ],
     0.04,
   );
-  f.flange([-0.25, 2.29, 0.2], 0.16, "y");
+  f.assembly("feed-roof-hatch", (part) => {
+    part.nozzle([-0.25, 2.46, 0.18], "y", 0.14, 0.095);
+    part.cylinder([-0.25, 2.5575, 0.18], 0.16, 0.025, "steel");
+    part.ring([-0.25, 2.572, 0.18], 0.148, 0.007, "accent");
+    for (const x of [-0.32, -0.18])
+      part.rod([x, 2.57, 0.18], [x, 2.63, 0.18], 0.012, "steel");
+    part.rod([-0.32, 2.63, 0.18], [-0.18, 2.63, 0.18], 0.012, "steel");
+  });
   f.pipe(
     [
       [0, 0.44, 0],
@@ -732,10 +753,17 @@ function feed(f: Fabricator, section: boolean) {
     f.box([0.61, y, 0.7], [0.06, 0.012, 0.018], "dark");
   f.plate([0, 1.76, 0.67]);
   f.ladder(-0.61, 0.58, 0.2, 2.22, 0.25);
-  f.nozzle([-0.24, 0.94, 0.67], "z", 0.2, 0.145);
-  f.cylinder([-0.24, 0.94, 0.79], 0.23, 0.035, "steel", "z");
-  f.rod([-0.33, 0.94, 0.83], [-0.15, 0.94, 0.83], 0.018, "dark");
-  f.box([-0.46, 0.94, 0.78], [0.08, 0.2, 0.06], "dark");
+  f.assembly("feed-manway", (part) => {
+    part.nozzle([-0.24, 0.94, 0.67], "z", 0.2, 0.145);
+    part.cylinder([-0.24, 0.94, 0.79], 0.23, 0.035, "steel", "z");
+    part.annulus([-0.24, 0.94, 0.812], 0.23, 0.205, 0.012, "steel", "z");
+    for (const x of [-0.33, -0.15])
+      part.rod([x, 0.94, 0.81], [x, 0.94, 0.87], 0.014, "steel");
+    part.rod([-0.33, 0.94, 0.87], [-0.15, 0.94, 0.87], 0.014, "accent");
+    for (const y of [0.85, 1.03])
+      part.box([-0.48, y, 0.78], [0.1, 0.06, 0.08], "dark");
+    part.rod([-0.49, 0.8, 0.8], [-0.49, 1.08, 0.8], 0.018, "steel");
+  });
   if (section) {
     f.pipe(
       [
@@ -752,19 +780,58 @@ function feed(f: Fabricator, section: boolean) {
 function product(f: Fabricator, section: boolean) {
   f.skid(2.7, 1.45);
   for (const x of [-0.72, 0.72]) {
-    f.box([x, 0.45, 0], [0.2, 0.52, 1.05], "dark");
-    f.box([x, 0.22, 0], [0.4, 0.08, 1.18], "steel");
-    f.ring([x, 1.08, 0], 0.555, 0.045, "teal", "x");
+    f.assembly(`product-saddle-${x}`, (part) => {
+      // Concave saddle follows the lower shell instead of intersecting it.
+      const web = new Shape();
+      web.moveTo(-0.6, 0.27);
+      web.lineTo(0.6, 0.27);
+      web.lineTo(0.6, 0.8);
+      for (let i = 0; i <= 48; i++) {
+        const angle = Math.PI / 3 - (i / 48) * ((2 * Math.PI) / 3);
+        web.lineTo(Math.sin(angle) * 0.562, 1.08 - Math.cos(angle) * 0.562);
+      }
+      web.lineTo(-0.6, 0.8);
+      web.closePath();
+      part.part(
+        new ExtrudeGeometry(web, { depth: 0.16, bevelEnabled: false })
+          .translate(0, 0, -0.08)
+          .rotateY(Math.PI / 2),
+        "satin",
+        [x, 0, 0],
+      );
+      part.box([x, 0.235, 0], [0.42, 0.07, 1.2], "steel");
+      for (const z of [-0.43, 0.43])
+        part.box([x, 0.4, z], [0.3, 0.26, 0.045], "steel");
+      for (const dx of [-0.14, 0.14])
+        for (const z of [-0.51, 0.51]) {
+          part.annulus([x + dx, 0.277, z], 0.04, 0.018, 0.012, "steel");
+          part.cylinder(
+            [x + dx, 0.305, z],
+            0.025,
+            0.045,
+            "dark",
+            "y",
+            0.025,
+            6,
+          );
+        }
+      part.ring([x, 1.08, 0], 0.555, 0.014, "accent", "x");
+    });
   }
   f.shell([0, 1.08, 0], 0.55, 1.85, section, "satin", "x");
-  for (const x of [-0.92, 0.92]) {
-    f.sphere([x, 1.08, 0], [0.28, 0.55, 0.55]);
-    f.ring([x, 1.08, 0], 0.552, 0.022, "steel", "x");
-  }
+  for (const x of [-0.925, 0.925])
+    vesselHead(f, [x, 1.08, 0], 0.55, 0.275, x > 0, section, "x");
   f.nozzle([-1.3, 1.08, 0], "x", 0.3, 0.09, "steel", -1);
-  f.nozzle([0, 1.68, 0], "y", 0.26, 0.16);
-  f.cylinder([0, 1.85, 0], 0.25, 0.06, "teal");
-  f.rod([-0.13, 1.91, 0], [0.13, 1.91, 0], 0.018, "steel");
+  f.assembly("product-manway", (part) => {
+    part.nozzle([0, 1.68, 0], "y", 0.26, 0.16);
+    part.cylinder([0, 1.835, 0], 0.27, 0.025, "steel");
+    part.ring([0, 1.85, 0], 0.255, 0.008, "accent");
+    for (const x of [-0.1, 0.1])
+      part.rod([x, 1.85, 0], [x, 1.91, 0], 0.013, "steel");
+    part.rod([-0.1, 1.91, 0], [0.1, 1.91, 0], 0.013, "steel");
+    part.box([0.29, 1.81, 0], [0.08, 0.07, 0.12], "dark");
+    part.cylinder([0.29, 1.85, 0], 0.018, 0.15, "steel", "z");
+  });
   for (const x of [-0.65, 0.65]) {
     f.annulus([x, 1.7, -0.08], 0.09, 0.045, 0.04, "steel", "z");
     f.box([x, 1.62, -0.08], [0.13, 0.1, 0.04], "steel");
@@ -938,6 +1005,15 @@ function mixer(f: Fabricator, section: boolean) {
     section,
   );
   f.clamp([1.39, 1.16, 0], 0.058);
+  for (const { point } of extraMixerInlets) {
+    f.pipe(
+      [point, [point[0], axisY, point[2]], [point[0], axisY, 0]],
+      0.034,
+      "steel",
+      section,
+    );
+    f.clamp([point[0], point[1] - 0.02, point[2]], 0.058);
+  }
 
   if (section) {
     f.cylinder([-0.11, axisY, 0], 0.048, 1.2, "dark", "x");
@@ -1006,31 +1082,22 @@ function splitter(f: Fabricator, section: boolean) {
     "satin",
     section,
   );
-  f.pipe(
-    [
-      [0, 1.1, 0],
-      [0.3, 1.1, -0.62],
-      [1.3, 1.1, -0.62],
-    ],
-    0.1,
-    "satin",
-    section,
-  );
-  f.pipe(
-    [
-      [0, 1.1, 0],
-      [0.3, 1.1, 0.62],
-      [1.3, 1.1, 0.62],
-    ],
-    0.1,
-    "satin",
-    section,
-  );
+  for (const { z } of splitterBranches)
+    f.pipe(
+      [
+        [0, 1.1, 0],
+        [0.3, 1.1, z],
+        [1.3, 1.1, z],
+      ],
+      0.1,
+      "satin",
+      section,
+    );
   f.sphere([0, 1.1, 0], [0.14, 0.14, 0.14]);
   f.flange([-1.16, 1.1, 0], 0.21);
   f.nozzle([-1.3, 1.1, 0], "x", 0.15, 0.12, "steel", -1);
-  for (const z of [-0.62, 0.62]) {
-    f.valve([0.73, 1.1, z], z < 0 ? "blue" : "teal");
+  for (const { z } of splitterBranches) {
+    f.valve([0.73, 1.1, z]);
     f.nozzle([1.28, 1.1, z], "x", 0.2, 0.1);
     f.cylinder([0.35, 0.62, z], 0.045, 0.8, "dark");
     f.box([0.35, 0.2, z], [0.3, 0.07, 0.27], "steel");
@@ -1039,7 +1106,7 @@ function splitter(f: Fabricator, section: boolean) {
   f.gauge([-0.52, 1.5, 0], 1.2);
   f.plate([-0.12, 0.38, 0.925], 0.35);
   f.rod([-0.12, 0.19, 0.925], [-0.12, 0.35, 0.925], 0.014, "dark");
-  for (const z of [-0.62, 0.62]) {
+  for (const { z } of splitterBranches) {
     f.annulus([0.35, 1.1, z], 0.12, 0.101, 0.045, "dark", "x");
     f.plate([0.88, 0.86, z + 0.12], 0.19);
     f.rod([0.88, 1.02, z], [0.88, 0.92, z + 0.12], 0.012, "dark");
@@ -1071,26 +1138,26 @@ function heater(f: Fabricator, section: boolean) {
     f.ring([x, 1.14, 0], 0.535, 0.025, "steel", "x");
   f.pipe(
     [
-      [-0.64, 1.6, 0],
-      [-0.64, 2.04, 0],
-      [-0.15, 2.04, 0],
+      [0.64, 1.6, 0],
+      [0.64, 2.04, 0],
+      [0.15, 2.04, 0],
     ],
     0.075,
     "copper",
   );
-  f.valve([-0.18, 2.04, 0], "copper");
+  f.valve([0.18, 2.04, 0], "copper");
   f.pipe(
     [
-      [0.65, 0.67, 0],
-      [0.65, 0.42, 0],
-      [1.5, 0.42, 0],
+      [-0.65, 0.67, 0],
+      [-0.65, 0.42, 0],
+      [-1.5, 0.42, 0],
     ],
     0.065,
     "copper",
     section,
   );
-  f.flange([1.37, 0.42, 0], 0.13);
-  f.gauge([0.68, 1.96, 0.05], 1.65);
+  f.flange([-1.37, 0.42, 0], 0.13);
+  f.gauge([-0.68, 1.96, 0.05], 1.65);
   f.plate([0.05, 1.27, 0.533]);
   for (const x of [-0.85, 0.85]) {
     f.annulus([x, 1.76, -0.05], 0.08, 0.04, 0.04, "steel", "z");
@@ -1145,7 +1212,7 @@ function cooler(f: Fabricator, section: boolean) {
       f.box([0, 1.52, 0.7], [2.6, 0.45, 0.07], "satin");
   });
   for (const x of [-1.3, 1.3])
-    f.enclosure(() => f.box([x, 1.51, 0], [0.12, 0.48, 1.45], "blue"));
+    f.enclosure(() => f.box([x, 1.51, 0], [0.12, 0.48, 1.45], "satin"));
   for (let x = -1.15; x < 1.2; x += 0.075)
     f.box([x, 1.5, 0], [0.018, 0.3, 1.28], "steel");
   for (let z = -0.52; z < 0.6; z += 0.18)
@@ -1160,7 +1227,7 @@ function cooler(f: Fabricator, section: boolean) {
     );
   for (const x of [-0.67, 0.67]) {
     f.shell([x, 1.91, 0], 0.57, 0.32, false, "satin");
-    f.ring([x, 2.08, 0], 0.57, 0.028, "blue");
+    f.ring([x, 2.08, 0], 0.57, 0.028, "accent");
     f.rotor(`cooler-fan-${x}`, [x, 1.91, 0], 22, (rotor) => {
       rotor.cylinder([0, 0, 0], 0.115, 0.15, "dark");
       for (let i = 0; i < 5; i++)
@@ -1187,15 +1254,15 @@ function cooler(f: Fabricator, section: boolean) {
     }
   }
   for (const x of [-1.38, 1.38]) {
-    f.enclosure(() => f.cylinder([x, 1.5, 0], 0.1, 1.28, "blue", "z"));
-    f.nozzle([x, 1.5, 0.73], "z", 0.24, 0.09, "blue");
+    f.enclosure(() => f.cylinder([x, 1.5, 0], 0.1, 1.28, "steel", "z"));
+    f.nozzle([x, 1.5, 0.73], "z", 0.24, 0.09, "steel");
   }
   f.plate([0, 1.52, 0.742], 0.34);
 }
 
 function reactor(f: Fabricator, section: boolean) {
   f.cylinder([0, 0.06, 0], 0.78, 0.12, "dark");
-  f.shell([0, 0.49, 0], 0.54, 0.7, false, "teal", "y", false);
+  f.shell([0, 0.49, 0], 0.54, 0.7, false, "accent", "y", false);
   for (let i = 0; i < 10; i++) {
     const a = (i * TAU) / 10;
     f.cylinder(
@@ -1352,13 +1419,14 @@ function platform(f: Fabricator, y: number) {
 }
 
 /** Hollow 2:1 dished ends instead of a whole ellipsoid inside the vessel. */
-function columnHead(
+function vesselHead(
   f: Fabricator,
   position: Point,
   radius: number,
   depth: number,
   up: boolean,
   section: boolean,
+  axis: Axis = "y",
 ) {
   const profile: Vector2[] = [];
   for (let i = 0; i <= 32; i++) {
@@ -1367,19 +1435,20 @@ function columnHead(
       new Vector2(Math.sin(a) * radius, Math.cos(a) * depth * (up ? 1 : -1)),
     );
   }
-  f.enclosure(() =>
-    f.part(
-      new LatheGeometry(
-        profile,
-        96,
-        section && !f.transparent ? Math.PI / 2 : 0,
-        section && !f.transparent ? Math.PI * 1.5 : TAU,
+  f.at(position, axis === "x" ? [0, 0, -Math.PI / 2] : [0, 0, 0], () => {
+    f.enclosure(() =>
+      f.part(
+        new LatheGeometry(
+          profile,
+          96,
+          section && !f.transparent && axis === "y" ? Math.PI / 2 : 0,
+          section && !f.transparent ? Math.PI * 1.5 : TAU,
+        ),
+        "satin",
       ),
-      "satin",
-      position,
-    ),
-  );
-  f.ring(position, radius + 0.002, 0.007, "steel");
+    );
+    f.ring([0, 0, 0], radius + 0.002, 0.007, "steel");
+  });
 }
 
 /** Compact flanged globe valve. Its bore stays open in clear/section views;
@@ -1409,7 +1478,7 @@ function columnValve(f: Fabricator, position: Point, automatic = false) {
     for (const x of [-0.046, 0.046])
       f.box([x, 0.19, 0], [0.016, 0.16, 0.032], "dark");
     if (automatic) {
-      f.cylinder([0, 0.285, 0], 0.09, 0.085, "teal");
+      f.cylinder([0, 0.285, 0], 0.09, 0.085, "accent");
       f.ring([0, 0.285, 0], 0.092, 0.008, "steel");
       f.box([0.09, 0.19, 0], [0.055, 0.09, 0.065], "dark");
       f.pipe(
@@ -1425,7 +1494,7 @@ function columnValve(f: Fabricator, position: Point, automatic = false) {
         false,
       );
     } else {
-      f.ring([0, 0.29, 0], 0.085, 0.012, "teal");
+      f.ring([0, 0.29, 0], 0.085, 0.012, "accent");
       for (let i = 0; i < 3; i++) {
         const a = (i * TAU) / 3;
         f.rod(
@@ -1446,7 +1515,7 @@ function distillation(
 ) {
   const layout = columnLayout(options);
   f.cylinder([0, 0.1, 0], 0.87, 0.2, "dark");
-  f.shell([0, 0.55, 0], 0.55, 0.88, false, "teal", "y", false);
+  f.shell([0, 0.55, 0], 0.55, 0.88, false, "accent", "y", false);
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * TAU;
     const x = Math.cos(a),
@@ -1464,7 +1533,7 @@ function distillation(
       6,
     );
   }
-  columnHead(f, [0, 1.01, 0], 0.6, 0.3, false, section);
+  vesselHead(f, [0, 1.01, 0], 0.6, 0.3, false, section);
   f.shell(
     [0, (layout.shellBottom + layout.shellTop) / 2, 0],
     0.6,
@@ -1472,7 +1541,7 @@ function distillation(
     section,
     "satin",
   );
-  columnHead(f, [0, layout.shellTop, 0], 0.6, 0.3, true, section);
+  vesselHead(f, [0, layout.shellTop, 0], 0.6, 0.3, true, section);
   for (let y = 1.12; y < layout.shellTop; y += 1.05)
     f.ring([0, y, 0], 0.602, 0.008, "steel");
   f.plate([0.18, 1.29, 0.575], 0.24);
@@ -1548,8 +1617,8 @@ function distillation(
   f.at([0, layout.topOffset, 0], [0, 0, 0], () => {
     f.assembly("overhead-condenser", (part) => {
       part.shell([1.52, 6.16, 0], 0.235, 0.5, section, "satin");
-      columnHead(part, [1.52, 6.41, 0], 0.235, 0.09, true, section);
-      columnHead(part, [1.52, 5.91, 0], 0.235, 0.09, false, section);
+      vesselHead(part, [1.52, 6.41, 0], 0.235, 0.09, true, section);
+      vesselHead(part, [1.52, 5.91, 0], 0.235, 0.09, false, section);
       for (const y of [5.93, 6.39])
         part.flange([1.52, y, 0], 0.28, "y", "steel", 12, 0.224);
       if (section) {
@@ -1580,13 +1649,13 @@ function distillation(
           section,
         );
         part.flange([1.93, y, 0], 0.065, "x", "steel", 6, 0.027);
-        part.ring([1.85, y, 0], 0.036, 0.005, "blue", "x");
+        part.ring([1.85, y, 0], 0.036, 0.005, "accent", "x");
       }
     });
     f.assembly("reflux-receiver", (part) => {
       part.shell([1.52, 5.52, 0], 0.225, 0.24, section, "satin");
-      columnHead(part, [1.52, 5.64, 0], 0.225, 0.08, true, section);
-      columnHead(part, [1.52, 5.4, 0], 0.225, 0.08, false, section);
+      vesselHead(part, [1.52, 5.64, 0], 0.225, 0.08, true, section);
+      vesselHead(part, [1.52, 5.4, 0], 0.225, 0.08, false, section);
       part.flange([1.52, 5.64, 0], 0.26, "y", "steel", 10, 0.214);
       // Local level glass, with a protective backplate and two isolation fittings.
       part.box([1.52, 5.52, 0.232], [0.065, 0.2, 0.016], "dark");
@@ -1686,7 +1755,7 @@ function distillation(
     ],
     0.07,
   );
-  f.valve([1.7, 0.42, 0.1], "teal");
+  f.valve([1.7, 0.42, 0.1]);
   f.pipe(
     [
       [-1.3, layout.feedY, 0],
@@ -1783,8 +1852,8 @@ export function createEquipmentModel(
     model.userData.column = layout;
     // The assembly remains schematic; ports and routing share this same scale.
     model.scale.set(layout.radialScale, 1, layout.radialScale);
-    finishColumnSteel(model);
   }
+  finishEquipmentSteel(model);
   return model;
 }
 
@@ -1821,7 +1890,7 @@ export function createSystemConnections(
 ): Group {
   const f = new Fabricator(transparent);
   for (const stream of system.streams) {
-    f.pipe(stream.points, stream.radius, "teal", section);
+    f.pipe(stream.points, stream.radius, "steel", section);
     // A coupling on the first straight run makes the wall thickness legible.
     const a = new Vector3(...stream.points[0]);
     const b = new Vector3(...stream.points[1]);
@@ -1835,9 +1904,17 @@ export function createSystemConnections(
             ? "y"
             : "z";
       f.flange(point.toArray() as Point, stream.radius * 1.7, axis);
+      f.ring(
+        point.addScaledVector(direction, 0.09).toArray() as Point,
+        stream.radius * 1.03,
+        stream.radius * 0.12,
+        "accent",
+        axis,
+      );
     }
   }
   const group = f.build("Heater");
   group.name = `system-pipes-${system.id}`;
+  finishEquipmentSteel(group);
   return group;
 }

@@ -141,9 +141,9 @@ test("each equipment block uses its own limits and trays remain integers", async
     await openBlock(page, kind);
     if (kind === "Splitter") {
       await checkBounds(
-        page.getByLabel("Secondary outlet fraction", { exact: true }),
+        page.getByLabel("Outlet 2 fraction", { exact: true }),
         0,
-        0.95,
+        1,
       );
     } else if (kind === "Distillation") {
       await checkBounds(

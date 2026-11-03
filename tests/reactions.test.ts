@@ -387,7 +387,7 @@ describe("multicomponent flowsheet integration", () => {
         ),
       ).toBeCloseTo(n, 10);
   });
-  it("accepts independent feeds directly into a configured reactor", () => {
+  it("requires an upstream mixer for independent feeds into a configured reactor", () => {
     const project = reactionProject();
     const second = newUnit("Feed", "second", 0, 0);
     second.params.composition = {
@@ -400,6 +400,30 @@ describe("multicomponent flowsheet integration", () => {
     project.edges.push({
       id: "second-feed",
       source: "second",
+      sourcePort: "out",
+      target: "R-101",
+      targetPort: "in",
+      color: "teal",
+    });
+    expect(validateGraph(project, true)).toContain(
+      "Each port accepts one stream; use a mixer or splitter.",
+    );
+    expect(() => simulate(project)).toThrow(/Each port accepts one stream/);
+    const inputs = [project.units[0], second].map(
+      (feed) => operate(feed, [], project.thermo).outputs[0],
+    );
+    expect(() => operate(project.units[1], inputs, project.thermo)).toThrow(
+      /too many material inlets/,
+    );
+    project.units.push(newUnit("Mixer", "mix", 100, 100));
+    for (const edge of project.edges)
+      if (edge.target === "R-101") {
+        edge.target = "mix";
+        edge.targetPort = edge.id === "second-feed" ? "in2" : "in";
+      }
+    project.edges.push({
+      id: "mixed-feed",
+      source: "mix",
       sourcePort: "out",
       target: "R-101",
       targetPort: "in",

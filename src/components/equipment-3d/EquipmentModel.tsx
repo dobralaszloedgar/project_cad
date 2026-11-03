@@ -10,6 +10,10 @@ import { Group } from "three";
 import type { Kind } from "@/domain/schema";
 import { createSystemConnections, disposeEquipmentModel } from "./models";
 import { acquireEquipmentModel } from "./model-resources";
+import {
+  applyEquipmentAccent,
+  DEFAULT_EQUIPMENT_ACCENT,
+} from "./equipment-materials";
 import { OperationClock } from "./operation";
 import { createProcessContents, createSystemFlow } from "./process-contents";
 import type { SystemExample } from "./system-geometry";
@@ -31,6 +35,7 @@ export function EquipmentModel({
   playing,
   speed,
   motionVisible,
+  accentColor = DEFAULT_EQUIPMENT_ACCENT,
   liquidColor,
   compositionColors,
   trayCount = 8,
@@ -43,6 +48,7 @@ export function EquipmentModel({
   MotionProps & {
     kind: Kind;
     section?: boolean;
+    accentColor?: string;
     liquidColor?: string;
     compositionColors?: EquipmentCompositionColors;
     trayCount?: number;
@@ -104,6 +110,12 @@ export function EquipmentModel({
     condenserType,
     column,
   ]);
+  // Apply after geometry effects on every render, including paused theme changes.
+  // Materials belong to this instance; cached geometry and textures stay shared.
+  useLayoutEffect(() => {
+    if (mount.current) applyEquipmentAccent(mount.current, accentColor);
+    invalidate();
+  });
   // Composition edits replace only the fluid, preserving equipment, camera,
   // and animation time while the new material colors become visible.
   useLayoutEffect(() => {
@@ -163,6 +175,7 @@ export function EquipmentModel({
 
 export function SystemConnections({
   system,
+  accentColor = DEFAULT_EQUIPMENT_ACCENT,
   streamColors,
   transparent,
   section,
@@ -170,6 +183,7 @@ export function SystemConnections({
   speed,
 }: MotionProps & {
   system: SystemExample;
+  accentColor?: string;
   streamColors?: Record<string, string>;
   section: boolean;
 }) {
@@ -187,6 +201,10 @@ export function SystemConnections({
       disposeEquipmentModel(model);
     };
   }, [system, transparent, section, invalidate]);
+  useLayoutEffect(() => {
+    if (mount.current) applyEquipmentAccent(mount.current, accentColor);
+    invalidate();
+  });
   useLayoutEffect(() => {
     const parent = mount.current;
     if (!parent || (!transparent && !section)) return;

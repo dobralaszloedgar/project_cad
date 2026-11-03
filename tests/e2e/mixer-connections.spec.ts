@@ -5,8 +5,115 @@
 import { loadProject } from "./project-fixture";
 import { expect, test, type Locator, type Page } from "./test";
 import { newUnit, type Project } from "../../src/domain/schema";
+import { fourBranchProject } from "../helpers/four-branch-project";
+
+async function distinctEndpoints(page: Page, prefix: string, end: boolean) {
+  return page
+    .locator(`.react-flow__edge[data-id^="${prefix}"] .react-flow__edge-path`)
+    .evaluateAll(
+      (elements, end) =>
+        new Set(
+          elements.map((element) => {
+            const path = element as SVGPathElement;
+            const point = path.getPointAtLength(
+              end ? path.getTotalLength() : 0,
+            );
+            return `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
+          }),
+        ).size,
+      end,
+    );
+}
+
+test("four distinct branches survive arrange, fraction edits, 3D and reload", async ({
+  page,
+}) => {
+  test.setTimeout(180000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().includes("[React Flow]")) warnings.push(message.text());
+  });
+  await page.goto("/workspace");
+  await loadProject(page, fourBranchProject(true));
+  await page.getByRole("button", { name: "Arrange", exact: true }).click();
+  await expect.poll(() => distinctEndpoints(page, "feed-", true)).toBe(4);
+  await expect.poll(() => distinctEndpoints(page, "product-", false)).toBe(4);
+  await page.screenshot({
+    path: "test-results/four-branches-2d.png",
+    fullPage: true,
+  });
+
+  await page.locator('.react-flow__node[data-id="S"]').dblclick();
+  for (let index = 0; index < 4; index++)
+    await page
+      .getByLabel(`Outlet ${index + 1} fraction`, { exact: true })
+      .fill(String((4 - index) / 10));
+  await page
+    .getByRole("button", { name: "Apply conditions", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: "Run simulation", exact: true })
+    .click();
+  await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "3D schematic", exact: true }).click();
+  await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
+    timeout: 45000,
+  });
+  await expect(page.locator(".plant-view")).toHaveAttribute(
+    "data-stream-count",
+    "9",
+    { timeout: 30000 },
+  );
+  await expect(page.locator(".plant-label")).toHaveCount(10, {
+    timeout: 30000,
+  });
+  await page.screenshot({
+    path: "test-results/four-branches-3d.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "2D flowsheet", exact: true }).click();
+  await expect(page.locator(".save-status")).toContainText(
+    "Saved on this device",
+  );
+  await page.reload();
+  await expect.poll(() => distinctEndpoints(page, "feed-", true)).toBe(4);
+  await expect.poll(() => distinctEndpoints(page, "product-", false)).toBe(4);
+  await page.locator('.react-flow__node[data-id="S"]').dblclick();
+  for (let index = 0; index < 4; index++)
+    await expect(
+      page.getByLabel(`Outlet ${index + 1} fraction`, { exact: true }),
+    ).toHaveValue(String((4 - index) / 10));
+  expect(errors).toEqual([]);
+  expect(warnings).toEqual([]);
+});
+
+test("a full mixer rejects a fifth branch", async ({ page }) => {
+  const project = fourBranchProject();
+  project.units.push(newUnit("Feed", "F-5", 0, 720));
+  await page.goto("/workspace");
+  await loadProject(page, project);
+  await page.getByRole("button", { name: "Fit View", exact: true }).click();
+  const source = page.getByLabel("F-5 outlet out", { exact: true });
+  await wireToCenter(
+    page,
+    source,
+    page.locator('.react-flow__node[data-id="M"]'),
+  );
+  await expect(page.locator(".react-flow__edge")).toHaveCount(9);
+  await expect(source).toHaveClass(/\bconnectable\b/);
+  for (const port of ["in", "in2", "in3", "in4"])
+    await expect(
+      page.getByLabel(`M inlet ${port}`, { exact: true }),
+    ).not.toHaveClass(/\bconnectable\b/);
+});
 
 async function wireToCenter(page: Page, source: Locator, target: Locator) {
+  // Fit View animates the viewport; wait for the handle to stop moving first.
+  await source.hover();
   const from = await source.boundingBox();
   const to = await target.boundingBox();
   expect(from).toBeTruthy();

@@ -5,6 +5,7 @@
 import type { Kind } from "@/domain/schema";
 import type { Point } from "./operation";
 import { columnLayout, type EquipmentModelOptions } from "./column-layout";
+import { extraMixerInlets, splitterBranches } from "./junction-layout";
 
 export const flowColors = { feed: "#008f88", warm: "#d18416", cool: "#168bb9" };
 
@@ -12,11 +13,22 @@ export const flowColors = { feed: "#008f88", warm: "#d18416", cool: "#168bb9" };
 export const equipmentPorts: Record<Kind, Record<string, Point>> = {
   Feed: { out: [1.31, 0.35, 0.33] },
   Product: { in: [-1.45, 1.08, 0] },
-  Mixer: { in: [1.82, 1.71, 0], dose: [1.39, 1.18, 0], out: [0.73, 2.36, 0] },
+  Mixer: {
+    in: [1.82, 1.71, 0],
+    dose: [1.39, 1.18, 0],
+    out: [0.73, 2.36, 0],
+    ...Object.fromEntries(
+      extraMixerInlets.map(({ port, point }) => [port, point]),
+    ),
+  },
   Splitter: {
     in: [-1.375, 1.1, 0],
-    a: [1.38, 1.1, -0.62],
-    b: [1.38, 1.1, 0.62],
+    ...Object.fromEntries(
+      splitterBranches.map(({ fitting, z }) => [
+        fitting,
+        [1.38, 1.1, z] as Point,
+      ]),
+    ),
   },
   Heater: { in: [-1.7676, 1.14, 0], out: [1.7676, 1.14, 0] },
   Cooler: { in: [-1.38, 1.5, 0.85], out: [1.38, 1.5, 0.85] },

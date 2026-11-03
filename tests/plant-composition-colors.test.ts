@@ -136,8 +136,9 @@ describe("composition colors in the 3D plant", () => {
       },
     });
     project.edges.find((edge) => edge.id === "feed-b")!.targetPort = "in";
-    expect(projectCompositionColors(project).equipment["M-501"].ports.in).toBe(
-      streams.mixed,
+    // Legacy shared inlets now retain their own colors on separate fittings.
+    expect(projectCompositionColors(project).equipment["M-501"]).toEqual(
+      equipment["M-501"],
     );
     const thermal = projectCompositionColors(thermalCycleExample());
     expect(new Set(Object.values(thermal.streams)).size).toBe(1);

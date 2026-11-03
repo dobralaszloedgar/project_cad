@@ -121,7 +121,8 @@ test("3D and split views preserve topology and synchronized editing", async ({
     page.locator(".plant-label").filter({ hasText: "S-101" }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("e");
-  await page.getByLabel("Secondary outlet fraction").fill("0.7");
+  await page.getByLabel("Outlet 1 fraction", { exact: true }).fill("0.3");
+  await page.getByLabel("Outlet 2 fraction", { exact: true }).fill("0.7");
   await page.getByRole("button", { name: "Apply conditions" }).click();
   await closeDialog(page);
   await page.getByRole("button", { name: "Run simulation" }).click();

@@ -86,8 +86,8 @@ function StreamInspector({
       >
         <h3>Connections</h3>
         <p className="muted">
-          {edge.source} / {edge.sourcePort === "out2" ? "Outlet 2" : "Outlet"} →{" "}
-          {edge.target} / {edge.targetPort === "in2" ? "Inlet 2" : "Inlet"}
+          {edge.source} / Outlet {edge.sourcePort.slice(3) || "1"} →{" "}
+          {edge.target} / Inlet {edge.targetPort.slice(2) || "1"}
         </p>
         <form
           className="stream-name-form"

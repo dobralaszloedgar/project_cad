@@ -54,6 +54,7 @@ import {
 } from "./camera-navigation";
 import { displayKinds, equipmentCatalog } from "./catalog";
 import { EquipmentModel, SystemConnections } from "./EquipmentModel";
+import { useTheme } from "../useTheme";
 import { PlantInfrastructure } from "./PlantInfrastructure";
 import type { EquipmentInstance, SystemExample } from "./system-geometry";
 import { equipmentEnvelope } from "./plant-routing";
@@ -581,6 +582,7 @@ function Studio({
   dark = false,
   canvasColor,
 }: SceneProps & { onToggleLabels: () => void }) {
+  const { theme } = useTheme();
   const subject = useRef<Group>(null);
   const keyLight = useRef<DirectionalLight>(null);
   const get = useThree((state) => state.get);
@@ -651,6 +653,7 @@ function Studio({
       <group ref={subject}>
         {mode === "inspect" ? (
           <EquipmentModel
+            accentColor={theme.swatch[2]}
             kind={kind}
             section={section}
             trayCount={trayCount}
@@ -661,6 +664,7 @@ function Studio({
           ? displayKinds.map((item) => (
               <group key={item} position={collectionPositions[item]}>
                 <EquipmentModel
+                  accentColor={theme.swatch[2]}
                   kind={item}
                   trayCount={trayCount}
                   section={section}
@@ -678,6 +682,7 @@ function Studio({
           <>
             {system.equipment.map((item) => (
               <EquipmentModel
+                accentColor={theme.swatch[2]}
                 key={item.id}
                 kind={item.kind}
                 position={item.position}
@@ -700,6 +705,7 @@ function Studio({
               />
             ))}
             <SystemConnections
+              accentColor={theme.swatch[2]}
               system={system}
               streamColors={compositionColors?.streams}
               section={section}

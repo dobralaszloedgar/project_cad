@@ -15,13 +15,20 @@ For example, 20 mN/m in the engineering UI is 0.020 N/m in JSON.
 Use get_capabilities (or GET /api/capabilities) for exact current schemas,
 defaults, bounds, ports, model IDs and tools. Unknown fields are rejected.
 Equipment kinds: Feed, Product, Mixer, Splitter, Heater, Cooler, PBR, Distillation.
-Feed has out; Product has in; Mixer has in/in2 and out; Splitter and Distillation
-have in and out/out2; other equipment has in/out. Mixer and reaction-set PBR
-inlets accept multiple streams; other ports accept one stream. Distillation out
-is distillate and out2 is bottoms. One recycle loop returning to a Mixer is
+Feed has out; Product has in; Mixer has in/in2/in3/in4 and out (maximum four
+inlet streams); Splitter has in and out/out2/out3/out4 (maximum four outlet
+streams). PBR, Heater and Cooler have one in and one out. Distillation has one
+in, one distillate out and one bottoms out2. Each port accepts one stream.
+Combine multiple feeds in an upstream Mixer, including for every PBR mode,
+and branch outlets with a downstream Splitter. Legacy shared mixer inlets are
+assigned to free ports on load. One recycle loop returning to a Mixer is
 supported; independent multiple loops are rejected. Every unit must lie on a
 Feed-to-Product path and all required ports must be connected before simulation.
 An incomplete but structurally valid graph may be previewed and saved.
+Splitter params.splitFractions sets 2-4 fractions in outlet order, totaling 1.
+Outlets 1 and 2 are required; connect any additional outlet with a positive
+fraction. Without splitFractions, outlet 2 uses recycleFraction and the other
+connected outlets share the remainder, preserving older two-outlet projects.
 
 Projects support 2-40 components, 40 units and 80 streams. Feed composition maps
 component IDs to nonnegative mole fractions or ratios, with a positive total.

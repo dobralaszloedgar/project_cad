@@ -2,17 +2,7 @@
 // Applies only to copyrightable Project CAD material owned by this holder.
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
-import {
-  BufferGeometry,
-  DataTexture,
-  DoubleSide,
-  Float32BufferAttribute,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  RepeatWrapping,
-  RGBAFormat,
-} from "three";
+import { BufferGeometry, Float32BufferAttribute } from "three";
 
 /** Open forged tee: cut the run's saddle out before joining the branch. This
  * avoids three intersecting tube walls closing off the visible splitter bore. */
@@ -63,51 +53,4 @@ export function refluxTeeGeometry() {
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
-}
-
-/** Subtle deterministic brushing, generated locally rather than an external
- * texture dependency. Each model owns its texture and releases it on disposal. */
-export function finishColumnSteel(model: Group) {
-  const size = 128,
-    data = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y++)
-    for (let x = 0; x < size; x++) {
-      const grain = Math.sin(y * 93.17 + 0.6 * Math.sin(x * 0.17)) * 0.5 + 0.5;
-      const value = Math.round(195 + grain * 40);
-      const i = (y * size + x) * 4;
-      data[i] = data[i + 1] = data[i + 2] = value;
-      data[i + 3] = 255;
-    }
-  const grain = new DataTexture(data, size, size, RGBAFormat);
-  grain.wrapS = grain.wrapT = RepeatWrapping;
-  grain.repeat.set(3, 5);
-  grain.needsUpdate = true;
-  const finishes = new Map<string, MeshStandardMaterial>();
-  model.traverse((object) => {
-    if (
-      !(object instanceof Mesh) ||
-      !(object.material instanceof MeshStandardMaterial) ||
-      object.material.transparent
-    )
-      return;
-    if (!/-(steel|satin)-(hardware|enclosure)$/.test(object.name)) return;
-    const previous = object.material;
-    const key = previous.color.getHexString();
-    let material = finishes.get(key);
-    if (!material) {
-      material = new MeshStandardMaterial({
-        color: previous.color,
-        side: DoubleSide,
-        metalness: 0.88,
-        roughness: 0.36,
-        roughnessMap: grain,
-        bumpMap: grain,
-        bumpScale: 0.0006,
-        envMapIntensity: 1.05,
-      });
-      finishes.set(key, material);
-    }
-    object.material = material;
-    previous.dispose();
-  });
 }

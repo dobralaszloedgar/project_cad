@@ -18,7 +18,7 @@ Product is a terminal material sink and reports its incoming stream unchanged.
 One connection per port prevents accidental duplication of material.
 
 Mixing and splitting
-Mixer accepts a primary inlet and an optional second physical inlet:
+Mixer accepts one to four streams on separate physical inlets in both views:
   Fi,out = sum(Fi,in); Hout = sum(Hin).
 With ideal gas and constant component heat capacities, the outlet temperature
 is solved from this enthalpy balance, including formation enthalpies. It is
@@ -32,9 +32,12 @@ Pressure is the minimum pressure of the flowing inlets. An empty recycle guess
 does not set the pressure of a real feed. No pump, pressure recovery or shaft
 work is modeled.
 
-Splitter uses a secondary fraction f from 0 to 0.95:
-  Fi,out = (1-f) Fi,in; Fi,out2 = f Fi,in.
-Both outputs retain the inlet composition, temperature and pressure. Q=0.
+Splitter accepts one inlet and up to four separate outlet streams. Set each
+outlet fraction from 0 to 1; the fractions must sum to 1:
+  Fi,out,j = fj Fi,in; sum(fj) = 1.
+All outputs retain the inlet composition, temperature and pressure. Q=0.
+Legacy projects retain their secondary fraction f (0 to 0.95): outlet 2 gets
+f and the other connected outlets share 1-f until individual fractions are set.
 The upper bound leaves a primary outlet in the one-loop recycle examples.
 This is a proportional split, not selective recovery of unreacted A.
 
@@ -115,9 +118,13 @@ Legacy synthetic modes retain A -> B, equal 0.028 kg/mol molecular weights,
 Cp=30 J/(mol K), formation enthalpies 0 and -20000 J/mol, and E=40000 J/mol.
 Catalyst-mass mode uses k450=0.01 m3/(kg-cat s) and X=1-exp[-kPW/(Ftotal RT)].
 Residence-time mode uses k450=0.1 s^-1 and X=1-exp[-k tau]. Pressure is constant
-and multiple feeds must be combined in an upstream mixer for these modes.
+in these modes. Every PBR mode has one inlet and one outlet, with one stream
+per port. Combine multiple feeds in an upstream mixer and use a downstream
+splitter to branch the outlet.
 
 Distillation columns
+Each column has one feed inlet, one distillate outlet and one bottoms outlet,
+with one stream per port.
 Select Shortcut design (FUG) or Equilibrium stages (MESH) in the column Setup.
 FUG predicts minimum/operating reflux and theoretical stage estimates from
 key recoveries and supplied relative volatilities. MESH solves the material,
