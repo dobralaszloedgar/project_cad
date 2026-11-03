@@ -134,8 +134,7 @@
   .inlineSettings .icon {
     display: block;
   }
-  .inlineSettings .backend,
-  .inlineSettings .chevron {
+  .inlineSettings .backend {
     display: none;
   }
 }

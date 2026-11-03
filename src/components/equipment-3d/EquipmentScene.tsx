@@ -61,6 +61,7 @@ import { equipmentEnvelope } from "./plant-routing";
 import { rackMembers } from "./system-geometry";
 import type { PlantCompositionColors } from "./composition-colors";
 import type { TrayHydraulicsResult } from "@/domain/equipment/tray-hydraulics";
+import { columnLayout } from "./column-layout";
 
 export type SceneMode = "inspect" | "collection" | "process";
 export type CameraView = "perspective" | "front" | "top";
@@ -82,6 +83,7 @@ export type SceneProps = {
   view: CameraView;
   reset: number;
   focus?: number;
+  focusPart?: "trays";
   onSelect: (kind: Kind, instanceId?: string) => void;
   selectedId?: string | null;
   dark?: boolean;
@@ -133,6 +135,7 @@ function CameraRig({
   trayCount,
   selectedId,
   focus = 0,
+  focusPart,
   onToggleGrid,
   onToggleLabels,
 }: Pick<
@@ -146,6 +149,7 @@ function CameraRig({
   | "trayCount"
   | "selectedId"
   | "focus"
+  | "focusPart"
   | "onToggleGrid"
 > & {
   subject: React.RefObject<Group | null>;
@@ -158,7 +162,8 @@ function CameraRig({
   const panMode = useRef(false);
   const autoOrbitAnchored = useRef(false);
   const interacting = useRef(false);
-  const previousFocus = useRef(focus);
+  // A focus request can arrive while the renderer is still loading.
+  const previousFocus = useRef(0);
   const reducedMotion = () =>
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const fitView = useCallback(
@@ -286,45 +291,71 @@ function CameraRig({
     hasFitted.current = true;
   }, [fitView, reset, kind, trayCount]);
 
-  const focusSelection = useCallback(() => {
-    const control = controls.current;
-    const item = system?.equipment.find((item) => item.id === selectedId);
-    if (!control || !item || !(camera instanceof PerspectiveCamera)) {
-      fitView(true);
-      return;
-    }
-    const bounds = equipmentEnvelope(item);
-    const box = new Box3(
-      new Vector3(...bounds.min),
-      new Vector3(...bounds.max),
-    );
-    const center = box.getCenter(new Vector3());
-    const radius = box.getSize(new Vector3()).length() / 2;
-    const halfFov = Math.min(
-      MathUtils.degToRad(camera.fov) / 2,
-      Math.atan(Math.tan(MathUtils.degToRad(camera.fov) / 2) * camera.aspect),
-    );
-    const direction = camera.position
-      .clone()
-      .sub(control.getTarget(new Vector3()))
-      .normalize();
-    const position = center
-      .clone()
-      .addScaledVector(direction, (radius / Math.sin(halfFov)) * 1.2);
-    control.stop();
-    void control.setFocalOffset(0, 0, 0, false);
-    void control.setLookAt(
-      ...position.toArray(),
-      ...center.toArray(),
-      !reducedMotion(),
-    );
-    invalidate();
-  }, [camera, system, selectedId, fitView, invalidate]);
+  const focusSelection = useCallback(
+    (traysOnly = false) => {
+      const control = controls.current;
+      const item = system?.equipment.find((item) => item.id === selectedId);
+      if (!control || !item || !(camera instanceof PerspectiveCamera)) {
+        fitView(true);
+        return;
+      }
+      const bounds = equipmentEnvelope(item);
+      const box = new Box3(
+        new Vector3(...bounds.min),
+        new Vector3(...bounds.max),
+      );
+      const trays = traysOnly && item.kind === "Distillation";
+      if (trays) {
+        const layout = columnLayout(item);
+        const radius = 0.64 * layout.radialScale;
+        box.set(
+          new Vector3(-radius, layout.trays[0] - layout.traySpacing, -radius),
+          new Vector3(
+            radius,
+            layout.trays.at(-1)! + layout.traySpacing,
+            radius,
+          ),
+        );
+        box.translate(new Vector3(...item.position));
+      }
+      const center = box.getCenter(new Vector3());
+      const radius = box.getSize(new Vector3()).length() / 2;
+      const halfFov = Math.min(
+        MathUtils.degToRad(camera.fov) / 2,
+        Math.atan(Math.tan(MathUtils.degToRad(camera.fov) / 2) * camera.aspect),
+      );
+      // Look between the trays instead of down onto the plates, which otherwise
+      // hide weeping droplets even when the outer shell is transparent.
+      const direction = trays
+        ? new Vector3(0.25, 0.08, 1)
+            .applyAxisAngle(
+              new Vector3(0, 1, 0),
+              ((item.turn ?? 0) * Math.PI) / 2,
+            )
+            .normalize()
+        : camera.position
+            .clone()
+            .sub(control.getTarget(new Vector3()))
+            .normalize();
+      const position = center
+        .clone()
+        .addScaledVector(direction, (radius / Math.sin(halfFov)) * 1.2);
+      control.stop();
+      void control.setFocalOffset(0, 0, 0, false);
+      void control.setLookAt(
+        ...position.toArray(),
+        ...center.toArray(),
+        !reducedMotion(),
+      );
+      invalidate();
+    },
+    [camera, system, selectedId, fitView, invalidate],
+  );
   useEffect(() => {
     if (focus === previousFocus.current) return;
     previousFocus.current = focus;
-    focusSelection();
-  }, [focus, focusSelection]);
+    focusSelection(focusPart === "trays");
+  }, [focus, focusPart, focusSelection]);
 
   const anchorOrbit = () => {
     const control = controls.current;
@@ -575,6 +606,7 @@ function Studio({
   view,
   reset,
   focus,
+  focusPart,
   selectedId,
   onToggleGrid,
   onToggleLabels,
@@ -689,6 +721,7 @@ function Studio({
                 rotation={[0, ((item.turn ?? 0) * Math.PI) / 2, 0]}
                 section={section}
                 trayCount={item.trayCount ?? trayCount}
+                branchCount={item.branchCount}
                 condenserType={item.condenserType}
                 column={item.column}
                 hydraulics={columnHydraulics?.[item.id]}
@@ -746,6 +779,7 @@ function Studio({
         reset={reset}
         rotate={rotate}
         focus={focus}
+        focusPart={focusPart}
         selectedId={selectedId}
         onToggleGrid={onToggleGrid}
         onToggleLabels={onToggleLabels}

@@ -46,8 +46,14 @@ import { routeStreams, type StreamConnection } from "./stream-routing";
 import Dialog from "./Dialog";
 import BrandMark from "./BrandMark";
 import ThemePicker from "./ThemePicker";
+import {
+  connectedUnitPorts,
+  junctionBranchCount,
+  portIndex,
+} from "@/domain/material-ports";
 import ProjectStorageSettings from "./ProjectStorageSettings";
 import ProjectContextMenu from "./ProjectContextMenu";
+import CreateFolderDialog from "./CreateFolderDialog";
 import folderStyles from "./CreateProjectDialog.module.css";
 
 function previewGeometry(project: Project) {
@@ -82,14 +88,16 @@ function previewGeometry(project: Project) {
     const from = equipmentPort(
       source.kind,
       true,
-      edge.sourcePort === "out2" ? 1 : 0,
+      portIndex(edge.sourcePort),
       source.params.trayCount,
+      junctionBranchCount(source, connectedUnitPorts(source, preview.edges)),
     );
     const to = equipmentPort(
       target.kind,
       false,
-      edge.targetPort === "in2" ? 1 : 0,
+      portIndex(edge.targetPort),
       target.params.trayCount,
+      junctionBranchCount(target, connectedUnitPorts(target, preview.edges)),
     );
     connections.push({
       id: edge.id,
@@ -166,6 +174,10 @@ function ProjectPreview({ project }: { project: Project }) {
               kind={unit.kind}
               size={128}
               trayCount={unit.params.trayCount}
+              branchCount={junctionBranchCount(
+                unit,
+                connectedUnitPorts(unit, project.edges),
+              )}
               condenserType={unit.params.distillation?.condenserType}
             />
           </g>
@@ -188,13 +200,14 @@ export default function ProjectsPage({
   onTrash,
   onRestore,
   onDelete,
+  onRestoreAll,
+  onEmptyTrash,
   onBack,
   onLanding,
   palette,
   onPalette,
   onSaveFolder,
   onRefresh,
-  onConnectFolder,
   onLocate,
   onNewFolder,
   busy,
@@ -213,18 +226,19 @@ export default function ProjectsPage({
   onTrash: (entry: SavedProject) => void;
   onRestore: (entry: SavedProject) => void;
   onDelete: (entry: SavedProject) => Promise<boolean>;
+  onRestoreAll: (entries: SavedProject[]) => void;
+  onEmptyTrash: (entries: SavedProject[]) => Promise<boolean>;
   onBack: () => void;
   onLanding: () => void;
   palette: string;
   onPalette: (id: string) => void;
   onSaveFolder: (entry: SavedProject) => void;
   onRefresh: () => void;
-  onConnectFolder: () => void;
   onLocate: (entry: SavedProject) => void;
   onNewFolder: (
     directory: ProjectDirectoryHandle,
     name: string,
-  ) => Promise<void>;
+  ) => Promise<Pick<ProjectLibraryFolder, "rootId" | "path">>;
   busy: boolean;
   message: string;
 }) {
@@ -249,19 +263,29 @@ export default function ProjectsPage({
     [selected, setSelected] = useState<string | null>(null),
     [menu, setMenu] = useState<{
       entry: SavedProject | null;
+      kind: "new" | "context";
       x: number;
       y: number;
       trigger: HTMLElement;
     } | null>(null),
-    [settings, setSettings] = useState<"Themes" | "Storage settings" | null>(
-      null,
-    ),
+    [settings, setSettings] = useState<"Themes" | "Storage" | null>(null),
     [details, setDetails] = useState<SavedProject | null>(null),
     [renaming, setRenaming] = useState<SavedProject | null>(null),
-    [deleting, setDeleting] = useState<SavedProject | null>(null),
+    [deleting, setDeleting] = useState<{
+      entries: SavedProject[];
+      all: boolean;
+    } | null>(null),
     [deleteFailed, setDeleteFailed] = useState(false),
     [name, setName] = useState("");
   const inTrash = filter === "Trash";
+  const trashedProjects = projects.filter((entry) => entry.trashedAt);
+  const trashCount = trashedProjects.length;
+  // Keep the confirmed selection fixed, and retry only projects still in Trash.
+  const deleteEntries = deleting
+    ? deleting.entries.filter((entry) =>
+        trashedProjects.some((project) => project.id === entry.id),
+      )
+    : [];
   const [selectedFolderView, setFolderView] = useState<{
     rootId: string;
     path: string;
@@ -279,8 +303,7 @@ export default function ProjectsPage({
       : selectedFolderView
         ? { ...selectedFolderView, path: "" }
         : null;
-  const [newFolderName, setNewFolderName] = useState<string | null>(null);
-  const [folderError, setFolderError] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const currentFolder = folderView
     ? folders.find(
         (folder) =>
@@ -289,17 +312,47 @@ export default function ProjectsPage({
       )
     : undefined;
   const currentRoot = roots.find((root) => root.id === folderView?.rootId);
-  const subfolders = folderView
-    ? folders
-        .filter(
-          (folder) =>
-            folder.rootId === folderView.rootId &&
-            folder.path &&
-            folder.path.split("/").slice(0, -1).join("/") === folderView.path,
-        )
-        .sort((a, b) => a.path.localeCompare(b.path))
-    : [];
-  const onNew = () => createProject(currentFolder?.directory);
+  const currentDirectory =
+    currentFolder?.directory ??
+    (folderView?.path === "" ? currentRoot?.directory : undefined);
+  const searchTerm = search.trim().toLowerCase();
+  const visibleFolders = folders
+    .filter((folder) => {
+      if (!folder.path) return false;
+      const parentPath = folder.path.split("/").slice(0, -1).join("/");
+      const inView = folderView
+        ? folder.rootId === folderView.rootId && parentPath === folderView.path
+        : filter === "Home" && (!parentPath || Boolean(searchTerm));
+      return inView && folder.path.toLowerCase().includes(searchTerm);
+    })
+    .sort((a, b) =>
+      a.path.localeCompare(b.path, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
+  const onNew = () => createProject(currentDirectory);
+  const creationActions = [
+    {
+      label: menu?.kind === "context" ? "New Project" : "Project",
+      icon: <Plus size={16} />,
+      run: onNew,
+    },
+    {
+      label: menu?.kind === "context" ? "New Folder" : "Folder",
+      icon: <FolderPlus size={16} />,
+      run: () => setCreatingFolder(true),
+    },
+    ...(menu?.kind === "context" && onTemplates
+      ? [
+          {
+            label: "Templates",
+            icon: <LayoutTemplate size={16} />,
+            run: onTemplates,
+          },
+        ]
+      : []),
+  ];
   const openEntry = (entry: SavedProject) =>
     entry.missing ? onLocate(entry) : onOpen(entry);
   function browse(rootId: string, path: string) {
@@ -353,10 +406,11 @@ export default function ProjectsPage({
     x: number,
     y: number,
     trigger: HTMLElement,
+    kind: "new" | "context" = "context",
   ) {
     if (busy) return;
     setSelected(entry?.id ?? null);
-    setMenu({ entry, x, y, trigger });
+    setMenu({ entry, x, y, trigger, kind });
   }
   function rename(entry: SavedProject) {
     setRenaming(entry);
@@ -364,7 +418,7 @@ export default function ProjectsPage({
   }
   function confirmDelete(entry: SavedProject) {
     setDeleteFailed(false);
-    setDeleting(entry);
+    setDeleting({ entries: [entry], all: false });
   }
   return (
     <section className="projects-page">
@@ -403,11 +457,22 @@ export default function ProjectsPage({
           <div className={folderStyles.libraryActions}>
             <button
               className="new-project-button"
-              onClick={onNew}
+              aria-haspopup="menu"
+              aria-expanded={menu?.kind === "new"}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                showMenu(
+                  null,
+                  rect.left,
+                  rect.bottom + 4,
+                  event.currentTarget,
+                  "new",
+                );
+              }}
               disabled={busy}
             >
               <Plus size={20} />
-              Create project
+              New
             </button>
             {onTemplates ? (
               <button
@@ -429,6 +494,11 @@ export default function ProjectsPage({
               key={item.label}
               className={`projects-nav-item ${filter === item.label ? "active" : ""}`}
               aria-current={filter === item.label ? "page" : undefined}
+              aria-description={
+                item.label === "Trash"
+                  ? `${trashCount} ${trashCount === 1 ? "project" : "projects"} in Trash`
+                  : undefined
+              }
               onClick={() => {
                 setFilter(item.label);
                 setFolderView(null);
@@ -439,6 +509,9 @@ export default function ProjectsPage({
             >
               <item.icon size={17} />
               <span>{item.label}</span>
+              {item.label === "Trash" ? (
+                <small aria-hidden="true">{trashCount}</small>
+              ) : null}
             </button>
           ))}
           <div
@@ -458,14 +531,6 @@ export default function ProjectsPage({
                 <span>{root.name}</span>
               </button>
             ))}
-            <button
-              className="projects-nav-item"
-              onClick={onConnectFolder}
-              disabled={busy}
-            >
-              <FolderOpen size={17} />
-              <span>Connect folder</span>
-            </button>
           </div>
           <div className="projects-preferences">
             <button
@@ -477,10 +542,10 @@ export default function ProjectsPage({
             </button>
             <button
               className="projects-nav-item"
-              onClick={() => setSettings("Storage settings")}
+              onClick={() => setSettings("Storage")}
             >
               <HardDrive size={17} />
-              <span>Storage settings</span>
+              <span>Storage</span>
             </button>
           </div>
         </nav>
@@ -585,14 +650,38 @@ export default function ProjectsPage({
               <button
                 className="btn btn-sm"
                 disabled={busy}
-                onClick={() => {
-                  setNewFolderName("");
-                  setFolderError("");
-                }}
+                onClick={() => setCreatingFolder(true)}
               >
                 <FolderPlus size={16} />
                 New folder
               </button>
+            ) : null}
+            {inTrash ? (
+              <div
+                className="project-trash-actions"
+                role="group"
+                aria-label="Trash actions"
+              >
+                <button
+                  className="btn btn-sm"
+                  disabled={busy || !trashCount}
+                  onClick={() => onRestoreAll(trashedProjects)}
+                >
+                  <RotateCcw size={16} />
+                  Restore all
+                </button>
+                <button
+                  className="btn btn-sm danger"
+                  disabled={busy || !trashCount}
+                  onClick={() => {
+                    setDeleteFailed(false);
+                    setDeleting({ entries: trashedProjects, all: true });
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Empty trash
+                </button>
+              </div>
             ) : null}
             {selectedEntry ? (
               <div
@@ -681,6 +770,12 @@ export default function ProjectsPage({
             ) : null}
           </div>
           <div className="project-count">
+            {visibleFolders.length ? (
+              <>
+                Folders <span>{visibleFolders.length}</span>
+                <span aria-hidden="true">·</span>
+              </>
+            ) : null}
             {inTrash ? "Trashed projects" : "Projects"}{" "}
             <span>{visible.length}</span>
             {message ? <p role="status">{message}</p> : null}
@@ -718,18 +813,35 @@ export default function ProjectsPage({
                 ))}
             </nav>
           ) : null}
-          {subfolders.length ? (
-            <div className="project-folder-grid">
-              {subfolders.map((folder) => (
+          {visibleFolders.length ? (
+            <div
+              className={`project-folder-grid${list ? " project-folder-list" : ""}`}
+              role="group"
+              aria-label="Folders"
+            >
+              {visibleFolders.map((folder) => (
                 <button
                   className="project-folder-card"
-                  key={folder.path}
+                  key={`${folder.rootId}:${folder.path}`}
                   aria-label={`Open folder ${folder.path}`}
+                  title={`${roots.find((root) => root.id === folder.rootId)?.name ?? ""}/${folder.path}`}
                   disabled={busy}
                   onClick={() => browse(folder.rootId, folder.path)}
                 >
                   <Folder size={24} />
-                  <span>{folder.path.split("/").at(-1)}</span>
+                  <span className="project-folder-label">
+                    <span>{folder.path.split("/").at(-1)}</span>
+                    {!folderView ? (
+                      <small>
+                        {[
+                          roots.find((root) => root.id === folder.rootId)?.name,
+                          ...folder.path.split("/").slice(0, -1),
+                        ]
+                          .filter(Boolean)
+                          .join("/")}
+                      </small>
+                    ) : null}
+                  </span>
                 </button>
               ))}
             </div>
@@ -828,19 +940,6 @@ export default function ProjectsPage({
                       </span>
                     </div>
                   </button>
-                  {!inTrash ? (
-                    <button
-                      className="project-star"
-                      aria-label={`${entry.starred ? "Unstar" : "Star"} ${projectDisplayName(entry)}`}
-                      onClick={() => onStar(entry)}
-                      disabled={busy}
-                    >
-                      <Star
-                        size={15}
-                        fill={entry.starred ? "currentColor" : "none"}
-                      />
-                    </button>
-                  ) : null}
                   <button
                     className="project-card-menu-toggle"
                     aria-label={`Actions for ${projectDisplayName(entry)}`}
@@ -862,12 +961,12 @@ export default function ProjectsPage({
                 </article>
               ))}
             </div>
-          ) : (
+          ) : !visibleFolders.length ? (
             <div className="projects-empty">
               <Folder size={30} />
               <h2>
                 {search
-                  ? "No matching projects"
+                  ? "No matching projects or folders"
                   : inTrash
                     ? "Trash is empty"
                     : filter === "Starred"
@@ -884,7 +983,7 @@ export default function ProjectsPage({
                 </button>
               ) : null}
             </div>
-          )}
+          ) : null}
         </section>
       </div>
       {menu ? (
@@ -893,7 +992,9 @@ export default function ProjectsPage({
           label={
             menu.entry
               ? `Actions for ${projectDisplayName(menu.entry)}`
-              : "Library actions"
+              : menu.kind === "new"
+                ? "New"
+                : "Library actions"
           }
           onClose={closeMenu}
           actions={(menu.entry
@@ -957,30 +1058,13 @@ export default function ProjectsPage({
                     divider: true,
                   },
                 ]
-            : [
-                {
-                  label: "Create project",
-                  icon: <Plus size={16} />,
-                  run: onNew,
-                },
-                {
-                  label: "Themes",
-                  icon: <Palette size={16} />,
-                  run: () => setSettings("Themes"),
-                  divider: true,
-                },
-                {
-                  label: "Storage settings",
-                  icon: <HardDrive size={16} />,
-                  run: () => setSettings("Storage settings"),
-                },
-              ]
+            : creationActions
           ).map((action) => ({ ...action, disabled: busy }))}
         />
       ) : null}
       {deleting ? (
         <Dialog
-          title="Delete project permanently?"
+          title={deleting.all ? "Empty trash?" : "Delete project permanently?"}
           className="confirm-dialog"
           initialFocusRef={cancelDeleteRef}
           onClose={() => {
@@ -989,16 +1073,38 @@ export default function ProjectsPage({
         >
           <p>
             Permanently delete{" "}
-            <strong>{deleting.workspace.project.name}</strong> and its revision
-            history? This cannot be undone.
+            {deleting.all ? (
+              <>
+                <strong>
+                  {deleteEntries.length} trashed{" "}
+                  {deleteEntries.length === 1 ? "project" : "projects"}
+                </strong>{" "}
+                and their revision history? This includes projects hidden by
+                search.
+              </>
+            ) : (
+              <>
+                <strong>{deleting.entries[0].workspace.project.name}</strong>{" "}
+                and its revision history?
+              </>
+            )}{" "}
+            This cannot be undone.
           </p>
-          {deleting.folderName ? (
+          {deleteEntries.some((entry) => entry.folderName) ? (
             <p>
-              This also deletes <strong>{projectLocation(deleting)}</strong>{" "}
-              from disk. The folder and any other files inside it are kept.
+              This also deletes{" "}
+              {deleting.all ? (
+                "their saved project files"
+              ) : (
+                <strong>{projectLocation(deleting.entries[0])}</strong>
+              )}{" "}
+              from disk. Folders and other files are kept.
             </p>
           ) : (
-            <p>This removes the project saved in this browser.</p>
+            <p>
+              This removes {deleting.all ? "the projects" : "the project"} saved
+              in this browser.
+            </p>
           )}
           {deleteFailed ? (
             <p role="alert">
@@ -1016,17 +1122,24 @@ export default function ProjectsPage({
             </button>
             <button
               className="btn btn-error"
-              disabled={busy}
+              disabled={busy || !deleteEntries.length}
               onClick={async () => {
                 setDeleteFailed(false);
-                if (await onDelete(deleting)) {
+                const deleted = deleting.all
+                  ? await onEmptyTrash(deleteEntries)
+                  : await onDelete(deleteEntries[0]);
+                if (deleted) {
                   setDeleting(null);
                   setSelected(null);
                 } else setDeleteFailed(true);
               }}
             >
               <Trash2 size={16} />
-              {busy ? "Deleting…" : "Delete permanently"}
+              {busy
+                ? "Deleting…"
+                : deleting.all
+                  ? "Empty trash"
+                  : "Delete permanently"}
             </button>
           </div>
         </Dialog>
@@ -1040,11 +1153,14 @@ export default function ProjectsPage({
           <ThemePicker value={palette} onChange={onPalette} />
         </Dialog>
       ) : null}
-      {settings === "Storage settings" ? (
+      {settings === "Storage" ? (
         <Dialog
-          title="Storage settings"
+          title="Storage"
           className="project-storage-dialog"
-          onClose={() => setSettings(null)}
+          onClose={() => {
+            setSettings(null);
+            onRefresh();
+          }}
         >
           <ProjectStorageSettings />
         </Dialog>
@@ -1082,58 +1198,18 @@ export default function ProjectsPage({
           </div>
         </Dialog>
       ) : null}
-      {newFolderName !== null && currentFolder ? (
-        <Dialog
-          title="New folder"
-          className="rename-project-dialog"
-          onClose={() => {
-            if (!busy) setNewFolderName(null);
+      {creatingFolder ? (
+        <CreateFolderDialog
+          initialDirectory={currentDirectory}
+          onCreate={async (directory, name) => {
+            const parent = await onNewFolder(directory, name);
+            browse(parent.rootId, parent.path);
           }}
-        >
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault();
-              try {
-                await onNewFolder(currentFolder.directory, newFolderName);
-                setNewFolderName(null);
-              } catch (error) {
-                setFolderError(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not create folder.",
-                );
-              }
-            }}
-          >
-            <label>
-              Folder name
-              <input
-                className="input"
-                value={newFolderName}
-                onChange={(event) => setNewFolderName(event.target.value)}
-                maxLength={80}
-                disabled={busy}
-              />
-            </label>
-            {folderError ? <p role="alert">{folderError}</p> : null}
-            <div className="dialog-actions">
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => setNewFolderName(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                disabled={busy || !newFolderName.trim()}
-              >
-                Create folder
-              </button>
-            </div>
-          </form>
-        </Dialog>
+          onClose={() => {
+            setCreatingFolder(false);
+            onRefresh();
+          }}
+        />
       ) : null}
       {renaming ? (
         <Dialog

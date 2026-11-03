@@ -94,18 +94,14 @@ function NumberField({
 function SpeciesTable({
   reaction,
   chemicals,
-  side,
   onChange,
 }: {
   reaction: Reaction;
   chemicals: Chemical[];
-  side: "reactants" | "products";
   onChange: (reaction: Reaction) => void;
 }) {
-  const sign = side === "reactants" ? -1 : 1;
-  const rows = reaction.stoichiometry
-    .map((row, index) => ({ ...row, index }))
-    .filter((row) => row.coefficient * sign > 0);
+  const rows = reaction.stoichiometry;
+  const hasReactant = rows.some((row) => row.coefficient < 0);
   const available = chemicals.filter(
     (c) => !reaction.stoichiometry.some((s) => s.componentId === c.id),
   );
@@ -120,86 +116,109 @@ function SpeciesTable({
       ),
     });
   return (
-    <section className="reaction-species" aria-label={side}>
-      <h4>{side === "reactants" ? "Reactants" : "Products"}</h4>
-      <div className="reaction-species-labels">
-        <span>Component</span>
-        <span>Coefficient</span>
-        <span />
-      </div>
-      {rows.map((row, i) => (
-        <div className="reaction-species-row" key={row.index}>
-          <select
-            className="select"
-            aria-label={`${side} component ${i + 1}`}
-            value={row.componentId}
-            onChange={(e) => {
-              const next = e.target.value;
-              onChange({
-                ...reaction,
-                basisComponentId:
-                  reaction.basisComponentId === row.componentId
-                    ? next
-                    : reaction.basisComponentId,
-                stoichiometry: reaction.stoichiometry.map((s, j) =>
-                  j === row.index ? { ...s, componentId: next } : s,
-                ),
-              });
-            }}
-          >
-            {!chemicals.some((c) => c.id === row.componentId) && (
-              <option value={row.componentId}>
-                Missing: {row.componentId}
-              </option>
-            )}
-            {chemicals.map((c) => (
-              <option
-                key={c.id}
-                value={c.id}
-                disabled={
-                  c.id !== row.componentId &&
-                  reaction.stoichiometry.some((s) => s.componentId === c.id)
-                }
-              >
-                {c.name}
-                {c.formula ? ` · ${c.formula}` : ""}
-              </option>
-            ))}
-          </select>
-          <NumberInput
-            className="input"
-            aria-label={`${side} coefficient ${i + 1}`}
-            required
-            min={0.000001}
-            max={1000}
-            value={Math.abs(row.coefficient)}
-            onValueChange={(value) =>
-              Number.isFinite(value) &&
-              value > 0 &&
-              patch(row.index, { coefficient: sign * value })
-            }
-          />
-          <button
-            className="btn btn-xs"
-            type="button"
-            aria-label={`Remove ${side} component ${i + 1}`}
-            onClick={() =>
-              onChange({
-                ...reaction,
-                stoichiometry: reaction.stoichiometry.filter(
-                  (_, j) => j !== row.index,
-                ),
-              })
-            }
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      ))}
+    <section
+      className="reaction-species"
+      data-setup-field="reaction.stoichiometry"
+    >
+      <table
+        className="reaction-species-table"
+        aria-label="Reaction stoichiometry"
+      >
+        <thead>
+          <tr>
+            <th scope="col">Reagent</th>
+            <th scope="col">Stoichiometric coefficient</th>
+            <th scope="col">
+              <span className="sr-only">Remove</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr className="reaction-species-row" key={row.componentId}>
+              <td>
+                <select
+                  className="select"
+                  aria-label={`Reagent ${i + 1}`}
+                  value={row.componentId}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    onChange({
+                      ...reaction,
+                      basisComponentId:
+                        reaction.basisComponentId === row.componentId
+                          ? next
+                          : reaction.basisComponentId,
+                      stoichiometry: reaction.stoichiometry.map((s, j) =>
+                        j === i ? { ...s, componentId: next } : s,
+                      ),
+                    });
+                  }}
+                >
+                  {!chemicals.some((c) => c.id === row.componentId) && (
+                    <option value={row.componentId}>
+                      Missing: {row.componentId}
+                    </option>
+                  )}
+                  {chemicals.map((c) => (
+                    <option
+                      key={c.id}
+                      value={c.id}
+                      disabled={
+                        c.id !== row.componentId &&
+                        reaction.stoichiometry.some(
+                          (s) => s.componentId === c.id,
+                        )
+                      }
+                    >
+                      {c.name}
+                      {c.formula ? ` · ${c.formula}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <span
+                  className="reaction-coefficient"
+                  data-positive={row.coefficient > 0}
+                >
+                  <NumberInput
+                    className="input"
+                    aria-label={`Stoichiometric coefficient ${i + 1}`}
+                    aria-invalid={row.coefficient === 0 ? true : undefined}
+                    required
+                    integerStep
+                    step={1}
+                    min={-1000}
+                    max={1000}
+                    value={row.coefficient}
+                    onValueChange={(value) => patch(i, { coefficient: value })}
+                  />
+                </span>
+              </td>
+              <td>
+                <button
+                  className="btn btn-xs"
+                  type="button"
+                  aria-label={`Remove reagent ${i + 1}`}
+                  onClick={() =>
+                    onChange({
+                      ...reaction,
+                      stoichiometry: reaction.stoichiometry.filter(
+                        (_, j) => j !== i,
+                      ),
+                    })
+                  }
+                >
+                  <Trash2 size={13} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       {!rows.length && (
-        <p className="equipment-help">
-          Add a {side === "reactants" ? "reactant" : "product"}.
-        </p>
+        <p className="equipment-help">Add a reagent to define the reaction.</p>
       )}
       <button
         className="btn btn-sm"
@@ -208,20 +227,25 @@ function SpeciesTable({
         onClick={() =>
           onChange({
             ...reaction,
-            basisComponentId:
-              side === "reactants" && !rows.length
-                ? available[0].id
-                : reaction.basisComponentId,
+            basisComponentId: hasReactant
+              ? reaction.basisComponentId
+              : available[0].id,
             stoichiometry: [
               ...reaction.stoichiometry,
-              { componentId: available[0].id, coefficient: sign },
+              {
+                componentId: available[0].id,
+                coefficient: hasReactant ? 1 : -1,
+              },
             ],
           })
         }
       >
         <Plus size={13} />
-        Add {side === "reactants" ? "reactant" : "product"}
+        Add reagent
       </button>
+      <p className="equipment-help">
+        Positive for products, negative for reactants.
+      </p>
     </section>
   );
 }
@@ -517,27 +541,11 @@ export function PackedBedSetup({
                 <ReactionEquation reaction={selected} chemicals={chemicals} />
               </span>
             </div>
-            <div
-              className="reaction-sides"
-              data-setup-field="reaction.stoichiometry"
-            >
-              <SpeciesTable
-                reaction={selected}
-                chemicals={chemicals}
-                side="reactants"
-                onChange={updateReaction}
-              />
-              <SpeciesTable
-                reaction={selected}
-                chemicals={chemicals}
-                side="products"
-                onChange={updateReaction}
-              />
-            </div>
-            <p className="equipment-help">
-              Use positive coefficients. Unlisted components are inert in this
-              reaction.
-            </p>
+            <SpeciesTable
+              reaction={selected}
+              chemicals={chemicals}
+              onChange={updateReaction}
+            />
             <section
               className="reaction-kinetics"
               data-setup-field="reaction.kinetics"

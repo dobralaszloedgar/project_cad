@@ -2,7 +2,7 @@
 // Applies only to copyrightable Project CAD material owned by this holder.
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
-import { submitNewProject } from "./project-create-fixture";
+import { openNewProject, submitNewProject } from "./project-create-fixture";
 import { expect, test, type Page } from "./test";
 import { THEMES } from "../../src/lib/theme";
 import {
@@ -50,6 +50,7 @@ test("home selection, double-click, context menus and keyboard actions match the
   await expect(
     page.getByRole("heading", { name: "Home", exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".project-card .project-star")).toHaveCount(0);
   await project.click();
   await expect(project).toHaveAttribute("aria-pressed", "true");
   await expect(
@@ -92,6 +93,7 @@ test("home selection, double-click, context menus and keyboard actions match the
   ).toBeEnabled();
   await home(page);
   await page.getByRole("button", { name: "List view", exact: true }).click();
+  await expect(page.locator(".project-card .project-star")).toHaveCount(0);
   await project.focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".projects-page")).toHaveCount(0);
@@ -109,15 +111,11 @@ test("home themes and default save folder persist and apply when creating a proj
     "data-palette",
     "nord",
   );
-  await expect(
-    themes.getByRole("button", { name: "Storage settings" }),
-  ).toHaveCount(0);
+  await expect(themes.getByRole("button", { name: "Storage" })).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("button", { name: "Storage settings", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Storage", exact: true }).click();
   const settings = page.getByRole("dialog", {
-    name: "Storage settings",
+    name: "Storage",
     exact: true,
   });
   await expect(settings.getByRole("radio")).toHaveCount(0);
@@ -142,15 +140,10 @@ test("home themes and default save folder persist and apply when creating a proj
     "data-palette",
     "nord",
   );
-  await page
-    .getByRole("button", { name: "Storage settings", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Storage", exact: true }).click();
   await expect(settings).toContainText("Laptop projects");
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const create = page.getByRole("dialog", {
     name: "Create project",
     exact: true,
@@ -174,18 +167,13 @@ test("home themes and default save folder persist and apply when creating a proj
       .name,
   ).toBe("Default folder study");
   await home(page);
-  await page
-    .getByRole("button", { name: "Storage settings", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Storage", exact: true }).click();
   await expect(
     settings.getByRole("button", { name: "Ask every time" }),
   ).toHaveCount(0);
   await expect(settings.locator("p")).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   await expect(
     create.getByRole("button", { name: "Create project", exact: true }),
   ).toBeEnabled();

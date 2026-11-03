@@ -32,7 +32,7 @@ import { liquidMaterial, vaporMaterial } from "./fluid-materials";
 import { createHeaterSteam } from "./heater-steam";
 import { OperationClock, pipeCurve, type Point } from "./operation";
 import { flowColors, type SystemExample } from "./system-geometry";
-import { extraMixerInlets, splitterBranches } from "./junction-layout";
+import { activeMixerInlets, activeSplitterBranches } from "./junction-layout";
 import { blendColors, UNKNOWN_COMPOSITION_COLOR } from "./color-blending";
 import type { EquipmentCompositionColors } from "./composition-colors";
 import {
@@ -131,6 +131,7 @@ class Contents {
     );
     mesh.position.set(...position);
     this.group.add(mesh);
+    return mesh;
   }
 
   fall(
@@ -585,7 +586,7 @@ export function createProcessContents(
         0.95,
         composition?.ports.in2 ?? color,
       );
-      for (const { port, point } of extraMixerInlets)
+      for (const { port, point } of activeMixerInlets(options.branchCount))
         c.stream(
           [point, [point[0], 0.82, point[2]], [point[0], 0.82, 0]],
           0.024,
@@ -611,7 +612,7 @@ export function createProcessContents(
         ],
         0.092,
       );
-      for (const { port, z } of splitterBranches)
+      for (const { port, z } of activeSplitterBranches(options.branchCount))
         c.stream(
           [
             [0, 1.1, 0],
@@ -917,19 +918,25 @@ export function createProcessContents(
             : color,
         );
         const x = i % 2 === 0 ? -0.46 : 0.46;
-        c.bulk([0, y + depth / 2, 0], 0.54, depth);
+        c.bulk([0, y + depth / 2, 0], 0.54, depth).name =
+          `tray-${stage}-liquid-holdup`;
         c.surface(
           [0, y + depth, 0],
           0.54,
-          flooding ? 0.018 : 0.007,
-          flooding ? 0.65 : 0.28,
+          flooding ? 0.018 : weeping ? 0.003 : 0.007,
+          flooding ? 0.65 : weeping ? 0.05 : 0.28,
         );
         c.aerate(
           [0, y + 0.055, 0],
           0.47,
           Math.min(
             120,
-            Math.max(12, Math.floor((weeping ? 400 : 1600) / layout.trayCount)),
+            Math.max(
+              6,
+              Math.floor(
+                (weeping && !flooding ? 160 : 1600) / layout.trayCount,
+              ),
+            ),
           ),
           Math.max(0.03, depth - 0.025),
         );
@@ -959,13 +966,13 @@ export function createProcessContents(
             unrated: "#94a3ab",
           };
           const ring = new Mesh(
-            new TorusGeometry(0.558, 0.012, 8, 48),
+            new TorusGeometry(0.558, 0.016, 8, 48),
             new MeshBasicMaterial({
               color: colors[rating?.state ?? "unrated"],
             }),
           );
           ring.rotation.x = Math.PI / 2;
-          ring.position.y = y + 0.02;
+          ring.position.y = y + 0.035;
           ring.name = `tray-${stage}-hydraulic-state`;
           ring.userData = { stage, state: rating?.state ?? "unrated" };
           c.group.add(ring);
@@ -978,11 +985,13 @@ export function createProcessContents(
                 [dx, y - 0.02, dz],
                 [dx, y - layout.traySpacing + 0.1, dz],
               ]);
-          c.drops(paths, 0.012, 3, 0.65, `tray-${stage}-weeping`, true);
+          // Readable at a focused tower view; still smaller than the sieve
+          // holes. These illustrative droplets are not predicted mass rates.
+          c.drops(paths, 0.022, 4, 0.85, `tray-${stage}-weeping`, true);
         }
         if (flooding) {
-          const paths: Point[][] = Array.from({ length: 8 }, (_, k) => {
-            const angle = (k * Math.PI) / 4;
+          const paths: Point[][] = Array.from({ length: 12 }, (_, k) => {
+            const angle = (k * Math.PI) / 6;
             return [
               [Math.cos(angle) * 0.28, y + depth, Math.sin(angle) * 0.28],
               [
@@ -992,7 +1001,7 @@ export function createProcessContents(
               ],
             ];
           });
-          c.drops(paths, 0.014, 3, 0.8, `tray-${stage}-carryover`);
+          c.drops(paths, 0.022, 4, 0.8, `tray-${stage}-carryover`);
         }
       }
       c.tint(bottoms);

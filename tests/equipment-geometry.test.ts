@@ -22,10 +22,10 @@ describe("equipment geometry", () => {
     for (const kind of kinds) {
       const locations = [
         ...ports(kind).inputs.map((_, index) =>
-          equipmentPort(kind, false, index),
+          equipmentPort(kind, false, index, undefined, 4),
         ),
         ...ports(kind).outputs.map((_, index) =>
-          equipmentPort(kind, true, index),
+          equipmentPort(kind, true, index, undefined, 4),
         ),
       ];
       expect(new Set(locations.map(({ x, y }) => `${x},${y}`)).size).toBe(

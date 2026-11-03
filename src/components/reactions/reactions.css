@@ -79,7 +79,7 @@
 }
 .reaction-set-heading > span,
 .reaction-definition-heading > span,
-.reaction-species-labels,
+.reaction-species-table th,
 .reaction-card-select small {
   color: var(--muted);
   font-size: 11px;
@@ -143,6 +143,7 @@
   width: 15px;
   height: 15px;
   flex: 0 0 15px;
+  accent-color: var(--accent);
 }
 .reaction-actions {
   flex-wrap: wrap;
@@ -173,21 +174,48 @@
   margin: 6px 0 0;
   color: var(--muted);
 }
-.reaction-sides {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-}
 .reaction-species {
   align-content: start;
   gap: 10px;
 }
-.reaction-species-row,
-.reaction-species-labels {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px 28px;
-  gap: 8px;
-  align-items: center;
+.reaction-species-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.reaction-species-table :is(th, td) {
+  padding: 0 8px 10px 0;
+  text-align: left;
+  vertical-align: middle;
+}
+.reaction-species-table th {
+  font-weight: 400;
+}
+.reaction-species-table :is(th, td):nth-child(2) {
+  width: 190px;
+}
+.reaction-species-table :is(th, td):last-child {
+  width: 28px;
+  padding-right: 0;
+}
+.reaction-species-table tbody tr:last-child td {
+  padding-bottom: 0;
+}
+.reaction-coefficient {
+  position: relative;
+  display: flex;
+}
+.reaction-coefficient[data-positive="true"]::after {
+  content: "+";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  pointer-events: none;
+}
+.reaction-coefficient[data-positive="true"] .number-input-field {
+  padding-left: 18px;
 }
 .reaction-species > .btn,
 .rate-group > .btn,
@@ -541,8 +569,8 @@
   }
 }
 @media (max-width: 760px) {
-  .reaction-sides {
-    grid-template-columns: minmax(0, 1fr);
+  .reaction-species-table :is(th, td):nth-child(2) {
+    width: 120px;
   }
   .rate-preview-heading {
     flex-wrap: wrap;

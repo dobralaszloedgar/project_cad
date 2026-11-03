@@ -316,7 +316,6 @@ h3 {
     .btn,
     .icon-button,
     .quiet-button,
-    .brand,
     .model-button,
     .species-count,
     .tool-group button,
@@ -338,7 +337,6 @@ h3 {
     .btn:not(.btn-primary, .btn-error, .danger),
     .icon-button,
     .quiet-button,
-    .brand,
     .model-button,
     .species-count,
     .tool-group button,
@@ -969,6 +967,12 @@ h3 {
   background: var(--canvas) !important;
   z-index: 3;
 }
+.react-flow__handle.dormant-material-handle {
+  visibility: hidden;
+  pointer-events: none;
+  width: 9px;
+  height: 9px;
+}
 .react-flow__handle.material-handle {
   /* Inlets remain hoverable before a connection starts, including their
      tooltips and hit targets; React Flow still enforces port direction. */
@@ -1016,6 +1020,10 @@ h3 {
 .equipment-drop-handle.connectingto.valid ~ .equipment-symbol .pfd-body {
   fill: var(--active);
   stroke: var(--accent);
+}
+.flow-wrapper.connecting-stream .react-flow__edgeupdater {
+  /* Let inlet and equipment drop targets receive the end of a drag. */
+  pointer-events: none;
 }
 .react-flow__controls {
   gap: 2px;
@@ -1649,11 +1657,6 @@ h3 {
   gap: 10px;
   flex-wrap: wrap;
 }
-.settings-tabs {
-  flex-shrink: 0;
-  padding: 0 18px;
-  border-bottom: 1px solid var(--border);
-}
 .preference-toggle {
   display: flex;
   align-items: center;
@@ -2139,8 +2142,7 @@ h3 {
   gap: 12px;
   margin-bottom: 20px;
 }
-.shortcut-search,
-.shortcut-platform {
+.shortcut-search {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2154,17 +2156,14 @@ h3 {
 .shortcut-search {
   flex: 1;
 }
-.shortcut-search svg,
-.shortcut-platform svg {
+.shortcut-search svg {
   flex-shrink: 0;
 }
-.shortcut-search:focus-within,
-.shortcut-platform:focus-within {
+.shortcut-search:focus-within {
   outline: 1px solid var(--muted);
   outline-offset: 1px;
 }
-.shortcut-search input,
-.shortcut-platform select {
+.shortcut-search input {
   min-width: 0;
   border: 0;
   background: transparent;
@@ -2175,10 +2174,6 @@ h3 {
 .shortcut-search input {
   width: 100%;
 }
-.shortcut-platform select option {
-  background: var(--surface);
-  color: var(--ink);
-}
 .shortcut-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2187,6 +2182,12 @@ h3 {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 6px 2px 0;
+}
+.shortcut-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
 }
 .shortcut-groups section {
   min-width: 0;
@@ -2237,7 +2238,8 @@ h3 {
 .shortcut-combination {
   white-space: nowrap;
 }
-.shortcut-groups kbd {
+.shortcut-groups kbd,
+.shortcut-gesture {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2264,18 +2266,11 @@ h3 {
   font-size: 10px;
 }
 .shortcut-gesture {
-  color: var(--muted);
-  font-size: 11px;
+  gap: 4px;
 }
 .shortcut-empty {
   grid-column: 1 / -1;
   padding: 24px 8px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.shortcut-note {
-  flex-shrink: 0;
-  margin: 16px 0 0;
   color: var(--muted);
   font-size: 12px;
 }
@@ -2382,6 +2377,7 @@ h3 {
 .projects-nav-item small {
   margin-left: auto;
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 .projects-nav-item.active {
   color: var(--accent);
@@ -2488,10 +2484,18 @@ h3 {
   padding: 12px 0 11px;
   border-bottom: 1px solid var(--border);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   min-height: 56px;
+}
+.project-trash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 .project-selection {
   display: flex;
@@ -2590,7 +2594,6 @@ h3 {
 .projects-nav-item.active:hover {
   background: var(--active);
 }
-.project-star:hover,
 .project-card-menu-toggle:hover,
 .project-view-toggle button:hover {
   background: var(--hover);
@@ -2598,7 +2601,6 @@ h3 {
 }
 .new-project-button:hover {
   background: var(--hover);
-  border-color: var(--accent);
 }
 .project-open {
   width: 100%;
@@ -2655,7 +2657,6 @@ h3 {
   align-items: center;
   gap: 10px;
   margin: 12px 5px 10px;
-  padding-right: 15px;
 }
 .project-card-title > svg {
   color: var(--accent);
@@ -2688,20 +2689,6 @@ h3 {
   color: var(--muted);
   font-size: 11px;
   gap: 10px;
-}
-.project-star {
-  position: absolute;
-  right: 11px;
-  bottom: 47px;
-  width: 22px;
-  height: 25px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: #946f22;
 }
 .project-card-menu-toggle {
   position: absolute;
@@ -2746,10 +2733,6 @@ h3 {
 }
 .project-list .project-card-menu-toggle {
   top: 28px;
-}
-.project-list .project-star {
-  bottom: 26px;
-  right: 44px;
 }
 .projects-empty {
   display: flex;
@@ -2976,7 +2959,9 @@ h3 {
     padding: 0 7px;
     font-size: 11px;
   }
-  .projects-nav-item small,
+  .projects-nav-item small {
+    margin-left: 0;
+  }
   .projects-nav-item svg {
     display: none;
   }
@@ -3025,10 +3010,6 @@ h3 {
   .project-card-title small {
     font-size: 10px;
   }
-  .project-star {
-    right: 8px;
-    bottom: 40px;
-  }
   .project-count {
     flex-wrap: wrap;
   }
@@ -3051,10 +3032,6 @@ h3 {
   .project-list .project-card-meta {
     grid-column: 1/-1;
     padding: 0 5px;
-  }
-  .project-list .project-star {
-    bottom: 14px;
-    right: 9px;
   }
   .project-list .project-card-menu-toggle {
     top: 12px;
@@ -3202,11 +3179,12 @@ h3 {
 }
 .drawer-settings,
 .drawer-themes,
-.drawer-storage-settings {
+.drawer-storage {
   width: 360px;
 }
+.drawer-settings,
 .drawer-themes,
-.drawer-storage-settings {
+.drawer-storage {
   bottom: auto;
   max-height: calc(100% - 100px);
 }
@@ -3250,8 +3228,9 @@ h3 {
   .drawer-equipment {
     width: min(248px, calc(100% - 56px));
   }
+  .drawer-settings,
   .drawer-themes,
-  .drawer-storage-settings {
+  .drawer-storage {
     bottom: auto;
     max-height: calc(100% - 116px);
   }
@@ -3286,6 +3265,7 @@ h3 {
 .workspace .react-flow__node.draggable,
 .workspace .react-flow__edge.selectable,
 .workspace .react-flow__edge-interaction,
+.workspace .react-flow__edgeupdater,
 .workspace .flow-wrapper.pan-mode .react-flow__pane {
   cursor: var(--cursor-grab);
 }
@@ -3399,6 +3379,10 @@ h3 {
   gap: 12px;
   margin-bottom: 20px;
 }
+.project-folder-list {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
 .project-folder-card {
   display: flex;
   align-items: center;
@@ -3414,6 +3398,17 @@ h3 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.project-folder-label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.project-folder-label small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  opacity: 0.65;
 }
 .project-folder-card:hover {
   background: color-mix(in srgb, currentColor 5%, transparent);

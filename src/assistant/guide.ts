@@ -17,7 +17,9 @@ defaults, bounds, ports, model IDs and tools. Unknown fields are rejected.
 Equipment kinds: Feed, Product, Mixer, Splitter, Heater, Cooler, PBR, Distillation.
 Feed has out; Product has in; Mixer has in/in2/in3/in4 and out (maximum four
 inlet streams); Splitter has in and out/out2/out3/out4 (maximum four outlet
-streams). PBR, Heater and Cooler have one in and one out. Distillation has one
+streams). Mixers and splitters display two branches initially; params.branchCount
+can reserve 2-4 branches. Connected streams reveal their branches automatically.
+PBR, Heater and Cooler have one in and one out. Distillation has one
 in, one distillate out and one bottoms out2. Each port accepts one stream.
 Combine multiple feeds in an upstream Mixer, including for every PBR mode,
 and branch outlets with a downstream Splitter. Legacy shared mixer inlets are

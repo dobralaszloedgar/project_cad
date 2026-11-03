@@ -5,6 +5,50 @@
 export const mixerInlets = ["in", "in2", "in3", "in4"] as const;
 export const splitterOutlets = ["out", "out2", "out3", "out4"] as const;
 
+export function normalizeBranchCount(count = 2) {
+  return Number.isFinite(count)
+    ? Math.max(2, Math.min(4, Math.round(count)))
+    : 2;
+}
+
+/** Saved counts reserve spare fittings; connected streams always keep theirs. */
+export function junctionBranchCount(
+  unit: {
+    kind: string;
+    params: { branchCount?: number; splitFractions?: number[] };
+  },
+  connected: readonly string[] = [],
+) {
+  const branches = unit.kind === "Mixer" ? mixerInlets : splitterOutlets;
+  return normalizeBranchCount(
+    Math.max(
+      unit.params.branchCount ?? 2,
+      ...branches.map((port, index) =>
+        connected.includes(port) ||
+        (unit.kind === "Splitter" &&
+          (unit.params.splitFractions?.[index] ?? 0) > 0)
+          ? index + 1
+          : 0,
+      ),
+    ),
+  );
+}
+
+export function connectedUnitPorts(
+  unit: { id: string },
+  edges: readonly {
+    source: string;
+    target: string;
+    sourcePort: string;
+    targetPort: string;
+  }[],
+) {
+  return edges.flatMap((edge) => [
+    ...(edge.source === unit.id ? [edge.sourcePort] : []),
+    ...(edge.target === unit.id ? [edge.targetPort] : []),
+  ]);
+}
+
 export function portIndex(port: string) {
   return Number(port.match(/[2-4]$/)?.[0] ?? 1) - 1;
 }

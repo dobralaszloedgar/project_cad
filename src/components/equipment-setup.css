@@ -172,6 +172,14 @@
 .equipment-field {
   min-width: 0;
 }
+.equipment-add-port {
+  justify-self: start;
+  gap: 6px;
+}
+.equipment-add-port span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .equipment-quantity {
   display: flex;
   gap: 6px;

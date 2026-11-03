@@ -104,8 +104,8 @@ test("feed composition and reactor sizing retain drafts and compact layouts fit 
   ).toHaveCount(2);
   await expect(page.getByText("Define your first reaction")).toBeVisible();
   await page.getByRole("button", { name: "Add reaction", exact: true }).click();
-  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
-  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
   await page.getByLabel("Rate constant", { exact: true }).fill("0.01");
   await page
     .getByLabel("Packed-bed calculation")

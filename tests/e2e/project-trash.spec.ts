@@ -2,7 +2,7 @@
 // Applies only to copyrightable Project CAD material owned by this holder.
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
-import { submitNewProject } from "./project-create-fixture";
+import { openNewProject, submitNewProject } from "./project-create-fixture";
 import { expect, test, type Page } from "./test";
 import {
   folderControls,
@@ -30,6 +30,172 @@ async function trash(page: Page, name: string) {
     .click();
   await expect(page.getByRole("status")).toContainText("moved to Trash");
 }
+
+async function createFolderProject(page: Page, name: string) {
+  await openNewProject(page);
+  await page
+    .getByRole("dialog", { name: "Create project", exact: true })
+    .getByLabel("Project name", { exact: true })
+    .fill(name);
+  await submitNewProject(page);
+  await library(page);
+}
+
+test("bulk trash actions include search-hidden projects and preserve projects outside Trash", async ({
+  page,
+}, info) => {
+  await installFolderPicker(page);
+  await page.goto("/workspace");
+  await library(page);
+  const originalName = await page
+    .locator(".project-card-title strong")
+    .innerText();
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  const actions = page.getByRole("group", { name: "Trash actions" });
+  const restoreAll = actions.getByRole("button", {
+    name: "Restore all",
+    exact: true,
+  });
+  const emptyTrash = actions.getByRole("button", {
+    name: "Empty trash",
+    exact: true,
+  });
+  await expect(restoreAll).toBeDisabled();
+  await expect(emptyTrash).toBeDisabled();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(actions).toHaveCount(0);
+  await createFolderProject(page, "Bulk trash project");
+  await createFolderProject(page, "Keep project");
+  const keptFile = await folderText(page, "Keep project");
+  const trashedFile = await folderText(page, "Bulk trash project");
+  await trash(page, originalName);
+  await trash(page, "Bulk trash project");
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  const search = page.getByRole("textbox", { name: "Search projects" });
+  await search.fill("Bulk");
+  await expect(page.locator(".project-card")).toHaveCount(1);
+  await restoreAll.click();
+  await expect(page.getByRole("status")).toHaveText(
+    "2 projects restored to Home.",
+  );
+  await expect(restoreAll).toBeDisabled();
+  await expect(emptyTrash).toBeDisabled();
+  expect(await folderText(page, "Bulk trash project")).toBe(trashedFile);
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(3);
+  await trash(page, originalName);
+  await trash(page, "Bulk trash project");
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await page.locator(".project-open").first().click();
+  await page.screenshot({ path: info.outputPath("trash-bulk-desktop.png") });
+  await search.fill("No matching project");
+  await expect(page.locator(".project-card")).toHaveCount(0);
+  await expect(restoreAll).toBeEnabled();
+  await emptyTrash.click();
+  const dialog = page.getByRole("dialog", {
+    name: "Empty trash?",
+    exact: true,
+  });
+  await expect(dialog).toContainText("2 trashed projects");
+  await expect(dialog).toContainText("This cannot be undone");
+  await expect(dialog).toContainText("from disk");
+  await expect(
+    dialog.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(await folderText(page, "Bulk trash project")).toBe(trashedFile);
+  await search.fill("");
+  await expect(page.locator(".project-card")).toHaveCount(2);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(restoreAll).toBeVisible();
+  await expect(emptyTrash).toBeVisible();
+  await page.screenshot({ path: info.outputPath("trash-bulk-mobile.png") });
+  await emptyTrash.click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: info.outputPath("trash-bulk-mobile-confirm.png"),
+  });
+  await dialog
+    .getByRole("button", { name: "Empty trash", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Trash is empty" }),
+  ).toBeVisible();
+  await expect(restoreAll).toBeDisabled();
+  await expect(emptyTrash).toBeDisabled();
+  expect(await folderText(page, "Keep project")).toBe(keptFile);
+  expect(
+    await page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      const folder = await root.getDirectoryHandle("Laptop projects");
+      const names = [];
+      for await (const entry of folder.values()) names.push(entry.name);
+      return names;
+    }),
+  ).toEqual(["Keep project.pcad"]);
+  await page.reload();
+  await library(page);
+  await expect(page.locator(".project-card-title strong")).toHaveText(
+    "Keep project",
+  );
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(0);
+});
+
+test("empty trash keeps failed projects and retries only the remaining files", async ({
+  page,
+}) => {
+  await installFolderPicker(page);
+  await page.goto("/workspace");
+  await library(page);
+  const originalName = await page
+    .locator(".project-card-title strong")
+    .innerText();
+  await createFolderProject(page, "Protected project");
+  const original = await folderText(page, "Protected project");
+  await trash(page, originalName);
+  await trash(page, "Protected project");
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await page.getByRole("button", { name: "Empty trash", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Empty trash?",
+    exact: true,
+  });
+  await folderControls(page, { permission: "denied", grant: "denied" });
+  await dialog
+    .getByRole("button", { name: "Empty trash", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "1 project permanently deleted. 1 project remains in Trash.",
+  );
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Folder access is needed to delete",
+  );
+  await expect(dialog).toContainText("1 trashed project");
+  await expect(page.locator(".project-card-title strong")).toHaveText(
+    "Protected project",
+  );
+  expect(await folderText(page, "Protected project")).toBe(original);
+  await folderControls(page, { grant: "granted" });
+  await dialog
+    .getByRole("button", { name: "Empty trash", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Trash is empty" }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "No projects yet" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await expect(page.locator(".project-card")).toHaveCount(0);
+});
 
 test("last project can be trashed, restored, and permanently deleted without reappearing on reload", async ({
   page,
@@ -103,10 +269,7 @@ test("last project can be trashed, restored, and permanently deleted without rea
   await expect(
     page.getByRole("heading", { name: "No projects yet" }),
   ).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const create = page.getByRole("dialog", {
     name: "Create project",
     exact: true,
@@ -124,9 +287,7 @@ test("folder projects keep their file in Trash and delete it from disk only afte
   await installFolderPicker(page);
   await page.goto("/workspace");
   await library(page);
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const create = page.getByRole("dialog", {
     name: "Create project",
     exact: true,

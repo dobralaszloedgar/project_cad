@@ -10,6 +10,7 @@ import {
   compactEquipmentSymbols,
   equipmentConnectors,
   equipmentSymbols,
+  junctionConnectors,
 } from "./equipment-symbols";
 export const equipmentLabels: Record<Kind, string> = {
   Feed: "Feed",
@@ -44,11 +45,13 @@ export function EquipmentIcon({
   size = 24,
   trayCount,
   condenserType,
+  branchCount,
 }: {
   kind: Kind;
   size?: number;
   trayCount?: number;
   condenserType?: CondenserType;
+  branchCount?: number;
 }) {
   const compact = size <= 48 ? compactEquipmentSymbols[kind] : undefined;
   const column =
@@ -60,7 +63,7 @@ export function EquipmentIcon({
     : (compact ??
       equipmentSymbols[kind] +
         (size > 48
-          ? `<path d="${equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
+          ? `<path d="${kind === "Mixer" || kind === "Splitter" ? junctionConnectors(kind, branchCount) : equipmentConnectors[kind]}" vector-effect="non-scaling-stroke"/>`
           : ""));
   return (
     <svg

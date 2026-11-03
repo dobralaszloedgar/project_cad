@@ -2,7 +2,7 @@
 // Applies only to copyrightable Project CAD material owned by this holder.
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
-import { submitNewProject } from "./project-create-fixture";
+import { openNewProject, submitNewProject } from "./project-create-fixture";
 import { test, expect, type Page } from "./test";
 import {
   folderControls,
@@ -22,10 +22,7 @@ async function home(page: Page) {
 }
 
 async function create(page: Page, name = "Study") {
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const dialog = page.getByRole("dialog", {
     name: "Create project",
     exact: true,

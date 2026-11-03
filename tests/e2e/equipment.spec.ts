@@ -76,8 +76,8 @@ test("catalyst reactor with upstream mixing exposes its single inlet, calculated
   await expect(page.locator(".equipment-result")).toContainText("16.52%");
   await page.getByRole("tab", { name: "Setup", exact: true }).click();
   await page.getByRole("button", { name: "Add reaction", exact: true }).click();
-  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
-  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
   await page.getByLabel("Rate constant", { exact: true }).fill("0.01");
   await page
     .getByLabel("Activation energy (kJ/mol)", { exact: true })

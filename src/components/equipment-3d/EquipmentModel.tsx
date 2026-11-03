@@ -39,6 +39,7 @@ export function EquipmentModel({
   liquidColor,
   compositionColors,
   trayCount = 8,
+  branchCount = 2,
   condenserType,
   column,
   hydraulics,
@@ -52,6 +53,7 @@ export function EquipmentModel({
     liquidColor?: string;
     compositionColors?: EquipmentCompositionColors;
     trayCount?: number;
+    branchCount?: number;
     condenserType?: EquipmentModelOptions["condenserType"];
     column?: EquipmentModelOptions["column"];
     hydraulics?: TrayHydraulicsResult;
@@ -74,6 +76,7 @@ export function EquipmentModel({
       transparent,
       {
         trayCount,
+        branchCount,
         condenserType,
         column,
       },
@@ -107,6 +110,7 @@ export function EquipmentModel({
     invalidate,
     clock,
     trayCount,
+    branchCount,
     condenserType,
     column,
   ]);
@@ -126,7 +130,7 @@ export function EquipmentModel({
       section || transparent,
       clock,
       liquidColor,
-      { trayCount, condenserType, column },
+      { trayCount, branchCount, condenserType, column },
       compositionColors,
       hydraulics,
     );
@@ -146,6 +150,7 @@ export function EquipmentModel({
     clock,
     liquidColor,
     trayCount,
+    branchCount,
     condenserType,
     column,
     hydraulics,

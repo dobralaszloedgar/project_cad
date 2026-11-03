@@ -220,9 +220,7 @@ test("pull tab animates on hover, bridges pointer travel, pins on click and supp
     bounds.y + bounds.height / 2,
   );
   await expect(menu).toBeVisible();
-  await menu
-    .getByRole("button", { name: "Storage settings", exact: true })
-    .hover();
+  await menu.getByRole("button", { name: "Storage", exact: true }).hover();
   await expect(menu).toBeVisible();
   await page.mouse.move(700, 170);
   await expect(menu).toHaveCount(0);
@@ -275,17 +273,15 @@ test.describe("touch canvas", () => {
     await expect(page.locator(".navigation-hint")).toHaveCount(0);
     await tab.tap();
     await expect(menu).toBeVisible();
-    await menu
-      .getByRole("button", { name: "Storage settings", exact: true })
-      .tap();
+    await menu.getByRole("button", { name: "Storage", exact: true }).tap();
     await expect(
       page.getByRole("complementary", {
-        name: "Storage settings",
+        name: "Storage",
         exact: true,
       }),
     ).toBeVisible();
     await page
-      .getByRole("button", { name: "Close Storage settings", exact: true })
+      .getByRole("button", { name: "Close Storage", exact: true })
       .tap();
     const before = await camera(page);
     const input = await page.context().newCDPSession(page);

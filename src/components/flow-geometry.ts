@@ -6,6 +6,7 @@ import { getSmoothStepPath, Position } from "@xyflow/react";
 import type { Connection, Kind, Unit } from "@/domain/schema";
 import { columnDiagramLayout } from "../domain/column-geometry";
 import { portIndex } from "../domain/material-ports";
+import { junctionPortY } from "./equipment-symbols";
 
 export function equipmentSize(kind: Kind, trayCount?: number) {
   return {
@@ -20,6 +21,7 @@ export function equipmentPort(
   output: boolean,
   index: number,
   trayCount?: number,
+  branchCount = 2,
 ) {
   if (kind === "Distillation") {
     const layout = columnDiagramLayout(trayCount);
@@ -32,8 +34,8 @@ export function equipmentPort(
   let x = output ? 120 : 8,
     y = 64;
   let position = output ? Position.Right : Position.Left;
-  if (kind === "Mixer" && !output) y = 28 + index * 24;
-  if (kind === "Splitter" && output) y = 28 + index * 24;
+  if (kind === "Mixer" && !output) y = junctionPortY(index, branchCount);
+  if (kind === "Splitter" && output) y = junctionPortY(index, branchCount);
   if (kind === "PBR") {
     const bottom = output;
     x = 64;
@@ -96,7 +98,7 @@ export function plantPort(
   point: Point3;
   direction: Point3;
 } {
-  const output = port === "out" || port === "out2";
+  const output = port.startsWith("out");
   const point = plantPosition(unit);
   const local: Point3 = [output ? 0.7 : -0.7, 0.7, 0];
   let direction: Point3 = [output ? 1 : -1, 0, 0];

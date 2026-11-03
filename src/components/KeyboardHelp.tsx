@@ -5,7 +5,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { Keyboard, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import Dialog from "./Dialog";
 
 type Platform = "mac" | "windows" | "linux";
@@ -34,6 +34,8 @@ function keyLabel(key: string, mac: boolean) {
   if (key === "−") return "Minus";
   if (key === "/") return "Slash";
   if (key === "?") return "Question mark";
+  if (key === "click") return "Left mouse click";
+  if (key === "drag") return "Left mouse drag";
   return key;
 }
 
@@ -72,7 +74,29 @@ function KeyCombination({ keys, mac }: { keys: string[]; mac: boolean }) {
         >
           {index > 0 && <span className="shortcut-plus">+</span>}
           {key === "click" || key === "drag" ? (
-            <span className="shortcut-gesture">{key}</span>
+            <span className="shortcut-gesture">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M12 2a7 7 0 0 0-7 7v1h7Z"
+                  fill="currentColor"
+                  fillOpacity="0.25"
+                  stroke="none"
+                />
+                <rect x="5" y="2" width="14" height="20" rx="7" />
+                <path d="M12 2v8M5 10h14" />
+              </svg>
+              {key === "click" ? "Click" : "Drag"}
+            </span>
           ) : (
             <kbd
               className={
@@ -99,21 +123,18 @@ function KeyCombination({ keys, mac }: { keys: string[]; mac: boolean }) {
 }
 
 export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
-  const detectedPlatform = useSyncExternalStore(
+  const platform = useSyncExternalStore(
     subscribe,
     getPlatform,
     getServerPlatform,
   );
-  const [platformOverride, setPlatformOverride] = useState<Platform | null>(
-    null,
-  );
   const [query, setQuery] = useState("");
-  const platform = platformOverride ?? detectedPlatform;
   const mac = platform === "mac";
   const modifier = mac ? "Command" : "Ctrl";
-  const groups: { title: string; shortcuts: Shortcut[] }[] = [
+  const groups: { title: string; column: number; shortcuts: Shortcut[] }[] = [
     {
       title: "Build & edit",
+      column: 0,
       shortcuts: [
         { label: "Add equipment", keys: [["A"], ["/"]] },
         { label: "Edit selection", keys: [["E"], ["F2"]] },
@@ -145,6 +166,7 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
     },
     {
       title: "Canvas navigation",
+      column: 1,
       shortcuts: [
         { label: "Selection tool", keys: [["V"]] },
         { label: "Pan tool", keys: [["P"]] },
@@ -167,6 +189,7 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
     },
     {
       title: "Simulation & results",
+      column: 0,
       shortcuts: [
         { label: "Save / apply editor changes", keys: [[modifier, "S"]] },
         { label: "Run simulation", keys: [[modifier, "Enter"]] },
@@ -179,6 +202,7 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
     },
     {
       title: "Menus & help",
+      column: 1,
       shortcuts: [
         { label: "Keyboard shortcuts", keys: [["H"], ["?"]] },
         {
@@ -201,6 +225,12 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
       }),
     }))
     .filter((group) => group.shortcuts.length);
+  const columns = [0, 1]
+    .map((id) => ({
+      id,
+      groups: filtered.filter((group) => group.column === id),
+    }))
+    .filter((column) => column.groups.length);
 
   return (
     <Dialog
@@ -219,44 +249,36 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <label className="shortcut-platform">
-          <Keyboard size={16} aria-hidden="true" />
-          <select
-            aria-label="Keyboard platform"
-            value={platform}
-            onChange={(event) =>
-              setPlatformOverride(event.target.value as Platform)
-            }
-          >
-            <option value="mac">macOS</option>
-            <option value="windows">Windows</option>
-            <option value="linux">Linux</option>
-          </select>
-        </label>
       </div>
       <div className="shortcut-groups">
-        {filtered.map(({ title, shortcuts }) => (
-          <section key={title} aria-label={title}>
-            <h3>{title}</h3>
-            <dl>
-              {shortcuts.map(({ label, keys }) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd className="shortcut-keys">
-                    {keys.map((combination, index) => (
-                      <span
-                        className="shortcut-alternative"
-                        key={combination.join("+")}
-                      >
-                        {index > 0 && <span className="shortcut-or">or</span>}
-                        <KeyCombination keys={combination} mac={mac} />
-                      </span>
-                    ))}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
+        {columns.map((column) => (
+          <div className="shortcut-column" key={column.id}>
+            {column.groups.map(({ title, shortcuts }) => (
+              <section key={title} aria-label={title}>
+                <h3>{title}</h3>
+                <dl>
+                  {shortcuts.map(({ label, keys }) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd className="shortcut-keys">
+                        {keys.map((combination, index) => (
+                          <span
+                            className="shortcut-alternative"
+                            key={combination.join("+")}
+                          >
+                            {index > 0 && (
+                              <span className="shortcut-or">or</span>
+                            )}
+                            <KeyCombination keys={combination} mac={mac} />
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ))}
+          </div>
         ))}
         {!filtered.length && (
           <p className="shortcut-empty" role="status">
@@ -264,9 +286,6 @@ export default function KeyboardHelp({ onClose }: { onClose: () => void }) {
           </p>
         )}
       </div>
-      <p className="shortcut-note">
-        Canvas shortcuts pause while typing or while a dialog is open.
-      </p>
     </Dialog>
   );
 }

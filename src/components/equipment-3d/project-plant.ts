@@ -3,7 +3,11 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import type { Connection, Project, Unit } from "@/domain/schema";
-import { separateMixerInlets } from "../../domain/material-ports";
+import {
+  connectedUnitPorts,
+  junctionBranchCount,
+  separateMixerInlets,
+} from "../../domain/material-ports";
 import { splitterBranches } from "./junction-layout";
 import { plantTemplates } from "../../domain/plant-templates";
 import type { Point } from "./operation";
@@ -209,6 +213,10 @@ function buildArrangement(project: Project): SystemExample {
     title: unit.name,
     position: [0, 0, 0],
     trayCount: unit.params.trayCount,
+    branchCount: junctionBranchCount(
+      unit,
+      connectedUnitPorts(unit, project.edges),
+    ),
     condenserType: unit.params.distillation?.condenserType,
     column:
       unit.kind === "Distillation" && unit.params.distillation?.hydraulics
@@ -284,16 +292,19 @@ export function buildProjectPlant(project: Project): SystemExample {
   project = separateMixerInlets(project);
   const key = JSON.stringify([
     project.name,
-    project.units.map(({ id, kind, name, params }) => [
-      id,
-      kind,
-      name,
-      params.trayCount,
-      params.distillation?.condenserType,
-      params.distillation?.hydraulics?.diameter,
-      params.distillation?.hydraulics?.traySpacing,
-      params.distillation?.method,
-      params.distillation?.feedTray,
+    project.units.map((unit) => [
+      unit.id,
+      unit.kind,
+      unit.name,
+      unit.params.trayCount,
+      unit.kind === "Mixer" || unit.kind === "Splitter"
+        ? junctionBranchCount(unit, connectedUnitPorts(unit, project.edges))
+        : undefined,
+      unit.params.distillation?.condenserType,
+      unit.params.distillation?.hydraulics?.diameter,
+      unit.params.distillation?.hydraulics?.traySpacing,
+      unit.params.distillation?.method,
+      unit.params.distillation?.feedTray,
     ]),
     project.edges.map(
       ({ id, source, target, sourcePort, targetPort, color }) => [

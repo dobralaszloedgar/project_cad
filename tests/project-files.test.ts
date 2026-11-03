@@ -246,6 +246,115 @@ describe("named project files and disk folders", () => {
   const named = (name = "Study") =>
     readFile(join(temporary, `${name}.pcad`), "utf8");
 
+  it("discovers externally created folders and project files without scanning dependencies", async () => {
+    await storage.connectProjectRoot(parent);
+    expect((await storage.scanProjectLibrary()).projects).toHaveLength(0);
+    await mkdir(join(temporary, "demo column"));
+    await mkdir(join(temporary, "Empty folder"));
+    await mkdir(join(temporary, "node_modules"));
+    await writeFile(
+      join(temporary, "node_modules/project.json"),
+      "not a project",
+    );
+    const documents = ["Tower Weeping", "Tower Flooding"].map((name) => {
+      const value = workspace();
+      value.project.name = name;
+      const now = new Date().toISOString();
+      return {
+        name,
+        text: serializeProjectFile({
+          format: "project-cad",
+          formatVersion: 1,
+          projectId: crypto.randomUUID(),
+          createdAt: now,
+          updatedAt: now,
+          workspace: value,
+        }),
+      };
+    });
+    for (const { name, text } of documents)
+      await writeFile(join(temporary, "demo column", `${name}.pcad`), text);
+    const scanned = await storage.scanProjectLibrary();
+    expect(scanned.errors).toEqual([]);
+    expect(scanned.folders.map((folder) => folder.path).sort()).toEqual([
+      "",
+      "Empty folder",
+      "demo column",
+    ]);
+    expect(scanned.projects.map((entry) => entry.relativePath).sort()).toEqual([
+      "demo column/Tower Flooding.pcad",
+      "demo column/Tower Weeping.pcad",
+    ]);
+    for (const { name, text } of documents)
+      expect(await named(`demo column/${name}`)).toBe(text);
+    expect(control.commits).toBe(0);
+  });
+
+  it("keeps nearby discoveries when an unrelated deep tree exceeds the scan limit", async () => {
+    await storage.connectProjectRoot(parent);
+    await mkdir(join(temporary, "a-large-tree/cache"), { recursive: true });
+    await mkdir(join(temporary, "demo column"));
+    const now = new Date().toISOString();
+    const text = serializeProjectFile({
+      format: "project-cad",
+      formatVersion: 1,
+      projectId: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+      workspace: workspace(),
+    });
+    await writeFile(join(temporary, "demo column/Tower.pcad"), text);
+    const values = DiskDirectory.prototype.values;
+    const enumeration = vi
+      .spyOn(DiskDirectory.prototype, "values")
+      .mockImplementation(async function* (this: DiskDirectory) {
+        if (this.name === "cache") {
+          for (let i = 0; i < 10001; i++)
+            yield new DiskFile(join(this.path, `${i}.txt`), this.control);
+        } else yield* values.call(this);
+      });
+    try {
+      const scanned = await storage.scanProjectLibrary();
+      expect(scanned.errors).toEqual([
+        expect.stringContaining("10,000 entries"),
+      ]);
+      expect(scanned.projects).toHaveLength(1);
+      expect(scanned.projects[0].relativePath).toBe("demo column/Tower.pcad");
+      expect(
+        scanned.folders.some((folder) => folder.path === "demo column"),
+      ).toBe(true);
+      expect(await named("demo column/Tower")).toBe(text);
+    } finally {
+      enumeration.mockRestore();
+    }
+  });
+
+  it("keeps scanning sibling folders when one directory is unreadable", async () => {
+    await storage.createProjectFile(parent, "Study", workspace());
+    await mkdir(join(temporary, "Unavailable"));
+    await mkdir(join(temporary, "Available"));
+    const values = DiskDirectory.prototype.values;
+    const enumeration = vi
+      .spyOn(DiskDirectory.prototype, "values")
+      .mockImplementation(async function* (this: DiskDirectory) {
+        if (this.name === "Unavailable")
+          throw new DOMException("Access denied", "NotAllowedError");
+        yield* values.call(this);
+      });
+    try {
+      const scanned = await storage.scanProjectLibrary();
+      expect(scanned.errors).toEqual([
+        expect.stringContaining("Access denied"),
+      ]);
+      expect(scanned.projects).toHaveLength(1);
+      expect(scanned.folders.map((folder) => folder.path)).toContain(
+        "Available",
+      );
+    } finally {
+      enumeration.mockRestore();
+    }
+  });
+
   it("renames an externally renamed file even when the requested title matches its embedded title", async () => {
     const created = await storage.createProjectFile(
       parent,

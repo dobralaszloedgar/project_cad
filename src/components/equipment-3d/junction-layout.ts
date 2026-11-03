@@ -3,6 +3,7 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import type { Point } from "./operation";
+import { normalizeBranchCount } from "../../domain/material-ports";
 
 // Shared by the fittings, animated contents and external pipe endpoints.
 export const extraMixerInlets = [
@@ -16,3 +17,9 @@ export const splitterBranches = [
   { port: "out3", fitting: "c", z: -0.21 },
   { port: "out4", fitting: "d", z: 0.21 },
 ] as const;
+
+export const activeMixerInlets = (count?: number) =>
+  extraMixerInlets.slice(0, normalizeBranchCount(count) - 2);
+
+export const activeSplitterBranches = (count?: number) =>
+  splitterBranches.slice(0, normalizeBranchCount(count));

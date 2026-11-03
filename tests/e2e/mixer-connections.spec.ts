@@ -162,6 +162,9 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
   await expect(page.locator(".project-heading h1")).toHaveText(project.name);
   await page.getByRole("button", { name: "Fit View", exact: true }).click();
   const mixer = page.locator('.react-flow__node[data-id="M-center"]');
+  await expect(
+    mixer.locator('.material-handle[data-handleid^="in"]'),
+  ).toHaveCount(2);
   for (let index = 1; index <= 4; index++) {
     const source = page.getByLabel(`F-${index} outlet out`, { exact: true });
     if (index === 4) {
@@ -174,6 +177,9 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
     }
     await wireToCenter(page, source, mixer);
     await expect(page.locator(".react-flow__edge")).toHaveCount(index + 1);
+    await expect(
+      mixer.locator('.material-handle[data-handleid^="in"]'),
+    ).toHaveCount(Math.max(2, index));
     await expect(source).not.toHaveClass(/\bconnectable\b/);
   }
 
@@ -193,6 +199,9 @@ test("mixer center accepts four stream drops, persists and simulates all feeds",
     .click();
   await page.keyboard.press("Escape");
   await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+  await expect(
+    mixer.locator('.material-handle[data-handleid^="in"]'),
+  ).toHaveCount(3);
   // Occupied mixer inlet handles remain usable as well as the center drop area.
   const fourthSource = page.getByLabel("F-4 outlet out", { exact: true });
   await expect(fourthSource).toHaveClass(/\bconnectable\b/);

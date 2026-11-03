@@ -21,6 +21,7 @@ export default function Plant3D({
   result = null,
   selected,
   onSelect,
+  onSimulate,
   dark = false,
   canvasColor,
   initialPlaying = true,
@@ -30,6 +31,7 @@ export default function Plant3D({
   result?: Result | null;
   selected: string | null;
   onSelect: (id: string) => void;
+  onSimulate?: () => void;
   dark?: boolean;
   canvasColor?: string;
   initialPlaying?: boolean;
@@ -46,6 +48,7 @@ export default function Plant3D({
   const [speed, setSpeed] = useState(1);
   const [reset, setReset] = useState(0);
   const [focus, setFocus] = useState(0);
+  const [focusPart, setFocusPart] = useState<"trays" | undefined>();
   const [view, setView] = useState<CameraView>("perspective");
   const { palette, setPalette } = useFluidPalette();
   const compositionColors = useMemo(
@@ -78,7 +81,37 @@ export default function Plant3D({
     }
     return ratings;
   }, [project, result]);
-  const selectedHydraulics = selected ? columnHydraulics[selected] : undefined;
+  const hydraulicColumns = project.units.filter(
+    (unit) =>
+      unit.kind === "Distillation" &&
+      unit.params.distillation?.method === "mesh" &&
+      unit.params.distillation.hydraulics?.enabled,
+  );
+  // Older projects may have no saved result, and numerical edits invalidate it.
+  // Keep that visible instead of silently presenting generic flow as a rated demo.
+  const hydraulicColumn =
+    hydraulicColumns.find((unit) => unit.id === selected) ??
+    (hydraulicColumns.length === 1 ? hydraulicColumns[0] : undefined);
+  const selectedHydraulics = hydraulicColumn
+    ? columnHydraulics[hydraulicColumn.id]
+    : undefined;
+  const weepingTrays =
+    selectedHydraulics?.stages.filter(
+      (stage) => stage.weepRatio !== null && stage.weepRatio < 1,
+    ).length ?? 0;
+  const floodedTrays =
+    selectedHydraulics?.stages.filter(
+      (stage) =>
+        Math.max(stage.jetFloodFraction ?? 0, stage.downcomerFloodFraction) >=
+        1,
+    ).length ?? 0;
+  function showTrayEffects() {
+    if (hydraulicColumn) onSelect(hydraulicColumn.id);
+    setTransparent(true);
+    setPlaying(true);
+    setFocusPart("trays");
+    setFocus((value) => value + 1);
+  }
   return (
     <div
       className="plant-view"
@@ -105,6 +138,7 @@ export default function Plant3D({
           rotate={false}
           reset={reset}
           focus={focus}
+          focusPart={focusPart}
           selectedId={selected}
           dark={dark}
           canvasColor={canvasColor}
@@ -120,50 +154,86 @@ export default function Plant3D({
           continue editing in 2D.
         </div>
       )}
-      {selectedHydraulics && (
+      {hydraulicColumns.length > 0 && (
         <aside
           className="plant-hydraulics-legend"
           aria-label="3D tray hydraulics"
         >
-          <strong>{selected} · Sieve tray hydraulics</strong>
-          <p>
-            {selectedHydraulics.status === "unavailable"
-              ? "Rating unavailable — supply fluid properties."
-              : `Highest flooding load: ${((selectedHydraulics.maxFloodFraction ?? 0) * 100).toFixed(1)}% · Tray ${selectedHydraulics.limitingTray}`}
-          </p>
-          {selectedHydraulics.stages.length > 0 && (
-            <p>
-              {
-                selectedHydraulics.stages.filter(
-                  (s) => s.weepRatio !== null && s.weepRatio < 1,
-                ).length
-              }{" "}
-              trays with predicted weeping
-              {" · "}
-              {
-                selectedHydraulics.stages.filter(
-                  (s) =>
-                    Math.max(
-                      s.jetFloodFraction ?? 0,
-                      s.downcomerFloodFraction,
-                    ) >= 1,
-                ).length
-              }{" "}
-              at a flooding limit
-              {selectedHydraulics.status === "partial"
-                ? " · incomplete rating"
-                : ""}
-            </p>
+          <strong>
+            {hydraulicColumn ? `${hydraulicColumn.id} · ` : ""}Tray hydraulics
+          </strong>
+          {!hydraulicColumn ? (
+            <p>Select a tower to inspect tray effects.</p>
+          ) : !selectedHydraulics ? (
+            <>
+              <p>
+                {result && !result.converged
+                  ? "Simulation did not converge. Recalculate to rate trays."
+                  : "No current hydraulic result. Calculate to rate trays."}
+              </p>
+              <small>Generic flow illustration.</small>
+              {onSimulate && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    onSimulate();
+                    showTrayEffects();
+                  }}
+                >
+                  Calculate tray effects
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p>
+                {selectedHydraulics.status === "unavailable"
+                  ? "Rating unavailable — supply fluid properties."
+                  : `Peak flood load: ${((selectedHydraulics.maxFloodFraction ?? 0) * 100).toFixed(1)}% · Tray ${selectedHydraulics.limitingTray}`}
+              </p>
+              {selectedHydraulics.stages.length > 0 && (
+                <p>
+                  Trays: {floodedTrays} flooding · {weepingTrays} weeping
+                  {selectedHydraulics.status === "partial"
+                    ? " · incomplete rating"
+                    : ""}
+                </p>
+              )}
+              {(weepingTrays > 0 || floodedTrays > 0) && (
+                <>
+                  {(!playing || !transparent) && (
+                    <p>
+                      {!playing ? "Animation paused. " : ""}
+                      {!transparent ? "Shell is opaque." : ""}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={showTrayEffects}
+                  >
+                    Show tray effects
+                  </button>
+                </>
+              )}
+              <details className="plant-hydraulics-details">
+                <summary>Details</summary>
+                {weepingTrays > 0 && (
+                  <p>Weeping: droplets fall through tray holes.</p>
+                )}
+                {floodedTrays > 0 && (
+                  <p>Flooding: liquid carried upward between trays.</p>
+                )}
+                <p>
+                  Rings: green within limits · blue weeping · amber near
+                  flooding · red flooding · gray incomplete.
+                </p>
+                <p>Top tray = 1 · Per-tray data: Properties → Results.</p>
+                <small>Illustrative motion, not a transient simulation.</small>
+              </details>
+            </>
           )}
-          <small>
-            Tray rings: green within limits · blue weeping · amber near flooding
-            · red flooding · gray incomplete.
-          </small>
-          <p>Top tray = 1. Open Properties → Results for each tray.</p>
-          <small>
-            Fluid motion illustrates predicted conditions; it is not a transient
-            flow simulation.
-          </small>
         </aside>
       )}
       {layout &&
@@ -216,7 +286,10 @@ export default function Plant3D({
               aria-label="Focus selected equipment"
               title="Focus selected equipment (Shift+F)"
               disabled={!project.units.some((unit) => unit.id === selected)}
-              onClick={() => setFocus((value) => value + 1)}
+              onClick={() => {
+                setFocusPart(undefined);
+                setFocus((value) => value + 1);
+              }}
             >
               <Focus size={15} />
               <span>Focus</span>

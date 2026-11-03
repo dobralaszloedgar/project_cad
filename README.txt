@@ -90,7 +90,7 @@ Assistant checks: `npx vitest run tests/assistant.test.ts tests/assistant-config
 
 ## Local project files and folders
 
-On first opening the app, choose a project folder on your laptop. The app remembers it and uses it for new projects, templates, and duplicates. Change the default in **Storage settings**, or use **Connect folder** in Projects to browse another folder. Browser permission may need to be renewed after restarting.
+On first opening the app, choose a project folder on your laptop. The app remembers it and uses it for new projects, templates, and duplicates. Change the default in **Storage**. In Projects, use **+ New** to create a project or folder; the library's right-click menu also offers both actions. New folders are created on disk inside the configured storage directory, or inside the folder currently being browsed. Browser permission may need to be renewed after restarting.
 
 Each new project is one named, self-contained file, such as `Reactor study.pcad`. Equipment, connections, parameters, layout, thermodynamic settings, and revision history autosave into that file. No per-project wrapper folder is required. Browser recovery copies protect unfinished saves.
 

@@ -14,13 +14,17 @@ import {
   Trash2,
 } from "lucide-react";
 import {
-  ports,
+  visiblePorts,
   requiredOutputs,
   type Project,
   type Unit,
 } from "@/domain/schema";
 import { splitterFractions } from "@/domain/splitter";
-import { splitterOutlets } from "@/domain/material-ports";
+import {
+  connectedUnitPorts,
+  junctionBranchCount,
+  splitterOutlets,
+} from "@/domain/material-ports";
 import { flow, type Result, type Stream } from "@/domain/solver";
 import { defaultThermo, type ThermoSettings } from "@/domain/thermo/registry";
 import { componentNames, thermoContext } from "@/domain/thermo/catalog";
@@ -131,8 +135,19 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Connections({ unit, project }: { unit: Unit; project: Project }) {
-  const unitPorts = ports(unit.kind);
+function Connections({
+  unit,
+  project,
+  onAddBranch,
+}: {
+  unit: Unit;
+  project: Project;
+  onAddBranch: () => void;
+}) {
+  const connected = connectedUnitPorts(unit, project.edges);
+  const unitPorts = visiblePorts(unit, connected);
+  const junction = unit.kind === "Mixer" || unit.kind === "Splitter";
+  const count = junctionBranchCount(unit, connected);
   const missing = [
     ...(unit.kind === "Mixer"
       ? project.edges.some((edge) => edge.target === unit.id)
@@ -196,6 +211,18 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
               </div>
             );
           }),
+        )}
+        {junction && (
+          <button
+            type="button"
+            className="btn btn-sm btn-ghost equipment-add-port"
+            onClick={onAddBranch}
+            disabled={count >= 4}
+          >
+            <Plus size={14} aria-hidden="true" />
+            Add {unit.kind === "Mixer" ? "inlet" : "outlet"}
+            <span>{count}/4</span>
+          </button>
         )}
         {missing.length ? (
           <p className="equipment-help">
@@ -392,6 +419,10 @@ export default function EquipmentEditor({
   const settings = project.thermo ?? defaultThermo;
   const context = thermoContext(settings);
   const [params, setParams] = useState(() => setupParams(unit, context.ids));
+  const branchCount = junctionBranchCount(
+    { ...unit, params },
+    connectedUnitPorts(unit, project.edges),
+  );
   const display = useUnitSystem();
   const [name, setName] = useState(unit.name);
   const [tab, setTab] = useState<"setup" | "results">(
@@ -850,31 +881,33 @@ export default function EquipmentEditor({
                     project.edges
                       .filter((edge) => edge.source === unit.id)
                       .map((edge) => edge.sourcePort),
-                  ).map((fraction, index, fractions) => (
-                    <label
-                      className="equipment-field"
-                      data-setup-field={`splitFractions.${index}`}
-                      key={splitterOutlets[index]}
-                    >
-                      Outlet {index + 1} fraction
-                      <NumberInput
-                        aria-label={`Outlet ${index + 1} fraction`}
-                        required
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={fraction}
-                        onValueChange={(value) =>
-                          setParams({
-                            ...params,
-                            splitFractions: fractions.map((current, i) =>
-                              i === index ? value : current,
-                            ),
-                          })
-                        }
-                      />
-                    </label>
-                  ))}
+                  )
+                    .slice(0, branchCount)
+                    .map((fraction, index, fractions) => (
+                      <label
+                        className="equipment-field"
+                        data-setup-field={`splitFractions.${index}`}
+                        key={splitterOutlets[index]}
+                      >
+                        Outlet {index + 1} fraction
+                        <NumberInput
+                          aria-label={`Outlet ${index + 1} fraction`}
+                          required
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          value={fraction}
+                          onValueChange={(value) =>
+                            setParams({
+                              ...params,
+                              splitFractions: fractions.map((current, i) =>
+                                i === index ? value : current,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
                 </div>
               </Section>
             )}
@@ -972,7 +1005,16 @@ export default function EquipmentEditor({
               />
             </details>
           </form>
-          <Connections unit={unit} project={project} />
+          <Connections
+            unit={{ ...unit, params }}
+            project={project}
+            onAddBranch={() =>
+              setParams({
+                ...params,
+                branchCount: Math.min(4, branchCount + 1),
+              })
+            }
+          />
         </div>
         <section
           className="equipment-tab-panel equipment-results-panel"

@@ -24,6 +24,7 @@ const updateParamsSchema = z
     fractionA: paramsSchema.shape.fractionA.removeDefault().optional(),
     composition: paramsSchema.shape.composition,
     splitFractions: paramsSchema.shape.splitFractions,
+    branchCount: paramsSchema.shape.branchCount,
     packedBed: paramsSchema.shape.packedBed.nullable(),
     distillation: distillationPatchSchema.nullable().optional(),
     residenceTime: paramsSchema.shape.residenceTime.removeDefault().optional(),

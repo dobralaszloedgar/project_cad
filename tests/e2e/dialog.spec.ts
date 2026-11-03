@@ -4,16 +4,14 @@
 
 import { expect, test, type Page } from "./test";
 import { installFolderPicker } from "./folder-fixture";
+import { openNewProject } from "./project-create-fixture";
 
 async function openProjectDialog(
   page: Page,
   title: "Create project" | "Rename project",
 ) {
   if (title === "Create project") {
-    await page
-      .getByRole("navigation", { name: "Project navigation" })
-      .getByRole("button", { name: title, exact: true })
-      .click();
+    await openNewProject(page);
   } else {
     await page.locator(".project-card-menu-toggle").first().click();
     await page.getByRole("menuitem", { name: "Rename", exact: true }).click();

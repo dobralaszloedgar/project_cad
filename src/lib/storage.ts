@@ -1076,49 +1076,80 @@ interface DiscoveredProject {
   revision: string;
 }
 
+// These generated directories can dwarf a library when a source workspace is
+// selected. They can still be scanned when explicitly connected as a root.
+const skippedLibraryDirectories = new Set([
+  ".git",
+  ".next",
+  ".venv",
+  "node_modules",
+  "__pycache__",
+]);
+
 async function discoverRoot(root: ProjectRoot) {
   const files: DiscoveredProject[] = [];
   const folders: ProjectLibraryFolder[] = [];
   const errors: string[] = [];
   let visited = 0;
-  async function visit(
-    directory: ProjectDirectoryHandle,
-    path: string,
-    depth: number,
-  ) {
-    if (depth > 32) throw new Error("Folder nesting exceeds 32 levels.");
+  await requireFolderPermission(root.directory);
+  const pending = [{ directory: root.directory, path: "", depth: 0 }];
+  // Visit nearby folders first so a large unrelated tree cannot hide sibling
+  // projects. Keep discoveries even if a branch is unreadable or a limit is hit.
+  for (let index = 0; index < pending.length; index++) {
+    const { directory, path, depth } = pending[index];
     folders.push({ rootId: root.id, path, directory });
-    for await (const child of directory.values()) {
-      if (++visited > 10000)
-        throw new Error(
-          "This folder contains more than 10,000 entries. Connect a smaller project folder.",
-        );
-      const childPath = path ? `${path}/${child.name}` : child.name;
-      if (child.kind === "directory") {
-        await visit(child as ProjectDirectoryHandle, childPath, depth + 1);
-      } else if (
-        child.name.toLowerCase().endsWith(PROJECT_FILE_EXTENSION) ||
-        child.name === PROJECT_FILE_NAME
-      ) {
-        try {
-          const file = await readDirectoryProject(directory, child.name);
-          files.push({
-            directory,
-            fileName: child.name,
-            root,
-            path: childPath,
-            ...file,
-          });
-        } catch (error) {
+    try {
+      for await (const child of directory.values()) {
+        if (
+          child.kind === "directory" &&
+          skippedLibraryDirectories.has(child.name.toLowerCase())
+        )
+          continue;
+        if (++visited > 10000) {
           errors.push(
-            `${root.name}/${childPath}: ${error instanceof Error ? error.message : "Could not read project."}`,
+            `${root.name}: Scan stopped after 10,000 entries. Discovered projects are available; connect a smaller project folder to scan the rest.`,
           );
+          return { files, folders, errors };
+        }
+        const childPath = path ? `${path}/${child.name}` : child.name;
+        if (child.kind === "directory") {
+          if (depth >= 32) {
+            errors.push(
+              `${root.name}/${childPath}: Folder nesting exceeds 32 levels.`,
+            );
+            continue;
+          }
+          pending.push({
+            directory: child as ProjectDirectoryHandle,
+            path: childPath,
+            depth: depth + 1,
+          });
+        } else if (
+          child.name.toLowerCase().endsWith(PROJECT_FILE_EXTENSION) ||
+          child.name === PROJECT_FILE_NAME
+        ) {
+          try {
+            const file = await readDirectoryProject(directory, child.name);
+            files.push({
+              directory,
+              fileName: child.name,
+              root,
+              path: childPath,
+              ...file,
+            });
+          } catch (error) {
+            errors.push(
+              `${root.name}/${childPath}: ${error instanceof Error ? error.message : "Could not read project."}`,
+            );
+          }
         }
       }
+    } catch (error) {
+      errors.push(
+        `${root.name}${path ? `/${path}` : ""}: ${error instanceof Error ? error.message : "Could not read folder."}`,
+      );
     }
   }
-  await requireFolderPermission(root.directory);
-  await visit(root.directory, "", 0);
   return { files, folders, errors };
 }
 

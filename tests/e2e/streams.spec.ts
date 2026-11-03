@@ -91,7 +91,7 @@ test("stream names, individual palette choices, themes and auto reset persist", 
     .getByRole("button", { name: "Settings", exact: true })
     .click();
   const compositionColors = page
-    .getByRole("tabpanel", { name: "Workspace", exact: true })
+    .getByRole("region", { name: "Canvas", exact: true })
     .getByRole("switch", { name: "Color streams by composition" });
   await compositionColors.uncheck();
   await expect.poll(() => stroke(first)).toBe("rgb(118, 70, 167)");

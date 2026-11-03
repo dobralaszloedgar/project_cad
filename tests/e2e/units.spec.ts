@@ -39,7 +39,7 @@ test("unit presets, custom quantities and defaults persist and fit desktop and m
   await expect(
     panel.getByLabel("Pressure display unit", { exact: true }),
   ).toHaveValue("bar");
-  await expect(panel.locator(".units-grid select")).toHaveCount(29);
+  await expect(panel.locator(".units-grid select")).toHaveCount(13);
   await page.screenshot({ path: "test-results/engineering-units-desktop.png" });
   await panel.getByLabel("Unit system", { exact: true }).selectOption("us");
   await expect(panel.getByLabel("Temperature display unit")).toHaveValue(
@@ -138,7 +138,7 @@ test("display changes preserve process values and converted inputs save in SI", 
   await expect(row.locator("td").nth(1)).toHaveText("36");
   await expect(row.locator("td").nth(2)).toHaveText("26.85");
   await expect(
-    page.getByRole("columnheader", { name: "Flow (kmol/h)" }),
+    page.getByRole("columnheader", { name: "Flow kmol/h", exact: true }),
   ).toBeVisible();
   await row.getByRole("button", { name: "Stream 1" }).click();
   await page.getByRole("tab", { name: "Results", exact: true }).click();

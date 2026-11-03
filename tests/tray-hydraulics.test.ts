@@ -3,6 +3,7 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import { describe, expect, it } from "vitest";
+import { CylinderGeometry, InstancedMesh, Matrix4, Mesh } from "three";
 import { simulate } from "../src/domain/solver";
 import { projectSchema } from "../src/domain/schema";
 import { aromaticColumnTemplate } from "../src/domain/real-chemical-templates";
@@ -274,10 +275,11 @@ describe("hydraulic column visuals", () => {
         trayCount: 8,
         column: { diameter, traySpacing: 0.46, trayType: "sieve" as const },
       };
+      const clock = new OperationClock();
       const contents = createProcessContents(
         "Distillation",
         true,
-        new OperationClock(),
+        clock,
         undefined,
         options,
         undefined,
@@ -291,6 +293,39 @@ describe("hydraulic column visuals", () => {
       expect(contents.group.getObjectByName(`tray-1-${effect}`)!.visible).toBe(
         true,
       );
+      const drops = contents.group.getObjectByName(
+        `tray-1-${effect}`,
+      ) as InstancedMesh;
+      const positions = () =>
+        Array.from({ length: drops.count }, (_, index) => {
+          const matrix = new Matrix4();
+          drops.getMatrixAt(index, matrix);
+          return matrix.elements[13];
+        });
+      const before = positions();
+      clock.advance(0.03, true, 1);
+      contents.update(true);
+      const after = positions();
+      const direction = effect === "weeping" ? -1 : 1;
+      expect(
+        after.filter((y, index) => (y - before[index]) * direction > 0.0001)
+          .length,
+      ).toBeGreaterThan(drops.count / 4);
+      clock.advance(0.03, false, 1);
+      contents.update(true);
+      expect(positions()).toEqual(after);
+      const liquid = contents.group.getObjectByName(
+        "tray-1-liquid-holdup",
+      ) as Mesh<CylinderGeometry>;
+      // A flooded tray fills most of its spacing; a weeping tray drains down.
+      if (effect === "carryover")
+        expect(liquid.geometry.parameters.height).toBeGreaterThan(
+          options.column.traySpacing / 2,
+        );
+      else
+        expect(liquid.geometry.parameters.height).toBeLessThan(
+          options.column.traySpacing / 4,
+        );
       expect(contents.group.scale.x).toBeCloseTo(diameter / 1.2);
       disposeEquipmentModel(contents.group);
       const noRating = createProcessContents(

@@ -121,7 +121,7 @@ WORKSPACE CONTROLS
 
 The flowsheet uses a fixed light appearance without theme controls or a
 three-dot project menu. Creation, templates and JSON import are available on
-Projects. JSON export remains in workspace Storage settings. Model selection
+Projects. JSON export remains in workspace Storage. Model selection
 preserves existing chemical identities and loads missing model data before
 applying the change. Project components preserves drafts until Apply components;
 Cancel discards them. Previously saved catalog records remain usable offline.

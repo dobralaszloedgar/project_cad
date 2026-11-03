@@ -8,6 +8,7 @@ import { nameStreams } from "./stream-names";
 import { compositionSchema, packedBedSchema } from "./reactions/schema";
 import { distillationSchema } from "./equipment/distillation-schema";
 import {
+  junctionBranchCount,
   mixerInlets,
   separateMixerInlets,
   splitterOutlets,
@@ -50,6 +51,7 @@ export const paramsSchema = z
     thermalMode: z.enum(["temperature", "duty"]).default("temperature"),
     heatDuty: z.number().min(-1e8).max(1e8).default(0),
     recycleFraction: z.number().min(0).max(0.95).default(0.5),
+    branchCount: z.number().int().min(2).max(4).optional(),
     splitFractions: z
       .array(z.number().min(0).max(1))
       .min(2)
@@ -121,6 +123,20 @@ export const ports = (kind: Kind) => ({
           ? ["out", "out2"]
           : ["out"],
 });
+export function visiblePorts(unit: Unit, connected: readonly string[] = []) {
+  const available = ports(unit.kind);
+  const count = junctionBranchCount(unit, connected);
+  return {
+    inputs:
+      unit.kind === "Mixer"
+        ? available.inputs.slice(0, count)
+        : available.inputs,
+    outputs:
+      unit.kind === "Splitter"
+        ? available.outputs.slice(0, count)
+        : available.outputs,
+  };
+}
 export function requiredOutputs(unit: Unit) {
   return ports(unit.kind).outputs.filter(
     (_, index) =>

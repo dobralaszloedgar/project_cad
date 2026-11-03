@@ -20,6 +20,7 @@ import { useUnitSystem } from "./useUnitSystem";
 import NumberInput from "./NumberInput";
 import "./unit-settings.css";
 
+// Expose only quantities consumed by current equipment inputs or results.
 const groups: { title: string; quantities: [Dimension, string][] }[] = [
   {
     title: "Process conditions",
@@ -33,41 +34,20 @@ const groups: { title: string; quantities: [Dimension, string][] }[] = [
     ],
   },
   {
-    title: "Energy & heat transfer",
+    title: "Energy",
     quantities: [
       ["power", "Heat duty / power"],
       ["enthalpy", "Molar enthalpy / energy"],
-      ["specificEnergy", "Specific energy"],
-      ["volumetricEnergy", "Fuel heating value"],
-      ["temperatureDifference", "Temperature difference"],
-      ["conductance", "Thermal conductance (UA)"],
-      ["heatTransferCoefficient", "Heat-transfer coefficient (U)"],
-      ["foulingResistance", "Fouling resistance"],
     ],
   },
   {
     title: "Geometry & material properties",
     quantities: [
       ["length", "Length"],
-      ["area", "Area"],
-      ["volume", "Volume"],
       ["mass", "Mass"],
       ["time", "Time"],
-      ["molecularWeight", "Molecular weight"],
       ["density", "Density"],
-      ["dynamicViscosity", "Dynamic viscosity"],
-      ["kinematicViscosity", "Kinematic viscosity"],
-      ["heatCapacity", "Specific heat capacity"],
-      ["thermalConductivity", "Thermal conductivity"],
       ["surfaceTension", "Surface tension"],
-    ],
-  },
-  {
-    title: "Mechanical quantities",
-    quantities: [
-      ["rotationalSpeed", "Rotational speed"],
-      ["torque", "Torque"],
-      ["specificPower", "Power per volume"],
     ],
   },
 ];
@@ -125,10 +105,6 @@ export default function UnitSettings() {
               {preset
                 ? UNIT_SYSTEMS[preset].description
                 : "Your own combination of units."}
-            </p>
-            <p>
-              Applies to every quantity below. Customize individual units as
-              needed.
             </p>
             <button
               className="btn btn-sm units-reset"

@@ -57,8 +57,9 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     page.getByRole("button", { name: "Open Heating study", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Star Heating study", exact: true })
+    .getByRole("button", { name: "Actions for Heating study", exact: true })
     .click();
+  await page.getByRole("menuitem", { name: "Star", exact: true }).click();
   await page.getByRole("button", { name: "Starred", exact: true }).click();
   await expect(page.locator(".project-card")).toHaveCount(1);
   await page.getByRole("button", { name: "Home", exact: true }).click();
@@ -140,7 +141,7 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
   await expect(
     page
       .getByRole("navigation", { name: "Project navigation" })
-      .getByRole("button", { name: "Create project", exact: true }),
+      .getByRole("button", { name: "New", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Grid view" }).click();
   const previewsFit = await page

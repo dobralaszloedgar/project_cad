@@ -63,7 +63,7 @@ import {
   type ThermoSettings,
 } from "@/domain/thermo/registry";
 import { thermoContext } from "@/domain/thermo/catalog";
-import { type Result, simulate } from "@/domain/solver";
+import { simulate } from "@/domain/solver";
 import { applyActions } from "@/domain/actions";
 import type { Proposal } from "@/assistant/protocol";
 import { projectRevision } from "@/assistant/tools";
@@ -120,7 +120,6 @@ import {
   equipmentIssueTarget,
   simulationKey,
   type EquipmentTarget,
-  type SimulationFailure,
 } from "@/domain/equipment-status";
 import Inspector from "./Inspector";
 import Results from "./Results";
@@ -128,7 +127,6 @@ import FloatingAssistant from "./assistant/FloatingAssistant";
 import KeyboardHelp from "./KeyboardHelp";
 import ProjectStorageSettings from "./ProjectStorageSettings";
 import UnitSettings from "./UnitSettings";
-import { useUnitSystem } from "./useUnitSystem";
 import ThemePicker from "./ThemePicker";
 import { useTheme } from "./useTheme";
 import { useCompositionColors } from "./useCompositionColors";
@@ -147,12 +145,7 @@ const Plant3D = dynamic(() => import("./Plant3D"), {
   loading: () => <Plant3DLoading />,
 });
 type WorkspacePanel =
-  | "Equipment"
-  | "Results"
-  | "Themes"
-  | "Units"
-  | "Storage settings"
-  | "Settings";
+  "Equipment" | "Results" | "Themes" | "Units" | "Storage" | "Settings";
 function savedMessage(location: SaveLocation) {
   return location.location === "folder"
     ? `Saved to ${location.folderName}/${location.fileName ?? "project.json"}`
@@ -208,25 +201,15 @@ export default function Workspace({
   const [playbackOnOpen, setPlaybackOnOpen] = useState(initialPlayback);
   const [tab, setTab] = useState("Results");
   const [compareId, setCompareId] = useState("");
-  const [simulation, setSimulation] = useState<{
-    projectId: string;
-    key: string;
-    result: Result | null;
-    failure?: SimulationFailure;
-  } | null>(null);
   const [issueTarget, setIssueTarget] = useState<EquipmentTarget | undefined>(
     undefined,
   );
   const [message, setMessage] = useState("");
   const { theme: palette, setTheme } = useTheme();
-  const unitDisplay = useUnitSystem();
   const theme = palette.mode;
   const sound = useCanvasSound();
   const [clearConfirm, setClearConfirm] = useState(false);
   const [drawer, setDrawer] = useState<WorkspacePanel | null>(null);
-  const [settingsTab, setSettingsTab] = useState<"Workspace" | "Storage">(
-    "Workspace",
-  );
   const [thermoDialog, setThermoDialog] = useState<
     "model" | "components" | null
   >(null);
@@ -272,6 +255,7 @@ export default function Workspace({
   const [createDraft, setCreateDraft] = useState<{
     seed: Project;
     revisions?: Revision[];
+    simulation?: WorkspaceState["simulation"];
     directory?: ProjectDirectoryHandle;
   } | null>(null);
   const [reloadConfirm, setReloadConfirm] = useState(false);
@@ -295,10 +279,9 @@ export default function Workspace({
     if (ready) prefetchChemicalSearch(chemicalModel, chemicalRelease);
   }, [ready, chemicalModel, chemicalRelease]);
   const calculationKey = useMemo(() => simulationKey(project), [project]);
+  const simulation = state.simulation;
   const currentSimulation =
-    simulation?.projectId === projectId && simulation.key === calculationKey
-      ? simulation
-      : null;
+    simulation?.key === calculationKey ? simulation : null;
   const result = currentSimulation?.result ?? null;
   const streamColors = useMemo(
     () =>
@@ -309,33 +292,39 @@ export default function Workspace({
   );
   const failure = currentSimulation?.failure;
   const statuses = useMemo(
-    () =>
-      equipmentStatuses(
-        project,
-        result,
-        failure,
-        simulation?.projectId === projectId ? simulation.result : null,
-      ),
-    [project, result, failure, simulation, projectId],
+    () => equipmentStatuses(project, result, failure, simulation?.result),
+    [project, result, failure, simulation],
   );
   function calculate(next: Project) {
     try {
       const result = simulate(next);
-      setSimulation({ projectId, key: simulationKey(next), result });
+      setState((workspace) => ({
+        ...workspace,
+        simulation: {
+          key: simulationKey(next),
+          completedAt: new Date().toISOString(),
+          result,
+        },
+      }));
+      setStorage("Saving…");
       return result;
     } catch (error) {
-      setSimulation({
-        projectId,
-        key: simulationKey(next),
-        result: null,
-        failure: {
-          message: errorMessage(error),
-          unitId:
-            error instanceof EquipmentSimulationError
-              ? error.unitId
-              : undefined,
+      setState((workspace) => ({
+        ...workspace,
+        simulation: {
+          key: simulationKey(next),
+          completedAt: new Date().toISOString(),
+          result: null,
+          failure: {
+            message: errorMessage(error),
+            unitId:
+              error instanceof EquipmentSimulationError
+                ? error.unitId
+                : undefined,
+          },
         },
-      });
+      }));
+      setStorage("Saving…");
       throw error;
     }
   }
@@ -344,17 +333,17 @@ export default function Workspace({
     document.title = `Project CAD – ${!ready || showProjects ? "Home" : displayProjectName}`;
   }, [ready, showProjects, displayProjectName]);
   const pullTabRef = useRef<HTMLButtonElement>(null);
-  const unitsButtonRef = useRef<HTMLButtonElement>(null);
+  const unitsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const workspaceMenuRef = useRef<HTMLDivElement>(null);
   const workspaceMenuPinned = useRef(false);
   function closeWorkspaceMenu() {
     workspaceMenuPinned.current = false;
     setWorkspaceMenuOpen(false);
   }
-  function openPanel(panel: WorkspacePanel) {
+  function openPanel(panel: WorkspacePanel, trigger = pullTabRef.current) {
     closeWorkspaceMenu();
     if (panel === "Results") setTab("Results");
-    if (panel === "Settings") setSettingsTab("Workspace");
+    if (panel === "Units") unitsTriggerRef.current = trigger;
     setDrawer(panel);
     if (window.matchMedia("(max-width: 760px)").matches)
       setAssistantOpen(false);
@@ -375,7 +364,7 @@ export default function Workspace({
     if (close) setThermoDialog(null);
   }
   function closeDrawer() {
-    const trigger = drawer === "Units" ? unitsButtonRef : pullTabRef;
+    const trigger = drawer === "Units" ? unitsTriggerRef : pullTabRef;
     setDrawer(null);
     requestAnimationFrame(() => trigger.current?.focus());
   }
@@ -391,7 +380,7 @@ export default function Workspace({
       event.preventDefault();
       closeWorkspaceMenu();
       setDrawer(null);
-      (drawer === "Units" ? unitsButtonRef : pullTabRef).current?.focus();
+      (drawer === "Units" ? unitsTriggerRef : pullTabRef).current?.focus();
     }
     function onPointerDown(event: PointerEvent) {
       if (
@@ -637,9 +626,7 @@ export default function Workspace({
         try {
           const r = calculate(next);
           setMessage(
-            r.converged
-              ? ""
-              : "Recycle did not converge. Inspect diagnostics.",
+            r.converged ? "" : "Recycle did not converge. Inspect diagnostics.",
           );
         } catch (e) {
           setMessage(e instanceof Error ? e.message : "Simulation failed.");
@@ -679,6 +666,9 @@ export default function Workspace({
       setSelected(id);
   }
   function run() {
+    runSimulation(true);
+  }
+  function runSimulation(showResults: boolean) {
     sound.prepareSimulation();
     try {
       const calculated = calculate(project);
@@ -688,9 +678,11 @@ export default function Workspace({
           ? ""
           : "Recycle did not converge. Final iterate only.",
       );
-      setTab("Results");
-      setWorkspaceMenuOpen(false);
-      setDrawer("Results");
+      if (showResults) {
+        setTab("Results");
+        setWorkspaceMenuOpen(false);
+        setDrawer("Results");
+      }
     } catch (e) {
       sound.playSimulation("attention");
       setMessage(e instanceof Error ? e.message : "Simulation failed.");
@@ -858,7 +850,6 @@ export default function Workspace({
       };
       setState(blank);
       editHistory.current = { past: [], future: [] };
-      setSimulation(null);
       setSelected(null);
       setCompareId("");
       setClearConfirm(false);
@@ -994,23 +985,6 @@ export default function Workspace({
       document.removeEventListener("visibilitychange", refresh);
     };
   });
-  async function connectFolder() {
-    if (projectBusy) return;
-    try {
-      const directory = await chooseProjectDirectory();
-      if (!directory) return;
-      setProjectBusy(true);
-      await preserveCurrentProject();
-      await connectProjectRoot(directory);
-      await setDefaultProjectDirectory(directory);
-      setProjectMessage("");
-      await refreshLibrarySnapshot();
-    } catch (error) {
-      setProjectMessage(errorMessage(error));
-    } finally {
-      setProjectBusy(false);
-    }
-  }
   async function locateProject(id: string) {
     if (projectBusy) return;
     try {
@@ -1043,8 +1017,16 @@ export default function Workspace({
         (await directory.requestPermission({ mode: "readwrite" })) !== "granted"
       )
         throw new Error("Allow folder access to create a folder.");
+      const root = await connectProjectRoot(directory);
+      const path = await root.directory.resolve(directory);
+      if (!path)
+        throw new Error(
+          "The storage folder has moved. Select it again in Storage.",
+        );
       await createProjectLibraryFolder(directory, name);
+      setProjectMessage("");
       await refreshLibrarySnapshot();
+      return { rootId: root.id, path: path.join("/") };
     } finally {
       setProjectBusy(false);
     }
@@ -1054,7 +1036,6 @@ export default function Workspace({
     setDrawer(null);
     setWorkspaceMenuOpen(false);
     setSelected(null);
-    setSimulation(null);
     setCompareId("");
     setMessage("");
     setPropertiesOpen(false);
@@ -1095,6 +1076,9 @@ export default function Workspace({
       const workspace: WorkspaceState = {
         version: 1,
         project: next,
+        ...(createDraft.simulation
+          ? { simulation: createDraft.simulation }
+          : {}),
         // A full imported history is retained without exceeding its file limit.
         revisions:
           history.length >= 250
@@ -1286,6 +1270,7 @@ export default function Workspace({
         setCreateDraft({
           seed: next.workspace.project,
           revisions: next.workspace.revisions,
+          simulation: next.workspace.simulation,
         });
         return;
       } else if (name) {
@@ -1383,6 +1368,49 @@ export default function Workspace({
       return true;
     } catch (error) {
       setProjectMessage(errorMessage(error));
+      return false;
+    } finally {
+      setProjectBusy(false);
+    }
+  }
+  async function manageAllProjectTrash(
+    entries: SavedProject[],
+    action: "restore" | "delete",
+  ): Promise<boolean> {
+    if (projectBusy || !entries.length) return false;
+    setProjectBusy(true);
+    setProjectMessage(
+      action === "restore" ? "Restoring projects…" : "Emptying trash…",
+    );
+    try {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      ++saveVersion.current;
+      await saveQueue.current.catch(() => {});
+      let completed = 0;
+      const failures: string[] = [];
+      for (const entry of entries) {
+        try {
+          if (action === "restore") await restoreSavedProject(entry.id);
+          else await deleteSavedProject(entry.id);
+          completed++;
+        } catch (error) {
+          failures.push(
+            `“${projectDisplayName(entry)}”: ${errorMessage(error)}`,
+          );
+        }
+      }
+      setSavedProjects(await listProjects());
+      const result = `${completed} ${completed === 1 ? "project" : "projects"} ${action === "restore" ? "restored to Home" : "permanently deleted"}.`;
+      setProjectMessage(
+        failures.length
+          ? `${result} ${failures.length} ${failures.length === 1 ? "project remains" : "projects remain"} in Trash. ${failures[0]}`
+          : result,
+      );
+      return failures.length === 0;
+    } catch (error) {
+      setProjectMessage(errorMessage(error));
+      const projects = await listProjects().catch(() => null);
+      if (projects) setSavedProjects(projects);
       return false;
     } finally {
       setProjectBusy(false);
@@ -1609,6 +1637,10 @@ export default function Workspace({
           onTrash={(entry) => void manageProjectTrash(entry, "trash")}
           onRestore={(entry) => void manageProjectTrash(entry, "restore")}
           onDelete={(entry) => manageProjectTrash(entry, "delete")}
+          onRestoreAll={(entries) =>
+            void manageAllProjectTrash(entries, "restore")
+          }
+          onEmptyTrash={(entries) => manageAllProjectTrash(entries, "delete")}
           onBack={() => {
             const url = new URL(window.location.href);
             url.searchParams.delete("home");
@@ -1620,7 +1652,6 @@ export default function Workspace({
           onPalette={setTheme}
           onSaveFolder={setSaveFolderDraft}
           onRefresh={() => void refreshProjectFiles()}
-          onConnectFolder={() => void connectFolder()}
           onLocate={(entry) => void locateProject(entry.id)}
           onNewFolder={newLibraryFolder}
           busy={projectBusy || !ready}
@@ -1709,15 +1740,16 @@ export default function Workspace({
             </span>
           </button>
           <button
-            ref={unitsButtonRef}
             className="icon-button units-button"
             aria-label="Units"
             aria-haspopup="dialog"
             aria-expanded={drawer === "Units"}
             aria-controls="workspace-units-panel"
             title="Units"
-            onClick={() =>
-              drawer === "Units" ? closeDrawer() : openPanel("Units")
+            onClick={(event) =>
+              drawer === "Units"
+                ? closeDrawer()
+                : openPanel("Units", event.currentTarget)
             }
           >
             <Ruler size={16} aria-hidden="true" />
@@ -1764,7 +1796,6 @@ export default function Workspace({
               ref={pullTabRef}
               className={`workspace-pull-tab ${workspaceMenuOpen ? "active" : ""}`}
               aria-label="Workspace menu"
-              title="Workspace menu"
               aria-expanded={workspaceMenuOpen}
               aria-controls="workspace-menu"
               onClick={() => {
@@ -1789,8 +1820,9 @@ export default function Workspace({
                   { name: "Themes", icon: Palette },
                   { name: "Components", icon: FlaskConical },
                   { name: "Thermodynamics", icon: Thermometer },
+                  { name: "Units", icon: Ruler },
                   { name: "Toggle chat", icon: MessageCircle },
-                  { name: "Storage settings", icon: HardDrive },
+                  { name: "Storage", icon: HardDrive },
                   { name: "Settings", icon: Settings2 },
                 ].map(({ name, icon: Icon }) => (
                   <button
@@ -1836,50 +1868,6 @@ export default function Workspace({
                   </button>
                 </header>
               )}
-              {drawer === "Settings" ? (
-                <div
-                  className="tabs settings-tabs"
-                  role="tablist"
-                  aria-label="Settings"
-                >
-                  {(["Workspace", "Storage"] as const).map((section) => (
-                    <button
-                      key={section}
-                      type="button"
-                      role="tab"
-                      id={`settings-tab-${section.toLowerCase()}`}
-                      aria-controls={`settings-panel-${section.toLowerCase()}`}
-                      aria-selected={settingsTab === section}
-                      tabIndex={settingsTab === section ? 0 : -1}
-                      className={settingsTab === section ? "active" : ""}
-                      onClick={() => setSettingsTab(section)}
-                      onKeyDown={(event) => {
-                        if (
-                          !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
-                            event.key,
-                          )
-                        )
-                          return;
-                        event.preventDefault();
-                        const next =
-                          event.key === "Home"
-                            ? "Workspace"
-                            : event.key === "End"
-                              ? "Storage"
-                              : section === "Workspace"
-                                ? "Storage"
-                                : "Workspace";
-                        setSettingsTab(next);
-                        document
-                          .getElementById(`settings-tab-${next.toLowerCase()}`)
-                          ?.focus();
-                      }}
-                    >
-                      {section}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
               {drawer === "Equipment" ? (
                 <EquipmentLibrary onAdd={add} />
               ) : (
@@ -1903,109 +1891,60 @@ export default function Workspace({
                     />
                   ) : drawer === "Themes" ? (
                     <ThemePicker value={palette.id} onChange={setTheme} />
-                  ) : (
+                  ) : drawer === "Settings" ? (
                     <>
-                      {drawer === "Settings" ? (
-                        <div
-                          role="tabpanel"
-                          id="settings-panel-workspace"
-                          aria-labelledby="settings-tab-workspace"
-                          hidden={settingsTab !== "Workspace"}
-                        >
-                          <div className="preference-section">
-                            <h3>Canvas</h3>
-                            <label className="preference-toggle">
-                              <span>Color streams by composition</span>
-                              <input
-                                type="checkbox"
-                                role="switch"
-                                checked={compositionColors}
-                                aria-describedby="composition-colors-description"
-                                onChange={(event) =>
-                                  setCompositionColors(event.target.checked)
-                                }
-                              />
-                            </label>
-                            <p id="composition-colors-description">
-                              Use composition colors and flow animation in the
-                              2D flowsheet.
-                            </p>
-                          </div>
-                          <CanvasSoundSettings sound={sound} />
-                          <div className="preference-section">
-                            <h3>Engineering units</h3>
-                            <p>
-                              {unitDisplay.label} · Choose units for equipment
-                              inputs and calculated results.
-                            </p>
-                            <button
-                              className="btn"
-                              onClick={() => openPanel("Units")}
-                            >
-                              <Ruler size={15} /> Configure units
-                            </button>
-                          </div>
-                          <div className="preference-section">
-                            <h3>Assistant</h3>
-                            <p>
-                              Open the assistant or bring back a hidden chat
-                              bubble.
-                            </p>
-                            <button
-                              className="btn"
-                              onClick={() => {
-                                setDrawer(null);
-                                handleAssistantOpenChange(true);
-                              }}
-                            >
-                              <MessageCircle size={15} /> Show assistant
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {drawer === "Storage settings" ||
-                      drawer === "Settings" ? (
-                        <div
-                          className="preference-section"
-                          role={drawer === "Settings" ? "tabpanel" : undefined}
-                          id="settings-panel-storage"
-                          aria-labelledby={
-                            drawer === "Settings"
-                              ? "settings-tab-storage"
-                              : undefined
-                          }
-                          hidden={
-                            drawer === "Settings" && settingsTab !== "Storage"
-                          }
-                        >
-                          <ProjectStorageSettings />
-                          <h3>Local project</h3>
-                          <p>
-                            {folderName
-                              ? `This project and its revisions save to ${folderName}/${fileName ?? "project.json"} on your laptop.`
-                              : "This project and its revisions are saved in this browser. Create a project in a folder to save directly to your laptop."}{" "}
-                            Export a JSON copy to keep or share your work.
-                          </p>
-                          <div className="preference-actions">
-                            <button className="btn" onClick={exportFile}>
-                              <Download size={15} />
-                              Export project
-                            </button>
-                            <button
-                              className="btn danger"
-                              onClick={() => {
-                                setDrawer(null);
-                                setClearConfirm(true);
-                              }}
-                            >
-                              <Trash2 size={15} />
-                              Clear local project & history
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
+                      <section
+                        className="preference-section"
+                        aria-labelledby="canvas-settings-heading"
+                      >
+                        <h3 id="canvas-settings-heading">Canvas</h3>
+                        <label className="preference-toggle">
+                          <span>Color streams by composition</span>
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            checked={compositionColors}
+                            aria-describedby="composition-colors-description"
+                            onChange={(event) =>
+                              setCompositionColors(event.target.checked)
+                            }
+                          />
+                        </label>
+                        <p id="composition-colors-description">
+                          Use composition colors and flow animation in the 2D
+                          flowsheet.
+                        </p>
+                      </section>
+                      <CanvasSoundSettings sound={sound} />
                     </>
-                  )}
+                  ) : drawer === "Storage" ? (
+                    <div className="preference-section">
+                      <ProjectStorageSettings />
+                      <h3>Local project</h3>
+                      <p>
+                        {folderName
+                          ? `This project and its revisions save to ${folderName}/${fileName ?? "project.json"} on your laptop.`
+                          : "This project and its revisions are saved in this browser. Create a project in a folder to save directly to your laptop."}{" "}
+                        Export a JSON copy to keep or share your work.
+                      </p>
+                      <div className="preference-actions">
+                        <button className="btn" onClick={exportFile}>
+                          <Download size={15} />
+                          Export project
+                        </button>
+                        <button
+                          className="btn danger"
+                          onClick={() => {
+                            setDrawer(null);
+                            setClearConfirm(true);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                          Clear local project & history
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
             </aside>
@@ -2144,6 +2083,7 @@ export default function Workspace({
                 result={result}
                 selected={selected}
                 onSelect={setSelected}
+                onSimulate={() => runSimulation(false)}
                 graphicsSettingsContainer={graphicsSettingsContainer}
               />
             ) : view !== "2D" ? (

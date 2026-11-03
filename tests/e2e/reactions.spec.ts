@@ -39,13 +39,43 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
   await page
     .getByLabel("Reaction name", { exact: true })
     .fill("Coupling reaction");
-  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
-  await page.getByLabel("reactants coefficient 1", { exact: true }).fill("2");
-  await page.getByRole("button", { name: "Add product", exact: true }).click();
-  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
+  await page
+    .getByLabel("Stoichiometric coefficient 1", { exact: true })
+    .fill("-2");
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
+  const stoichiometry = page.getByRole("table", {
+    name: "Reaction stoichiometry",
+  });
+  await expect(stoichiometry.getByRole("row")).toHaveCount(4);
+  await expect(
+    stoichiometry.getByRole("columnheader", { name: "Reagent", exact: true }),
+  ).toBeVisible();
+  await expect(
+    stoichiometry.getByRole("columnheader", {
+      name: "Stoichiometric coefficient",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Stoichiometric coefficient 2", { exact: true }),
+  ).toHaveValue("1");
   await expect(
     page.getByLabel("Reaction equation", { exact: true }),
   ).toContainText("2 CH4O → C2H6O + H2O");
+  await page
+    .getByLabel("Stoichiometric coefficient 1", { exact: true })
+    .fill("-1");
+  await page
+    .getByLabel("Stoichiometric coefficient 2", { exact: true })
+    .fill("0.5");
+  await page
+    .getByLabel("Stoichiometric coefficient 3", { exact: true })
+    .fill("0.5");
+  await expect(
+    page.getByLabel("Reaction equation", { exact: true }),
+  ).toContainText("CH4O → 0.5 C2H6O + 0.5 H2O");
   await page.getByLabel("Reactor flow model").selectOption("constant-flow");
   await page.getByLabel("Rate constant", { exact: true }).fill("0.1");
   await page.getByRole("button", { name: "Calculate", exact: true }).click();
@@ -95,6 +125,15 @@ test("configure a multicomponent PBR, calculate, size, export and reopen", async
     "Coupling reaction",
   );
   await expect(
+    page.getByLabel("Stoichiometric coefficient 1", { exact: true }),
+  ).toHaveValue("-1");
+  await expect(
+    page.getByLabel("Stoichiometric coefficient 2", { exact: true }),
+  ).toHaveValue("0.5");
+  await expect(
+    page.getByLabel("Stoichiometric coefficient 3", { exact: true }),
+  ).toHaveValue("0.5");
+  await expect(
     page.getByLabel("Target conversion (%)", { exact: true }),
   ).toHaveValue("50");
   await page.getByRole("button", { name: "Calculate", exact: true }).click();
@@ -123,12 +162,7 @@ test("new reactors require user-defined chemistry even with demo components", as
   await expect(page.getByLabel("Reaction name", { exact: true })).toHaveValue(
     "Reaction 1",
   );
-  await expect(
-    page.getByLabel("reactants component 1", { exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByLabel("products component 1", { exact: true }),
-  ).toHaveCount(0);
+  await expect(page.getByLabel("Reagent 1", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Rate constant", { exact: true })).toHaveValue(
     "0",
   );

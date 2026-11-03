@@ -27,12 +27,14 @@ async function edit(page: Page, id: string) {
 async function chooseView(page: Page, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
 }
-async function preferences(page: Page) {
+async function storageSettings(page: Page) {
   await page
     .getByRole("button", { name: "Workspace menu", exact: true })
     .click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("tab", { name: "Storage", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "Storage", exact: true })
+    .click();
 }
 test("reactor: calculate, edit, compare, restore, persist and export", async ({
   page,
@@ -47,8 +49,8 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
   await closeDialog(page);
   await edit(page, "R-101");
   await page.getByRole("button", { name: "Add reaction", exact: true }).click();
-  await page.getByRole("button", { name: "Add reactant", exact: true }).click();
-  await page.getByRole("button", { name: "Add product", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
+  await page.getByRole("button", { name: "Add reagent", exact: true }).click();
   await page.getByLabel("Rate constant", { exact: true }).fill("0.01");
   await page.getByLabel("Temperature (°C)", { exact: true }).fill("226.85");
   await page.getByRole("button", { name: "Apply conditions" }).click();
@@ -89,7 +91,7 @@ test("reactor: calculate, edit, compare, restore, persist and export", async ({
     .click();
   await page
     .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Storage settings", exact: true })
+    .getByRole("button", { name: "Storage", exact: true })
     .click();
   const downloadPromise = page.waitForEvent("download");
   await page
@@ -300,13 +302,13 @@ test("clear local history requires confirmation and persists an empty project", 
   page,
 }) => {
   await start(page);
-  await preferences(page);
+  await storageSettings(page);
   await page
     .getByRole("button", { name: "Clear local project & history" })
     .click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
-  await preferences(page);
+  await storageSettings(page);
   await page
     .getByRole("button", { name: "Clear local project & history" })
     .click();

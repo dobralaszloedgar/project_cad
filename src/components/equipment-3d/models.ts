@@ -32,7 +32,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import type { Kind } from "@/domain/schema";
 import { pipeCurve } from "./operation";
 import type { SystemExample } from "./system-geometry";
-import { extraMixerInlets, splitterBranches } from "./junction-layout";
+import { activeMixerInlets, activeSplitterBranches } from "./junction-layout";
 import {
   columnLayout,
   columnOverhead,
@@ -851,7 +851,11 @@ function product(f: Fabricator, section: boolean) {
   f.plate([0, 1.25, 0.555], 0.38);
 }
 
-function mixer(f: Fabricator, section: boolean) {
+function mixer(
+  f: Fabricator,
+  section: boolean,
+  options: EquipmentModelOptions,
+) {
   // CM-type centrifugal mixer: horizontal spindle, rotating bowl, stationary
   // centripetal pickup, axial feed and upper discharge. See references.ts.
   const axisY = 0.82;
@@ -1005,7 +1009,7 @@ function mixer(f: Fabricator, section: boolean) {
     section,
   );
   f.clamp([1.39, 1.16, 0], 0.058);
-  for (const { point } of extraMixerInlets) {
+  for (const { point } of activeMixerInlets(options.branchCount)) {
     f.pipe(
       [point, [point[0], axisY, point[2]], [point[0], axisY, 0]],
       0.034,
@@ -1071,7 +1075,12 @@ function mixer(f: Fabricator, section: boolean) {
   }
 }
 
-function splitter(f: Fabricator, section: boolean) {
+function splitter(
+  f: Fabricator,
+  section: boolean,
+  options: EquipmentModelOptions,
+) {
+  const branches = activeSplitterBranches(options.branchCount);
   f.skid(2.6, 1.85);
   f.pipe(
     [
@@ -1082,7 +1091,7 @@ function splitter(f: Fabricator, section: boolean) {
     "satin",
     section,
   );
-  for (const { z } of splitterBranches)
+  for (const { z } of branches)
     f.pipe(
       [
         [0, 1.1, 0],
@@ -1096,7 +1105,7 @@ function splitter(f: Fabricator, section: boolean) {
   f.sphere([0, 1.1, 0], [0.14, 0.14, 0.14]);
   f.flange([-1.16, 1.1, 0], 0.21);
   f.nozzle([-1.3, 1.1, 0], "x", 0.15, 0.12, "steel", -1);
-  for (const { z } of splitterBranches) {
+  for (const { z } of branches) {
     f.valve([0.73, 1.1, z]);
     f.nozzle([1.28, 1.1, z], "x", 0.2, 0.1);
     f.cylinder([0.35, 0.62, z], 0.045, 0.8, "dark");
@@ -1106,7 +1115,7 @@ function splitter(f: Fabricator, section: boolean) {
   f.gauge([-0.52, 1.5, 0], 1.2);
   f.plate([-0.12, 0.38, 0.925], 0.35);
   f.rod([-0.12, 0.19, 0.925], [-0.12, 0.35, 0.925], 0.014, "dark");
-  for (const { z } of splitterBranches) {
+  for (const { z } of branches) {
     f.annulus([0.35, 1.1, z], 0.12, 0.101, 0.045, "dark", "x");
     f.plate([0.88, 0.86, z + 0.12], 0.19);
     f.rod([0.88, 1.02, z], [0.88, 0.92, z + 0.12], 0.012, "dark");
@@ -1835,8 +1844,8 @@ export function createEquipmentModel(
   const builders: Record<Kind, (f: Fabricator, section: boolean) => void> = {
     Feed: feed,
     Product: product,
-    Mixer: mixer,
-    Splitter: splitter,
+    Mixer: (fabricator, cutaway) => mixer(fabricator, cutaway, options),
+    Splitter: (fabricator, cutaway) => splitter(fabricator, cutaway, options),
     Heater: heater,
     Cooler: cooler,
     PBR: reactor,

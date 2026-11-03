@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Monitor } from "lucide-react";
+import { Monitor } from "lucide-react";
 import type { GraphicsInfo, GraphicsPreference } from "./renderer";
 import styles from "./graphics.module.css";
 import { AccelerationNotice } from "./AccelerationHelp";
@@ -55,7 +55,6 @@ export function GraphicsSettings({
               : "WebGL 2"
             : "Graphics"}
         </span>
-        <ChevronDown className={styles.chevron} size={12} aria-hidden="true" />
       </summary>
       <div className={styles.panel}>
         <label>

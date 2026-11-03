@@ -195,6 +195,10 @@ upward carryover and deeper illustrated liquid show flooding. Visual levels
 beyond the limit are bounded illustrative effects, not transient predictions.
 Only a successful current simulation supplies hydraulic effects; incomplete
 ratings are identified and unavailable checks do not animate a guessed fault.
+If a configured tower has no current hydraulic result, the 3D panel offers
+Calculate tray effects. Show tray effects reveals the transparent shell,
+resumes playback and focuses between the trays so falling drops or upward
+carryover can be seen. Numerical edits require a new calculation.
 
 REFERENCES
 Simevo, Sieve tray flooding correlation (2012), original polynomial fit:

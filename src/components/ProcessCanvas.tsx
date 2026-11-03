@@ -49,6 +49,7 @@ import {
   type Kind,
   type Connection,
   ports,
+  visiblePorts,
   validateGraph,
 } from "@/domain/schema";
 import { EquipmentIcon } from "./EquipmentIcon";
@@ -68,6 +69,8 @@ import { diff } from "@/lib/revisions";
 import { availableStreamName } from "@/domain/stream-names";
 import {
   mixerInlets,
+  connectedUnitPorts,
+  junctionBranchCount,
   portIndex,
   separateMixerInlets,
 } from "@/domain/material-ports";
@@ -89,6 +92,7 @@ type EquipmentNode = Node<
   {
     unit: Unit;
     connected: string[];
+    reconnectingPort?: string;
     change?: string;
     status?: EquipmentStatus;
     onNavigate?: (id: string, target: EquipmentTarget) => void;
@@ -101,12 +105,18 @@ const flowFitOptions = {
   minZoom: 0.05,
   maxZoom: 1.25,
 } satisfies FitViewOptions;
-function portGeometry(unit: Unit, output: boolean, index: number) {
+function portGeometry(
+  unit: Unit,
+  output: boolean,
+  index: number,
+  branchCount: number,
+) {
   const { x, y, position } = equipmentPort(
     unit.kind,
     output,
     index,
     unit.params.trayCount,
+    branchCount,
   );
   return {
     position,
@@ -119,6 +129,7 @@ function portGeometry(unit: Unit, output: boolean, index: number) {
     },
   };
 }
+
 const UnitNode = memo(function UnitNode({
   data,
   selected,
@@ -126,7 +137,11 @@ const UnitNode = memo(function UnitNode({
   positionAbsoluteY,
 }: NodeProps<EquipmentNode>) {
   const n = data.unit,
-    p = ports(n.kind);
+    p = visiblePorts(n, data.connected);
+  const branchCount = junctionBranchCount(n, data.connected);
+  const canConnectInput = ports(n.kind).inputs.some(
+    (port) => port === data.reconnectingPort || !data.connected.includes(port),
+  );
   const size = equipmentSize(n.kind, n.params.trayCount);
   const updateNodeInternals = useUpdateNodeInternals();
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -156,7 +171,7 @@ const UnitNode = memo(function UnitNode({
         : bounds;
     setLabelBottom((labelBounds?.y ?? bounds.y) - 6);
     updateNodeInternals(n.id);
-  }, [n.id, n.kind, n.params.trayCount, updateNodeInternals]);
+  }, [n.id, n.kind, n.params.trayCount, branchCount, updateNodeInternals]);
   return (
     <div
       ref={nodeRef}
@@ -187,21 +202,34 @@ const UnitNode = memo(function UnitNode({
           {n.name}
         </span>
       </div>
-      {p.inputs.map((id, i) => (
+      {/* Dormant handles stay measurable while React Flow commits nodes and
+          edges separately. They cannot be seen, focused or connected. */}
+      {ports(n.kind).inputs.map((id, i) => (
         <Handle
           key={id}
           id={id}
           type="target"
-          aria-label={`${n.id} inlet ${id}`}
+          aria-label={p.inputs.includes(id) ? `${n.id} inlet ${id}` : undefined}
+          aria-hidden={!p.inputs.includes(id)}
           title={`${n.id} · Inlet ${i + 1}`}
           isConnectable={
-            n.kind === "Mixer"
-              ? p.inputs.some((port) => !data.connected.includes(port))
-              : !data.connected.includes(id)
+            p.inputs.includes(id) &&
+            (n.kind === "Mixer"
+              ? canConnectInput
+              : id === data.reconnectingPort || !data.connected.includes(id))
           }
           isConnectableStart={false}
-          {...portGeometry(n, false, i)}
-          className="material-handle"
+          {...portGeometry(
+            n,
+            false,
+            Math.min(i, p.inputs.length - 1),
+            branchCount,
+          )}
+          className={
+            p.inputs.includes(id)
+              ? "material-handle"
+              : "dormant-material-handle"
+          }
         />
       ))}
       {p.inputs.length > 0 && (
@@ -209,7 +237,7 @@ const UnitNode = memo(function UnitNode({
           id={equipmentDropHandle}
           type="target"
           position={Position.Left}
-          isConnectable={p.inputs.some((id) => !data.connected.includes(id))}
+          isConnectable={canConnectInput}
           isConnectableStart={false}
           className="equipment-drop-handle"
           aria-label={`${n.id} connect streams to equipment`}
@@ -220,18 +248,31 @@ const UnitNode = memo(function UnitNode({
         size={128}
         trayCount={n.params.trayCount}
         condenserType={n.params.distillation?.condenserType}
+        branchCount={branchCount}
       />
-      {p.outputs.map((id, i) => (
+      {ports(n.kind).outputs.map((id, i) => (
         <Handle
           key={id}
           id={id}
           type="source"
-          aria-label={`${n.id} outlet ${id}`}
+          aria-label={
+            p.outputs.includes(id) ? `${n.id} outlet ${id}` : undefined
+          }
+          aria-hidden={!p.outputs.includes(id)}
           title={`${n.id} · Outlet ${i + 1}`}
-          isConnectable={!data.connected.includes(id)}
+          isConnectable={p.outputs.includes(id) && !data.connected.includes(id)}
           isConnectableEnd={false}
-          {...portGeometry(n, true, i)}
-          className="material-handle"
+          {...portGeometry(
+            n,
+            true,
+            Math.min(i, p.outputs.length - 1),
+            branchCount,
+          )}
+          className={
+            p.outputs.includes(id)
+              ? "material-handle"
+              : "dormant-material-handle"
+          }
         />
       ))}
     </div>
@@ -411,6 +452,9 @@ function Inner(props: Props) {
   const flowStore = useStoreApi();
   const zoom = useStore((state) => state.transform[2]);
   const nodesInitialized = useNodesInitialized();
+  const connecting = useStore((state) => state.connection.inProgress);
+  const reconnectingEdge = useRef<string | null>(null);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [panMode, setPanMode] = useState(false);
   const [spacePan, setSpacePan] = useState(false);
@@ -618,6 +662,9 @@ function Inner(props: Props) {
   );
   const baseNodes: EquipmentNode[] = useMemo(() => {
     const connected = new Map<string, string[]>();
+    const reconnecting = project.edges.find(
+      (edge) => edge.id === reconnectingId,
+    );
     for (const edge of project.edges) {
       connected.set(edge.source, [
         ...(connected.get(edge.source) ?? []),
@@ -636,6 +683,12 @@ function Inner(props: Props) {
       data: {
         unit,
         connected: connected.get(unit.id) ?? [],
+        // Keep the fittings in place while allowing the dragged stream back
+        // onto its own inlet, including an otherwise full mixer.
+        reconnectingPort:
+          reconnecting?.target === unit.id
+            ? reconnecting.targetPort
+            : undefined,
         status: presentation ? undefined : statuses?.[unit.id],
         onNavigate: presentation ? undefined : onNavigateIssue,
         change: changes?.added.some((n) => n.id === unit.id)
@@ -648,6 +701,7 @@ function Inner(props: Props) {
   }, [
     project.units,
     project.edges,
+    reconnectingId,
     changes,
     statuses,
     onNavigateIssue,
@@ -678,6 +732,7 @@ function Inner(props: Props) {
         output,
         portIndex(port),
         unit.params.trayCount,
+        junctionBranchCount(unit, connectedUnitPorts(unit, project.edges)),
       );
       // Edges attach to the outer edge of the nine-pixel connection handle.
       return {
@@ -736,6 +791,10 @@ function Inner(props: Props) {
           sourceHandle: e.sourcePort,
           targetHandle: e.targetPort,
           type: "pipe",
+          reconnectable:
+            !presentation && !panning ? ("target" as const) : false,
+          // The head's grab area must sit above the inlet's enlarged hit area.
+          zIndex: 1,
           data: {
             compositionColors,
             name: e.name ?? e.id,
@@ -753,12 +812,21 @@ function Inner(props: Props) {
           selected: selection.includes(e.id),
         };
       }),
-    [project.edges, compositionColors, colors, selected, selection, routes],
+    [
+      project.edges,
+      compositionColors,
+      colors,
+      selected,
+      selection,
+      routes,
+      presentation,
+      panning,
+    ],
   );
-  function targetPort(connection: {
-    target: string;
-    targetHandle?: string | null;
-  }): Connection["targetPort"] {
+  function targetPort(
+    connection: { target: string; targetHandle?: string | null },
+    replacedId?: string | null,
+  ): Connection["targetPort"] {
     if (
       project.units.some(
         (unit) => unit.id === connection.target && unit.kind === "Mixer",
@@ -766,9 +834,18 @@ function Inner(props: Props) {
     ) {
       const used = new Set(
         project.edges
-          .filter((edge) => edge.target === connection.target)
+          .filter(
+            (edge) =>
+              edge.target === connection.target && edge.id !== replacedId,
+          )
           .map((edge) => edge.targetPort),
       );
+      const replaced = project.edges.find((edge) => edge.id === replacedId);
+      if (
+        connection.targetHandle === equipmentDropHandle &&
+        replaced?.target === connection.target
+      )
+        return replaced.targetPort;
       const requested = connection.targetHandle as Connection["targetPort"];
       if (mixerInlets.includes(requested) && !used.has(requested))
         return requested;
@@ -827,7 +904,7 @@ function Inner(props: Props) {
   return (
     <div
       ref={containerRef}
-      className={`flow-wrapper ${panning ? "pan-mode" : ""} ${showLabels ? "" : "hide-flow-labels"}`}
+      className={`flow-wrapper ${panning ? "pan-mode" : ""} ${connecting ? "connecting-stream" : ""} ${showLabels ? "" : "hide-flow-labels"}`}
       tabIndex={0}
       aria-label="2D process canvas"
       data-canvas-mode={presentation ? "presentation" : "editor"}
@@ -886,6 +963,9 @@ function Inner(props: Props) {
         nodesConnectable={!presentation && !panning}
         nodesFocusable={!presentation}
         edgesFocusable={!presentation}
+        edgesReconnectable={!presentation && !panning}
+        elevateEdgesOnSelect
+        reconnectRadius={20 / zoom}
         elementsSelectable={!presentation && !panning}
         preventScrolling={!presentation}
         zoomOnDoubleClick={false}
@@ -942,19 +1022,60 @@ function Inner(props: Props) {
             validateGraph({
               ...project,
               edges: [
-                ...project.edges,
+                ...project.edges.filter(
+                  (edge) => edge.id !== reconnectingEdge.current,
+                ),
                 {
                   id: "pending-connection",
                   source: connection.source,
                   target: connection.target,
                   sourcePort:
                     connection.sourceHandle as Connection["sourcePort"],
-                  targetPort: targetPort(connection),
+                  targetPort: targetPort(connection, reconnectingEdge.current),
                   color: "teal",
                 },
               ],
             }).length === 0
           );
+        }}
+        onReconnectStart={(_, edge) => {
+          reconnectingEdge.current = edge.id;
+          setReconnectingId(edge.id);
+        }}
+        onReconnectEnd={(_, edge, _handleType, connection) => {
+          reconnectingEdge.current = null;
+          setReconnectingId(null);
+          if (!presentation && !connection.isValid)
+            onChange(
+              {
+                ...project,
+                edges: project.edges.filter((item) => item.id !== edge.id),
+              },
+              "Disconnect stream",
+            );
+          containerRef.current?.focus();
+        }}
+        onReconnect={(oldEdge, connection) => {
+          if (presentation || panning) return;
+          const previous = project.edges.find((edge) => edge.id === oldEdge.id);
+          if (!previous || !connection.targetHandle) return;
+          const port = targetPort(connection, previous.id);
+          if (
+            previous.target === connection.target &&
+            previous.targetPort === port
+          )
+            return;
+          const next = {
+            ...project,
+            edges: project.edges.map((edge) =>
+              edge.id === previous.id
+                ? { ...edge, target: connection.target, targetPort: port }
+                : edge,
+            ),
+          };
+          const errors = validateGraph(next);
+          if (errors.length) onError(errors[0]);
+          else onChange(next, "Reconnect stream");
         }}
         onConnect={(c) => {
           if (presentation) return;

@@ -298,17 +298,6 @@ export default function ProjectComponents({
               <option value="name">Name A–Z</option>
             </select>
           </div>
-          <p className="chemical-search-help">
-            {sort === "name"
-              ? "Chemical names A–Z."
-              : query.trim()
-                ? "Matches first, then common process chemicals and available property data."
-                : "Common process chemicals first, then available property data."}
-            {query.trim() &&
-            query.normalize("NFKC").replace(/[^a-z0-9]/gi, "").length <= 2
-              ? " Short searches match name prefixes or complete identifiers."
-              : ""}
-          </p>
           <div className="chemical-results" aria-busy={loading}>
             {loading ? (
               <p className="chemical-empty" role="status">
@@ -488,13 +477,6 @@ export default function ProjectComponents({
             <p className="components-notice">
               Synthetic A/B properties are already specified. To use catalog
               chemicals instead, replace both components.
-            </p>
-          )}
-          {project.units.some((unit) => unit.kind === "PBR") && (
-            <p className="components-notice">
-              Configure reactants and products in each PBR reaction set.
-              Existing reactions keep their component identities; review them
-              after removing components.
             </p>
           )}
         </section>

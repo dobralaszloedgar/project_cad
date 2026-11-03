@@ -267,11 +267,52 @@ test("reaction inputs respect their ranges and retain scientific notation", asyn
     0,
     2e6,
   );
-  await checkBounds(
-    page.getByLabel("reactants coefficient 1", { exact: true }),
-    0.000001,
-    1000,
-  );
+  const coefficient = page.getByLabel("Stoichiometric coefficient 1", {
+    exact: true,
+  });
+  await checkBounds(coefficient, -1000, 1000);
+  await coefficient.fill("-1");
+  await arrows(coefficient).down.click();
+  await expect(coefficient).toHaveValue("-2");
+  await coefficient.press("ArrowDown");
+  await expect(coefficient).toHaveValue("-3");
+  for (const decimal of ["0.5", "0.33", "-0.5", "-0.33", "2.5"]) {
+    await coefficient.fill(decimal);
+    await expect(coefficient).toHaveValue(decimal);
+    await expect(coefficient).toHaveAttribute("aria-invalid", "false");
+    expect(
+      await coefficient.evaluate((input: HTMLInputElement) =>
+        input.checkValidity(),
+      ),
+    ).toBe(true);
+  }
+  await coefficient.press("ArrowUp");
+  await expect(coefficient).toHaveValue("3");
+  await coefficient.fill("-2.5");
+  await arrows(coefficient).down.click();
+  await expect(coefficient).toHaveValue("-3");
+  await coefficient.fill("4.33");
+  await arrows(coefficient).up.click();
+  await expect(coefficient).toHaveValue("5");
+  await coefficient.press("ArrowUp");
+  await expect(coefficient).toHaveValue("6");
+  await coefficient.press("ArrowDown");
+  await expect(coefficient).toHaveValue("5");
+  await coefficient.fill("0");
+  await expect(coefficient).toHaveAttribute("aria-invalid", "true");
+  await expect(
+    page.getByRole("button", { name: "Calculate", exact: true }),
+  ).toBeDisabled();
+  await coefficient.fill("-2");
+  const productCoefficient = page.getByLabel("Stoichiometric coefficient 2", {
+    exact: true,
+  });
+  await expect(productCoefficient).toHaveValue("1");
+  await arrows(productCoefficient).up.click();
+  await expect(productCoefficient).toHaveValue("2");
+  await productCoefficient.press("ArrowUp");
+  await expect(productCoefficient).toHaveValue("3");
+  await productCoefficient.fill("1");
   await checkBounds(page.getByLabel("Reaction order", { exact: true }), 0, 20);
   await checkBounds(page.getByLabel("Rate constant", { exact: true }), 0, 1e20);
   await page.getByLabel("Rate law model").selectOption("general");

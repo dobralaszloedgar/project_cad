@@ -62,8 +62,9 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     "Themes",
     "Components",
     "Thermodynamics",
+    "Units",
     "Toggle chat",
-    "Storage settings",
+    "Storage",
     "Settings",
   ]);
   await expect(page.getByText("Drag equipment onto the canvas.")).toHaveCount(
@@ -72,24 +73,44 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await expect(page.getByText("Connect the dots to add a stream.")).toHaveCount(
     0,
   );
+  await menu.getByRole("button", { name: "Units", exact: true }).click();
+  const units = page.getByRole("dialog", { name: "Engineering units" });
+  await expect(units).toBeVisible();
+  await expect(units.getByLabel("Unit system", { exact: true })).toHaveValue(
+    "metric",
+  );
+  await expect(menu).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(units).not.toBeVisible();
+  await expect(pullTab).toBeFocused();
+  await pullTab.click();
   await menu.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(menu).toHaveCount(0);
-  const workspaceTab = page.getByRole("tab", {
-    name: "Workspace",
+  const settings = page.getByRole("complementary", {
+    name: "Settings",
     exact: true,
   });
-  const storageTab = page.getByRole("tab", { name: "Storage", exact: true });
-  await expect(workspaceTab).toHaveAttribute("aria-selected", "true");
+  await expect(settings.getByRole("heading", { level: 3 })).toHaveText([
+    "Canvas",
+    "Canvas sounds",
+  ]);
+  await expect(settings.getByRole("tablist")).toHaveCount(0);
   await expect(
-    page.getByRole("switch", { name: "Color streams by composition" }),
+    settings.getByRole("switch", { name: "Color streams by composition" }),
   ).toBeChecked();
-  await workspaceTab.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(storageTab).toBeFocused();
-  await expect(storageTab).toHaveAttribute("aria-selected", "true");
   await expect(
-    page.getByRole("button", { name: "Export project", exact: true }),
-  ).toBeVisible();
+    settings.getByRole("switch", { name: "Canvas sounds", exact: true }),
+  ).toBeChecked();
+  await expect(settings.getByRole("slider", { name: "Volume" })).toBeVisible();
+  await expect(
+    settings.getByRole("button", {
+      name: /Export project|Configure units|Show assistant|Choose folder/,
+    }),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/workspace-settings.png",
+    animations: "disabled",
+  });
   await expect(page.locator(".workspace-drawer")).toHaveCount(1);
   await expect(page.locator("dialog[open]")).toHaveCount(0);
   await page.getByRole("button", { name: "Run simulation" }).click();
@@ -110,8 +131,11 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
     await page.locator(".react-flow__viewport").getAttribute("style"),
   ).toBe(viewport);
   await pullTab.click();
-  await page.screenshot({ path: "test-results/workspace-menu.png" });
-  await menu.getByRole("button", { name: "Storage settings" }).click();
+  await page.screenshot({
+    path: "test-results/workspace-menu.png",
+    animations: "disabled",
+  });
+  await menu.getByRole("button", { name: "Storage" }).click();
   await expect(
     page.getByRole("button", { name: "Export project", exact: true }),
   ).toBeVisible();
@@ -126,12 +150,11 @@ test("left edge tab opens the workspace menu without moving the canvas", async (
   await menu.getByRole("button", { name: "Settings", exact: true }).click();
   await page
     .getByRole("complementary", { name: "Settings", exact: true })
-    .getByRole("heading", { name: "Assistant", exact: true })
+    .getByRole("heading", { name: "Canvas", exact: true })
     .click();
   await expect(page.locator(".assistant-drawer")).not.toBeVisible();
-  await page
-    .getByRole("button", { name: "Show assistant", exact: true })
-    .click();
+  await pullTab.click();
+  await menu.getByRole("button", { name: "Toggle chat" }).click();
   await expect(page.locator(".assistant-drawer")).toBeVisible();
   await pullTab.click();
   await menu.getByRole("button", { name: "Toggle chat" }).click();
@@ -249,21 +272,29 @@ test("phone pull tab and panels remain reachable without page overflow", async (
   });
   const menu = page.getByRole("navigation", { name: "Workspace", exact: true });
   await expect(page.locator(".workspace-drawer")).toHaveCount(0);
-  for (const name of ["Equipment", "Themes", "Settings", "Results"]) {
+  for (const name of ["Equipment", "Themes", "Settings", "Results", "Units"]) {
     await pullTab.click();
     await menu.getByRole("button", { name, exact: true }).click();
-    const panel = page.getByRole("complementary", { name });
+    const panel =
+      name === "Units"
+        ? page.getByRole("dialog", { name: "Engineering units" })
+        : page.getByRole("complementary", { name });
     await expect(panel).toBeVisible();
     const rect = (await panel.boundingBox())!;
-    expect(rect.x).toBeGreaterThanOrEqual(name === "Results" ? 12 : 44);
+    expect(rect.x).toBeGreaterThanOrEqual(
+      name === "Units" ? 0 : name === "Results" ? 12 : 44,
+    );
     expect(rect.x + rect.width).toBeLessThanOrEqual(390);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(390);
     await expect(pullTab).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(panel).not.toBeVisible();
+    await expect(pullTab).toBeFocused();
   }
   await pullTab.click();
-  await menu.getByRole("button", { name: "Storage settings" }).click();
+  await menu.getByRole("button", { name: "Storage" }).click();
   await page
     .getByRole("button", { name: "Open assistant", exact: true })
     .click();
@@ -276,5 +307,8 @@ test("phone pull tab and panels remain reachable without page overflow", async (
   ).toBeVisible();
   await expect(page.locator(".assistant-drawer")).not.toBeVisible();
   await pullTab.click();
-  await page.screenshot({ path: "test-results/pull-tabs-mobile.png" });
+  await page.screenshot({
+    path: "test-results/pull-tabs-mobile.png",
+    animations: "disabled",
+  });
 });

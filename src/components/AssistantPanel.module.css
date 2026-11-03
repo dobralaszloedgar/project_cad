@@ -7,10 +7,26 @@
 .root {
   --assistant-surface: var(--surface);
   --assistant-ink: var(--ink);
-  --assistant-muted: var(--muted);
-  --assistant-field: var(--field-surface);
-  --assistant-line: var(--border);
+  --assistant-muted: color-mix(in oklab, var(--ink) 86%, var(--surface));
+  --assistant-field: color-mix(
+    in oklab,
+    var(--ink) calc(4% * var(--step, 1)),
+    var(--surface)
+  );
+  --assistant-line: color-mix(
+    in oklab,
+    var(--ink) calc(17% * var(--step, 1)),
+    var(--surface)
+  );
   --assistant-brand: var(--accent);
+  --assistant-tint: color-mix(in oklab, var(--accent) 10%, var(--surface));
+  --assistant-accent-line: color-mix(
+    in oklab,
+    var(--accent) 32%,
+    var(--surface)
+  );
+  --assistant-accent-ink: color-mix(in oklab, var(--accent) 38%, var(--ink));
+  --assistant-message: color-mix(in oklab, var(--accent) 16%, var(--surface));
   --assistant-shadow: color-mix(in srgb, var(--ink) 15%, transparent);
   position: absolute;
   inset: 0;
@@ -51,7 +67,7 @@
 .root button:disabled {
   cursor: default;
 }
-.root :is(button, input, textarea, select):focus-visible {
+.root :is(button, input, textarea, select, summary):focus-visible {
   outline: 2px solid var(--assistant-brand);
   outline-offset: 3px;
 }
@@ -283,10 +299,10 @@
 .header h2 {
   margin: 0;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0;
-  color: var(--assistant-muted);
+  color: var(--assistant-ink);
 }
 .header > .popoverAnchor:has(.connectionPill) {
   flex: 1;
@@ -310,7 +326,9 @@
   gap: 6px;
   border-radius: 7px;
   padding: 5px 8px;
-  background: var(--assistant-field);
+  background: var(--assistant-tint);
+  border: 1px solid var(--assistant-accent-line);
+  color: var(--assistant-accent-ink);
   font-size: 11px;
 }
 .connectionPill i {
@@ -338,7 +356,7 @@
 .iconButton:hover,
 .newChat:hover,
 .control:hover {
-  background: var(--assistant-field);
+  background: var(--hover);
   color: var(--assistant-ink);
 }
 .iconButton:disabled,
@@ -398,8 +416,10 @@
   color: var(--assistant-muted);
 }
 .tab[data-active] {
-  background: var(--assistant-field);
-  color: var(--assistant-ink);
+  background: var(--assistant-tint);
+  border-color: var(--assistant-accent-line);
+  color: var(--assistant-accent-ink);
+  font-weight: 500;
 }
 .tab > button:first-child {
   display: flex;
@@ -440,6 +460,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 20px 22px;
+  background: var(--canvas, var(--assistant-surface));
   scrollbar-width: thin;
   scrollbar-color: var(--assistant-line) transparent;
 }
@@ -479,7 +500,9 @@
   max-width: 85%;
   margin-left: auto;
   border-radius: 16px 16px 3px 16px;
-  background: var(--assistant-field);
+  background: var(--assistant-message);
+  border: 1px solid var(--assistant-accent-line);
+  color: var(--assistant-ink);
   padding: 10px 13px;
   font-size: 13px;
   line-height: 1.7;
@@ -516,6 +539,7 @@
 .response pre {
   padding: 12px;
   background: var(--assistant-field);
+  border: 1px solid var(--assistant-line);
   border-radius: 9px;
   overflow: auto;
   font-size: 11px;
@@ -571,6 +595,9 @@
   border: 1px solid var(--assistant-line);
   text-align: left;
 }
+.response th {
+  background: var(--assistant-field);
+}
 .response blockquote {
   border-left: 2px solid var(--assistant-line);
   padding-left: 12px;
@@ -582,7 +609,17 @@
   color: var(--assistant-muted);
 }
 .activities summary {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--assistant-line);
+  border-radius: 7px;
+  background: var(--assistant-field);
   cursor: pointer;
+}
+.activities summary:hover {
+  background: var(--hover);
+  color: var(--assistant-ink);
 }
 .activities ul {
   list-style: none;
@@ -652,6 +689,7 @@
   position: relative;
   padding: 12px 16px 16px;
   flex: 0 0 auto;
+  border-top: 1px solid var(--assistant-line);
 }
 .composerArea[hidden] {
   display: none;
@@ -661,12 +699,13 @@
   align-items: flex-end;
   gap: 4px;
   padding: 4px;
-  border: 1px solid transparent;
+  border: 1px solid var(--field-border);
   border-radius: 28px;
   background: var(--assistant-field);
 }
 .composer:focus-within {
-  border-color: var(--assistant-line);
+  border-color: var(--assistant-brand);
+  box-shadow: 0 0 0 3px var(--assistant-tint);
 }
 .composerField {
   display: flex;
@@ -708,12 +747,20 @@
   height: 36px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--assistant-ink);
-  color: var(--assistant-surface);
+  background: var(--assistant-brand);
+  color: var(--color-primary-content);
   border: 0;
 }
+.send:not(:disabled):hover {
+  background: color-mix(
+    in oklab,
+    var(--assistant-brand) 88%,
+    var(--assistant-ink)
+  );
+}
 .send:disabled {
-  opacity: 0.35;
+  background: var(--assistant-line);
+  color: var(--assistant-muted);
 }
 .fileInput {
   display: none;
@@ -751,8 +798,8 @@
   max-width: 100%;
 }
 .control[aria-expanded="true"] {
-  background: var(--assistant-field);
-  color: var(--assistant-ink);
+  background: var(--assistant-tint);
+  color: var(--assistant-accent-ink);
 }
 .control:disabled {
   opacity: 0.45;
@@ -884,9 +931,12 @@
   line-height: 1.5;
   margin-top: 3px;
 }
-.option:hover,
+.option:hover {
+  background: var(--hover);
+}
 .option[aria-pressed="true"] {
-  background: var(--assistant-field);
+  background: var(--assistant-tint);
+  color: var(--assistant-accent-ink);
 }
 .providerOptions {
   display: flex;
@@ -1083,6 +1133,7 @@
   min-height: 0;
   overflow-y: auto;
   padding: 16px 22px;
+  background: var(--canvas, var(--assistant-surface));
 }
 .historyHeading {
   display: flex;

@@ -145,7 +145,18 @@ export function executeKernel<T>(request: unknown): T {
     kernel.thermo_free(pointer, bytes.length);
   }
 }
-export function provenance(settings: ThermoSettings = defaultThermo) {
+export interface ThermoProvenance {
+  modelId: ThermoSettings["modelId"];
+  modelVersion: string;
+  dataVersion: string;
+  kernelHash: string;
+  parameterHash: string | null;
+  chemicalIds: readonly string[];
+  extrapolate: boolean;
+}
+export function provenance(
+  settings: ThermoSettings = defaultThermo,
+): ThermoProvenance {
   const context = thermoContext(settings);
   return {
     modelId: settings.modelId,

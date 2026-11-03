@@ -237,13 +237,6 @@
   font-size: 11px;
   cursor: pointer;
 }
-.chemical-search-help {
-  flex-shrink: 0;
-  margin: -6px 20px 12px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.5;
-}
 .chemical-results {
   flex: 1;
   min-height: 0;
@@ -271,6 +264,7 @@
 .chemical-table th {
   position: sticky;
   top: 0;
+  z-index: 1;
   padding: 9px 12px;
   background: var(--canvas);
   color: var(--muted);
@@ -480,9 +474,6 @@
   }
   .chemical-search-tools > select {
     flex: 1;
-  }
-  .chemical-search-help {
-    margin-inline: 14px;
   }
   .chemical-table th,
   .chemical-table td {

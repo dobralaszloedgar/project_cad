@@ -31,7 +31,7 @@ async function exportProject(page: Page) {
     .click();
   await page
     .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Storage settings", exact: true })
+    .getByRole("button", { name: "Storage", exact: true })
     .click();
   const pending = page.waitForEvent("download");
   await page

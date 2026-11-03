@@ -4,6 +4,17 @@
 
 import { expect, type Page } from "@playwright/test";
 
+export async function openNewProject(page: Page) {
+  await page
+    .getByRole("navigation", { name: "Project navigation" })
+    .getByRole("button", { name: "New", exact: true })
+    .click();
+  await page
+    .getByRole("menu", { name: "New", exact: true })
+    .getByRole("menuitem", { name: "Project", exact: true })
+    .click();
+}
+
 /** Submit either a remembered destination or the first project's folder step. */
 export async function submitNewProject(page: Page, expectSuccess = true) {
   const dialog = page.getByRole("dialog", {
@@ -34,10 +45,7 @@ export async function submitNewProject(page: Page, expectSuccess = true) {
 }
 
 export async function startNewProject(page: Page, name: string) {
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const dialog = page.getByRole("dialog", {
     name: "Create project",
     exact: true,

@@ -6,6 +6,7 @@ import { normalizeTrayCount } from "../../domain/column-geometry";
 import type { CondenserType } from "../../domain/equipment/distillation-schema";
 export { columnTrayLimits } from "../../domain/column-geometry";
 export type EquipmentModelOptions = {
+  branchCount?: number;
   trayCount?: number;
   condenserType?: CondenserType;
   column?: {

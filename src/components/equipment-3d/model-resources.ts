@@ -4,6 +4,7 @@
 
 import { Group, InstancedMesh, Material, Mesh } from "three";
 import type { Kind } from "@/domain/schema";
+import { normalizeBranchCount } from "../../domain/material-ports";
 import { columnLayout, type EquipmentModelOptions } from "./column-layout";
 import { createEquipmentModel, disposeEquipmentModel } from "./models";
 
@@ -23,6 +24,9 @@ export function acquireEquipmentModel(
     kind,
     section,
     transparent,
+    kind === "Mixer" || kind === "Splitter"
+      ? normalizeBranchCount(options.branchCount)
+      : undefined,
     layout?.trayCount,
     layout?.condenserType,
     layout?.traySpacing,

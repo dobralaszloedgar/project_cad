@@ -5,7 +5,7 @@
 /** Offline authoring only: the landing page imports the fixed output, never the
  * editor, solver or routing engines. Run with node --import tsx scripts/generate-landing-demo.ts. */
 import { writeFileSync } from "node:fs";
-import { newUnit, ports } from "../src/domain/schema";
+import { newUnit, visiblePorts } from "../src/domain/schema";
 import { equipmentPort, equipmentSize } from "../src/components/flow-geometry";
 import {
   routeStreams,
@@ -27,7 +27,7 @@ const units = storyEquipment.map((item) => {
   );
   unit.params.trayCount = 8;
   const geometry = equipmentSize(item.kind, 8);
-  const connections = ports(item.kind);
+  const connections = visiblePorts(unit);
   return {
     id: item.tag,
     kind: item.kind,

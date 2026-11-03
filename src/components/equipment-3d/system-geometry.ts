@@ -51,6 +51,7 @@ export type EquipmentInstance = {
   title: string;
   color: string;
   trayCount?: number;
+  branchCount?: number;
   condenserType?: EquipmentModelOptions["condenserType"];
   column?: EquipmentModelOptions["column"];
   /** Clockwise quarter turns when seen from above, shared by models and ports. */

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { projectSchema, type Project } from "../domain/schema";
 import { defaultThermo } from "../domain/thermo/registry";
 import { migrateReactorInlets } from "../domain/project-migrations";
+import { savedSimulationSchema } from "./saved-simulation";
 export const revisionSchema = z
   .object({
     id: z.string().max(80),
@@ -20,6 +21,7 @@ export const workspaceSchema = z
     version: z.literal(1),
     project: projectSchema.transform(migrateReactorInlets),
     revisions: z.array(revisionSchema).max(250),
+    simulation: savedSimulationSchema.optional(),
   })
   .strict();
 export type Workspace = z.infer<typeof workspaceSchema>;
@@ -33,6 +35,7 @@ export function checkpoint(project: Project, label: string): Revision {
 }
 export function restore(workspace: Workspace, revision: Revision): Workspace {
   return {
+    ...workspace,
     version: 1,
     project: structuredClone(revision.project),
     revisions: [

@@ -18,6 +18,8 @@ export type NumberInputProps = Omit<
   /** Arrow increment. Decimal values remain unrestricted by a step grid. */
   step?: number;
   integer?: boolean;
+  /** Snap arrow changes to whole numbers while allowing typed decimals. */
+  integerStep?: boolean;
   /** Preserve incomplete scientific notation in custom reaction laws. */
   scientific?: boolean;
   onValueChange: (value: number, text: string) => void;
@@ -43,6 +45,7 @@ export default function NumberInput({
   max,
   step = 1,
   integer = false,
+  integerStep = false,
   scientific = false,
   onValueChange,
   className = "input",
@@ -67,11 +70,12 @@ export default function NumberInput({
     if (current < lower || current > upper) return clamp(current);
     // Keep an increment representable even for very large kinetic constants.
     const increment = Math.max(step, Math.abs(current) * 1e-14);
-    const next = integer
-      ? direction > 0
-        ? Math.floor(current) + 1
-        : Math.ceil(current) - 1
-      : Number((current + direction * increment).toPrecision(15));
+    const next =
+      integer || integerStep
+        ? direction > 0
+          ? Math.floor(current) + 1
+          : Math.ceil(current) - 1
+        : Number((current + direction * increment).toPrecision(15));
     return clamp(next);
   }
   function change(next: number, text: string) {

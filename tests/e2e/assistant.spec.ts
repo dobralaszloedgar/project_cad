@@ -5,6 +5,7 @@
 import { test, expect, type Page } from "./test";
 import { mkdir } from "node:fs/promises";
 import { connectAssistant, installAssistant } from "./assistant-fixture";
+import { openNewProject } from "./project-create-fixture";
 import {
   installFolderPicker,
   folderText,
@@ -323,10 +324,7 @@ test("applies a proposal to the chosen project.json and preserves recovery when 
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const dialog = page.getByRole("dialog", {
     name: "Create project",
     exact: true,
@@ -385,10 +383,7 @@ test("switching projects isolates history and interrupts the old project's reque
   await page
     .getByRole("button", { name: "Open projects", exact: true })
     .click();
-  await page
-    .getByRole("navigation", { name: "Project navigation" })
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await openNewProject(page);
   const dialog = page.getByRole("dialog", {
     name: "Create project",
     exact: true,

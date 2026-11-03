@@ -4,6 +4,26 @@
 
 import type { Kind } from "@/domain/schema";
 import { columnSymbol } from "./column-symbol";
+import { normalizeBranchCount } from "../domain/material-ports";
+
+export const junctionPortY = (index: number, branchCount = 2) =>
+  normalizeBranchCount(branchCount) === 2
+    ? 40 + index * 48
+    : 28 + (index * 72) / (normalizeBranchCount(branchCount) - 1);
+
+export function junctionConnectors(
+  kind: "Mixer" | "Splitter",
+  branchCount = 2,
+) {
+  const branches = Array.from(
+    { length: normalizeBranchCount(branchCount) },
+    (_, index) => {
+      const y = junctionPortY(index, branchCount);
+      return kind === "Mixer" ? `M8 ${y}H40` : `M88 ${y}H120`;
+    },
+  ).join("");
+  return kind === "Mixer" ? `${branches}M88 64H120` : `M8 64H40${branches}`;
+}
 
 const stroke = 'vector-effect="non-scaling-stroke"';
 const body = `class="pfd-body" fill="var(--pfd-fill,none)" ${stroke}`;
@@ -27,8 +47,8 @@ export const equipmentSymbols: Record<Kind, string> = {
 export const equipmentConnectors: Record<Kind, string> = {
   Feed: "M104 64H120",
   Product: "M8 64H28",
-  Mixer: "M8 28H40M8 52H40M8 76H40M8 100H40M88 64H120",
-  Splitter: "M8 64H40M88 28H120M88 52H120M88 76H120M88 100H120",
+  Mixer: junctionConnectors("Mixer"),
+  Splitter: junctionConnectors("Splitter"),
   Heater: "M8 64H32M96 64H120",
   Cooler: "M8 64H32M96 64H120",
   PBR: "M64 8V20M64 108V120",

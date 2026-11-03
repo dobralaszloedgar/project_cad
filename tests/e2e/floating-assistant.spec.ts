@@ -87,10 +87,13 @@ test("assistant opens from each dock, remembers its corner and stays inside the 
   await expect(page.locator(".assistant-drawer")).not.toBeVisible();
 });
 
-test("drag-to-hide can be restored from workspace settings", async ({
+test("drag-to-hide can be restored from the workspace menu", async ({
   page,
 }) => {
   await page.route("http://127.0.0.1:43118/health", (route) =>
+    route.fulfill({ status: 503, json: {} }),
+  );
+  await page.route("**/downloads/assistant/downloads.json", (route) =>
     route.fulfill({ status: 503, json: {} }),
   );
   await page.goto("/workspace");
@@ -113,14 +116,20 @@ test("drag-to-hide can be restored from workspace settings", async ({
     .click();
   await page
     .getByRole("navigation", { name: "Workspace", exact: true })
-    .getByRole("button", { name: "Settings", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Show assistant", exact: true })
+    .getByRole("button", { name: "Toggle chat", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Choose your agents" }),
+    page.getByRole("dialog", { name: "Assistant", exact: true }),
   ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("project-cad.assistant-hidden.v1"),
+      ),
+    )
+    .toBeNull();
+  await page.keyboard.press("Escape");
+  await expect(bubble).toBeVisible();
 });
 test("composition colors default on and persist through Workspace settings", async ({
   page,
@@ -134,8 +143,8 @@ test("composition colors default on and persist through Workspace settings", asy
       .getByRole("button", { name: "Settings", exact: true })
       .click();
     await expect(
-      page.getByRole("tab", { name: "Workspace", exact: true }),
-    ).toHaveAttribute("aria-selected", "true");
+      page.getByRole("complementary", { name: "Settings", exact: true }),
+    ).toBeVisible();
   }
   await page.goto("/workspace");
   await expect(
@@ -151,7 +160,7 @@ test("composition colors default on and persist through Workspace settings", asy
   );
   await openSettings();
   const compositionColors = page
-    .getByRole("tabpanel", { name: "Workspace", exact: true })
+    .getByRole("region", { name: "Canvas", exact: true })
     .getByRole("switch", { name: "Color streams by composition" });
   await expect(compositionColors).toBeChecked();
   await page.screenshot({ path: info.outputPath("workspace-settings.png") });
