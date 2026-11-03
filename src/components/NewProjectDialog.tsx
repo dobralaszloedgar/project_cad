@@ -24,7 +24,10 @@ import {
   type ProjectDirectoryHandle,
 } from "@/lib/storage";
 import { folderPermission, projectFileName } from "@/lib/project-directory";
-import { getDefaultProjectDirectory } from "@/lib/project-preferences";
+import {
+  getDefaultProjectDirectory,
+  setDefaultProjectDirectory,
+} from "@/lib/project-preferences";
 import Dialog from "./Dialog";
 import styles from "./CreateProjectDialog.module.css";
 
@@ -40,7 +43,10 @@ export default function NewProjectDialog({
 }: {
   seed: Project;
   initialDirectory?: ProjectDirectoryHandle | null;
-  onCreate: (name: string, directory: ProjectDirectoryHandle) => Promise<void>;
+  onCreate: (
+    name: string,
+    directory: ProjectDirectoryHandle | null,
+  ) => Promise<void>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(seed.name);
@@ -57,6 +63,7 @@ export default function NewProjectDialog({
   const [supported] = useState(supportsProjectFolders);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState("");
+  const [pickerNotice, setPickerNotice] = useState("");
   const [folderOpen, setFolderOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [folderError, setFolderError] = useState("");
@@ -195,22 +202,23 @@ export default function NewProjectDialog({
   }
 
   async function submit() {
-    if (locked.current || loading || !supported || folderOpen) return;
+    if (locked.current || loading || folderOpen) return;
     setTouched(true);
     if (!validName) return;
     setError("");
-    if (!directory) {
+    if (supported && !directory) {
       setStep("folder");
       return;
     }
-    if (step === "details" && permission !== "granted") {
+    if (supported && step === "details" && permission !== "granted") {
       setStep("reconnect");
       return;
     }
     locked.current = true;
     setPending("project");
     try {
-      await finish(directory);
+      if (supported && directory) await finish(directory);
+      else await onCreate(validName, null);
     } catch (value) {
       setError(
         errorMessage(value, "Could not create this project. Please try again."),
@@ -226,22 +234,38 @@ export default function NewProjectDialog({
     locked.current = true;
     setPending(create ? "project" : "picker");
     setError("");
+    setPickerNotice("");
+    let selected: ProjectDirectoryHandle | null = null;
     try {
-      const selected = await chooseProjectDirectory();
-      if (!selected) return;
+      selected = await chooseProjectDirectory();
+      if (!selected) {
+        setPickerNotice(
+          "No folder was connected. Choose a folder and allow access when your browser asks.",
+        );
+        return;
+      }
+      const selectedName = selected.name;
       setDirectory(selected);
       setParentPath(selected.name);
+      // The readwrite picker has already obtained permission. A second prompt
+      // after it closes may have lost the click's transient activation in Edge.
+      setPermission("granted");
+      if (!create) setStep("details");
       setFolderCreated("");
-      if (create) await finish(selected);
-      else {
-        const [access, path] = await Promise.all([
-          folderPermission(selected),
-          getProjectDirectoryPath(selected).catch(() => selected.name),
-        ]);
-        setPermission(access);
-        setParentPath(path);
-      }
+      // Remember the selected destination even if creating a project fails.
+      // A preference failure must not prevent writing the actual project file.
+      await setDefaultProjectDirectory(selected).catch(() => {
+        setPickerNotice(
+          "This folder is selected for this project, but the browser could not remember it for next time.",
+        );
+      });
+      if (create) await onCreate(validName, selected);
+      else
+        setParentPath(
+          await getProjectDirectoryPath(selected).catch(() => selectedName),
+        );
     } catch (value) {
+      if (selected) setStep("details");
       setError(
         errorMessage(value, "Could not open the folder. Please try again."),
       );
@@ -303,7 +327,12 @@ export default function NewProjectDialog({
             </div>
             <div className={styles.field}>
               <span id={`${id}-location-label`}>Save location</span>
-              {directory ? (
+              {!supported ? (
+                <p className={styles.notice}>
+                  This browser. Your project saves automatically on this device.
+                  Export a .pcad copy from Storage to keep a separate backup.
+                </p>
+              ) : directory ? (
                 <div
                   className={styles.locationCard}
                   role="group"
@@ -444,7 +473,7 @@ export default function NewProjectDialog({
                 <p className={styles.hint}>
                   This folder needs permission restored before saving.
                 </p>
-              ) : !directory ? (
+              ) : supported && !directory ? (
                 <p className={styles.hint}>
                   We’ll remember the folder for your next project.
                 </p>
@@ -492,7 +521,13 @@ export default function NewProjectDialog({
         )}
         {!supported ? (
           <p className={styles.notice} role="status">
-            Use desktop Chrome or Edge to save to a folder.
+            Direct folder saving is unavailable in this browser. Use desktop
+            Chrome or Edge on HTTPS or localhost to choose a folder.
+          </p>
+        ) : null}
+        {pickerNotice ? (
+          <p className={styles.notice} role="status">
+            {pickerNotice}
           </p>
         ) : null}
         {error ? (
@@ -527,7 +562,7 @@ export default function NewProjectDialog({
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={busy || loading || !supported || !validName || folderOpen}
+            disabled={busy || loading || !validName || folderOpen}
           >
             {pending === "project"
               ? "Creating project…"
@@ -535,7 +570,7 @@ export default function NewProjectDialog({
                 ? "Choose folder & create"
                 : step === "reconnect"
                   ? "Reconnect & create"
-                  : directory && permission === "granted"
+                  : !supported || (directory && permission === "granted")
                     ? "Create project"
                     : "Continue"}
           </button>

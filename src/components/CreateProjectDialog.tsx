@@ -18,7 +18,7 @@ import { getDefaultProjectDirectory } from "@/lib/project-preferences";
 import styles from "./CreateProjectDialog.module.css";
 import NewProjectDialog from "./NewProjectDialog";
 
-type Props = {
+type FileProps = {
   seed: Project;
   onCreate: (name: string, directory: ProjectDirectoryHandle) => Promise<void>;
   onClose: () => void;
@@ -26,6 +26,17 @@ type Props = {
   initialDirectory?: ProjectDirectoryHandle | null;
   moving?: boolean;
 };
+
+type Props =
+  | (FileProps & ({ saveLocation: true } | { moving: true }))
+  | (Omit<FileProps, "onCreate" | "saveLocation" | "moving"> & {
+      saveLocation?: false;
+      moving?: false;
+      onCreate: (
+        name: string,
+        directory: ProjectDirectoryHandle | null,
+      ) => Promise<void>;
+    });
 
 export default function CreateProjectDialog(props: Props) {
   return props.saveLocation || props.moving ? (
@@ -42,7 +53,7 @@ function ProjectFileDialog({
   saveLocation = false,
   initialDirectory,
   moving = false,
-}: Props) {
+}: FileProps) {
   const [name, setName] = useState(seed.name);
   const [directory, setDirectory] = useState<ProjectDirectoryHandle | null>(
     initialDirectory ?? null,

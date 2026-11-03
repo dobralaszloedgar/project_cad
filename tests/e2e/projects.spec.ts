@@ -27,6 +27,9 @@ test("projects create, rename, search, star, duplicate and reopen independent hi
     .getByRole("button", { name: "Templates", exact: true })
     .click();
   await page
+    .getByRole("textbox", { name: "Search templates" })
+    .fill("Simple heating");
+  await page
     .getByRole("dialog", { name: "Start from a template" })
     .getByRole("button", { name: /Simple heating/ })
     .click();

@@ -49,13 +49,17 @@ export function componentFlows(
 }
 
 export function withComponentFlows(
-  stream: Pick<Stream, "temperature" | "pressure" | "vaporFraction">,
+  stream: Pick<
+    Stream,
+    "temperature" | "pressure" | "vaporFraction" | "propertyModel"
+  >,
   values: Record<string, number>,
   ids: readonly string[],
 ): Stream {
   return {
     temperature: stream.temperature,
     pressure: stream.pressure,
+    ...(stream.propertyModel ? { propertyModel: stream.propertyModel } : {}),
     ...(stream.vaporFraction === undefined
       ? {}
       : { vaporFraction: stream.vaporFraction }),

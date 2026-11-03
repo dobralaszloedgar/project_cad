@@ -4,7 +4,7 @@
 
 "use client";
 import type { Unit } from "@/domain/schema";
-import type { ThermoSettings } from "@/domain/thermo/registry";
+import { modelInfo, type ThermoSettings } from "@/domain/thermo/registry";
 import { thermoContext } from "@/domain/thermo/catalog";
 import {
   defaultDistillation,
@@ -54,6 +54,9 @@ export function DistillationSetup({
   return (
     <section className="equipment-section">
       <h3>Column calculation</h3>
+      <p className="equipment-model-badge">
+        {modelInfo(settings.modelId).label}
+      </p>
       <label>
         Method
         <select

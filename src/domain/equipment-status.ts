@@ -11,6 +11,7 @@ import {
 import type { Result } from "./solver";
 import { defaultThermo } from "./thermo/registry";
 import { thermoContext } from "./thermo/catalog";
+import { unitThermoSettings } from "./thermo/flowsheet-models";
 import { feedComposition } from "./stream-composition";
 import { packedBedIssues, reactionIssues } from "./reactions/validation";
 
@@ -218,7 +219,7 @@ export function equipmentSetupIssues(
       section: "settings",
       field: "name",
     });
-  const settings = project.thermo ?? defaultThermo;
+  const settings = unitThermoSettings(project, unit.id);
   if (settings.mixture === "catalog" && !settings.catalog) {
     add("Select components and load property data.", "missing", {
       section: "thermodynamics",
@@ -232,6 +233,33 @@ export function equipmentSetupIssues(
     );
   try {
     const { ids, catalog } = thermoContext(settings);
+    const split = unit.params.componentSplit;
+    if (split) {
+      if (unit.kind !== "Splitter")
+        add("Component recovery is available on splitters only.");
+      if (
+        (unit.params.branchCount ?? 2) > 2 ||
+        project.edges.some(
+          (edge) =>
+            edge.source === unit.id &&
+            !["out", "out2"].includes(edge.sourcePort),
+        )
+      )
+        add("A component separator requires exactly two outlets.");
+      if (
+        Object.keys(split.recoveries).some(
+          (id) => !new Set<string>(ids).has(id),
+        )
+      )
+        add("Component recoveries refer to a removed component.");
+      for (const id of ids)
+        if (split.recoveries[id] === undefined)
+          add(
+            `Specify outlet 1 recovery for ${catalog.get(id).name}.`,
+            "missing",
+            { section: "settings", field: `componentSplit.recoveries.${id}` },
+          );
+    }
     if (unit.kind === "Feed") feedComposition(unit.params, ids);
     if (unit.kind === "PBR") {
       const config = unit.params.packedBed;

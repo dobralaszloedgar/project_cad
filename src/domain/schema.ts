@@ -7,6 +7,7 @@ import { thermoSchema } from "./thermo/registry";
 import { nameStreams } from "./stream-names";
 import { compositionSchema, packedBedSchema } from "./reactions/schema";
 import { distillationSchema } from "./equipment/distillation-schema";
+import { componentSplitSchema } from "./equipment/component-split-schema";
 import {
   junctionBranchCount,
   mixerInlets,
@@ -42,6 +43,7 @@ export const paramsSchema = z
     composition: compositionSchema.optional(),
     packedBed: packedBedSchema.optional(),
     distillation: distillationSchema.optional(),
+    componentSplit: componentSplitSchema.optional(),
     residenceTime: z.number().min(0).max(1000).default(10),
     reactorMode: z
       .enum(["residence-time", "catalyst-weight"])

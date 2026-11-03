@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { type Project } from "@/domain/schema";
-import { type Result, simulate } from "@/domain/solver";
+import { type Result, simulate, resultModelIds } from "@/domain/solver";
 import { type Revision, diff } from "@/lib/revisions";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
 import { buildResultsReport } from "@/lib/results-report";
@@ -168,7 +168,12 @@ export default function Results({
                       ).name
                     }{" "}
                     →{" "}
-                    {modelInfo((project.thermo ?? defaultThermo).modelId).name}
+                    {(result
+                      ? resultModelIds(result)
+                      : [(project.thermo ?? defaultThermo).modelId]
+                    )
+                      .map((id) => modelInfo(id).name)
+                      .join(" + ")}
                   </p>
                 )}
                 <p>

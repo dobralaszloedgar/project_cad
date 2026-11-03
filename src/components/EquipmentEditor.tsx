@@ -26,8 +26,14 @@ import {
   splitterOutlets,
 } from "@/domain/material-ports";
 import { flow, type Result, type Stream } from "@/domain/solver";
-import { defaultThermo, type ThermoSettings } from "@/domain/thermo/registry";
+import {
+  defaultThermo,
+  modelInfo,
+  type ThermoSettings,
+} from "@/domain/thermo/registry";
 import { componentNames, thermoContext } from "@/domain/thermo/catalog";
+import { unitThermoSettings } from "@/domain/thermo/flowsheet-models";
+import { ComponentSplitSetup } from "./ComponentSplitSetup";
 import { catalogChoices } from "@/lib/chemical-catalog";
 import { EquipmentModelNotes, CatalystProfile } from "./EquipmentModelNotes";
 import "./equipment-setup.css";
@@ -116,6 +122,13 @@ function streamRows(display: ReturnType<typeof useUnitSystem>): {
       value: (_stream, properties) => properties?.phase ?? "—",
     },
     {
+      label: "Branch property model",
+      value: (stream) =>
+        stream.propertyModel
+          ? modelInfo(stream.propertyModel).label
+          : "Project default",
+    },
+    {
       label: "Vapor fraction",
       value: (_stream, properties) =>
         properties?.vaporFraction?.toFixed(5) ?? "Undefined",
@@ -146,7 +159,9 @@ function Connections({
 }) {
   const connected = connectedUnitPorts(unit, project.edges);
   const unitPorts = visiblePorts(unit, connected);
-  const junction = unit.kind === "Mixer" || unit.kind === "Splitter";
+  const junction =
+    unit.kind === "Mixer" ||
+    (unit.kind === "Splitter" && !unit.params.componentSplit);
   const count = junctionBranchCount(unit, connected);
   const missing = [
     ...(unit.kind === "Mixer"
@@ -416,7 +431,7 @@ export default function EquipmentEditor({
   editingComponents: boolean;
   onEditingComponentsChange: (open: boolean) => void;
 }) {
-  const settings = project.thermo ?? defaultThermo;
+  const settings = unitThermoSettings(project, unit.id);
   const context = thermoContext(settings);
   const [params, setParams] = useState(() => setupParams(unit, context.ids));
   const branchCount = junctionBranchCount(
@@ -870,6 +885,13 @@ export default function EquipmentEditor({
               </>
             )}
             {unit.kind === "Splitter" && (
+              <ComponentSplitSetup
+                params={params}
+                settings={settings}
+                onChange={setParams}
+              />
+            )}
+            {unit.kind === "Splitter" && !params.componentSplit && (
               <Section title="Outlet split">
                 <p className="equipment-help">
                   Each outlet keeps the inlet composition, temperature and

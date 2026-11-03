@@ -119,10 +119,12 @@ test("a mobile browser without folder access can browse the dashboard without a 
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const dialog = await startNewProject(page, "Mobile study");
-  await expect(dialog).toContainText("Use desktop Chrome or Edge");
+  await expect(dialog).toContainText(
+    "This browser. Your project saves automatically",
+  );
   await expect(
-    dialog.getByRole("button", { name: "Continue", exact: true }),
-  ).toBeDisabled();
+    dialog.getByRole("button", { name: "Create project", exact: true }),
+  ).toBeEnabled();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

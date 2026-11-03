@@ -13,6 +13,68 @@ import { packedBedIssues } from "../src/domain/reactions/validation";
 import reference from "./fixtures/reaction-templates-reference.json" with { type: "json" };
 
 describe("published PBR templates", () => {
+  it.each([
+    {
+      temperature: 493.15,
+      pressure: 1500000,
+      fractions: [0.15, 0.08, 0.72, 0, 0, 0.05],
+      rates: [
+        0.0003008611863270284, 0.00007066404978459036, 0.00022198216073129868,
+      ],
+    },
+    {
+      temperature: 503.15,
+      pressure: 1500000,
+      fractions: [0.1, 0.08, 0.7, 0.02, 0.05, 0.05],
+      rates: [
+        -0.00004922623898090955, -0.0004261599484396762, -0.0011586716920549327,
+      ],
+    },
+    {
+      temperature: 518.15,
+      pressure: 1800000,
+      fractions: [0.12, 0.08, 0.65, 0.04, 0.06, 0.05],
+      rates: [
+        -0.000669044663750454, -0.002297177904024844, -0.0067970849108139235,
+      ],
+    },
+  ])(
+    "Graaf rate laws match independent Python evaluation at $temperature K",
+    (state) => {
+      // Scalar evaluation of the published three-law model, independently of the
+      // expression parser and parameter normalization. Includes reverse rates.
+      const project = loadTemplate("pbr-methanol-network")!;
+      const ids = [
+        "630-08-0",
+        "124-38-9",
+        "1333-74-0",
+        "7732-18-5",
+        "67-56-1",
+        "7440-37-1",
+      ];
+      const flows = Object.fromEntries(
+        ids.map((id, i) => [id, state.fractions[i]]),
+      );
+      const chemicals = project.thermo!.catalog!.chemicals;
+      project.units[1].params.packedBed!.reactions.forEach(
+        (reaction, index) => {
+          const rate = compileRateLaw(
+            reaction.rateLaw!,
+            chemicals,
+            true,
+          )({
+            temperature: state.temperature,
+            pressure: state.pressure,
+            flows,
+            volumetricFlow:
+              (8.31446261815324 * state.temperature) / state.pressure,
+          });
+          expect(Math.abs(rate / state.rates[index] - 1)).toBeLessThan(1e-11);
+        },
+      );
+    },
+  );
+
   it.each(reference.rateCases)(
     "matches independently evaluated $template rates at $temperature K",
     (state) => {

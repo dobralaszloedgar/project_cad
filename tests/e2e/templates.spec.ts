@@ -7,6 +7,78 @@ import { templates, templateSpecification } from "../../src/domain/templates";
 import { componentNames } from "../../src/domain/thermo/catalog";
 import { simulate } from "../../src/domain/solver";
 import { folderText, installFolderPicker } from "./folder-fixture";
+import { submitNewProject } from "./project-create-fixture";
+
+test.use({ actionTimeout: 20000 });
+
+test("the 21-equipment methanol plant retains both MESH towers, branch models and hydraulic profiles after reload", async ({
+  page,
+}, info) => {
+  test.setTimeout(180000);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/chemicals**", (route) => route.abort());
+  await page.goto("/?example=methanol-recycle-plant");
+  await page
+    .getByRole("button", { name: "Run simulation", exact: true })
+    .click();
+  await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
+  await page
+    .getByRole("button", { name: "Close Results", exact: true })
+    .click();
+  await page.screenshot({
+    path: info.outputPath("methanol-mesh-flowsheet.png"),
+  });
+  for (const [id, trays] of [
+    ["D-701", 16],
+    ["D-702", 20],
+  ] as const) {
+    await page.locator(`.react-flow__node[data-id="${id}"] .unit-tag`).click();
+    await page.getByRole("button", { name: "Properties", exact: true }).click();
+    await expect(page.getByLabel("Column calculation method")).toHaveValue(
+      "mesh",
+    );
+    await expect(page.locator(".equipment-model-badge")).toContainText(
+      "Raoult’s law",
+    );
+    await page.getByRole("tab", { name: "Results", exact: true }).click();
+    await expect(
+      page
+        .getByRole("table", { name: "MESH stage profile", exact: true })
+        .locator("tbody tr"),
+    ).toHaveCount(trays + 2);
+    await expect(
+      page
+        .getByRole("table", { name: "Tray hydraulics profile", exact: true })
+        .locator("tbody tr"),
+    ).toHaveCount(trays);
+    await page.screenshot({ path: info.outputPath(`${id}-mesh-results.png`) });
+    await page.keyboard.press("Escape");
+  }
+  await page.locator('.react-flow__node[data-id="S-703"] .unit-tag').click();
+  await page.getByRole("button", { name: "Properties", exact: true }).click();
+  await expect(page.getByLabel("Split basis", { exact: true })).toHaveValue(
+    "component",
+  );
+  await expect(
+    page.getByLabel("Outlet 2 property model", { exact: true }),
+  ).toHaveValue("ideal-solution");
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await page.getByRole("button", { name: "3D schematic", exact: true }).click();
+  await expect(page.getByLabel("Interactive 3D equipment model")).toBeVisible({
+    timeout: 30000,
+  });
+  const hydraulics = page.getByLabel("3D tray hydraulics");
+  for (const id of ["D-701", "D-702"]) {
+    await page.getByLabel("Inspect 3D equipment").selectOption(id);
+    await expect(hydraulics).not.toContainText("No current hydraulic result");
+    await expect(hydraulics).toContainText("Trays: 0 flooding · 0 weeping");
+  }
+  await page.screenshot({ path: info.outputPath("methanol-mesh-3d.png") });
+  expect(errors).toEqual([]);
+});
 
 async function openTemplates(page: Page) {
   await page
@@ -19,10 +91,63 @@ async function openTemplates(page: Page) {
   return page.getByRole("dialog", { name: "Start from a template" });
 }
 
+test("template sections, search and full flow previews work on desktop and mobile", async ({
+  page,
+}, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/workspace");
+  const dialog = await openTemplates(page);
+  await expect(dialog.locator("summary")).toHaveCount(5);
+  await page.screenshot({ path: info.outputPath("templates-overview.png") });
+  const columns = dialog
+    .locator("summary")
+    .filter({ hasText: "Distillation & hydraulics" });
+  await columns.click();
+  const flooding = dialog.locator('[data-template-id="distillation-flooding"]');
+  await expect(flooding).toBeVisible();
+  await expect(
+    flooding.locator('[data-column-equipment="condenser"]'),
+  ).toHaveCount(1);
+  await expect(
+    flooding.locator('[data-column-equipment="reboiler"]'),
+  ).toHaveCount(1);
+  await columns.focus();
+  await page.keyboard.press("Enter");
+  await expect(flooding).not.toBeVisible();
+  await dialog
+    .getByRole("textbox", { name: "Search templates" })
+    .fill("weeping");
+  await expect(dialog.locator(".template-option")).toHaveCount(1);
+  await expect(dialog.locator(".template-option")).toContainText(
+    "Weeping column",
+  );
+  await page.screenshot({ path: info.outputPath("templates-column.png") });
+  await dialog
+    .getByRole("textbox", { name: "Search templates" })
+    .fill("no-such-process");
+  await expect(dialog.getByRole("status")).toContainText("No templates match");
+  await dialog.getByRole("button", { name: "Clear template search" }).click();
+  for (const width of [390, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await dialog.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    const plant = dialog.locator('[data-template-id="methanol-recycle-plant"]');
+    await plant.scrollIntoViewIfNeeded();
+    await expect(plant.locator(".preview-unit")).toHaveCount(21);
+    await expect(plant.locator(".preview-pipes > path")).toHaveCount(21);
+    await page.screenshot({ path: info.outputPath(`templates-${width}.png`) });
+  }
+  expect(errors).toEqual([]);
+});
+
 test("every offered template loads its specifications and runs without a chemical lookup", async ({
   page,
 }, info) => {
-  test.setTimeout(180000);
+  test.setTimeout(300000);
   await installFolderPicker(page);
   await page.route("**/api/chemicals**", (route) => route.abort());
   await page.goto("/workspace");
@@ -44,12 +169,28 @@ test("every offered template loads its specifications and runs without a chemica
       "Synthetic",
     );
     await expect(dialog.locator(".template-list")).toContainText(
-      "PBR · Water–gas shift",
+      "Water–gas shift",
     );
     const option = dialog.locator(".template-option").filter({
       has: page.getByText(template.name, { exact: true }),
     });
-    await expect(option).toContainText(templateSpecification(project));
+    const section = option.locator("xpath=ancestor::details");
+    if (
+      !(await section.evaluate(
+        (element) => (element as HTMLDetailsElement).open,
+      ))
+    )
+      await section.locator("summary").click();
+    await expect(option).toHaveAttribute(
+      "title",
+      templateSpecification(project),
+    );
+    await expect(option.locator(".preview-unit")).toHaveCount(
+      project.units.length,
+    );
+    await expect(option.locator(".preview-pipes > path")).toHaveCount(
+      project.edges.length,
+    );
     if (template.id === "solution")
       await page.screenshot({ path: info.outputPath("templates-desktop.png") });
     await option.click();
@@ -58,14 +199,7 @@ test("every offered template loads its specifications and runs without a chemica
       name: "Create project",
       exact: true,
     });
-    const chooseFolder = create.getByRole("button", {
-      name: "Choose folder",
-      exact: true,
-    });
-    if (await chooseFolder.count()) await chooseFolder.click();
-    await create
-      .getByRole("button", { name: "Create project", exact: true })
-      .click();
+    await submitNewProject(page);
     await expect(create).not.toBeVisible();
     await expect(page.locator(".project-heading h1")).toHaveText(project.name);
     await expect(
@@ -74,9 +208,13 @@ test("every offered template loads its specifications and runs without a chemica
     await page.getByRole("button", { name: "Run simulation" }).click();
     await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
     const names = componentNames(project.thermo!);
+    await page
+      .getByRole("group", { name: "Result data", exact: true })
+      .getByRole("button", { name: "Composition", exact: true })
+      .click();
     await expect(
       page.getByRole("columnheader", {
-        name: `${names[0]} fraction`,
+        name: `${names[0]} mole fraction`,
         exact: true,
       }),
     ).toBeVisible();
@@ -149,7 +287,7 @@ test("every offered template loads its specifications and runs without a chemica
       ).toHaveValue("1");
       await expect(
         page.getByLabel("Mole fraction Toluene", { exact: true }),
-      ).toHaveText("0");
+      ).toHaveValue("0");
       await page.keyboard.press("Escape");
     }
   }
@@ -181,18 +319,18 @@ test("creating a folder project preserves the template chemicals, model and sepa
     .click();
   await page
     .getByRole("dialog", { name: "Start from a template" })
+    .locator("summary")
+    .filter({ hasText: "Flash separations" })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Start from a template" })
     .getByRole("button", { name: /Raoult’s law separation/ })
     .click();
   const create = page.getByRole("dialog", {
     name: "Create project",
     exact: true,
   });
-  await create
-    .getByRole("button", { name: "Choose folder", exact: true })
-    .click();
-  await create
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await submitNewProject(page);
   await expect(create).not.toBeVisible();
   const expected = templates
     .find((template) => template.id === "solution")!
@@ -217,8 +355,15 @@ test("direct template links use the real-chemical recipe", async ({ page }) => {
   ).toHaveAttribute("title", "Components");
   await page.getByRole("button", { name: "Run simulation" }).click();
   await expect(page.locator(".diagnostics h3")).toHaveText("Converged");
+  await page
+    .getByRole("group", { name: "Result data", exact: true })
+    .getByRole("button", { name: "Composition", exact: true })
+    .click();
   await expect(
-    page.getByRole("columnheader", { name: "Benzene fraction", exact: true }),
+    page.getByRole("columnheader", {
+      name: "Benzene mole fraction",
+      exact: true,
+    }),
   ).toBeVisible();
 });
 

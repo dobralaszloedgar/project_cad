@@ -152,6 +152,7 @@ const resultSchema: z.ZodType<Result> = resultObject({
       temperature: z.number(),
       pressure: z.number(),
       vaporFraction: z.number().optional(),
+      propertyModel: z.enum(modelIds).optional(),
     }),
   ),
   equipment: z.record(

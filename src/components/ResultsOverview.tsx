@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import type { Project } from "@/domain/schema";
-import type { Result } from "@/domain/solver";
+import { resultModelIds, type Result } from "@/domain/solver";
 import { componentNames, mixtureName } from "@/domain/thermo/catalog";
 import { defaultThermo, modelInfo } from "@/domain/thermo/registry";
 import { formatReportCell, type ResultsReport } from "@/lib/results-report";
@@ -415,7 +415,11 @@ export default function ResultsOverview({
           )}
           <div className="results-model">
             <span>THERMODYNAMIC MODEL</span>
-            <strong>{modelInfo(result.provenance.modelId).name}</strong>
+            <strong>
+              {resultModelIds(result)
+                .map((id) => modelInfo(id).name)
+                .join(" + ")}
+            </strong>
             <small>Version {result.provenance.modelVersion}</small>
           </div>
         </aside>

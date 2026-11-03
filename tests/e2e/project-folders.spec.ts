@@ -428,13 +428,13 @@ test("denied access and failed writes preserve recovery until an explicit retry 
   expect(await folderText(page, "Recovery study")).toBe(original);
   await folderControls(page, { grant: "granted" });
   await reconnect.click();
-  await expect
-    .poll(
-      async () =>
-        JSON.parse(await folderText(page, "Recovery study")).workspace.project
-          .units.length,
-    )
-    .toBe(1);
+  // Reacquire the File while the browser atomically replaces its contents.
+  await expect(async () => {
+    expect(
+      JSON.parse(await folderText(page, "Recovery study")).workspace.project
+        .units,
+    ).toHaveLength(1);
+  }).toPass({ timeout: 5000 });
   await expect(page.locator(".save-status")).toContainText(/^Saved/i);
   const beforeFailure = await folderText(page, "Recovery study");
   await folderControls(page, { "write-failure": "yes" });
@@ -458,7 +458,7 @@ test("denied access and failed writes preserve recovery until an explicit retry 
   await expect(page.locator(".save-status")).toContainText(/^Saved/i);
 });
 
-test("unsupported browsers explain folder access and preserve existing projects", async ({
+test("browsers without folder access can create projects and preserve existing ones", async ({
   page,
 }) => {
   await installFolderPicker(page, true);
@@ -470,13 +470,19 @@ test("unsupported browsers explain folder access and preserve existing projects"
   const dialog = await createDialog(page, "Unsupported study");
   await expect(dialog).toContainText(/Chrome|Edge/);
   await expect(
-    dialog.getByRole("button", { name: "Continue", exact: true }),
-  ).toBeDisabled();
-  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    dialog.getByRole("button", { name: "Create project", exact: true }),
+  ).toBeEnabled();
+  await submitNewProject(page);
+  await expect(page.locator(".project-heading h1")).toHaveText(
+    "Unsupported study",
+  );
+  await expect(page.locator(".save-status")).toHaveText("Saved on this device");
+  await library(page);
   await page
-    .locator(".project-card")
-    .first()
-    .getByRole("button", { name: /^Open / })
+    .getByRole("button", {
+      name: "Open Heated reactor with recycle",
+      exact: true,
+    })
     .dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(6);
 });

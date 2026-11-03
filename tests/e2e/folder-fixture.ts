@@ -9,6 +9,13 @@ import type { Page } from "@playwright/test";
 export async function installFolderPicker(page: Page, unsupported = false) {
   await page.addInitScript(
     ({ unsupported }) => {
+      if (unsupported) {
+        Object.defineProperty(window, "showDirectoryPicker", {
+          configurable: true,
+          value: undefined,
+        });
+        return;
+      }
       const handlePrototype = FileSystemHandle.prototype;
       const queryPermission = Reflect.get(
         handlePrototype,

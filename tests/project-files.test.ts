@@ -1533,6 +1533,28 @@ describe("project documents and legacy storage", () => {
     ).toEqual(legacy);
   });
 
+  it("creates independent browser projects with persistent history and no folder binding", async () => {
+    const first = await storage.createBrowserProject(workspace());
+    const second = await storage.createBrowserProject(first.workspace);
+    expect(second.id).not.toBe(first.id);
+    expect(second.workspace).toEqual(first.workspace);
+    expect(await storage.getProjectFolderInfo(second.id)).toBeNull();
+    expect(await storage.loadActiveWorkspace()).toEqual({
+      projectId: second.id,
+      workspace: second.workspace,
+    });
+    const edited = structuredClone(second.workspace);
+    edited.project.name = "Edited browser copy";
+    await storage.saveWorkspace(edited, second.id);
+    expect((await storage.loadSavedProject(first.id)).workspace).toEqual(
+      first.workspace,
+    );
+    expect((await storage.loadSavedProject(second.id)).workspace).toEqual(
+      edited,
+    );
+    expect(await readdir(temporary)).toEqual([]);
+  });
+
   it("handles a canceled chooser without creating or listing anything", async () => {
     const chooser = vi
       .fn()

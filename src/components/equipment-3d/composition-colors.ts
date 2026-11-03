@@ -149,6 +149,7 @@ export function projectCompositionColors(
     let changed = false;
     for (const unit of project.units) {
       if (!["Heater", "Cooler", "Splitter"].includes(unit.kind)) continue;
+      if (unit.params.componentSplit) continue;
       const incoming = project.edges.filter((edge) => edge.target === unit.id);
       if (incoming.length !== 1) continue;
       const input = values.get(incoming[0].id);

@@ -271,3 +271,48 @@ test("changing the destination keeps existing files and remembers the new folder
   await expect(next).toContainText("Other projects/Next study.pcad");
   expect(await pickerCount(page)).toBe("2");
 });
+
+test("a picked folder is remembered when project creation fails and retry keeps the destination", async ({
+  page,
+}) => {
+  await installFolderPicker(page);
+  await page.goto("/workspace?home=1");
+  // Occupied destination: creating a project must fail without overwriting it.
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const folder = await root.getDirectoryHandle("Laptop projects", {
+      create: true,
+    });
+    const file = await folder.getFileHandle("Existing.pcad", { create: true });
+    const writer = await file.createWritable();
+    await writer.write("Keep this file");
+    await writer.close();
+    // Selecting with mode: readwrite already grants access. Creation must not
+    // issue another prompt after the native chooser consumes the activation.
+    Object.defineProperty(FileSystemHandle.prototype, "requestPermission", {
+      configurable: true,
+      value: async () => {
+        throw new DOMException("No activation after picker", "SecurityError");
+      },
+    });
+  });
+  await startNewProject(page, "Existing");
+  await submitNewProject(page, false);
+  const dialog = page.getByRole("dialog", {
+    name: "Create project",
+    exact: true,
+  });
+  await expect(dialog.getByRole("alert")).toContainText("already exists");
+  await expect(dialog).toContainText("Laptop projects/Existing.pcad");
+  expect(await folderText(page, "Existing")).toBe("Keep this file");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.reload();
+  const retry = await startNewProject(page, "Retry study");
+  await expect(retry).toContainText("Laptop projects/Retry study.pcad");
+  await submitNewProject(page);
+  await expect(page.locator(".save-status")).toContainText("Retry study.pcad");
+  expect(
+    JSON.parse(await folderText(page, "Retry study")).workspace.project.name,
+  ).toBe("Retry study");
+  expect(await pickerCount(page)).toBe("1");
+});

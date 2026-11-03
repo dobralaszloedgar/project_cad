@@ -12,6 +12,7 @@ import { plantTemplate } from "./plant-templates";
 import type { Project } from "./schema";
 import type { ModelId } from "./thermo/registry";
 import { defaultDistillation } from "./equipment/distillation-schema";
+import { defaultTrayHydraulics } from "./equipment/tray-hydraulics-schema";
 
 /** Reuse connected layouts, with real property data and re-specified conditions.
  * Synthetic reaction benchmarks remain separate from the template catalog. */
@@ -105,6 +106,28 @@ export function aqueousFlashTemplate(): Project {
   project.units[1].name = "Ethanol–water flash separator";
   project.units[2].name = "Ethanol-rich vapor";
   project.units[3].name = "Water-rich liquid";
+  return project;
+}
+
+export function hydraulicColumnTemplate(
+  state: "normal" | "flooding" | "weeping",
+): Project {
+  const project = aromaticColumnTemplate("mesh");
+  project.name = `Benzene–toluene column · ${state}`;
+  project.units[1].params.distillation!.hydraulics = {
+    ...defaultTrayHydraulics(),
+    diameter: { normal: 1.2, flooding: 0.7, weeping: 2 }[state],
+    liquidDensity: 800,
+    surfaceTension: 0.02,
+  };
+  return project;
+}
+
+export function partialCondenserTemplate(): Project {
+  const project = aromaticColumnTemplate("mesh");
+  project.name = "Benzene–toluene partial condenser";
+  project.units[1].params.distillation!.condenserType = "partial";
+  project.units[2].name = "Benzene-rich vapor distillate";
   return project;
 }
 

@@ -3,7 +3,7 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import type { Project } from "../domain/schema";
-import { flow, type Result } from "../domain/solver";
+import { flow, resultModelIds, type Result } from "../domain/solver";
 import { componentFlows } from "../domain/stream-composition";
 import { componentNames, mixtureName } from "../domain/thermo/catalog";
 import { defaultThermo, modelInfo } from "../domain/thermo/registry";
@@ -180,7 +180,12 @@ export function buildResultsReport(
       headers: ["Property", "Value"],
       rows: [
         ["Status", status],
-        ["Thermodynamic model", modelInfo(result.provenance.modelId).name],
+        [
+          "Thermodynamic model",
+          resultModelIds(result)
+            .map((id) => modelInfo(id).name)
+            .join(" + "),
+        ],
         ["Model version", result.provenance.modelVersion],
         ["Data version", result.provenance.dataVersion],
         ["Kernel hash", result.provenance.kernelHash],

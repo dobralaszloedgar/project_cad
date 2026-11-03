@@ -275,7 +275,26 @@ export function EquipmentModelNotes({
             </ul>
           </>
         ))}
-      {unit.kind === "Splitter" && (
+      {unit.kind === "Splitter" && unit.params.componentSplit && (
+        <>
+          <Equation>{String.raw`F_{i,1}=r_i F_{i,\mathrm{in}},\quad F_{i,2}=(1-r_i)F_{i,\mathrm{in}}`}</Equation>
+          <ul>
+            <li>
+              Component recoveries and outlet conditions are specified; no flash
+              equilibrium or gas solubility prediction.
+            </li>
+            <li>
+              Duty includes the outlet cooling and phase change, using a common
+              gas enthalpy reference.
+            </li>
+            <li>
+              Each outlet retains its selected property model downstream.
+              Pressure can only decrease.
+            </li>
+          </ul>
+        </>
+      )}
+      {unit.kind === "Splitter" && !unit.params.componentSplit && (
         <>
           <Equation>{String.raw`F_{i,j} = f_j F_{i,\mathrm{in}},\quad \sum_j f_j = 1`}</Equation>
           <ul>

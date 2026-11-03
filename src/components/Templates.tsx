@@ -3,32 +3,29 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 "use client";
-import { ArrowRight, Plus } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, ChevronDown, Plus, Search, X } from "lucide-react";
 import Dialog from "./Dialog";
-import { type Project } from "@/domain/schema";
-import { templates, templateSpecification } from "@/domain/templates";
-import { EquipmentIcon } from "./EquipmentIcon";
-const examples = templates.map((template) => ({
-  ...template,
-  project: template.create(),
-}));
-function TemplateDiagram({ project }: { project: Project }) {
-  return (
-    <div className="template-diagram" aria-hidden="true">
-      {project.units
-        .filter(
-          (n) => n.kind !== "Product" || n.id === project.units.at(-1)?.id,
-        )
-        .slice(0, 5)
-        .map((n, i) => (
-          <span key={n.id}>
-            {i > 0 ? <ArrowRight size={16} /> : null}
-            <EquipmentIcon kind={n.kind} size={36} />
-          </span>
-        ))}
-    </div>
-  );
-}
+import {
+  templates,
+  templateSections,
+  templateSpecification,
+  type TemplateSection,
+} from "@/domain/templates";
+import FlowsheetPreview from "./FlowsheetPreview";
+
+const examples = templates.map((template) => {
+  const project = template.create();
+  const specification = templateSpecification(project);
+  return {
+    ...template,
+    project,
+    specification,
+    search:
+      `${template.name} ${template.description} ${template.tag} ${specification}`.toLowerCase(),
+  };
+});
+
 export default function Templates({
   onLoad,
   onClose,
@@ -36,44 +33,123 @@ export default function Templates({
   onLoad: (id: string) => void;
   onClose: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<
+    Partial<Record<TemplateSection, boolean>>
+  >({ plants: true });
+  const [searchCollapsed, setSearchCollapsed] = useState<
+    Partial<Record<TemplateSection, boolean>>
+  >({});
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = examples.filter((template) =>
+    terms.every((term) => template.search.includes(term)),
+  );
   return (
     <Dialog
       title="Start from a template"
       onClose={onClose}
       className="templates-dialog"
     >
-      <p className="dialog-intro">
-        Ready to run with real chemicals: components, property models,
-        reactions, kinetics, separations and operating conditions are already
-        specified.
-      </p>
+      <div className="template-toolbar">
+        <p>Choose a process. Everything is ready to run.</p>
+        <label className="template-search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            aria-label="Search templates"
+            placeholder="Search templates…"
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSearchCollapsed({});
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Clear template search"
+              onClick={() => setQuery("")}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </label>
+      </div>
       <div className="template-list">
-        {examples.map((t) => (
-          <button
-            key={t.id}
-            className="template-option"
-            onClick={() => onLoad(t.id)}
-          >
-            <TemplateDiagram project={t.project} />
-            <span className="template-copy">
-              <strong>{t.name}</strong>
-              <span>{t.description}</span>
-              <small>{templateSpecification(t.project)}</small>
-              <small>
-                {t.project.units.length} equipment · {t.project.edges.length}{" "}
-                streams
-              </small>
-            </span>
-            <ArrowRight size={18} />
-          </button>
-        ))}
+        {templateSections.map((section) => {
+          const items = matches.filter(
+            (template) => template.section === section.id,
+          );
+          if (!items.length) return null;
+          return (
+            <details
+              key={section.id}
+              className="template-section"
+              open={
+                terms.length > 0
+                  ? !searchCollapsed[section.id]
+                  : !!expanded[section.id]
+              }
+            >
+              <summary
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (terms.length)
+                    setSearchCollapsed((current) => ({
+                      ...current,
+                      [section.id]: !current[section.id],
+                    }));
+                  else
+                    setExpanded((current) => ({
+                      ...current,
+                      [section.id]: !current[section.id],
+                    }));
+                }}
+              >
+                <span>{section.name}</span>
+                <span className="template-section-count">{items.length}</span>
+                <ChevronDown size={16} aria-hidden="true" />
+              </summary>
+              <div className="template-section-items">
+                {items.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className={`template-option ${template.project.units.length > 12 ? "template-option-plant" : ""}`}
+                    data-template-id={template.id}
+                    onClick={() => onLoad(template.id)}
+                    title={template.specification}
+                  >
+                    <span className="template-diagram">
+                      <FlowsheetPreview project={template.project} />
+                    </span>
+                    <span className="template-copy">
+                      <strong>{template.name}</strong>
+                      <span>{template.description}</span>
+                      <small className="template-tag">{template.tag}</small>
+                      <small>
+                        {template.project.units.length} equipment ·{" "}
+                        {template.project.edges.length} streams
+                      </small>
+                    </span>
+                    <ArrowRight size={17} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </details>
+          );
+        })}
+        {!matches.length && (
+          <p className="template-empty" role="status">
+            No templates match “{query}”. Try a chemical or process name.
+          </p>
+        )}
       </div>
       <div className="template-bottom">
         <span>
-          Every template includes its chemical property data. PBR source links,
-          catalyst details and kinetic limits are in reactor setup.
+          {templates.length} examples · Editable flowsheets & rate laws
         </span>
-        <button className="btn" onClick={() => onLoad("empty")}>
+        <button type="button" className="btn" onClick={() => onLoad("empty")}>
           <Plus size={15} /> Blank flowsheet
         </button>
       </div>

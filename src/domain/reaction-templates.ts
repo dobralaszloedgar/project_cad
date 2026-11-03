@@ -253,3 +253,100 @@ export function methanolSynthesisTemplate(): Project {
     [methanol, shift],
   );
 }
+
+/** Three coupled Graaf pathways, kept separate from the two-law VBF model. */
+export function methanolNetworkTemplate(): Project {
+  const temperature = 503.15;
+  const parameter = (symbol: string, a: number, energy: number) => ({
+    symbol,
+    value: referenceValue(a * Math.exp(-energy / (R * temperature))),
+    activationEnergy: energy,
+    referenceTemperature: temperature,
+  });
+  const adsorption = [
+    parameter("KCO", 2.16e-5, -46800),
+    parameter("KCO2", 7.05e-7, -61700),
+    parameter("KW", 6.37e-9, -84000),
+  ];
+  const denominator =
+    "((1 + KCO * pCO + KCO2 * pCO2) * (sqrt(pH2) + KW * pH2O))";
+  const species = { pCO: CO, pCO2: CO2, pH2: H2, pH2O: WATER, pMeOH: METHANOL };
+  const source = {
+    citation:
+      "Graaf et al. (1988); implementation in Terreni et al. (2020), ChemEngineering 4, 62",
+    url: "https://doi.org/10.3390/chemengineering4040062",
+    locator: "Equations 12–17 and Table 2; Graaf A3B2C3 kinetics",
+    catalyst: "Cu/ZnO/Al₂O₃",
+    temperatureRange: [483.15, 518.15],
+    pressureRange: [1500000, 5000000],
+    rateBasis:
+      "Reaction extent in mol/(kg-cat·s), partial pressures in bar; ideal-gas fugacity approximation.",
+    notes:
+      "Three reversible pathways: CO hydrogenation, reverse water–gas shift, and CO₂ hydrogenation. Positive H₂ is required. Isothermal gas-phase example at 503.15 K and 15 bar; no transport resistance or deactivation.",
+  };
+  const reaction = (
+    id: string,
+    name: string,
+    basisComponentId: string,
+    coefficients: Record<string, number>,
+    expression: string,
+    a: number,
+    energy: number,
+  ) =>
+    reactionSchema.parse({
+      id,
+      name,
+      basisComponentId,
+      stoichiometry: Object.entries(coefficients).map(
+        ([componentId, coefficient]) => ({ componentId, coefficient }),
+      ),
+      rateLaw: pressureLaw(species, "bar", `${expression} / ${denominator}`, [
+        parameter("kf", a, energy),
+        ...adsorption,
+      ]),
+      kineticsSource: source,
+    });
+  return reactorProject(
+    "Methanol · three reaction pathways",
+    temperature,
+    1500000,
+    {
+      [CO2]: 0.08,
+      [H2]: 0.72,
+      [CO]: 0.15,
+      [WATER]: 0,
+      [METHANOL]: 0,
+      [ARGON]: 0.05,
+    },
+    0.5,
+    [
+      reaction(
+        "co-methanol",
+        "CO hydrogenation",
+        CO,
+        { [CO]: -1, [H2]: -2, [METHANOL]: 1 },
+        "kf * KCO * (pCO * pH2^1.5 - pMeOH / (sqrt(pH2) * 10^(5139 / T - 12.621)))",
+        4.89e7,
+        113000,
+      ),
+      reaction(
+        "rwgs",
+        "Reverse water–gas shift",
+        CO2,
+        { [CO2]: -1, [H2]: -1, [CO]: 1, [WATER]: 1 },
+        "kf * KCO2 * (pCO2 * pH2 - pH2O * pCO / 10^(-2073 / T + 2.029))",
+        9.64e11,
+        152900,
+      ),
+      reaction(
+        "co2-methanol",
+        "CO₂ hydrogenation",
+        CO2,
+        { [CO2]: -1, [H2]: -3, [METHANOL]: 1, [WATER]: 1 },
+        "kf * KCO2 * (pCO2 * pH2^1.5 - pMeOH * pH2O / (pH2^1.5 * 10^(3066 / T - 10.592)))",
+        1.09e5,
+        87500,
+      ),
+    ],
+  );
+}

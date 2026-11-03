@@ -17,7 +17,12 @@ import {
   provenance,
   type Properties,
 } from "./thermo";
-import { defaultThermo, type ThermoSettings } from "./thermo/registry";
+import {
+  defaultThermo,
+  modelIds,
+  type ModelId,
+  type ThermoSettings,
+} from "./thermo/registry";
 import { thermoContext } from "./thermo/catalog";
 import { integratePackedBed, type BedPoint } from "./equipment/packed-bed";
 import { solvePackedBed, type PackedBedResult } from "./reactions/packed-bed";
@@ -52,6 +57,8 @@ export interface Stream {
   pressure: number;
   // Preserves a PH-resolved phase amount, including pure-component saturation.
   vaporFraction?: number;
+  // A specified recovery separator can start a branch with another property model.
+  propertyModel?: ModelId;
 }
 export interface EquipmentResult {
   duty: number;
@@ -77,6 +84,14 @@ export interface Result {
   warnings: string[];
   tearId?: string;
 }
+export const resultModelIds = (result: Result): ModelId[] => [
+  ...new Set([
+    result.provenance.modelId,
+    ...Object.values(result.streams).flatMap((stream) =>
+      stream.propertyModel ? [stream.propertyModel] : [],
+    ),
+  ]),
+];
 /** Preserve the failing unit even when the underlying kernel only returns prose. */
 export class EquipmentSimulationError extends Error {
   constructor(
@@ -103,7 +118,8 @@ function validateStream(s: Stream) {
     s.b < 0 ||
     s.temperature < 250 ||
     s.temperature > 800 ||
-    s.pressure <= 0
+    s.pressure <= 0 ||
+    (s.propertyModel !== undefined && !modelIds.includes(s.propertyModel))
   )
     throw new Error(
       "Nonphysical stream: require nonnegative finite flows, 250–800 K and positive pressure.",
@@ -114,6 +130,7 @@ export function streamProperties(
   settings: ThermoSettings = defaultThermo,
 ): Properties {
   validateStream(s);
+  if (s.propertyModel) settings = { ...settings, modelId: s.propertyModel };
   if (flow(s) === 0)
     return {
       temperature: s.temperature,
@@ -187,6 +204,18 @@ export function operate(
   outputPorts?: readonly string[],
 ): { outputs: Stream[]; result: EquipmentResult } {
   unit = unitSchema.parse(unit);
+  const projectModel = settings.modelId;
+  const inletModels = new Set(
+    inputs
+      .filter((s) => flow(s) > 0)
+      .map((s) => s.propertyModel ?? projectModel),
+  );
+  if (inletModels.size > 1)
+    throw new Error(
+      `${unit.name}: inlet property models differ; use a specified component separator to establish a common outlet model before mixing.`,
+    );
+  const inletModel = inletModels.values().next().value;
+  if (inletModel) settings = { ...settings, modelId: inletModel };
   if (unit.missingInputs?.length)
     throw new Error(`Specify ${unit.missingInputs[0]} before calculating.`);
   const p = unit.params;
@@ -387,6 +416,54 @@ export function operate(
       break;
     }
     case "Splitter": {
+      const split = p.componentSplit;
+      if (split) {
+        if (
+          outputPorts?.some((port) => port !== "out" && port !== "out2") ||
+          (p.branchCount ?? 2) !== 2
+        )
+          throw new Error(
+            "A component separator requires exactly two outlets.",
+          );
+        if (
+          Object.keys(split.recoveries).some(
+            (id) => !new Set<string>(ids).has(id),
+          )
+        )
+          throw new Error("Component recoveries refer to a removed component.");
+        const values = componentFlows(mixed, ids);
+        for (const id of ids)
+          if (values[id] > 0 && split.recoveries[id] === undefined)
+            throw new Error(
+              `Specify outlet 1 recovery for ${context.catalog.get(id).name}.`,
+            );
+        outputs = split.outlets.map((outlet, index) => {
+          if (outlet.pressure > mixed.pressure)
+            throw new Error(
+              "A component separator cannot raise outlet pressure above its inlet.",
+            );
+          const output = withComponentFlows(
+            {
+              temperature: outlet.temperature,
+              pressure: outlet.pressure,
+              propertyModel: outlet.modelId,
+            },
+            Object.fromEntries(
+              ids.map((id) => {
+                const recovered = values[id] * (split.recoveries[id] ?? 0);
+                return [id, index === 0 ? recovered : values[id] - recovered];
+              }),
+            ),
+            ids,
+          );
+          streamProperties(output, settings);
+          return output;
+        });
+        result.duty =
+          outputs.reduce((sum, s) => sum + enthalpy(s, settings), 0) -
+          enthalpy(mixed, settings);
+        break;
+      }
       const fractions = splitterFractions(p, outputPorts);
       const totalFraction = fractions.reduce((sum, value) => sum + value, 0);
       outputs = fractions.map((fraction) =>
@@ -506,6 +583,11 @@ export function operate(
       break;
     }
   }
+  if (settings.modelId !== projectModel)
+    outputs = outputs.map((stream) => ({
+      ...stream,
+      propertyModel: stream.propertyModel ?? settings.modelId,
+    }));
   outputs.forEach(validateStream);
   return { outputs, result };
 }
@@ -567,10 +649,22 @@ export function simulate(
     tolerance <= 0
   )
     throw new Error("Invalid solver controls.");
-  for (let iteration = 0; iteration < (tear ? maxIterations : 1); iteration++) {
-    streams = {};
-    equipment = {};
-    for (const n of sorted) {
+  // Iterate only equipment that can affect the tear. Downstream columns can
+  // have fixed product draws that are infeasible at the initial zero recycle.
+  const recycleUnits = new Set<string>();
+  if (tear) {
+    const upstream = (id: string) => {
+      if (recycleUnits.has(id)) return;
+      recycleUnits.add(id);
+      for (const edge of project.edges.filter(
+        (e) => e.target === id && e.id !== tear.id,
+      ))
+        upstream(edge.source);
+    };
+    upstream(tear.source);
+  }
+  const evaluateUnits = (units: Unit[]) => {
+    for (const n of units) {
       const incoming = project.edges
         .filter((e) => e.target === n.id)
         .map((e) => (e.id === tear?.id ? guess : streams[e.id]));
@@ -590,6 +684,12 @@ export function simulate(
       for (const e of outgoing)
         streams[e.id] = op.outputs[portIndex(e.sourcePort)];
     }
+  };
+  const iterated = tear ? sorted.filter((n) => recycleUnits.has(n.id)) : sorted;
+  for (let iteration = 0; iteration < (tear ? maxIterations : 1); iteration++) {
+    streams = {};
+    equipment = {};
+    evaluateUnits(iterated);
     if (!tear) break;
     const actual = streams[tear.id];
     const residual = Math.max(
@@ -611,6 +711,7 @@ export function simulate(
     }
     guess = actual;
   }
+  if (tear) evaluateUnits(sorted.filter((n) => !recycleUnits.has(n.id)));
   const feeds = project.units
     .filter((n) => n.kind === "Feed")
     .map((n) => operate(n, [], settings).outputs[0]);
@@ -665,9 +766,17 @@ export function simulate(
     result.warnings.push(
       "Coupled isothermal gas reactions with user-specified kinetics and prescribed pressure drop. No transport resistance, phase equilibrium, catalyst deactivation or mechanical design. Constant-flow mode neglects gas expansion.",
     );
-  if (project.units.some((n) => n.kind === "Splitter"))
+  if (
+    project.units.some((n) => n.kind === "Splitter" && !n.params.componentSplit)
+  )
     result.warnings.push(
       "A splitter divides all components in the same proportions; it does not selectively separate chemicals.",
+    );
+  if (
+    project.units.some((n) => n.kind === "Splitter" && n.params.componentSplit)
+  )
+    result.warnings.push(
+      "Component separators use specified recoveries and outlet states, not predicted flash equilibrium or gas solubility. Duty includes the specified cooling and phase change; outlet branches retain their selected property model.",
     );
   for (const eq of Object.values(equipment)) {
     if (eq.distillation) result.warnings.push(...eq.distillation.warnings);

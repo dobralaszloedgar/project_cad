@@ -681,6 +681,23 @@ async function fileLocation(
   };
 }
 
+/** Browsers without a native folder picker still get independent saved projects. */
+export async function createBrowserProject(
+  value: Workspace,
+): Promise<SavedProject> {
+  const workspace = validateWorkspace(value);
+  const now = new Date().toISOString();
+  const entry: SavedProject = {
+    id: crypto.randomUUID(),
+    workspace,
+    createdAt: now,
+    updatedAt: now,
+    starred: false,
+  };
+  await cacheProject(entry, undefined, true);
+  return entry;
+}
+
 /** Named documents need no wrapper directory. Keep legacy creation for imports/tests. */
 export async function createProjectFile(
   directory: ProjectDirectoryHandle,

@@ -148,8 +148,8 @@ test("large plant templates are editable application projects", async ({
   page.on("pageerror", (error) => errors.push(error.message));
   await start(page);
   for (const [name, count, trays] of [
-    ["Three-stage benzene–toluene recovery", 21, 8],
-    ["Four-stage benzene–toluene recovery", 35, 14],
+    ["Three-stage aromatic recovery", 21, 8],
+    ["Four-stage recovery plant", 35, 14],
   ] as const) {
     await template(page, name);
     await view(page, "3D schematic");

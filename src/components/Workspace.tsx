@@ -78,6 +78,7 @@ import {
   saveWorkspaceRecovery,
   loadActiveWorkspace,
   createProjectFile,
+  createBrowserProject,
   moveProjectFile,
   scanProjectLibrary,
   connectProjectRoot,
@@ -1063,7 +1064,10 @@ export default function Workspace({
     setShowProjects(false);
     resetEditor();
   }
-  async function createProject(name: string, parent: ProjectDirectoryHandle) {
+  async function createProject(
+    name: string,
+    parent: ProjectDirectoryHandle | null,
+  ) {
     if (projectBusy || !createDraft)
       throw new Error(
         "Another project action is in progress. Please try again.",
@@ -1093,12 +1097,16 @@ export default function Workspace({
                 ),
               ],
       };
-      const entry = await createProjectFile(parent, name, workspace);
+      const entry = parent
+        ? await createProjectFile(parent, name, workspace)
+        : await createBrowserProject(workspace);
       // A saved file is still a success if remembering its location fails.
-      const remembered = await setDefaultProjectDirectory(parent).then(
-        () => true,
-        () => false,
-      );
+      const remembered =
+        !parent ||
+        (await setDefaultProjectDirectory(parent).then(
+          () => true,
+          () => false,
+        ));
       await activateProject(entry);
       const notices = [];
       if (!savedToFile)
