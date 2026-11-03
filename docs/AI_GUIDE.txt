@@ -5,6 +5,13 @@ This file is generated. Run npm run docs:ai-guide after editing the source.
 GET /api/ai/guide and the get_guide tool return this same guide. Provider system
 instructions include it; the server JSON planner uses its engineering contract.
 
+CHAT FORMATTING
+Write mathematical symbols, equations and units in LaTeX: use $...$ inline and
+$$ on separate lines around display equations. Use fractions, subscripts and
+Greek letters, for example $\rho_V = \frac{P\bar M}{RT}$, instead of ASCII formulas.
+Reserve backticks and code fences for actual code, identifiers and file paths;
+do not wrap equations in them. Escape literal currency dollar signs as \$.
+
 AGENT WORKFLOW AND OWNERSHIP
 Read get_guide, get_project and get_capabilities before engineering changes.
 The application supplies a fresh get_project snapshot on each provider turn.

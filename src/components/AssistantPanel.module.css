@@ -490,6 +490,8 @@
   margin: 0;
 }
 .response {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 17px;
   font-size: 13px;
   line-height: 1.75;
@@ -523,6 +525,30 @@
 }
 .response pre code {
   font-size: inherit;
+}
+.mathInline,
+.mathDisplay {
+  overflow-wrap: normal;
+}
+.mathDisplay {
+  display: block;
+  max-width: 100%;
+  margin: 12px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.mathDisplay :global(.katex-display) {
+  margin: 0;
+}
+.mathDisplay :global(.katex-display > .katex) {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+}
+.response :global(.katex-error) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .response :is(h1, h2, h3, h4) {
   font-size: 14px;

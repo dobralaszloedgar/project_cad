@@ -62,6 +62,29 @@ export async function installAssistant(
       );
       return;
     }
+    if (input.prompt.includes("equation response")) {
+      input.text(
+        String.raw`## Sieve rating
+
+- Vapor density: $\rho_V = \frac{P\bar M}{RT}$, ideal gas per tray.
+- Surface tension: \(\sigma = 0.072\,\mathrm{N/m}\).
+
+$$
+F_{LV} = \frac{\dot L}{\dot V}\sqrt{\frac{\rho_V}{\rho_L}}
+$$
+
+\[
+\frac{\Delta P_{\mathrm{tray}}}{\rho_L g} = h_{\mathrm{dry}} + h_{\mathrm{clear}} + h_{\mathrm{surface}} + h_{\mathrm{weir}} + h_{\mathrm{downcomer}} + h_{\mathrm{backup}} + h_{\mathrm{outlet}} + h_{\mathrm{inlet}}
+\]
+
+| Check | Criterion |
+| --- | --- |
+| Flooding | $U_a/U_f \ge 1$ |
+
+Code stays literal: ` + "`rhoV = P*Mavg/(R*T)`",
+      );
+      return;
+    }
     if (input.prompt.includes("hold")) {
       input.text("Waiting for this test request.");
       await new Promise<void>((_, reject) => {

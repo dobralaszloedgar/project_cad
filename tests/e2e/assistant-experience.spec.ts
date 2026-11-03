@@ -69,7 +69,7 @@ test("tabs preserve individual drafts and saved history supports search, rename 
   ).toBeVisible();
   await page.getByRole("button", { name: "Restore Process review" }).click();
   await page.getByLabel("Show archived").uncheck();
-  await page.getByRole("button", { name: /^Process review codex/ }).click();
+  await page.getByRole("button", { name: /^Process review / }).click();
   await expect(page.getByRole("log")).toContainText("6 equipment");
 });
 
@@ -198,6 +198,58 @@ test("background queues keep their own chat and activity opens the running conve
   await expect(page.getByRole("log")).toContainText("hold second conversation");
   await page.getByRole("button", { name: "Stop response" }).click();
   await expect(page.getByRole("log")).toContainText("Stopped by you.");
+});
+
+test("chat typesets LaTeX and contains long equations in narrow panels and saved history", async ({
+  page,
+}) => {
+  await send(page, "read equation response");
+  const response = page.locator(".chat-response").last();
+  await expect(response.locator(".katex")).toHaveCount(5);
+  await expect(response.locator(".katex-display")).toHaveCount(2);
+  await expect(response.locator(".katex-error")).toHaveCount(0);
+  await expect(response.locator("code")).toHaveText("rhoV = P*Mavg/(R*T)");
+  await expect(response.getByRole("table")).toBeVisible();
+  await expect(response.locator(".mfrac").first()).toBeVisible();
+  await expect(response.locator(".katex").first()).toHaveCSS(
+    "font-family",
+    /KaTeX_Main/,
+  );
+  await expect(
+    page.getByRole("button", { name: "Send message", exact: true }),
+  ).toBeVisible();
+  await settled(page);
+  await page.screenshot({ path: "test-results/assistant-equations.png" });
+
+  await page.setViewportSize({ width: 430, height: 932 });
+  await settled(page);
+  const longEquation = response.locator(".katex-display").last().locator("..");
+  await expect(longEquation).toHaveCSS("overflow-x", "auto");
+  expect(
+    await longEquation.evaluate((el) => el.scrollWidth > el.clientWidth),
+  ).toBe(true);
+  expect(
+    await page
+      .getByRole("log")
+      .evaluate((el) => el.scrollWidth - el.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  await longEquation.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+  expect(await longEquation.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await longEquation.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await page.screenshot({
+    path: "test-results/assistant-equations-narrow.png",
+  });
+
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
+  await expect(page.locator(".chat-response .katex")).toHaveCount(5);
+  await expect(page.locator(".chat-response .katex-error")).toHaveCount(0);
 });
 
 test("dictation appends to its own draft and stops when changing tabs", async ({
