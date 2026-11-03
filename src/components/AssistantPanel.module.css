@@ -612,20 +612,54 @@
   color: var(--assistant-brand);
   text-decoration: underline;
 }
-.response table {
-  display: block;
-  overflow: auto;
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-.response :is(td, th) {
-  padding: 6px 9px;
+.responseTable {
+  max-width: 100%;
+  margin: 14px 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
   border: 1px solid var(--assistant-line);
-  text-align: left;
+  border-radius: 9px;
+  background: var(--assistant-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--assistant-line) transparent;
 }
-.response th {
+.responseTable:focus-visible {
+  outline: 2px solid var(--assistant-brand);
+  outline-offset: 3px;
+}
+.responseTable table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: normal;
+}
+.responseTable :is(td, th) {
+  min-width: 6rem;
+  max-width: 24rem;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--assistant-line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+.responseTable :is(td, th) + :is(td, th) {
+  border-left: 1px solid var(--assistant-line);
+}
+.responseTable th {
   background: var(--assistant-field);
+  font-weight: 600;
+}
+.responseTable td {
+  font-variant-numeric: tabular-nums;
+}
+.responseTable tbody tr:nth-child(even) {
+  background: var(--assistant-field);
+}
+.responseTable tr:last-child td {
+  border-bottom: 0;
 }
 .response blockquote {
   border-left: 2px solid var(--assistant-line);

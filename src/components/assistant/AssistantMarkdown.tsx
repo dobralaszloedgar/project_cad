@@ -19,6 +19,26 @@ const components: Components = {
     </a>
   ),
   img: ({ alt }) => <span>{alt || "Image"}</span>,
+  table: ({ children }) => (
+    <div
+      className={styles.responseTable}
+      role="region"
+      aria-label="Table"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        // Let the browser scroll the table without panning the canvas behind it.
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+          event.stopPropagation();
+      }}
+    >
+      <table>{children}</table>
+    </div>
+  ),
+  th: ({ children, style }) => (
+    <th scope="col" style={style}>
+      {children}
+    </th>
+  ),
   code: ({ className, children }) => {
     const classes = className?.split(/\s+/) ?? [];
     if (!classes.includes("language-math"))

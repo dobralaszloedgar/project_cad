@@ -4,6 +4,7 @@
 
 import { test, expect, type Page } from "./test";
 import { installAssistant, connectAssistant } from "./assistant-fixture";
+import { THEME_STORAGE_KEY } from "../../src/lib/theme";
 let dispose: (() => Promise<void>) | undefined;
 const errors = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
@@ -250,6 +251,101 @@ test("chat typesets LaTeX and contains long equations in narrow panels and saved
     .click();
   await expect(page.locator(".chat-response .katex")).toHaveCount(5);
   await expect(page.locator(".chat-response .katex-error")).toHaveCount(0);
+});
+
+test("chat tables keep aligned columns and scroll within narrow panels and saved history", async ({
+  page,
+}, info) => {
+  await send(page, "read table response");
+  const response = page.locator(".chat-response").last();
+  const table = response.getByRole("table");
+  const scroll = response.getByRole("region", { name: "Table", exact: true });
+  await expect(table.getByRole("columnheader")).toHaveCount(5);
+  await expect(table.getByRole("row")).toHaveCount(5);
+  await expect(
+    table.getByRole("cell", { name: "Vapor | liquid" }),
+  ).toBeVisible();
+  await expect(table.locator("strong")).toHaveText("Heater");
+  await expect(table.locator("code")).toHaveText("D-201");
+  await expect(table.locator(".katex")).toHaveCount(1);
+  await expect(
+    table.locator("tbody tr").last().locator("td").nth(2),
+  ).toBeEmpty();
+  for (const [column, alignment] of [
+    "left",
+    "center",
+    "right",
+    "right",
+    "left",
+  ].entries()) {
+    await expect(table.getByRole("columnheader").nth(column)).toHaveCSS(
+      "text-align",
+      alignment,
+    );
+    await expect(
+      table.locator("tbody tr").first().locator("td").nth(column),
+    ).toHaveCSS("text-align", alignment);
+  }
+  await expect(
+    page.getByRole("button", { name: "Send message", exact: true }),
+  ).toBeVisible();
+  await settled(page);
+  const widths = await table.evaluate((el) => ({
+    table: el.getBoundingClientRect().width,
+    container: el.parentElement!.clientWidth,
+  }));
+  expect(Math.abs(widths.table - widths.container)).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: info.outputPath("chat-table-desktop.png") });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await settled(page);
+  expect(await scroll.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(
+    true,
+  );
+  expect(
+    await page
+      .getByRole("log")
+      .evaluate((el) => el.scrollWidth - el.clientWidth),
+  ).toBeLessThanOrEqual(1);
+  await scroll.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(() => scroll.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(0);
+  await scroll.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+  const notes = table.getByRole("columnheader", { name: "Notes", exact: true });
+  const rightEdge = await notes.evaluate((el) => ({
+    cell: el.getBoundingClientRect().right,
+    container: el.closest('[role="region"]')!.getBoundingClientRect().right,
+  }));
+  expect(rightEdge.cell).toBeLessThanOrEqual(rightEdge.container);
+  await scroll.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await page.screenshot({ path: info.outputPath("chat-table-narrow.png") });
+
+  await page.evaluate(
+    (key) => localStorage.setItem(key, "dark"),
+    THEME_STORAGE_KEY,
+  );
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Open assistant", exact: true })
+    .click();
+  await expect(table.getByRole("row")).toHaveCount(5);
+  await expect(table.getByRole("cell", { name: "450.25" })).toHaveCSS(
+    "text-align",
+    "right",
+  );
+  await expect(scroll).toBeVisible();
+  await expect(page.locator("main.workspace")).toHaveAttribute(
+    "data-theme",
+    "dark",
+  );
+  await settled(page);
+  await page.screenshot({ path: info.outputPath("chat-table-dark.png") });
 });
 
 test("dictation appends to its own draft and stops when changing tabs", async ({
