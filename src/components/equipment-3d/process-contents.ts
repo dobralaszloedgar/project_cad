@@ -29,8 +29,10 @@ import {
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { Kind } from "@/domain/schema";
 import { liquidMaterial, vaporMaterial } from "./fluid-materials";
+import { createHeaterSteam } from "./heater-steam";
 import { OperationClock, pipeCurve, type Point } from "./operation";
 import { flowColors, type SystemExample } from "./system-geometry";
+import { extraMixerInlets, splitterBranches } from "./junction-layout";
 import { blendColors, UNKNOWN_COMPOSITION_COLOR } from "./color-blending";
 import type { EquipmentCompositionColors } from "./composition-colors";
 import {
@@ -583,6 +585,13 @@ export function createProcessContents(
         0.95,
         composition?.ports.in2 ?? color,
       );
+      for (const { port, point } of extraMixerInlets)
+        c.stream(
+          [point, [point[0], 0.82, point[2]], [point[0], 0.82, 0]],
+          0.024,
+          0.95,
+          composition?.ports[port] ?? color,
+        );
       c.stream(
         [
           [0.73, 1.09, 0],
@@ -602,7 +611,7 @@ export function createProcessContents(
         ],
         0.092,
       );
-      for (const z of [-0.62, 0.62])
+      for (const { port, z } of splitterBranches)
         c.stream(
           [
             [0, 1.1, 0],
@@ -611,7 +620,7 @@ export function createProcessContents(
           ],
           0.078,
           0.95,
-          composition?.ports[z < 0 ? "out" : "out2"] ?? color,
+          composition?.ports[port] ?? color,
         );
       break;
     case "Heater":
@@ -621,6 +630,8 @@ export function createProcessContents(
           [-1.02, 1.14, 0],
         ],
         0.073,
+        0.95,
+        inlet,
       );
       c.stream(
         [
@@ -629,7 +640,7 @@ export function createProcessContents(
         ],
         0.073,
         0.95,
-        composition ? outlet : flowColors.warm,
+        inlet,
       );
       for (let y = -0.32; y <= 0.33; y += 0.16)
         for (let z = -0.32; z <= 0.33; z += 0.16)
@@ -642,17 +653,18 @@ export function createProcessContents(
               0.025,
               0.96,
               inlet,
-              composition ? outlet : flowColors.warm,
             );
-      c.vapor([0, 1.18, 0.05], 1.98, 0.75, 0.11, 0.7);
+      c.group.add(createHeaterSteam(clock));
       c.stream(
         [
-          [0.65, 0.67, 0],
-          [0.65, 0.42, 0],
-          [1.5, 0.42, 0],
+          [-0.65, 0.67, 0],
+          [-0.65, 0.42, 0],
+          [-1.5, 0.42, 0],
         ],
         0.05,
-      );
+        0.65,
+        "#d5dedb",
+      ).name = "heater-condensate";
       break;
     case "Cooler":
       for (const x of [-1.38, 1.38]) {

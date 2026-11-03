@@ -3,6 +3,8 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import type { Connection, Project, Unit } from "@/domain/schema";
+import { separateMixerInlets } from "../../domain/material-ports";
+import { splitterBranches } from "./junction-layout";
 import { plantTemplates } from "../../domain/plant-templates";
 import type { Point } from "./operation";
 import { compactPlantLayout, equipmentFootprint } from "./plant-layout";
@@ -47,8 +49,10 @@ export function modelPort(
   port: Connection["sourcePort"] | Connection["targetPort"],
 ) {
   if (kind === "Mixer" && port === "in2") return "dose";
-  if (kind === "Splitter" && port === "out") return "a";
-  if (kind === "Splitter" && port === "out2") return "b";
+  if (kind === "Splitter")
+    return (
+      splitterBranches.find((branch) => branch.port === port)?.fitting ?? port
+    );
   if (kind === "Distillation" && port === "out") return "top";
   if (kind === "Distillation" && port === "out2") return "bottom";
   return port;
@@ -277,6 +281,7 @@ const layouts = new Map<string, SystemExample>();
  * Retain the same scene across 2D drags and operating-condition edits: those edits
  * do not change physical geometry and must not reroute pipes or reset the camera. */
 export function buildProjectPlant(project: Project): SystemExample {
+  project = separateMixerInlets(project);
   const key = JSON.stringify([
     project.name,
     project.units.map(({ id, kind, name, params }) => [

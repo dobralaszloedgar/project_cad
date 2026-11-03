@@ -4,6 +4,7 @@
 
 import type { Project } from "./schema";
 import { columnDiagramLayout } from "./column-geometry";
+import { separateMixerInlets } from "./material-ports";
 
 type Viewport = { width: number; height: number };
 const columnGap = 240;
@@ -65,6 +66,7 @@ export function arrangeFlowsheet(
   viewport: Viewport = { width: 1440, height: 900 },
 ): Project {
   if (!project.units.length) return project;
+  project = separateMixerInlets(project);
   const width = Math.max(
     240,
     Number.isFinite(viewport.width) ? viewport.width - 100 : 1340,

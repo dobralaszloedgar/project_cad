@@ -7,6 +7,11 @@ import { thermoSchema } from "./thermo/registry";
 import { nameStreams } from "./stream-names";
 import { compositionSchema, packedBedSchema } from "./reactions/schema";
 import { distillationSchema } from "./equipment/distillation-schema";
+import {
+  mixerInlets,
+  separateMixerInlets,
+  splitterOutlets,
+} from "./material-ports";
 export const MAX_PROJECT_REQUEST_BYTES = 4 * 1024 * 1024;
 export const kinds = [
   "Feed",
@@ -45,6 +50,16 @@ export const paramsSchema = z
     thermalMode: z.enum(["temperature", "duty"]).default("temperature"),
     heatDuty: z.number().min(-1e8).max(1e8).default(0),
     recycleFraction: z.number().min(0).max(0.95).default(0.5),
+    splitFractions: z
+      .array(z.number().min(0).max(1))
+      .min(2)
+      .max(4)
+      .refine(
+        (fractions) =>
+          Math.abs(fractions.reduce((sum, value) => sum + value, 0) - 1) < 1e-8,
+        "Outlet fractions must sum to 1.",
+      )
+      .optional(),
     relativeVolatility: z.number().min(1.01).max(20).default(3),
     distillateFraction: z.number().min(0.01).max(0.99).default(0.5),
     trayCount: z.number().int().min(2).max(80).default(8),
@@ -77,8 +92,8 @@ export const edgeSchema = z
     colorIndex: z.number().int().min(0).max(7).optional(),
     source: id,
     target: id,
-    sourcePort: z.enum(["out", "out2"]),
-    targetPort: z.enum(["in", "in2"]),
+    sourcePort: z.enum(splitterOutlets),
+    targetPort: z.enum(mixerInlets),
     color: z.enum(["teal", "blue", "amber"]).default("teal"),
   })
   .strict();
@@ -90,19 +105,30 @@ export const projectSchema = z
     edges: z.array(edgeSchema).max(80).transform(nameStreams),
     thermo: thermoSchema.optional(),
   })
-  .strict();
+  .strict()
+  .transform(separateMixerInlets);
 export type Unit = z.infer<typeof unitSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Connection = z.infer<typeof edgeSchema>;
 export const ports = (kind: Kind) => ({
-  inputs: kind === "Feed" ? [] : kind === "Mixer" ? ["in", "in2"] : ["in"],
+  inputs: kind === "Feed" ? [] : kind === "Mixer" ? [...mixerInlets] : ["in"],
   outputs:
     kind === "Product"
       ? []
-      : kind === "Splitter" || kind === "Distillation"
-        ? ["out", "out2"]
-        : ["out"],
+      : kind === "Splitter"
+        ? [...splitterOutlets]
+        : kind === "Distillation"
+          ? ["out", "out2"]
+          : ["out"],
 });
+export function requiredOutputs(unit: Unit) {
+  return ports(unit.kind).outputs.filter(
+    (_, index) =>
+      unit.kind !== "Splitter" ||
+      index < 2 ||
+      (unit.params.splitFractions?.[index] ?? 0) > 0,
+  );
+}
 export function newUnit(kind: Kind, id: string, x: number, y: number): Unit {
   return unitSchema.parse({
     id,
@@ -140,6 +166,12 @@ export function graphDiagnostics(
   if (new Set(project.edges.map((e) => e.id)).size !== project.edges.length)
     report("Stream IDs must be unique.");
   const used = new Set<string>();
+  for (const unit of project.units)
+    if (
+      unit.kind === "Mixer" &&
+      project.edges.filter((edge) => edge.target === unit.id).length > 4
+    )
+      report(`${unit.name}: connect at most four inlet streams.`, unit.id);
   for (const e of project.edges) {
     const source = units.get(e.source),
       target = units.get(e.target);
@@ -159,11 +191,7 @@ export function graphDiagnostics(
       report(`Stream ${e.id} has incompatible material ports.`, target.id);
     for (const [key, acceptsMultiple] of [
       [`${e.source}:source:${e.sourcePort}`, false],
-      [
-        `${e.target}:target:${e.targetPort}`,
-        target.kind === "Mixer" ||
-          (target.kind === "PBR" && !!target.params.packedBed),
-      ],
+      [`${e.target}:target:${e.targetPort}`, target.kind === "Mixer"],
     ] as const) {
       if (used.has(key) && !acceptsMultiple)
         report(
@@ -210,7 +238,7 @@ export function graphDiagnostics(
           n.id,
           "missing",
         );
-      for (const p of ports(n.kind).outputs)
+      for (const p of requiredOutputs(n))
         if (!used.has(`${n.id}:source:${p}`))
           report(`${n.name}: connect ${p}.`, n.id, "missing", p);
       if (n.kind === "Mixer") {

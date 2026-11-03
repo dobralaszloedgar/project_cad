@@ -277,12 +277,11 @@ export function EquipmentModelNotes({
         ))}
       {unit.kind === "Splitter" && (
         <>
-          <Equation>{String.raw`F_{i,1} = (1-f)F_{i,\mathrm{in}}`}</Equation>
-          <Equation>{String.raw`F_{i,2} = fF_{i,\mathrm{in}}`}</Equation>
+          <Equation>{String.raw`F_{i,j} = f_j F_{i,\mathrm{in}},\quad \sum_j f_j = 1`}</Equation>
           <ul>
             <li>
-              <Equation inline>f</Equation>: outlet 2 fraction for every
-              component.
+              <Equation inline>{String.raw`f_j`}</Equation>: outlet j fraction
+              for every component.
             </li>
             <li>Temperature, pressure and phase preserved; zero duty.</li>
           </ul>

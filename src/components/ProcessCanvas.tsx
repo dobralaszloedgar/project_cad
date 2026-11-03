@@ -66,6 +66,11 @@ import {
 import { equipmentPort, equipmentSize, streamPath } from "./flow-geometry";
 import { diff } from "@/lib/revisions";
 import { availableStreamName } from "@/domain/stream-names";
+import {
+  mixerInlets,
+  portIndex,
+  separateMixerInlets,
+} from "@/domain/material-ports";
 import { streamColor } from "./stream-palette";
 import { inlineStreamLabelPosition } from "./stream-label-placement";
 import {
@@ -188,8 +193,12 @@ const UnitNode = memo(function UnitNode({
           id={id}
           type="target"
           aria-label={`${n.id} inlet ${id}`}
-          title={`${n.id} · ${id === "in2" ? "Secondary inlet" : "Inlet"}`}
-          isConnectable={n.kind === "Mixer" || !data.connected.includes(id)}
+          title={`${n.id} · Inlet ${i + 1}`}
+          isConnectable={
+            n.kind === "Mixer"
+              ? p.inputs.some((port) => !data.connected.includes(port))
+              : !data.connected.includes(id)
+          }
           isConnectableStart={false}
           {...portGeometry(n, false, i)}
           className="material-handle"
@@ -200,10 +209,7 @@ const UnitNode = memo(function UnitNode({
           id={equipmentDropHandle}
           type="target"
           position={Position.Left}
-          isConnectable={
-            n.kind === "Mixer" ||
-            p.inputs.some((id) => !data.connected.includes(id))
-          }
+          isConnectable={p.inputs.some((id) => !data.connected.includes(id))}
           isConnectableStart={false}
           className="equipment-drop-handle"
           aria-label={`${n.id} connect streams to equipment`}
@@ -221,7 +227,7 @@ const UnitNode = memo(function UnitNode({
           id={id}
           type="source"
           aria-label={`${n.id} outlet ${id}`}
-          title={`${n.id} · ${id === "out2" ? "Secondary outlet" : "Outlet"}`}
+          title={`${n.id} · Outlet ${i + 1}`}
           isConnectable={!data.connected.includes(id)}
           isConnectableEnd={false}
           {...portGeometry(n, true, i)}
@@ -384,7 +390,7 @@ interface Props {
 }
 function Inner(props: Props) {
   const {
-    project,
+    project: rawProject,
     selected,
     selection,
     onSelection,
@@ -400,6 +406,7 @@ function Inner(props: Props) {
     statuses,
     onNavigateIssue,
   } = props;
+  const project = useMemo(() => separateMixerInlets(rawProject), [rawProject]);
   const rf = useReactFlow();
   const flowStore = useStoreApi();
   const zoom = useStore((state) => state.transform[2]);
@@ -669,7 +676,7 @@ function Inner(props: Props) {
       const geometry = equipmentPort(
         unit.kind,
         output,
-        port.endsWith("2") ? 1 : 0,
+        portIndex(port),
         unit.params.trayCount,
       );
       // Edges attach to the outer edge of the nine-pixel connection handle.
@@ -752,23 +759,22 @@ function Inner(props: Props) {
     target: string;
     targetHandle?: string | null;
   }): Connection["targetPort"] {
-    if (connection.targetHandle === equipmentDropHandle) {
-      if (
-        !project.units.some(
-          (unit) => unit.id === connection.target && unit.kind === "Mixer",
-        )
+    if (
+      project.units.some(
+        (unit) => unit.id === connection.target && unit.kind === "Mixer",
       )
-        return "in";
-      // Keep persisted port IDs compatible with existing projects and distribute
-      // mixer body drops across both inlet branches, including occupied branches.
-      const incoming = project.edges.filter(
-        (edge) => edge.target === connection.target,
+    ) {
+      const used = new Set(
+        project.edges
+          .filter((edge) => edge.target === connection.target)
+          .map((edge) => edge.targetPort),
       );
-      return incoming.filter((edge) => edge.targetPort === "in").length <=
-        incoming.filter((edge) => edge.targetPort === "in2").length
-        ? "in"
-        : "in2";
+      const requested = connection.targetHandle as Connection["targetPort"];
+      if (mixerInlets.includes(requested) && !used.has(requested))
+        return requested;
+      return mixerInlets.find((port) => !used.has(port)) ?? "in";
     }
+    if (connection.targetHandle === equipmentDropHandle) return "in";
     return connection.targetHandle as Connection["targetPort"];
   }
   const updateSelection = useCallback(

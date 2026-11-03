@@ -5,6 +5,7 @@
 import {
   projectSchema,
   unitSchema,
+  ports,
   validateGraph,
   type Project,
   type Unit,
@@ -30,6 +31,8 @@ import {
   feedComposition,
   withComponentFlows,
 } from "./stream-composition";
+import { portIndex } from "./material-ports";
+import { splitterFractions } from "./splitter";
 // Original synthetic teaching parameters; no claim to fit a real chemical system.
 export const MODEL = {
   cp: 30,
@@ -181,6 +184,7 @@ export function operate(
   unit: Unit,
   inputs: Stream[],
   settings: ThermoSettings = defaultThermo,
+  outputPorts?: readonly string[],
 ): { outputs: Stream[]; result: EquipmentResult } {
   unit = unitSchema.parse(unit);
   if (unit.missingInputs?.length)
@@ -191,12 +195,7 @@ export function operate(
   const fractions = (stream: Stream) =>
     Object.values(componentFlows(stream, ids)).map((n) => n / flow(stream));
   const result: EquipmentResult = { duty: 0, extent: 0 };
-  const maxInlets =
-    unit.kind === "Feed"
-      ? 0
-      : unit.kind === "Mixer" || (unit.kind === "PBR" && p.packedBed)
-        ? Infinity
-        : 1;
+  const maxInlets = ports(unit.kind).inputs.length;
   if (inputs.length > maxInlets)
     throw new Error(`${unit.name}: too many material inlets.`);
   // The exported evaluator uses the same selected-model validity checks as
@@ -387,12 +386,14 @@ export function operate(
       result.duty = enthalpy(outputs[0], settings) - enthalpy(mixed, settings);
       break;
     }
-    case "Splitter":
-      outputs = [
-        scale(mixed, 1 - p.recycleFraction),
-        scale(mixed, p.recycleFraction),
-      ];
+    case "Splitter": {
+      const fractions = splitterFractions(p, outputPorts);
+      const totalFraction = fractions.reduce((sum, value) => sum + value, 0);
+      outputs = fractions.map((fraction) =>
+        scale(mixed, fraction / totalFraction),
+      );
       break;
+    }
     case "Distillation": {
       if (p.distillation) {
         const solved =
@@ -574,14 +575,20 @@ export function simulate(
         .filter((e) => e.target === n.id)
         .map((e) => (e.id === tear?.id ? guess : streams[e.id]));
       let op: ReturnType<typeof operate>;
+      const outgoing = project.edges.filter((edge) => edge.source === n.id);
       try {
-        op = operate(n, incoming, settings);
+        op = operate(
+          n,
+          incoming,
+          settings,
+          outgoing.map((edge) => edge.sourcePort),
+        );
       } catch (error) {
         throw new EquipmentSimulationError(n.id, error);
       }
       equipment[n.id] = op.result;
-      for (const e of project.edges.filter((e) => e.source === n.id))
-        streams[e.id] = op.outputs[e.sourcePort === "out2" ? 1 : 0];
+      for (const e of outgoing)
+        streams[e.id] = op.outputs[portIndex(e.sourcePort)];
     }
     if (!tear) break;
     const actual = streams[tear.id];

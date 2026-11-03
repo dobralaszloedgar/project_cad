@@ -35,6 +35,7 @@ import {
   complexSystems,
 } from "../src/components/equipment-3d/complex-systems";
 import type { Point } from "../src/components/equipment-3d/operation";
+import { fourBranchProject } from "./helpers/four-branch-project";
 
 function checkPlant(project: Project, plant: SystemExample) {
   expect(plant.equipment.map((item) => item.id).sort()).toEqual(
@@ -115,6 +116,26 @@ function checkPlant(project: Project, plant: SystemExample) {
 }
 
 describe("project 3D integration", () => {
+  it("routes four mixer inlets and four splitter outlets to separate physical fittings", () => {
+    const project = fourBranchProject();
+    const plant = buildProjectPlant(project);
+    checkPlant(project, plant);
+    expect(
+      new Set(
+        plant.streams
+          .filter((stream) => stream.to[0] === "M")
+          .map((stream) => stream.points.at(-1)!.join(",")),
+      ).size,
+    ).toBe(4);
+    expect(
+      new Set(
+        plant.streams
+          .filter((stream) => stream.from[0] === "S")
+          .map((stream) => stream.points[0].join(",")),
+      ).size,
+    ).toBe(4);
+    expect(buildProjectPlant(fourBranchProject(true))).toBe(plant);
+  });
   it.each([heatingExample, distillationExample, reactorExample])(
     "connects %s without changing the saved project",
     (factory) => {

@@ -13,7 +13,14 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { ports, type Project, type Unit } from "@/domain/schema";
+import {
+  ports,
+  requiredOutputs,
+  type Project,
+  type Unit,
+} from "@/domain/schema";
+import { splitterFractions } from "@/domain/splitter";
+import { splitterOutlets } from "@/domain/material-ports";
 import { flow, type Result, type Stream } from "@/domain/solver";
 import { defaultThermo, type ThermoSettings } from "@/domain/thermo/registry";
 import { componentNames, thermoContext } from "@/domain/thermo/catalog";
@@ -137,7 +144,7 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
               (edge) => edge.target === unit.id && edge.targetPort === port,
             ),
         )),
-    ...unitPorts.outputs.filter(
+    ...requiredOutputs(unit).filter(
       (port) =>
         !project.edges.some(
           (edge) => edge.source === unit.id && edge.sourcePort === port,
@@ -164,7 +171,12 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
               <div className="equipment-port" key={port} data-setup-port={port}>
                 <span>
                   {label}
-                  {unit.kind === "Mixer" && port === "in2" ? " · optional" : ""}
+                  {(unit.kind === "Mixer" && index > 0) ||
+                  (unit.kind === "Splitter" &&
+                    !incoming &&
+                    !requiredOutputs(unit).includes(port))
+                    ? " · optional"
+                    : ""}
                 </span>
                 {edges.length ? (
                   edges.map((edge) => (
@@ -191,9 +203,13 @@ function Connections({ unit, project }: { unit: Unit; project: Project }) {
             {missing
               .map(
                 (port) =>
-                  ({ in: "the inlet", out: "outlet 1", out2: "outlet 2" })[
-                    port
-                  ] ?? port,
+                  ({
+                    in: "the inlet",
+                    out: "outlet 1",
+                    out2: "outlet 2",
+                    out3: "outlet 3",
+                    out4: "outlet 4",
+                  })[port] ?? port,
               )
               .join(", ")}
             .
@@ -825,25 +841,40 @@ export default function EquipmentEditor({
             {unit.kind === "Splitter" && (
               <Section title="Outlet split">
                 <p className="equipment-help">
-                  Both outlets keep the inlet composition, temperature and
-                  pressure.
+                  Each outlet keeps the inlet composition, temperature and
+                  pressure. Fractions must add up to 1. Set unused outlets to 0.
                 </p>
                 <div className="equipment-field-grid">
-                  <label className="equipment-field">
-                    Primary outlet fraction
-                    <output className="equipment-readonly">
-                      {Number.isFinite(params.recycleFraction)
-                        ? Number((1 - params.recycleFraction).toFixed(8))
-                        : "—"}
-                    </output>
-                  </label>
-                  {field(
-                    "recycleFraction",
-                    "Secondary outlet fraction",
-                    0,
-                    0.95,
-                    "0.05",
-                  )}
+                  {splitterFractions(
+                    params,
+                    project.edges
+                      .filter((edge) => edge.source === unit.id)
+                      .map((edge) => edge.sourcePort),
+                  ).map((fraction, index, fractions) => (
+                    <label
+                      className="equipment-field"
+                      data-setup-field={`splitFractions.${index}`}
+                      key={splitterOutlets[index]}
+                    >
+                      Outlet {index + 1} fraction
+                      <NumberInput
+                        aria-label={`Outlet ${index + 1} fraction`}
+                        required
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={fraction}
+                        onValueChange={(value) =>
+                          setParams({
+                            ...params,
+                            splitFractions: fractions.map((current, i) =>
+                              i === index ? value : current,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
                 </div>
               </Section>
             )}

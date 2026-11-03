@@ -3,6 +3,7 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import { newUnit, type Kind, type Project } from "../../src/domain/schema";
+import { reactionProject } from "../helpers/reactions";
 import { settleCanvas } from "./canvas-fixture";
 import { loadProject } from "./project-fixture";
 import { expect, test, type Locator, type Page } from "./test";
@@ -196,3 +197,87 @@ test("body drops reject self-connections, feeds, and occupied inlets", async ({
   await page.keyboard.press("Control+z");
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 });
+
+for (const mode of ["PBR", "reaction-set PBR", "Distillation"] as const) {
+  test(`${mode} permits one stream per inlet and outlet`, async ({ page }) => {
+    const unit = newUnit(
+      mode === "Distillation" ? "Distillation" : "PBR",
+      "Unit",
+      320,
+      100,
+    );
+    if (mode === "reaction-set PBR")
+      unit.params.packedBed = reactionProject().units[1].params.packedBed;
+    const outputs = mode === "Distillation" ? ["out", "out2"] : ["out"];
+    await loadProject(page, {
+      version: 1,
+      name: `${mode} connection limits`,
+      units: [
+        newUnit("Feed", "Feed", 0, 0),
+        newUnit("Feed", "ExtraFeed", 0, 240),
+        unit,
+        ...outputs.map((port, index) =>
+          newUnit("Product", `Product-${port}`, 640, index * 190),
+        ),
+        newUnit("Product", "ExtraProduct", 640, 380),
+      ],
+      edges: [],
+    });
+    await settleCanvas(page);
+    const target = page.locator('.react-flow__node[data-id="Unit"]');
+    await expect(target.locator(".material-handle.target")).toHaveCount(1);
+    await expect(target.locator(".material-handle.source")).toHaveCount(
+      outputs.length,
+    );
+    await connect(
+      page,
+      page.getByLabel("Feed outlet out", { exact: true }),
+      target,
+    );
+    await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    const inlet = page.getByLabel("Unit inlet in", { exact: true });
+    await expect(inlet).not.toHaveClass(/\bconnectable\b/);
+    await expect(
+      page.getByLabel("Unit connect streams to equipment", { exact: true }),
+    ).not.toHaveClass(/\bconnectable\b/);
+    for (const destination of [target, inlet]) {
+      await connect(
+        page,
+        page.getByLabel("ExtraFeed outlet out", { exact: true }),
+        destination,
+      );
+      await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+    }
+    for (const [index, port] of outputs.entries()) {
+      const outlet = page.getByLabel(`Unit outlet ${port}`, { exact: true });
+      await expect(outlet).toHaveClass(/\bconnectable\b/);
+      await connect(
+        page,
+        outlet,
+        page.locator(`.react-flow__node[data-id="Product-${port}"]`),
+      );
+      await expect(page.locator(".react-flow__edge")).toHaveCount(index + 2);
+      await expect(outlet).not.toHaveClass(/\bconnectable\b/);
+      await connect(
+        page,
+        outlet,
+        page.locator('.react-flow__node[data-id="ExtraProduct"]'),
+      );
+      await expect(page.locator(".react-flow__edge")).toHaveCount(index + 2);
+    }
+    await expect(page.locator(".save-status")).toContainText(
+      "Saved on this device",
+    );
+    await page.reload();
+    await expect(page.locator(".react-flow__edge")).toHaveCount(
+      outputs.length + 1,
+    );
+    await expect(
+      page.getByLabel("Unit inlet in", { exact: true }),
+    ).not.toHaveClass(/\bconnectable\b/);
+    for (const port of outputs)
+      await expect(
+        page.getByLabel(`Unit outlet ${port}`, { exact: true }),
+      ).not.toHaveClass(/\bconnectable\b/);
+  });
+}

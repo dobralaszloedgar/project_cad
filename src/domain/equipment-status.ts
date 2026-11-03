@@ -364,7 +364,7 @@ export function equipmentStatuses(
         .map((issue) => ({
           kind: issue.kind,
           message: issue.port
-            ? `Connect ${issue.port.startsWith("in") ? "inlet" : "outlet"}${issue.port.endsWith("2") ? " 2" : " 1"}.`
+            ? `Connect ${issue.port.startsWith("in") ? "inlet" : "outlet"} ${issue.port.match(/[2-4]$/)?.[0] ?? "1"}.`
             : issue.message
                 .replace(`${unit.name}: `, "")
                 .replace(/^equipment/, "Equipment"),

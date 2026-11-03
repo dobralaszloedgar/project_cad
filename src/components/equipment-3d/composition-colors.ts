@@ -3,6 +3,13 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import type { Connection, Project, Unit } from "../../domain/schema";
+import {
+  mixerInlets,
+  portIndex,
+  separateMixerInlets,
+  splitterOutlets,
+} from "../../domain/material-ports";
+import { splitterFractions } from "../../domain/splitter";
 import { simulate, type Result } from "../../domain/solver";
 import {
   componentFlows,
@@ -110,6 +117,7 @@ export function projectCompositionColors(
   result: Result | null = null,
   paletteId: string = DEFAULT_FLUID_PALETTE,
 ): PlantCompositionColors {
+  project = separateMixerInlets(project);
   const components = componentPalette(project, paletteId);
   const ids = components.map(({ id }) => id);
   const solved = result
@@ -151,9 +159,12 @@ export function projectCompositionColors(
         if (values.has(edge.id) || solved?.[edge.id]) continue;
         const fraction =
           unit.kind === "Splitter"
-            ? edge.sourcePort === "out2"
-              ? unit.params.recycleFraction
-              : 1 - unit.params.recycleFraction
+            ? splitterFractions(
+                unit.params,
+                project.edges
+                  .filter((edge) => edge.source === unit.id)
+                  .map((edge) => edge.sourcePort),
+              )[portIndex(edge.sourcePort)]
             : 1;
         values.set(
           edge.id,
@@ -175,8 +186,8 @@ export function projectCompositionColors(
   const equipment = Object.fromEntries(
     project.units.map((unit) => {
       const ports: EquipmentCompositionColors["ports"] = {};
-      for (const port of ["in", "in2", "out", "out2"] as const) {
-        const incoming = port === "in" || port === "in2";
+      for (const port of [...mixerInlets, ...splitterOutlets]) {
+        const incoming = port.startsWith("in");
         const edges = project.edges.filter((edge) =>
           incoming
             ? edge.target === unit.id && edge.targetPort === port
