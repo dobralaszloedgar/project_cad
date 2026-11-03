@@ -62,6 +62,23 @@ export async function installAssistant(
       );
       return;
     }
+    if (input.prompt.includes("table response")) {
+      input.text(
+        [
+          "## Process conditions",
+          "",
+          "| Equipment | State | Temperature (K) | Pressure (bar) | Notes |",
+          "| :--- | :---: | ---: | ---: | --- |",
+          "| **Heater** | Ready | 450.25 | 2.10 | Confirm the outlet temperature before starting the next calculation. |",
+          "| `D-201` | Check | 350.00 | 1.05 | Keep $U_a/U_f < 1$. |",
+          "| Separator | Ready | 298.15 | 1.00 | Vapor \\| liquid |",
+          "| Mixer | Pending | | 1.00 | Awaiting feed conditions. |",
+          "",
+          "Review these conditions before applying changes.",
+        ].join("\n"),
+      );
+      return;
+    }
     if (input.prompt.includes("equation response")) {
       input.text(
         String.raw`## Sieve rating
