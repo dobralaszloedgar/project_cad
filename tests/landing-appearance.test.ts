@@ -3,17 +3,13 @@
 // See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 import { expect, it } from "vitest";
-import { Group, Mesh, Raycaster, Vector3 } from "three";
-import {
-  addCatalystCores,
-  landingComposition,
-} from "../src/components/landing/landing-appearance";
+import { Mesh } from "three";
+import { landingComposition } from "../src/components/landing/landing-appearance";
 import { makeLandingSystem } from "../src/components/landing/landing-system";
 import { createProcessContents } from "../src/components/equipment-3d/process-contents";
 import { disposeEquipmentModel } from "../src/components/equipment-3d/models";
 import { OperationClock } from "../src/components/equipment-3d/operation";
 import { columnLayout } from "../src/components/equipment-3d/column-layout";
-import { packedBedLayout } from "../src/components/equipment-3d/packed-bed-layout";
 import { MeshPhysicalNodeMaterial } from "three/webgpu";
 
 it("carries distinct column outlet colors through the pipes and product drums", () => {
@@ -54,22 +50,15 @@ it("shows the editor's gradual separation across the landing column trays", () =
   disposeEquipmentModel(contents.group);
 });
 
-it("blocks a view through the center of each catalyst bed", () => {
-  const model = new Group();
-  addCatalystCores(model);
-  model.updateMatrixWorld(true);
-  for (const bed of packedBedLayout.beds) {
-    const ray = new Raycaster(
-      new Vector3(-2, (bed.top + bed.bottom) / 2, 0),
-      new Vector3(1, 0, 0),
-    );
-    const hit = ray.intersectObject(model, true)[0];
-    expect(hit).toBeDefined();
-    expect((hit.object as Mesh).material).toMatchObject({
-      transparent: false,
-      opacity: 1,
-      depthWrite: true,
-    });
-  }
-  disposeEquipmentModel(model);
+it("uses a converged application result for the landing example", async () => {
+  const { landingExample } =
+    await import("../src/components/landing/landing-example");
+  const { simulate } = await import("../src/domain/solver");
+  const { projectCompositionColors } =
+    await import("../src/components/equipment-3d/composition-colors");
+  const calculated = simulate(landingExample.project);
+  expect(calculated.converged).toBe(true);
+  expect(projectCompositionColors(landingExample.project, calculated)).toEqual(
+    landingExample.colors,
+  );
 });

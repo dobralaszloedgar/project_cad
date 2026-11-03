@@ -5,7 +5,6 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { MessageCircle } from "lucide-react";
 import {
   motion,
   useMotionValueEvent,
@@ -14,6 +13,11 @@ import {
 } from "motion/react";
 import DesignChatPanel from "./DesignChatPanel";
 import DemoPointer from "./DemoPointer";
+import {
+  chatTimeline,
+  CHAT_REVEALED,
+  CHAT_SEND,
+} from "./landing-chat-timeline";
 import styles from "./DesignChat.module.css";
 
 export default function DesignChat({
@@ -31,8 +35,39 @@ export default function DesignChat({
     centerY: 0,
   });
   const host = useRef<HTMLDivElement>(null);
+  const [reviewPoint, setReviewPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const frame = chatTimeline(time);
+  const reviewing = time >= CHAT_REVEALED && time < 0.975;
+  useLayoutEffect(() => {
+    if (!reviewing || !host.current) return;
+    const element = host.current;
+    const measure = () => {
+      const button = element.querySelector<HTMLElement>(
+        '[class*="proposal"] button.btn-primary',
+      );
+      if (!button) return;
+      const rect = button.getBoundingClientRect(),
+        frame = element.getBoundingClientRect();
+      const point = {
+        x: rect.left - frame.left + rect.width * 0.65,
+        y: rect.top - frame.top + rect.height * 0.55,
+      };
+      setReviewPoint((previous) =>
+        previous &&
+        Math.abs(previous.x - point.x) < 0.5 &&
+        Math.abs(previous.y - point.y) < 0.5
+          ? previous
+          : point,
+      );
+    };
+    const frame = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(frame);
+  }, [reviewing, time, size.width, size.height]);
   useMotionValueEvent(design, "change", (value) =>
-    setTime(Math.floor(value * 120) / 120),
+    setTime(Math.round(value * 960) / 960),
   );
   useLayoutEffect(() => {
     const element = host.current;
@@ -57,13 +92,13 @@ export default function DesignChat({
   });
   const x = useTransform(
     travel,
-    (v) => size.centerX + (size.width - 22 - size.centerX) * v,
+    (v) => size.centerX + (size.width - 8 - size.centerX) * v,
   );
   const y = useTransform(
     travel,
     (v) =>
       size.centerY +
-      (size.height - 22 - size.centerY) * v -
+      (size.height - 18 - size.centerY) * v -
       14 * Math.sin(v * Math.PI),
   );
   const opacity = useTransform(design, [0, 0.025, 0.22, 0.27], [0, 1, 1, 0]);
@@ -78,7 +113,9 @@ export default function DesignChat({
       className={styles.demo}
       data-design-chat
       data-expanded={open}
-      data-phase={time >= 1 ? "complete" : time >= 0.64 ? "working" : "typing"}
+      data-phase={
+        time >= 1 ? "complete" : time >= CHAT_SEND ? "working" : "typing"
+      }
     >
       <section
         id="landing-assistant"
@@ -90,20 +127,27 @@ export default function DesignChat({
       >
         <DesignChatPanel time={reduced ? 1 : time} />
       </section>
-      <div
-        className={styles.launcher}
-        data-demo-launcher
-        data-open={open}
-        aria-hidden="true"
-      >
-        <MessageCircle size={19} />
-      </div>
       {!reduced && size.width > 0 && time < 0.28 && (
         <motion.div
           className={styles.cursor}
           style={{ x, y, opacity, scale }}
           data-demo-cursor
           aria-hidden="true"
+        >
+          <DemoPointer />
+        </motion.div>
+      )}
+      {!reduced && reviewing && reviewPoint && (
+        <motion.div
+          className={styles.cursor}
+          data-demo-review-cursor
+          aria-hidden
+          style={{
+            x: reviewPoint.x - 50 * (1 - frame.cursorTravel),
+            y: reviewPoint.y - 30 * (1 - frame.cursorTravel),
+            opacity: frame.cursorOpacity,
+            scale: time >= 0.94 && time < 0.95 ? 0.86 : 1,
+          }}
         >
           <DemoPointer />
         </motion.div>

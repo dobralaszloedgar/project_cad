@@ -5,7 +5,8 @@
 import { loadProject } from "./project-fixture";
 import { test, expect } from "./test";
 import { distillationExample, reactorExample } from "../../src/domain/examples";
-import { ports } from "../../src/domain/schema";
+import { visiblePorts } from "../../src/domain/schema";
+import { connectedUnitPorts } from "../../src/domain/material-ports";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/workspace");
@@ -220,7 +221,10 @@ test("material handles match equipment roles and cursor transitions stay native"
 }) => {
   for (const unit of reactorExample().units) {
     const node = page.locator(`.react-flow__node[data-id="${unit.id}"]`);
-    const expected = ports(unit.kind);
+    const expected = visiblePorts(
+      unit,
+      connectedUnitPorts(unit, reactorExample().edges),
+    );
     await expect(node.locator(".material-handle.target")).toHaveCount(
       expected.inputs.length,
     );
@@ -233,21 +237,21 @@ test("material handles match equipment roles and cursor transitions stay native"
   ).toHaveCount(2);
   const pane = page.locator(".react-flow__pane");
   const reactor = page.locator('.react-flow__node[data-id="R-101"]');
-  const box = (await reactor.boundingBox())!;
+  const box = (await reactor.locator(".equipment-symbol").boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(reactor).toHaveCSS("cursor", "grab");
+  await expect(reactor).toHaveCSS("cursor", /(?:^|,\s*)grab$/);
   await page.mouse.down();
   await page.mouse.move(
     box.x + box.width / 2 + 30,
     box.y + box.height / 2 + 30,
     { steps: 8 },
   );
-  await expect(reactor).toHaveCSS("cursor", "grabbing");
+  await expect(reactor).toHaveCSS("cursor", /(?:^|,\s*)grabbing$/);
   await page.mouse.up();
-  await expect(reactor).toHaveCSS("cursor", "grab");
+  await expect(reactor).toHaveCSS("cursor", /(?:^|,\s*)grab$/);
   await expect(pane).toHaveCSS("cursor", "default");
   await page.keyboard.press("p");
-  await expect(pane).toHaveCSS("cursor", "grab");
+  await expect(pane).toHaveCSS("cursor", /(?:^|,\s*)grab$/);
   await page.keyboard.press("v");
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await expect(page.getByLabel("Search equipment")).toHaveCSS("cursor", "text");

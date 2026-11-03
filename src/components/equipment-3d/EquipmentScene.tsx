@@ -33,6 +33,11 @@ import { GraphicsSettings } from "../graphics/GraphicsSettings";
 import { AccelerationHelp } from "../graphics/AccelerationHelp";
 import { RendererRuntime } from "../graphics/RendererRuntime";
 import Plant3DLoading from "../Plant3DLoading";
+import {
+  STUDIO_AMBIENT,
+  STUDIO_LIGHTS,
+  STUDIO_LIGHTFORMERS,
+} from "../graphics/studio-lighting";
 import { StudioEnvironment } from "../graphics/StudioEnvironment";
 import {
   createSceneRenderer,
@@ -638,12 +643,12 @@ function Studio({
         attach="background"
         args={[canvasColor ?? (dark ? "#000000" : "#f4f6f4")]}
       />
-      <ambientLight intensity={0.65} />
+      <ambientLight intensity={STUDIO_AMBIENT} />
       <directionalLight
         ref={keyLight}
-        position={[5, 10, 6]}
-        intensity={2.7}
-        color="#fff8ee"
+        position={STUDIO_LIGHTS[0].position}
+        intensity={STUDIO_LIGHTS[0].intensity}
+        color={STUDIO_LIGHTS[0].color}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -655,32 +660,14 @@ function Studio({
         shadow-camera-far={75}
       />
       <directionalLight
-        position={[-6, 4, -4]}
-        intensity={1.8}
-        color="#dcebf0"
+        position={STUDIO_LIGHTS[1].position}
+        intensity={STUDIO_LIGHTS[1].intensity}
+        color={STUDIO_LIGHTS[1].color}
       />
       <StudioEnvironment resolution={128} intensity={0.8}>
-        <Lightformer
-          position={[-4, 4, 2]}
-          scale={[5, 9, 1]}
-          intensity={3}
-          color="#ffffff"
-          target={[0, 1, 0]}
-        />
-        <Lightformer
-          position={[6, 3, 4]}
-          scale={[3, 7, 1]}
-          intensity={4}
-          color="#e8f3f1"
-          target={[0, 1, 0]}
-        />
-        <Lightformer
-          position={[0, 6, -4]}
-          scale={[9, 4, 1]}
-          intensity={3}
-          color="#fff2dd"
-          target={[0, 0, 0]}
-        />
+        {STUDIO_LIGHTFORMERS.map((light, index) => (
+          <Lightformer key={index} {...light} />
+        ))}
       </StudioEnvironment>
       <group ref={subject}>
         {mode === "inspect" ? (

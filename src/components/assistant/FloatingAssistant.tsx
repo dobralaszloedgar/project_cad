@@ -10,7 +10,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { Check, MessageCircle, Minus, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { useAssistant } from "@/assistant/client";
 import type { Project } from "@/domain/schema";
 import type { Proposal } from "@/assistant/protocol";
@@ -18,6 +18,7 @@ import { isSelectPickerOpen } from "@/lib/keyboard";
 import AssistantPanel from "../AssistantPanel";
 import { useAssistantDock } from "./useAssistantDock";
 import { useAssistantMorph } from "./useAssistantMorph";
+import AssistantToggleIcon from "./AssistantToggleIcon";
 import styles from "../AssistantPanel.module.css";
 
 const hiddenKey = "project-cad.assistant-hidden.v1";
@@ -329,19 +330,17 @@ export default function FloatingAssistant({
               }
             }}
           >
-            {open ? (
-              <Minus size={18} strokeWidth={1.8} />
-            ) : working ? (
-              <span className={styles.workingDots}>
-                <i />
-                <i />
-                <i />
-              </span>
-            ) : unread && run?.status === "completed" ? (
-              <Check size={19} strokeWidth={2} />
-            ) : (
-              <MessageCircle size={18} strokeWidth={1.9} />
-            )}
+            <AssistantToggleIcon>
+              {working ? (
+                <span className={styles.workingDots}>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              ) : unread && run?.status === "completed" ? (
+                <Check size={19} strokeWidth={2} />
+              ) : undefined}
+            </AssistantToggleIcon>
             {!open && (working || unread) ? (
               <svg className={styles.progress} viewBox="0 0 48 48" aria-hidden>
                 <rect

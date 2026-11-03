@@ -17,6 +17,8 @@ export function useStoryPlayback(
   scroll: MotionValue<number>,
   visible: boolean,
   reduced: boolean,
+  external = false,
+  capture = false,
 ) {
   const progress = useMotionValue(0);
   const design = useMotionValue(0);
@@ -24,6 +26,22 @@ export function useStoryPlayback(
   const simulation = useMotionValue(0);
   const state = useRef(initialPlayback());
   useEffect(() => {
+    if (external) return;
+    if (capture) {
+      const api = {
+        set: (value: { p: number; d: number; c: number; s: number }) => {
+          progress.set(value.p);
+          design.set(value.d);
+          construction.set(value.c);
+          simulation.set(value.s);
+        },
+      };
+      const host = window as typeof window & { captureStory?: typeof api };
+      host.captureStory = api;
+      return () => {
+        if (host.captureStory === api) delete host.captureStory;
+      };
+    }
     if (!visible) return;
     let frame = 0,
       previous = 0;
@@ -60,6 +78,16 @@ export function useStoryPlayback(
       cancelAnimationFrame(frame);
       stop();
     };
-  }, [scroll, visible, reduced, progress, design, construction, simulation]);
+  }, [
+    scroll,
+    visible,
+    reduced,
+    progress,
+    design,
+    construction,
+    simulation,
+    external,
+    capture,
+  ]);
   return { progress, design, construction, simulation };
 }

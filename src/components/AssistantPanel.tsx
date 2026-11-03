@@ -102,6 +102,7 @@ export default function AssistantPanel({
   assistant,
   open,
   requestedConversation,
+  presentation,
 }: {
   project: Project;
   folderName: string | null;
@@ -111,6 +112,8 @@ export default function AssistantPanel({
   assistant: AssistantClient;
   open: boolean;
   requestedConversation?: { id: string };
+  /** Read-only authored walkthrough; no connector is created by this view. */
+  presentation?: { prompt: string };
 }) {
   const [tabs, setTabs] = useState<ChatTab[]>(() => [
     blankTab(initialSettings, "draft"),
@@ -179,7 +182,8 @@ export default function AssistantPanel({
     !!provider?.available &&
     !!model &&
     !readingFiles;
-  const hasContent = !!tab.prompt.trim() || !!tab.files.length;
+  const hasContent =
+    !!(presentation?.prompt ?? tab.prompt).trim() || !!tab.files.length;
   const queueCount = tabs.reduce(
     (count, item) => count + (item.paused ? 0 : item.queue.length),
     0,
@@ -222,25 +226,27 @@ export default function AssistantPanel({
     if (requestedConversation) openRequested(requestedConversation.id);
   }, [requestedConversation]);
   useEffect(() => {
-    if (!open) return;
+    if (!open || presentation) return;
     const frame = requestAnimationFrame(() => {
       if (assistant.connected && !history)
         inputRef.current?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [open, assistant.connected, active, history]);
+  }, [open, assistant.connected, active, history, presentation]);
   useEffect(() => {
+    if (presentation) return;
     const element = log.current;
     if (!element) return;
     if (follow.current) element.scrollTop = element.scrollHeight;
-  }, [chat, history]);
+  }, [chat, history, presentation]);
   useEffect(() => {
+    if (presentation) return;
     const element = log.current;
     if (element)
       element.scrollTop =
         scrollPositions.current.get(active) ?? element.scrollHeight;
     follow.current = !scrollPositions.current.has(active);
-  }, [active]);
+  }, [active, presentation]);
   const sendQueued = useEffectEvent(async () => {
     if (queueSending.current || pendingTab.current) return;
     const target = tabs.find((item) => !item.paused && item.queue.length);
@@ -1095,7 +1101,7 @@ export default function AssistantPanel({
                       placeholder="Message Assistant…"
                       rows={1}
                       maxLength={12000}
-                      value={tab.prompt}
+                      value={presentation?.prompt ?? tab.prompt}
                       onChange={(event) => {
                         updateTab(active, (item) => ({
                           ...item,

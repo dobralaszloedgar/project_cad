@@ -1,0 +1,1243 @@
+{
+  "project": {
+    "version": 1,
+    "name": "Reaction, separation & recycle",
+    "units": [
+      {
+        "id": "F-101",
+        "kind": "Feed",
+        "name": "Feed",
+        "position": {
+          "x": 128,
+          "y": 324
+        },
+        "params": {
+          "temperature": 300,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "M-101",
+        "kind": "Mixer",
+        "name": "Blend",
+        "position": {
+          "x": 352,
+          "y": 324
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "branchCount": 2,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "H-101",
+        "kind": "Heater",
+        "name": "Preheat",
+        "position": {
+          "x": 576,
+          "y": 324
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "R-101",
+        "kind": "PBR",
+        "name": "React",
+        "position": {
+          "x": 800,
+          "y": 324
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "catalyst-weight",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "C-101",
+        "kind": "Cooler",
+        "name": "Cool",
+        "position": {
+          "x": 1024,
+          "y": 324
+        },
+        "params": {
+          "temperature": 300,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "D-101",
+        "kind": "Distillation",
+        "name": "Separate",
+        "position": {
+          "x": 1248,
+          "y": 324
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "P-101",
+        "kind": "Product",
+        "name": "Distillate",
+        "position": {
+          "x": 1504,
+          "y": 148
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "S-101",
+        "kind": "Splitter",
+        "name": "Recycle",
+        "position": {
+          "x": 1248,
+          "y": 644
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "branchCount": 2,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      },
+      {
+        "id": "P-102",
+        "kind": "Product",
+        "name": "Product",
+        "position": {
+          "x": 1504,
+          "y": 644
+        },
+        "params": {
+          "temperature": 450,
+          "pressure": 101325,
+          "flow": 10,
+          "fractionA": 1,
+          "residenceTime": 10,
+          "reactorMode": "residence-time",
+          "catalystMass": 10,
+          "catalystRateConstant": 0.01,
+          "thermalMode": "temperature",
+          "heatDuty": 0,
+          "recycleFraction": 0.5,
+          "relativeVolatility": 3,
+          "distillateFraction": 0.5,
+          "trayCount": 8
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "feed-blend",
+        "name": "S01",
+        "colorIndex": 0,
+        "source": "F-101",
+        "target": "M-101",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "blend-heat",
+        "name": "S02",
+        "colorIndex": 1,
+        "source": "M-101",
+        "target": "H-101",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "heat-react",
+        "name": "S03",
+        "colorIndex": 2,
+        "source": "H-101",
+        "target": "R-101",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "react-cool",
+        "name": "S04",
+        "colorIndex": 3,
+        "source": "R-101",
+        "target": "C-101",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "cool-separate",
+        "name": "S05",
+        "colorIndex": 4,
+        "source": "C-101",
+        "target": "D-101",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "distillate",
+        "name": "S06",
+        "colorIndex": 5,
+        "source": "D-101",
+        "target": "P-101",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "bottoms",
+        "name": "S07",
+        "colorIndex": 6,
+        "source": "D-101",
+        "target": "S-101",
+        "sourcePort": "out2",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "product",
+        "name": "S08",
+        "colorIndex": 7,
+        "source": "S-101",
+        "target": "P-102",
+        "sourcePort": "out",
+        "targetPort": "in",
+        "color": "teal"
+      },
+      {
+        "id": "recycle",
+        "name": "Recycle",
+        "colorIndex": 0,
+        "source": "S-101",
+        "target": "M-101",
+        "sourcePort": "out2",
+        "targetPort": "in2",
+        "color": "teal"
+      }
+    ]
+  },
+  "result": {
+    "properties": {
+      "feed-blend": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": 55.50000000000068,
+        "molecularWeight": 0.028,
+        "partialPressures": [
+          101325,
+          0
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          1,
+          0
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "blend-heat": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -1730.1202979853772,
+        "molecularWeight": 0.028000000000000004,
+        "partialPressures": [
+          92278.6011653316,
+          9046.398834668422
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          0.9107189851007312,
+          0.0892810148992689
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "heat-react": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.036925814736431854,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": 2769.879702014623,
+        "molecularWeight": 0.028000000000000004,
+        "partialPressures": [
+          92278.6011653316,
+          9046.398834668422
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 450,
+        "vaporComposition": [
+          0.9107189851007312,
+          0.0892810148992689
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "react-cool": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.036925814736431854,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -578.1326602677391,
+        "molecularWeight": 0.027999999999999997,
+        "partialPressures": [
+          75316.73353491856,
+          26008.266465081437
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 450,
+        "vaporComposition": [
+          0.743318366986613,
+          0.256681633013387
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "cool-separate": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -5078.132660267739,
+        "molecularWeight": 0.027999999999999997,
+        "partialPressures": [
+          75316.73353491856,
+          26008.266465081437
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          0.743318366986613,
+          0.256681633013387
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "distillate": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -3069.2841266195474,
+        "molecularWeight": 0.027999999999999997,
+        "partialPressures": [
+          85494.06241851371,
+          15830.937581486285
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          0.8437607936690226,
+          0.1562392063309774
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "bottoms": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -7086.98119391593,
+        "molecularWeight": 0.028,
+        "partialPressures": [
+          65139.40465132342,
+          36185.59534867658
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          0.6428759403042035,
+          0.3571240596957965
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "product": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -7086.98119391593,
+        "molecularWeight": 0.028,
+        "partialPressures": [
+          65139.40465132342,
+          36185.59534867658
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          0.6428759403042035,
+          0.3571240596957965
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      },
+      "recycle": {
+        "activityCoefficients": [
+          1,
+          1
+        ],
+        "componentResidual": 0,
+        "enthalpyResidual": null,
+        "equilibriumResidual": 0,
+        "gasMolarVolume": 0.024617209824287906,
+        "iterations": 0,
+        "kValues": null,
+        "liquidComposition": null,
+        "molarEnthalpy": -7086.98119391593,
+        "molecularWeight": 0.028,
+        "partialPressures": [
+          65139.40465132342,
+          36185.59534867658
+        ],
+        "phase": "vapor",
+        "saturationPressures": null,
+        "temperature": 300,
+        "vaporComposition": [
+          0.6428759403042035,
+          0.3571240596957965
+        ],
+        "vaporFraction": 1,
+        "warnings": [
+          "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "Ideal gas assumption; no condensation or liquid volume prediction."
+        ]
+      }
+    },
+    "provenance": {
+      "modelId": "ideal-gas",
+      "modelVersion": "2.0.0",
+      "dataVersion": "sample-2026-10-28",
+      "kernelHash": "7103b15ce8c93e247123b6b40c5315ae9b3a8b76ec51ee180b5fad732b6a1b37",
+      "parameterHash": null,
+      "chemicalIds": [
+        "A",
+        "B"
+      ],
+      "extrapolate": false
+    },
+    "streams": {
+      "feed-blend": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 10,
+        "b": 0
+      },
+      "blend-heat": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 12.142919801166379,
+        "b": 1.1904135319729292
+      },
+      "heat-react": {
+        "temperature": 450,
+        "pressure": 101325,
+        "a": 12.142919801166379,
+        "b": 1.1904135319729292
+      },
+      "react-cool": {
+        "temperature": 450,
+        "pressure": 101325,
+        "a": 9.910911559677285,
+        "b": 3.4224217734620233
+      },
+      "cool-separate": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 9.910911559677285,
+        "b": 3.4224217734620233
+      },
+      "distillate": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 5.625071957711628,
+        "b": 1.0415947088580255
+      },
+      "bottoms": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 4.285839601965656,
+        "b": 2.3808270646039977
+      },
+      "product": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 2.142919800982828,
+        "b": 1.1904135323019989
+      },
+      "recycle": {
+        "temperature": 300,
+        "pressure": 101325,
+        "a": 2.142919800982828,
+        "b": 1.1904135323019989
+      }
+    },
+    "equipment": {
+      "F-101": {
+        "duty": 0,
+        "extent": 0
+      },
+      "M-101": {
+        "duty": 0,
+        "extent": 0
+      },
+      "H-101": {
+        "duty": 59999.999999126885,
+        "extent": 0
+      },
+      "R-101": {
+        "duty": -44640.1648297819,
+        "extent": 2.232008241489094,
+        "profile": [
+          {
+            "catalystMass": 0,
+            "conversion": 0
+          },
+          {
+            "catalystMass": 0.25,
+            "conversion": 0.005064878517445861
+          },
+          {
+            "catalystMass": 0.5,
+            "conversion": 0.010104104040495238
+          },
+          {
+            "catalystMass": 0.75,
+            "conversion": 0.015117806498448357
+          },
+          {
+            "catalystMass": 1,
+            "conversion": 0.020106115162529324
+          },
+          {
+            "catalystMass": 1.25,
+            "conversion": 0.0250691586492192
+          },
+          {
+            "catalystMass": 1.5,
+            "conversion": 0.030007064923572187
+          },
+          {
+            "catalystMass": 1.75,
+            "conversion": 0.03491996130251505
+          },
+          {
+            "catalystMass": 2,
+            "conversion": 0.03980797445812976
+          },
+          {
+            "catalystMass": 2.25,
+            "conversion": 0.044671230420919604
+          },
+          {
+            "catalystMass": 2.5,
+            "conversion": 0.04950985458305868
+          },
+          {
+            "catalystMass": 2.75,
+            "conversion": 0.05432397170162494
+          },
+          {
+            "catalystMass": 3,
+            "conversion": 0.059113705901816894
+          },
+          {
+            "catalystMass": 3.25,
+            "conversion": 0.06387918068015402
+          },
+          {
+            "catalystMass": 3.5,
+            "conversion": 0.06862051890766094
+          },
+          {
+            "catalystMass": 3.75,
+            "conversion": 0.0733378428330354
+          },
+          {
+            "catalystMass": 4,
+            "conversion": 0.0780312740858004
+          },
+          {
+            "catalystMass": 4.25,
+            "conversion": 0.08270093367944016
+          },
+          {
+            "catalystMass": 4.5,
+            "conversion": 0.08734694201452031
+          },
+          {
+            "catalystMass": 4.75,
+            "conversion": 0.09196941888179225
+          },
+          {
+            "catalystMass": 5,
+            "conversion": 0.09656848346528174
+          },
+          {
+            "catalystMass": 5.25,
+            "conversion": 0.10114425434536196
+          },
+          {
+            "catalystMass": 5.5,
+            "conversion": 0.10569684950181092
+          },
+          {
+            "catalystMass": 5.75,
+            "conversion": 0.11022638631685336
+          },
+          {
+            "catalystMass": 6,
+            "conversion": 0.11473298157818729
+          },
+          {
+            "catalystMass": 6.25,
+            "conversion": 0.11921675148199529
+          },
+          {
+            "catalystMass": 6.5,
+            "conversion": 0.1236778116359403
+          },
+          {
+            "catalystMass": 6.75,
+            "conversion": 0.1281162770621466
+          },
+          {
+            "catalystMass": 7,
+            "conversion": 0.13253226220016523
+          },
+          {
+            "catalystMass": 7.25,
+            "conversion": 0.136925880909925
+          },
+          {
+            "catalystMass": 7.5,
+            "conversion": 0.14129724647466782
+          },
+          {
+            "catalystMass": 7.75,
+            "conversion": 0.1456464716038699
+          },
+          {
+            "catalystMass": 8,
+            "conversion": 0.1499736684361475
+          },
+          {
+            "catalystMass": 8.25,
+            "conversion": 0.15427894854214858
+          },
+          {
+            "catalystMass": 8.5,
+            "conversion": 0.1585624229274292
+          },
+          {
+            "catalystMass": 8.75,
+            "conversion": 0.16282420203531575
+          },
+          {
+            "catalystMass": 9,
+            "conversion": 0.16706439574975268
+          },
+          {
+            "catalystMass": 9.25,
+            "conversion": 0.17128311339813554
+          },
+          {
+            "catalystMass": 9.5,
+            "conversion": 0.17548046375412996
+          },
+          {
+            "catalystMass": 9.75,
+            "conversion": 0.1796565550404761
+          },
+          {
+            "catalystMass": 10,
+            "conversion": 0.18381149493177912
+          }
+        ],
+        "conversion": 0.18381149493177912
+      },
+      "C-101": {
+        "duty": -59999.99999912688,
+        "extent": 0
+      },
+      "D-101": {
+        "duty": 0,
+        "extent": 0
+      },
+      "S-101": {
+        "duty": 0,
+        "extent": 0
+      },
+      "P-101": {
+        "duty": 0,
+        "extent": 0
+      },
+      "P-102": {
+        "duty": 0,
+        "extent": 0
+      }
+    },
+    "converged": true,
+    "iterations": 18,
+    "residual": 2.7643306420865187e-10,
+    "history": [
+      1,
+      0.232785945416005,
+      0.06569734956262156,
+      0.019078427576849445,
+      0.00551447666128684,
+      0.0015764519251273191,
+      0.00044578763701660055,
+      0.00012487420113098749,
+      0.00003470188255990555,
+      0.000009578676198406036,
+      0.0000026288297208828175,
+      7.179121298686622e-7,
+      1.9521514957794903e-7,
+      5.288346906723108e-8,
+      1.4278482481932553e-8,
+      3.843794639373712e-9,
+      1.0320252541048384e-9,
+      2.7643306420865187e-10
+    ],
+    "massResidual": -4.0745185003743245e-12,
+    "energyResidual": 0.000006573325663339347,
+    "conversion": 0.2232008241305543,
+    "heatDuty": -44640.16482978189,
+    "warnings": [
+      "Synthetic A/B species; equal 28 g/mol molecular weight and constant 30 J/(mol·K) heat capacity.",
+      "Isothermal first-order synthetic A → B; no catalyst transport, pressure drop, reversible kinetics or mechanical design. Catalyst-weight and residence-time modes use distinct rate-constant units.",
+      "A splitter divides all components in the same proportions; it does not selectively separate chemicals.",
+      "Distillation is one ideal equilibrium contact at fixed cut and constant relative volatility of the first component to the remaining components (equal volatility). No stage count, latent heat or reboiler/condenser duties."
+    ],
+    "tearId": "recycle"
+  },
+  "colors": {
+    "components": [
+      {
+        "id": "A",
+        "name": "A",
+        "color": "#299b83"
+      },
+      {
+        "id": "B",
+        "name": "B",
+        "color": "#dda444"
+      }
+    ],
+    "streams": {
+      "feed-blend": "#299b83",
+      "blend-heat": "#399c7d",
+      "heat-react": "#399c7d",
+      "react-cool": "#579d73",
+      "cool-separate": "#579d73",
+      "distillate": "#459c79",
+      "bottoms": "#699e6d",
+      "product": "#699e6d",
+      "recycle": "#699e6d"
+    },
+    "equipment": {
+      "F-101": {
+        "color": "#299b83",
+        "ports": {
+          "out": "#299b83"
+        }
+      },
+      "M-101": {
+        "color": "#399c7d",
+        "ports": {
+          "in": "#299b83",
+          "in2": "#699e6d",
+          "out": "#399c7d"
+        }
+      },
+      "H-101": {
+        "color": "#399c7d",
+        "ports": {
+          "in": "#399c7d",
+          "out": "#399c7d"
+        }
+      },
+      "R-101": {
+        "color": "#399c7d",
+        "ports": {
+          "in": "#399c7d",
+          "out": "#579d73"
+        }
+      },
+      "C-101": {
+        "color": "#579d73",
+        "ports": {
+          "in": "#579d73",
+          "out": "#579d73"
+        }
+      },
+      "D-101": {
+        "color": "#579d73",
+        "ports": {
+          "in": "#579d73",
+          "out": "#459c79",
+          "out2": "#699e6d"
+        }
+      },
+      "P-101": {
+        "color": "#459c79",
+        "ports": {
+          "in": "#459c79"
+        }
+      },
+      "S-101": {
+        "color": "#699e6d",
+        "ports": {
+          "in": "#699e6d",
+          "out": "#699e6d",
+          "out2": "#699e6d"
+        }
+      },
+      "P-102": {
+        "color": "#699e6d",
+        "ports": {
+          "in": "#699e6d"
+        }
+      }
+    }
+  },
+  "emptyProject": {
+    "version": 1,
+    "name": "Reaction, separation & recycle",
+    "units": [],
+    "edges": []
+  },
+  "baseRevision": "442684427d1711340bb47ceb89800a9279f384aba5312c78f99cbe556c1a0ed9",
+  "readyStatuses": {
+    "F-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "M-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "H-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "R-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "C-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "D-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "P-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "S-101": {
+      "state": "ready",
+      "issues": []
+    },
+    "P-102": {
+      "state": "ready",
+      "issues": []
+    }
+  },
+  "calculatedStatuses": {
+    "F-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "M-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "H-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "R-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "C-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "D-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "P-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "S-101": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    },
+    "P-102": {
+      "state": "warning",
+      "issues": [
+        {
+          "kind": "warning",
+          "message": "Constant heat capacities are sample approximations, referenced to 298.15 K; they are not a validated caloric database.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        },
+        {
+          "kind": "warning",
+          "message": "Ideal gas assumption; no condensation or liquid volume prediction.",
+          "target": {
+            "section": "results",
+            "field": "warnings"
+          }
+        }
+      ]
+    }
+  }
+}
