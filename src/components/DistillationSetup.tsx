@@ -5,7 +5,7 @@
 "use client";
 import type { Unit } from "@/domain/schema";
 import { modelInfo, type ThermoSettings } from "@/domain/thermo/registry";
-import { thermoContext } from "@/domain/thermo/catalog";
+import { selectedChemicals } from "@/domain/thermo/catalog";
 import {
   defaultDistillation,
   type DistillationConfig,
@@ -24,7 +24,7 @@ export function DistillationSetup({
   settings: ThermoSettings;
   onChange: (params: Unit["params"]) => void;
 }) {
-  const { ids, catalog } = thermoContext(settings);
+  const chemicals = selectedChemicals(settings);
   const display = useUnitSystem();
   const d = params.distillation;
   const change = (patch: Partial<DistillationConfig>) =>
@@ -72,7 +72,10 @@ export function DistillationSetup({
                   ? undefined
                   : {
                       ...(d ??
-                        defaultDistillation(ids, params.relativeVolatility)),
+                        defaultDistillation(
+                          chemicals.map(({ id }) => id),
+                          params.relativeVolatility,
+                        )),
                       method,
                     },
             });
@@ -144,9 +147,9 @@ export function DistillationSetup({
                       <option value="" disabled>
                         Select component
                       </option>
-                      {ids.map((id) => (
+                      {chemicals.map(({ id, name }) => (
                         <option key={id} value={id}>
-                          {catalog.get(id).name}
+                          {name}
                         </option>
                       ))}
                     </select>
@@ -289,14 +292,14 @@ export function DistillationSetup({
                 className="equipment-field-grid"
                 data-setup-field="distillation.relativeVolatilities"
               >
-                {ids.map((id) => (
+                {chemicals.map(({ id, name }) => (
                   <label
                     key={id}
                     data-setup-field={`distillation.relativeVolatilities.${id}`}
                   >
-                    {catalog.get(id).name}
+                    {name}
                     <NumberInput
-                      aria-label={`Relative volatility ${catalog.get(id).name}`}
+                      aria-label={`Relative volatility ${name}`}
                       value={d.relativeVolatilities[id] ?? ""}
                       min={0.000001}
                       max={1e6}

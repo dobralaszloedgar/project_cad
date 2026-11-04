@@ -33,6 +33,7 @@ import {
 import { createProjectFile } from "@/lib/storage";
 import { checkpoint } from "@/lib/revisions";
 import { loadTemplate } from "@/domain/templates";
+import { blankProject } from "@/domain/new-project";
 import type { Project } from "@/domain/schema";
 import styles from "./Onboarding.module.css";
 
@@ -152,7 +153,7 @@ export default function Onboarding() {
         const project: Project =
           startingPoint === "heating"
             ? { ...loadTemplate("heating")!, name: projectName }
-            : { version: 1, name: projectName, units: [], edges: [] };
+            : blankProject(projectName);
         await createProjectFile(directory, projectName, {
           version: 1,
           project,

@@ -155,6 +155,13 @@ export function thermoContext(settings: ThermoSettings) {
   const context = { catalog, ids: snapshot.chemicals.map((c) => c.id) };
   return context;
 }
+/** Selected records for editors, including an unconfigured project's empty list. */
+export function selectedChemicals(settings: ThermoSettings): Chemical[] {
+  if (settings.mixture === "catalog" && !settings.catalog) return [];
+  const { catalog, ids } = thermoContext(settings);
+  return ids.map((id) => catalog.get(id));
+}
+
 export function mixtureName(settings: ThermoSettings) {
   return settings.mixture === "catalog"
     ? (settings.catalog?.chemicals.map((c) => c.name).join(" / ") ??
@@ -166,12 +173,7 @@ export function mixtureName(settings: ThermoSettings) {
 export function componentNames(settings: ThermoSettings): string[] {
   if (settings.mixture === "demo") return ["A", "B"];
   if (settings.mixture === "catalog")
-    return (
-      settings.catalog?.chemicals.map((c) => c.name) ?? [
-        "Component 1",
-        "Component 2",
-      ]
-    );
+    return settings.catalog?.chemicals.map((c) => c.name) ?? [];
   const { catalog, ids } = thermoContext(settings);
   return ids.map((id) => catalog.get(id).name);
 }

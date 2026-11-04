@@ -6,7 +6,7 @@
 
 import type { Unit } from "@/domain/schema";
 import type { ComponentSplitConfig } from "@/domain/equipment/component-split-schema";
-import { thermoContext } from "@/domain/thermo/catalog";
+import { selectedChemicals } from "@/domain/thermo/catalog";
 import { models, type ThermoSettings } from "@/domain/thermo/registry";
 import EngineeringInput from "./EngineeringInput";
 import NumberInput from "./NumberInput";
@@ -20,7 +20,7 @@ export function ComponentSplitSetup({
   settings: ThermoSettings;
   onChange: (params: Unit["params"]) => void;
 }) {
-  const { ids, catalog } = thermoContext(settings);
+  const chemicals = selectedChemicals(settings);
   const split = params.componentSplit;
   const change = (patch: Partial<ComponentSplitConfig>) =>
     onChange({ ...params, componentSplit: { ...split!, ...patch } });
@@ -44,7 +44,7 @@ export function ComponentSplitSetup({
                   ? undefined
                   : {
                       recoveries: Object.fromEntries(
-                        ids.map((id) => [id, 0.5]),
+                        chemicals.map(({ id }) => [id, 0.5]),
                       ),
                       outlets: [0, 1].map(() => ({
                         temperature: params.temperature,
@@ -67,15 +67,15 @@ export function ComponentSplitSetup({
             phase change.
           </p>
           <div className="equipment-field-grid">
-            {ids.map((id) => (
+            {chemicals.map(({ id, name }) => (
               <label
                 className="equipment-field"
                 key={id}
                 data-setup-field={`componentSplit.recoveries.${id}`}
               >
-                {catalog.get(id).name} to outlet 1
+                {name} to outlet 1
                 <NumberInput
-                  aria-label={`${catalog.get(id).name} recovery to outlet 1`}
+                  aria-label={`${name} recovery to outlet 1`}
                   value={split.recoveries[id] ?? NaN}
                   min={0}
                   max={1}

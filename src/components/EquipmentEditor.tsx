@@ -31,7 +31,7 @@ import {
   modelInfo,
   type ThermoSettings,
 } from "@/domain/thermo/registry";
-import { componentNames, thermoContext } from "@/domain/thermo/catalog";
+import { componentNames, selectedChemicals } from "@/domain/thermo/catalog";
 import { unitThermoSettings } from "@/domain/thermo/flowsheet-models";
 import { ComponentSplitSetup } from "./ComponentSplitSetup";
 import { catalogChoices } from "@/lib/chemical-catalog";
@@ -282,17 +282,15 @@ function EquipmentResults({
   const rows = streamRows(display);
   const settings = project.thermo ?? defaultThermo;
   const names = componentNames(settings);
-  const context = thermoContext(settings);
+  const chemicals = selectedChemicals(settings);
+  const ids = chemicals.map((chemical) => chemical.id);
   const resultRows = [
     ...rows.slice(0, 3),
     ...names.map((name, index) => ({
       label: `Mole fraction ${name}`,
       value: (stream: Stream) =>
         flow(stream)
-          ? (
-              componentFlows(stream, context.ids)[context.ids[index]] /
-              flow(stream)
-            ).toFixed(5)
+          ? (componentFlows(stream, ids)[ids[index]] / flow(stream)).toFixed(5)
           : "Undefined at zero flow",
     })),
     ...rows.slice(3),
@@ -343,14 +341,14 @@ function EquipmentResults({
             <DistillationResults
               result={eq.distillation}
               names={Object.fromEntries(
-                context.ids.map((id) => [id, context.catalog.get(id).name]),
+                chemicals.map(({ id, name }) => [id, name]),
               )}
             />
           )}
           {eq.packedBed && (
             <PackedBedResults
               result={eq.packedBed}
-              chemicals={context.ids.map((id) => context.catalog.get(id))}
+              chemicals={chemicals}
               config={unit.params.packedBed!}
             />
           )}
@@ -432,8 +430,9 @@ export default function EquipmentEditor({
   onEditingComponentsChange: (open: boolean) => void;
 }) {
   const settings = unitThermoSettings(project, unit.id);
-  const context = thermoContext(settings);
-  const [params, setParams] = useState(() => setupParams(unit, context.ids));
+  const chemicals = selectedChemicals(settings);
+  const ids = chemicals.map((chemical) => chemical.id);
+  const [params, setParams] = useState(() => setupParams(unit, ids));
   const branchCount = junctionBranchCount(
     { ...unit, params },
     connectedUnitPorts(unit, project.edges),
@@ -478,7 +477,7 @@ export default function EquipmentEditor({
   if (appliedUnit !== unit) {
     setAppliedUnit(unit);
     if (JSON.stringify(appliedUnit) !== JSON.stringify(unit)) {
-      setParams(setupParams(unit, context.ids));
+      setParams(setupParams(unit, ids));
       setName(unit.name);
     }
   }
@@ -487,10 +486,9 @@ export default function EquipmentEditor({
     name !== unit.name ||
     JSON.stringify(params) !== JSON.stringify(unit.params);
   const formId = `equipment-form-${unit.id}`;
-  const chemicals = context.ids.map((id) => context.catalog.get(id));
   const labels = componentNames(settings);
   const composition = Object.fromEntries(
-    context.ids.map((id, i) => [
+    ids.map((id, i) => [
       id,
       params.composition?.[id] ??
         (params.composition
@@ -591,14 +589,13 @@ export default function EquipmentEditor({
       <ProjectComponents
         project={project}
         onApply={(next) => {
-          const nextIds = thermoContext(next).ids;
+          const nextIds = selectedChemicals(next).map(
+            (chemical) => chemical.id,
+          );
           const choices = catalogChoices(settings);
           // Built-in mixtures use names as IDs; catalog records use CAS IDs.
           const catalogComposition = Object.fromEntries(
-            context.ids.map((id, index) => [
-              choices[index]?.id ?? id,
-              composition[id],
-            ]),
+            ids.map((id, index) => [choices[index]?.id ?? id, composition[id]]),
           );
           setParams((current) => ({
             ...current,
@@ -701,7 +698,7 @@ export default function EquipmentEditor({
                 ? {
                     ...params,
                     composition: normalized,
-                    fractionA: normalized[context.ids[0]],
+                    fractionA: normalized[ids[0]],
                   }
                 : params;
               // Equivalent ratios may produce exactly the previously saved unit.
@@ -952,7 +949,7 @@ export default function EquipmentEditor({
                       <div className="equipment-field-grid">
                         {field(
                           "relativeVolatility",
-                          context.ids.length > 2
+                          ids.length > 2
                             ? "Relative volatility: first / remaining components"
                             : "Relative volatility A/B",
                           1.01,

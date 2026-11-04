@@ -5,6 +5,7 @@
 import { test, expect, type Page } from "./test";
 import fs from "node:fs/promises";
 import { loadTemplateProject as template } from "./project-fixture";
+import { catalogFixture } from "./catalog-fixture";
 const output = "/tmp/project-cad-qa";
 test.beforeAll(async () => {
   await fs.mkdir(output, { recursive: true });
@@ -197,8 +198,27 @@ test("simple templates, equipment validation, appearance and mobile editing", as
 test("manual editing supports connect, move, double-click, duplicate and delete", async ({
   page,
 }) => {
+  await catalogFixture(page);
   await start(page);
   await template(page, "Blank flowsheet");
+  await page
+    .getByRole("button", { name: "Project components", exact: true })
+    .click();
+  const components = page.getByRole("dialog", {
+    name: "Project components",
+    exact: true,
+  });
+  for (const chemical of ["water", "ethanol"]) {
+    await components.getByRole("searchbox").fill(chemical);
+    await components
+      .getByRole("button", { name: `Add ${chemical} to project`, exact: true })
+      .click();
+  }
+  await expect(components.locator(".project-components")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await closeDialog(page);
   await page.getByRole("button", { name: "Equipment", exact: true }).click();
   await page.getByTitle("Add Feed", { exact: true }).click();
   await page.getByTitle("Add Product", { exact: true }).click();
@@ -221,8 +241,8 @@ test("manual editing supports connect, move, double-click, duplicate and delete"
   await page.getByLabel("Temperature (°C)", { exact: true }).fill("26.85");
   await page.getByLabel("Pressure (bar abs)", { exact: true }).fill("1.01325");
   await page.getByLabel("Molar flow (kmol/h)", { exact: true }).fill("36");
-  await page.getByLabel("Mole fraction A", { exact: true }).fill("2");
-  await page.getByLabel("Mole fraction B", { exact: true }).fill("3");
+  await page.getByLabel("Mole fraction water", { exact: true }).fill("2");
+  await page.getByLabel("Mole fraction ethanol", { exact: true }).fill("3");
   await page
     .getByRole("button", { name: "Apply conditions", exact: true })
     .click();

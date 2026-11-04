@@ -6,15 +6,11 @@ import { expect, type Page } from "@playwright/test";
 import type { Project } from "../../src/domain/schema";
 import { checkpoint } from "../../src/lib/revisions";
 import { templates } from "../../src/domain/templates";
+import { blankProject } from "../../src/domain/new-project";
 
 export async function loadTemplateProject(page: Page, name: string) {
   if (name === "Blank flowsheet") {
-    await loadProject(page, {
-      version: 1,
-      name: "Untitled process",
-      units: [],
-      edges: [],
-    });
+    await loadProject(page, blankProject());
     return;
   }
   const template = templates.find((item) => item.name === name);

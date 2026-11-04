@@ -111,8 +111,7 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
         break;
       case "set_thermo_model":
         if (a.catalog) validateSnapshot(a.catalog);
-        else if (a.mixture === "catalog")
-          throw new Error("Select and load chemicals from the catalog first.");
+        // Model selection may precede chemicals; simulation still requires data.
         project.thermo = {
           ...defaultThermo,
           modelId: a.modelId,

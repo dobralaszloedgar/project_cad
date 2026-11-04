@@ -44,6 +44,7 @@ import {
   validateGraph,
 } from "@/domain/schema";
 import { reactorExample } from "@/domain/examples";
+import { blankProject } from "@/domain/new-project";
 import { loadTemplate } from "@/domain/templates";
 import ThermodynamicSelector from "./ThermoSettings";
 import ProjectComponents from "./ProjectComponents";
@@ -147,9 +148,6 @@ function errorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : "Could not save your project. Export a copy and try again.";
-}
-function blankProject(): Project {
-  return { version: 1, name: "Untitled process", units: [], edges: [] };
 }
 export default function Workspace({
   exampleId,
