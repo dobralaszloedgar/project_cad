@@ -244,6 +244,9 @@ it("refreshes the website AI guide on every turn, including a resumed session", 
   let version = "latest-guide-one";
   call.mockImplementation(async (name?: unknown) => ({
     name: name === "get_guide" ? version : "project",
+    ...(name === "get_guide"
+      ? { content: `PROJECT CAD AI GUIDE\n${version}` }
+      : {}),
   }));
   const provider = new MuseProvider(value.cwd, () => ({
     accessMode: "sandbox",
@@ -258,6 +261,16 @@ it("refreshes the website AI guide on every turn, including a resumed session", 
   expect(JSON.stringify(turns[0])).toContain("latest-guide-one");
   expect(JSON.stringify(turns[1])).toContain("latest-guide-two");
   expect(JSON.stringify(turns[1])).not.toContain("latest-guide-one");
+  const messages = turns.map(
+    (turn) => (turn.params.input as { text: string }[])[0].text,
+  );
+  for (const message of messages) {
+    expect(message.match(/PROJECT CAD AI GUIDE/g)).toHaveLength(1);
+    expect(message).toContain("MUSE CODE TOOL ADAPTER");
+    expect(message).toContain("plan\nencoded as a JSON STRING");
+    expect(message).toContain("apply small coherent batches as you build");
+    expect(message).toContain("catalogRef");
+  }
   expect(call.mock.calls.filter(([name]) => name === "get_guide")).toHaveLength(
     2,
   );

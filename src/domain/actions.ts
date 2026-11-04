@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { defaultThermo, thermoSchema } from "./thermo/registry";
+import { validateSnapshot } from "./thermo/data";
 import { availableStreamName } from "./stream-names";
 import { distillationSchema } from "./equipment/distillation-schema";
 import { distillationPatchSchema } from "./equipment/distillation-patch-schema";
@@ -109,6 +110,9 @@ export function applyActions(raw: Project, rawPlan: Plan): Project {
         project.name = a.name;
         break;
       case "set_thermo_model":
+        if (a.catalog) validateSnapshot(a.catalog);
+        else if (a.mixture === "catalog")
+          throw new Error("Select and load chemicals from the catalog first.");
         project.thermo = {
           ...defaultThermo,
           modelId: a.modelId,

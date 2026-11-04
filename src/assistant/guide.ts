@@ -191,8 +191,15 @@ propose_actions {baseRevision,plan}: submit a validated batch. Auto mode applies
   and saves immediately and returns applied:true. Review mode returns applied:false
   until the user clicks Apply reviewed actions. Read-only mode rejects edits.
 
-Before proposing, preview the complete plan and simulate it when numerical
-behavior matters. Re-read and rebuild after a stale-revision error; do not just
+In Auto mode, propose small coherent batches as you build so equipment and
+connections appear on the flowsheet promptly. propose_actions validates and
+saves each batch; use preview_actions for uncertain or complex edits, rather
+than repeating it for every simple batch. Re-read get_project after each applied
+batch for the new revision. Simulate connected sections as they become ready,
+then simulate the saved final revision when calculations are requested. Do not
+withhold all edits until an entire plant converges. In Review mode, preview and
+simulate complete candidates before submitting them for review.
+Re-read and rebuild after a stale-revision error; do not just
 replace the revision on a stale plan. A proposal is not an applied or saved edit.
 Auto apply is the default for new conversations. Review mode permits proposals.
 Read-only mode permits reading, previews and simulations but rejects proposals.
@@ -205,6 +212,14 @@ Rebuild/restart a source companion to load changed tools. Distributed installers
 need a new package release. Codex chats whose tool contract changed start a fresh
 provider thread with recent conversation context and the current project; their
 application history remains intact. Claude and Muse supply current tools each turn.
+Muse's MCP adapter encodes plan as a JSON string and accepts actionTypes on
+get_capabilities to return only the required action schemas. Its chemical
+selection tool retains verified records and returns catalogRef; use that field
+instead of catalog in set_thermo_model. The adapter expands the reference before
+normal validation, review and saving. References last for the current turn;
+fetch a new selection after reconnecting. Never copy, round or omit chemical
+fields or recalculate hashes to hide a mismatch. The shared object-plan APIs
+below keep their existing format; these adaptations apply only to Muse MCP.
 Tools do not install software, alter accounts, publish projects, control the
 camera, export screenshots, or manage project folders/trash/history. Those UI
 and lifecycle operations are outside this engineering API. Auto edits use the

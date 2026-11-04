@@ -36,6 +36,9 @@ it.each([false, true])(
       installed = join(temporary, "Installed CAD ü"),
       data = join(temporary, "data");
     await buildAssistant(bundle);
+    const incomingManifest = JSON.parse(
+      await readFile(join(bundle, "manifest.json"), "utf8"),
+    );
     await mkdir(installed);
     await mkdir(data);
     await writeFile(
@@ -211,7 +214,7 @@ if (process.argv[2] === 'session') {
         expect(
           JSON.parse(await readFile(join(installed, "manifest.json"), "utf8"))
             .version,
-        ).toBe("0.1.10");
+        ).toBe(incomingManifest.version);
       }
       expect(await readFile(join(data, "saved-history"), "utf8")).toBe(
         "saved conversations, projects, and sign-in",

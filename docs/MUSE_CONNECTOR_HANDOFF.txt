@@ -1,0 +1,113 @@
+Project CAD Assistant 0.1.12: macOS and Linux build handoff
+
+Source: https://github.com/dobralaszloedgar/project_cad/tree/v0.1.12
+Windows release: https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.12
+
+This release optimizes the shared Muse adapter used by Wonder 1 and Spark 1.3
+Contributor. It sends the current website guide once, explains Muse's JSON-string
+plans, provides compact action-specific capabilities, and tells Auto mode to
+apply coherent batches as it builds. Verified chemical selections remain in the
+adapter and are passed by catalogRef, avoiding coefficient rounding and omitted
+fields. Catalog checksums are still enforced. Old incompatible Muse sessions
+restart with recent conversation context; the app's saved history is preserved.
+
+Windows is published separately. macOS and Linux have not been rebuilt or
+runtime-verified for 0.1.12. Existing downloads for those systems remain on their
+previous versions. No live Wonder or Spark inference was used for this change.
+
+PREPARE A CLEAN BUILD CHECKOUT
+
+Use a fresh clone or worktree so downloads.json contains only the platforms you
+actually build. Do not copy old binaries into the new version's inventory.
+
+  git clone https://github.com/dobralaszloedgar/project_cad.git project-cad-0.1.12
+  cd project-cad-0.1.12
+  git checkout v0.1.12
+  npm ci
+  npm run typecheck
+  npx vitest run tests/assistant-muse.test.ts tests/assistant-muse-tools.test.ts tests/assistant.test.ts tests/catalog.test.ts
+  npm run docs:ai-guide:check
+
+Use Node.js 24 or newer for the build. Packaging downloads the pinned private
+Node runtimes from scripts/assistant/releases.json and verifies their checksums.
+
+The normal release-reference policy must be available outside the repository at
+~/.config/project-cad/release-policy.json, or through RELEASE_REFERENCE_POLICY_FILE.
+Use your existing approved policy; do not disable the checks or commit its private
+contents. See docs/RELEASE_CHECKS.txt. npm run assistant:check-source checks it.
+
+MACOS (BUILD ON A MAC)
+
+Requirements: Xcode command-line tools (xcode-select -p), Node/npm, and the
+standard macOS packaging tools. 7zz is also needed for archive policy checks.
+
+  npm run assistant:package
+  npm run assistant:verify
+
+Outputs in dist/assistant:
+  Project CAD Assistant.app
+  ProjectCAD-Assistant-macos-universal.pkg
+  ProjectCAD-Assistant-macos-universal.zip
+  downloads.json and per-artifact .sha256 files
+
+The universal package contains Apple silicon and Intel runtimes. The local build
+is ad-hoc signed, not notarized. assistant:verify checks the native launcher,
+package, installation and update lifecycle in temporary locations. It does not
+make model inference calls. Read README.txt before optional signing/notarization.
+
+LINUX (BUILD LATER ON LINUX OR A MAC)
+
+Requirements: Node/npm, Go, GNU tar, gzip; 7zz for package checks. The installed
+desktop app needs glibc 2.28+, xdg-open and a terminal emulator. No sudo for app
+installation. Alpine/musl is not supported by the pinned Node runtime.
+
+  npm run assistant:package-linux
+  npm run assistant:verify-portable
+
+Outputs in dist/assistant include x64 and ARM64 .run installers and .tar.gz
+archives, ProjectCAD-Assistant-linux-universal.run, downloads.json and checksums.
+Archive/hash/CPU verification is not a native runtime test. On a Linux desktop,
+install the matching package as your normal user, open the app, connect a test
+project, and check save/reload. Run a model prompt only when you choose to spend
+credits. On macOS, the Linux .run and archive permissions can still be verified.
+
+PUBLICATION AFTER BUILDING
+
+The Windows v0.1.12 assets and checksum manifest describe a Windows-only release.
+Do not overwrite them or silently relabel older macOS/Linux binaries as 0.1.12.
+For a later combined release, use a new release version and commit, build the
+selected targets, verify them, and preserve the already published Windows entry
+with its own version when staging a mixed-version website manifest. The existing
+publishers enforce immutable artifacts; read their --help/source and README.txt
+for the selected destination. Publishing source/assets and deploying the website
+download manifest are separate steps.
+
+The website shared-guide changes take effect after a website deployment. The
+new desktop adapter also supplies its Muse-specific workflow to older compatible
+websites, so its catalog references, compact schemas and incremental-apply
+instructions do not require a new website tool schema.
+
+SMALL PROCESS TO CHECK MANUALLY
+
+Create a NEW empty project, select Muse and Auto apply, then paste:
+
+  Build a methanol/water heating and splitting demo. Use catalog methanol
+  (67-56-1) and water (7732-18-5), with Raoult's law. Feed: 10 mol/s, methanol
+  mole fraction 0.40 and water 0.60, 298.15 K, 101325 Pa. Connect Feed -> Heater
+  -> Splitter -> two Products. Set heater outlet to 323.15 K at 101325 Pa and
+  split the outlet 60/40. Apply each coherent batch as you build. Use catalogRef
+  for the verified chemical data. Simulate the saved final project and report
+  product flows, heater duty, convergence and balance residuals. These are
+  specified demo conditions; no kinetics or web research is needed.
+
+The current local and hosted solvers both converged for this specification:
+product flows 6 and 4 mol/s, heater duty about 21.788 kW, and zero reported mass
+and energy residuals. The splitter preserves composition; it does not purify
+methanol. Raoult's law is an ideal-mixture, low-pressure demonstration model.
+Actual Wonder/Spark latency and adherence remain for your manual check.
+
+Check that components and equipment appear before the final answer, edits survive
+reload, and the tool trace has applied:true for each saved batch. In Review mode,
+changes should await the user's Apply action; Read-only must not apply edits.
+An existing project with a previously damaged snapshot needs a fresh component
+selection through catalogRef. This release does not rewrite saved projects.

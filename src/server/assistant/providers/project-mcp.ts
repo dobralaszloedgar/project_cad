@@ -12,8 +12,11 @@ import {
   projectFileTools,
   type ProjectFileTool,
 } from "../project-files";
+import { MuseProjectTools, museCapabilitiesRequest } from "./muse-tools";
 
 export function museToolSchema(name: ToolName) {
+  if (name === "get_capabilities")
+    return z.toJSONSchema(museCapabilitiesRequest);
   if (
     name === "preview_actions" ||
     name === "propose_actions" ||
@@ -41,6 +44,7 @@ export function museToolSchema(name: ToolName) {
 
 /** A per-turn, authenticated MCP server exposing only Project CAD operations. */
 export async function projectMcp(input: ProviderInput, files?: ProjectFiles) {
+  const projectTools = new MuseProjectTools(input);
   const token = randomBytes(32).toString("hex");
   const names = toolNames.filter(
     (name) =>
@@ -92,7 +96,12 @@ export async function projectMcp(input: ProviderInput, files?: ProjectFiles) {
           tools: [
             ...names.map((name) => ({
               name,
-              description: tools[name].description,
+              description:
+                name === "get_chemical_selection"
+                  ? "Load verified chemicals and return catalogRef for a set_thermo_model action. Exact records stay in the adapter; do not copy coefficients or hashes. Reference valid for this turn. Does not apply changes."
+                  : name === "get_capabilities"
+                    ? "Read compact schemas, ports, models and units. Pass actionTypes for only the needed actions. Catalog actions use catalogRef; encode plans as JSON strings."
+                    : tools[name].description,
               inputSchema: museToolSchema(name),
               // Proposals are only previews; the application owns review/apply.
               annotations: {
@@ -124,18 +133,14 @@ export async function projectMcp(input: ProviderInput, files?: ProjectFiles) {
           throw new Error("Unknown or unavailable project tool.");
         try {
           const args = message.params.arguments;
-          const decoded =
-            args && typeof args.plan === "string"
-              ? { ...args, plan: JSON.parse(args.plan) }
-              : args;
           result = {
             content: [
               {
                 type: "text",
                 text: JSON.stringify(
                   fileNames.includes(name as unknown as ProjectFileTool)
-                    ? files!.call(name as unknown as ProjectFileTool, decoded)
-                    : await input.call(name, tools[name].schema.parse(decoded)),
+                    ? files!.call(name as unknown as ProjectFileTool, args)
+                    : await projectTools.call(name, args),
                 ),
               },
             ],

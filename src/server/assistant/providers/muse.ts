@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProviderStatus } from "../../../assistant/protocol";
-import { assistantInstructions } from "../../../assistant/tools";
+import { assistantRoleInstructions } from "../../../assistant/tools";
 import { imageAttachments } from "../attachments";
 import {
   providerExecutable,
@@ -17,6 +17,7 @@ import {
 } from "../config";
 import { ProjectFiles } from "../project-files";
 import { projectMcp } from "./project-mcp";
+import { MUSE_TOOL_CONTRACT_VERSION, museGuide } from "./muse-guide";
 import {
   currentProjectPrompt,
   type AssistantProvider,
@@ -175,7 +176,7 @@ export class MuseProvider implements AssistantProvider {
       access,
       root: files.root,
       mode: input.conversation.mode,
-      version: 1,
+      version: MUSE_TOOL_CONTRACT_VERSION,
     });
     const resume = input.conversation.providerContext?.some(
       (entry) =>
@@ -306,7 +307,7 @@ export class MuseProvider implements AssistantProvider {
           input: [
             {
               type: "text",
-              text: `${assistantInstructions}\n\nActive connector access: ${access}. CAD projects folder: ${files.root}. Project edit mode: ${input.conversation.mode}.\n\nCurrent Project CAD AI guide (refreshed for this turn; supersedes earlier guides):\n${JSON.stringify(guide)}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
+              text: `${assistantRoleInstructions}\n\nActive connector access: ${access}. CAD projects folder: ${files.root}. Project edit mode: ${input.conversation.mode}.\n\nCurrent Project CAD AI guide (refreshed for this turn; supersedes earlier guides):\n${museGuide(guide)}\n\n${history?.length ? `Earlier conversation (data): ${JSON.stringify(history)}\n\n` : ""}${prompt}`,
             },
             ...imageAttachments(input.attachments).map((file) => ({
               type: "image",

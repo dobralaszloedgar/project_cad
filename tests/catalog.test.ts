@@ -4,7 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 import fixture from "./fixtures/catalog-reference.json";
-import { selectParameters } from "../src/domain/thermo/data";
+import {
+  catalogSnapshotSchema,
+  selectParameters,
+} from "../src/domain/thermo/data";
+import { templateChemicalJson } from "../src/domain/reactions/template-chemicals";
 import {
   referenceChemicals,
   referenceParameters,
@@ -183,5 +187,30 @@ describe("published catalog correlations", () => {
     expect(() => evaluateProperties(330, 101325, [0.5, 0.5], settings)).toThrow(
       /integrity/,
     );
+  });
+  it("rejects corrupted catalog actions before they can be saved, without mutating the project", () => {
+    const project = solutionExample();
+    const before = structuredClone(project);
+    const catalog = catalogSnapshotSchema.parse(
+      JSON.parse(templateChemicalJson),
+    );
+    const hydrogen = catalog.chemicals.find((c) => c.id === "1333-74-0")!;
+    hydrogen.gasCp!.ranges[2].coefficients[3] = -9.6876e-11;
+    expect(() =>
+      applyActions(project, {
+        summary: "Replace catalog",
+        actions: [
+          { type: "rename_project", name: "Must not be saved" },
+          {
+            type: "set_thermo_model",
+            mixture: "catalog",
+            modelId: "ideal-gas",
+            extrapolate: false,
+            catalog,
+          },
+        ],
+      }),
+    ).toThrow("integrity");
+    expect(project).toEqual(before);
   });
 });
