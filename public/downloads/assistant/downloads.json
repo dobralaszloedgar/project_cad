@@ -1,13 +1,13 @@
 {
   "name": "Project CAD Assistant",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "files": [
     {
       "platform": "windows",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-windows-universal-Setup.exe",
-      "bytes": 45551006,
-      "sha256": "2f3f1955b93df314de6c6de054a2848a52175a89e2f2d56f11997574de9216f3",
+      "bytes": 45555601,
+      "sha256": "28034e64e299af2618a7dafa0a67170bd8f6b8621ab48a360677bf4413a06f02",
       "signed": false
     },
     {
@@ -32,6 +32,6 @@
   ],
   "release": {
     "repository": "dobralaszloedgar/project_cad",
-    "tag": "v0.1.11"
+    "tag": "v0.1.12"
   }
 }
