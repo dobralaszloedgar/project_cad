@@ -4,26 +4,44 @@
 
 import { test, expect } from "./test";
 import { universalDownloads } from "./assistant-download-fixture";
+import release from "../../scripts/assistant/releases.json" with { type: "json" };
 
 const files = {
   macos: "ProjectCAD-Assistant-macos-universal.pkg",
   windows: "ProjectCAD-Assistant-windows-universal-Setup.exe",
   linux: "ProjectCAD-Assistant-linux-universal.run",
 };
-const base = universalDownloads.distribution.baseUrl;
+const base = universalDownloads.distribution.baseUrl.replace(
+  /\/v\d+\.\d+\.\d+$/,
+  `/v${release.version}`,
+);
+const currentDownloads = {
+  ...universalDownloads,
+  version: release.version,
+  distribution: { ...universalDownloads.distribution, baseUrl: base },
+};
 
 test.beforeEach(async ({ page }) => {
   await page.route("http://127.0.0.1:43118/**", (route) =>
     route.fulfill({ status: 503, json: {} }),
   );
   await page.route("**/downloads/assistant/downloads.json", (route) =>
-    route.fulfill({ json: universalDownloads }),
+    route.fulfill({ json: currentDownloads }),
   );
-  await page.route(`${base}/**`, (route) => route.fulfill({ status: 200 }));
+  await page.route(`${base}/**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/octet-stream",
+      headers: {
+        "Content-Disposition": `attachment; filename="${new URL(route.request().url()).pathname.split("/").at(-1)}"`,
+      },
+      body: "Test download. Not an installer.",
+    }),
+  );
   await page.addInitScript(() => {
     localStorage.setItem(
       "project-cad.assistant-agents",
-      JSON.stringify({ providers: ["codex"], preferred: "codex" }),
+      JSON.stringify({ providers: ["muse"], preferred: "muse" }),
     );
   });
 });
@@ -46,7 +64,11 @@ for (const [platform, name] of [
         configurable: true,
       });
     }, name);
+    const downloading = page.waitForEvent("download");
     await page.goto("/sandbox/assistant");
+    expect((await downloading).suggestedFilename()).toBe(files[platform]);
+    await page.getByText("Assistant not appearing?", { exact: true }).click();
+    await page.getByRole("button", { name: "Back to downloads" }).click();
     const select = page.getByLabel("Operating system", { exact: true });
     await expect(select).toBeVisible();
     await expect(select).toHaveValue(files[platform]);
@@ -102,7 +124,14 @@ test("a failed Windows check still lets users choose Linux and preserves the cho
     route.fulfill({ status: 403 }),
   );
   await page.route(`${base}/${files.linux}`, (route) =>
-    route.fulfill({ status: blocked ? 403 : 200 }),
+    route.fulfill({
+      status: blocked ? 403 : 200,
+      contentType: "application/octet-stream",
+      headers: {
+        "Content-Disposition": `attachment; filename="${files.linux}"`,
+      },
+      body: "Test download. Not an installer.",
+    }),
   );
   await page.goto("/sandbox/assistant");
   await expect(
@@ -117,7 +146,11 @@ test("a failed Windows check still lets users choose Linux and preserves the cho
     page.getByRole("button", { name: "Retry downloads" }),
   ).toBeEnabled();
   blocked = false;
+  const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: "Retry downloads" }).click();
+  expect((await downloading).suggestedFilename()).toBe(files.linux);
+  await page.getByText("Assistant not appearing?", { exact: true }).click();
+  await page.getByRole("button", { name: "Back to downloads" }).click();
   await expect(select).toHaveValue(files.linux);
   await expect(
     page.getByRole("link", { name: "Download for Linux" }),

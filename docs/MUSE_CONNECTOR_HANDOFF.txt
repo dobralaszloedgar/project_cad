@@ -19,9 +19,16 @@ reply without replaying the edit. Existing catalogRef and revision validation
 remain intact. Models decide whether to request multiple tools in a response;
 the connector now executes independent requests concurrently when they do.
 
-Windows is published separately. macOS and Linux have not been rebuilt or
-runtime-verified for 0.1.13. Existing downloads for those systems remain on their
-previous versions. No live Wonder or Spark inference was used for this change.
+The supplied macOS and Linux 0.1.13 universal installers have now been verified
+and added to the existing Windows release. Their bundled connector code matches
+this source, and their x64/ARM64 runtimes match the pinned official Node builds.
+Linux x64 installation, running upgrade, restart, uninstall integration and data
+preservation passed in a Debian container. Native macOS and ARM64 execution were
+not exercised during publication. No live Wonder or Spark inference was used.
+
+The current download matrix and checksums are downloads-all-platforms.json and
+SHA256SUMS-all-platforms.txt in the v0.1.13 release. These supplemental assets
+preserve the original Windows-only metadata and all existing release binaries.
 
 ACTIVATION AND VERIFICATION
 
@@ -102,14 +109,15 @@ credits. On macOS, the Linux .run and archive permissions can still be verified.
 
 PUBLICATION AFTER BUILDING
 
-The Windows v0.1.13 assets and checksum manifest describe a Windows-only release.
-Do not overwrite them or silently relabel older macOS/Linux binaries as 0.1.13.
-For a later combined release, use a new release version and commit, build the
-selected targets, verify them, and preserve the already published Windows entry
-with its own version when staging a mixed-version website manifest. The existing
-publishers enforce immutable artifacts; read their --help/source and README.txt
-for the selected destination. Publishing source/assets and deploying the website
-download manifest are separate steps.
+The original Windows v0.1.13 assets and checksum manifest describe a Windows-only
+release. Do not overwrite them or silently relabel older binaries as 0.1.13.
+The supplied macOS/Linux installers contain version 0.1.13 and matching source;
+they were added under previously unused asset names, with supplemental metadata.
+The website manifest selects that metadata through release.manifestFilename and
+release.checksumsFilename. Future changed binaries require a new release version
+and commit. Preserve unchanged platforms with their actual release versions.
+Publishing source/assets and deploying the website download manifest are separate
+steps. Read README.txt and docs/RELEASE_CHECKS.txt for the selected publisher.
 
 The website shared-guide and parallel execution changes take effect after a
 website deployment. The desktop update independently removes the call/time caps

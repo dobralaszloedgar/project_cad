@@ -22,8 +22,8 @@ const manifest = validateManifest(
   ),
   { published: true },
 );
-const { baseUrl: base } = assistantDownloadLocation(manifest);
-const metadata = await fetch(`${base}/downloads.json`, {
+const { baseUrl: base, manifestUrl } = assistantDownloadLocation(manifest);
+const metadata = await fetch(manifestUrl ?? `${base}/downloads.json`, {
   signal: AbortSignal.timeout(60000),
 });
 if (

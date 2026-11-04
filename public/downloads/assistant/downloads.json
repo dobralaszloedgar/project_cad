@@ -14,24 +14,24 @@
       "platform": "linux",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-linux-universal.run",
-      "bytes": 97481340,
-      "sha256": "be0f75efe5ae9b10bbea435fb71508d73e45baf8fe119b5215fbb0a0b5d5fddf",
-      "version": "0.1.10"
+      "bytes": 97426716,
+      "sha256": "7b8a0ec3c58e3368e2da51ab81c532de34f9871d3717055c851ad4470837b1bb"
     },
     {
       "platform": "macos",
       "architecture": "universal",
       "filename": "ProjectCAD-Assistant-macos-universal.pkg",
-      "bytes": 83637002,
-      "sha256": "ba92643d30ec81b848d8f39d8d1d8c0d050ea48185ac080f8b1b25a98304cc0f",
+      "bytes": 83665126,
+      "sha256": "536d7bec46505b63c7ad8cf05b413b943ae7e0f17cdb963a56b991ca20877f02",
       "minimumMacOS": "13.5",
       "signed": false,
-      "notarized": false,
-      "version": "0.1.10"
+      "notarized": false
     }
   ],
   "release": {
     "repository": "dobralaszloedgar/project_cad",
-    "tag": "v0.1.13"
+    "tag": "v0.1.13",
+    "manifestFilename": "downloads-all-platforms.json",
+    "checksumsFilename": "SHA256SUMS-all-platforms.txt"
   }
 }

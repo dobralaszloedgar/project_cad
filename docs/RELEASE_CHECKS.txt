@@ -27,6 +27,8 @@ The optional GitHub publisher additionally checks the current source history and
 
 After publishing, run npm run assistant:verify-downloads to verify unauthenticated download access and checksums.
 
+When matching platform builds arrive after a GitHub release is published, add them under unused asset names and preserve every existing asset. Publish a new complete metadata file and checksum list under distinct names, such as downloads-all-platforms.json and SHA256SUMS-all-platforms.txt. Set release.manifestFilename and release.checksumsFilename in the website manifest to those names. Public verification and GitHub sync follow the selected manifest; the download UI links to the complete checksum list. Changed binaries still require a new release version.
+
 Live Codex regression check (requires an existing sign-in; uses real inference):
 PROJECT_CAD_LIVE_CODEX=1 PLAYWRIGHT_PORT=3196 npx playwright test tests/e2e/assistant-codex-live.spec.ts
 

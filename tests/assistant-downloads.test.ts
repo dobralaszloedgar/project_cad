@@ -7,6 +7,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assistantDownloads } from "../src/assistant/downloads";
+import { assistantDownloadLocation } from "../src/assistant/download-location.mjs";
 import {
   assertReleaseAssets,
   installerPattern,
@@ -71,6 +72,48 @@ afterEach(async () => {
 });
 
 describe("assistant download distribution", () => {
+  it("uses supplemental metadata for later platform builds in an existing release", () => {
+    const value = {
+      ...universalManifest(),
+      release: {
+        ...manifest().release,
+        manifestFilename: "downloads-all-platforms.json",
+        checksumsFilename: "SHA256SUMS-all-platforms.txt",
+      },
+    };
+    expect(() => validateManifest(value, { published: true })).not.toThrow();
+    const base =
+      "https://github.com/dobralaszloedgar/project_cad/releases/download/v0.1.0";
+    expect(assistantDownloadLocation(value).manifestUrl).toBe(
+      `${base}/downloads-all-platforms.json`,
+    );
+    const parsed = assistantDownloads(value)!;
+    expect(parsed.checksumsUrl).toBe(`${base}/SHA256SUMS-all-platforms.txt`);
+    expect(parsed.installers).toHaveLength(3);
+    for (const file of parsed.installers)
+      expect(file.url).toBe(`${base}/${file.filename}`);
+    expect(assistantDownloadLocation(manifest()).manifestUrl).toBeUndefined();
+  });
+
+  it.each([
+    "../downloads.json",
+    "https://example.com/downloads.json",
+    "downloads.json?token=secret",
+    "downloads%2fall.json",
+    "",
+    null,
+    1,
+  ])("rejects unsafe supplemental metadata filenames: %s", (filename) => {
+    for (const key of ["manifestFilename", "checksumsFilename"]) {
+      const value = {
+        ...universalManifest(),
+        release: { ...manifest().release, [key]: filename },
+      };
+      expect(() => validateManifest(value, { published: true })).toThrow();
+      expect(assistantDownloads(value)).toBeUndefined();
+    }
+  });
+
   it("keeps unchanged platforms on their actual release URLs and versions", () => {
     const value = {
       ...universalManifest(),

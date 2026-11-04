@@ -15,6 +15,7 @@ import {
   verifyLocalArtifacts,
 } from "./release-manifest.mjs";
 import { stagePublishedDownloads } from "./stage-downloads.mjs";
+import { assistantDownloadLocation } from "../../src/assistant/download-location.mjs";
 import { githubPublisher } from "./github-publisher.mjs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -93,8 +94,19 @@ async function syncPublishedRelease() {
   const release = await getPublicJson(`https://api.github.com/${endpoint}`);
   if (release.draft || release.tag_name !== tag)
     throw new Error("Release is not public.");
+  const current = JSON.parse(
+    await readFile(
+      join(projectRoot, "public/downloads/assistant/downloads.json"),
+      "utf8",
+    ),
+  );
+  const metadataUrl =
+    current.version === pins.version &&
+    current.release?.repository === repository
+      ? assistantDownloadLocation(current).manifestUrl
+      : undefined;
   const manifest = validateManifest(
-    await getPublicJson(`${baseUrl}/downloads.json`),
+    await getPublicJson(metadataUrl ?? `${baseUrl}/downloads.json`),
     { published: true },
   );
   if (

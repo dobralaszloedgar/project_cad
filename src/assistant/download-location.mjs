@@ -4,6 +4,7 @@
 
 /** Resolve only versioned public distribution locations. Shared by web and release tools.
  * @param {Record<string, unknown>} manifest
+ * @returns {{baseUrl: string, releaseUrl?: string, checksumsUrl?: string, manifestUrl?: string}}
  */
 export function assistantDownloadLocation(manifest) {
   if (
@@ -47,13 +48,29 @@ export function assistantDownloadLocation(manifest) {
       !/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(
         release.repository,
       ) ||
-      release.tag !== `v${manifest.version}`
+      release.tag !== `v${manifest.version}` ||
+      (release.manifestFilename !== undefined &&
+        (typeof release.manifestFilename !== "string" ||
+          !/^downloads(?:-[a-z0-9]+)*\.json$/.test(
+            release.manifestFilename,
+          ))) ||
+      (release.checksumsFilename !== undefined &&
+        (typeof release.checksumsFilename !== "string" ||
+          !/^SHA256SUMS(?:-[a-z0-9]+)*\.txt$/.test(release.checksumsFilename)))
     )
       throw new Error("Invalid assistant GitHub release.");
     const repositoryUrl = `https://github.com/${release.repository}`;
+    const baseUrl = `${repositoryUrl}/releases/download/${release.tag}`;
     return {
-      baseUrl: `${repositoryUrl}/releases/download/${release.tag}`,
+      baseUrl,
       releaseUrl: `${repositoryUrl}/releases/tag/${release.tag}`,
+      // Later platform builds can add metadata without replacing published assets.
+      ...(release.manifestFilename
+        ? { manifestUrl: `${baseUrl}/${release.manifestFilename}` }
+        : {}),
+      ...(release.checksumsFilename
+        ? { checksumsUrl: `${baseUrl}/${release.checksumsFilename}` }
+        : {}),
     };
   }
   return { baseUrl: "/downloads/assistant" };
