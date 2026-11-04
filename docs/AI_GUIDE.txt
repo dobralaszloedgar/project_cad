@@ -37,6 +37,18 @@ propose_actions {baseRevision,plan}: submit a validated batch. Auto mode applies
   and saves immediately and returns applied:true. Review mode returns applied:false
   until the user clicks Apply reviewed actions. Read-only mode rejects edits.
 
+TOOL BATCHING
+Request independent reads together in one model turn when supported, such as
+get_capabilities and independent search_chemicals queries. Inspect every result.
+Wait for prerequisite results before issuing dependent calls. Keep project edits
+sequential: never issue simultaneous propose_actions calls or race an edit with
+a read, preview or simulation that depends on it. Combine related changes in
+one plan (up to 100 actions), including equipment inputs and connections, instead
+of making one tool call per parameter. Action batches validate atomically.
+The connector has no per-run tool-count or total-duration cutoff. Continue until
+the requested work is complete or there is a real blocker. Stop, disconnect and
+individual tool timeouts still apply; keep the project tab connected.
+
 In Auto mode, propose small coherent batches as you build so equipment and
 connections appear on the flowsheet promptly. propose_actions validates and
 saves each batch; use preview_actions for uncertain or complex edits, rather

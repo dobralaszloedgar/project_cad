@@ -244,14 +244,8 @@ export class AssistantRuntime {
     const abort = new AbortController(),
       active = { chat, run, abort };
     this.active.set(key, active);
-    const deadline = setTimeout(
-      () =>
-        this.cancelKey(
-          key,
-          "The request reached its ten-minute limit. Send a follow-up to continue.",
-        ),
-      600000,
-    );
+    // A connected build can take many calls and more than ten minutes. The
+    // browser lease, individual tool deadlines and Stop still end stale work.
     void this.adapters[chat.provider]!.run({
       conversation: chat,
       cwd,
@@ -287,7 +281,7 @@ export class AssistantRuntime {
         },
       )
       .finally(() => {
-        clearTimeout(deadline);
+        this.clearPending(active, "The request has finished.");
         chat.updatedAt = new Date().toISOString();
         this.store.save(chat);
         if (this.active.get(key) === active) this.active.delete(key);
@@ -305,10 +299,6 @@ export class AssistantRuntime {
     const parsed = tools[name].schema.parse(args);
     if (name === "propose_actions" && active.chat.mode === "read-only")
       throw new Error("This conversation is read-only.");
-    if (active.run.activities.length >= 30)
-      throw new Error(
-        "Project tool limit reached. Send a follow-up to continue.",
-      );
     const id = crypto.randomUUID(),
       step = { id, name, status: "running" as "running" | "done" | "error" };
     active.run.activities.push(step);
@@ -436,20 +426,23 @@ export class AssistantRuntime {
   }
   private cancelKey(key: string, reason: string) {
     const active = this.active.get(key);
-    if (!active) return;
+    if (!active || active.run.status !== "running") return;
     active.run.status = "cancelled";
     active.run.error = reason;
+    this.clearPending(active, reason);
+    this.store.save(active.chat);
+    // Keep the slot occupied until the provider has actually released its process.
+  }
+  private clearPending(active: Active, reason: string) {
     active.abort.abort();
     for (const [id, pending] of this.pending)
-      if (this.key(pending.scope) === key) {
+      if (pending.command.runId === active.run.id) {
         clearTimeout(pending.timer);
         pending.reject(new Error(reason));
         this.pending.delete(id);
       }
     for (const activity of active.run.activities)
       if (activity.status === "running") activity.status = "error";
-    this.store.save(active.chat);
-    // Keep the slot occupied until the provider has actually released its process.
   }
   close() {
     clearInterval(this.sweep);

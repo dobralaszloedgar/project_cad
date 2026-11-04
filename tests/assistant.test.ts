@@ -26,6 +26,7 @@ import {
 
 const cleanup: (() => void)[] = [];
 afterEach(() => {
+  vi.useRealTimers();
   for (const close of cleanup.splice(0)) close();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -194,6 +195,120 @@ describe("project tools", () => {
   });
 });
 describe("assistant runtime", () => {
+  it.each([false, true])(
+    "finishes more than 30 Muse tool calls (parallel: %s)",
+    async (parallel) => {
+      const { runtime, owner, create } = setup(async (input) => {
+        if (parallel)
+          await Promise.all(
+            Array.from({ length: 65 }, () => input.call("get_project", {})),
+          );
+        else for (let i = 0; i < 65; i++) await input.call("get_project", {});
+        input.text("Build complete after 65 tools.");
+      });
+      const chat = await create();
+      runtime.start(owner, chat.id, {
+        requestId: crypto.randomUUID(),
+        message: "Build a plant",
+      });
+      let answered = 0;
+      for (let poll = 0; runtime.busy && poll < 100; poll++) {
+        for (const command of runtime.snapshot(owner).commands) {
+          runtime.answer(owner, command.id, {
+            value: { name: "Current project" },
+          });
+          answered++;
+        }
+        await tick();
+      }
+      const run = runtime.snapshot(owner, chat.id).conversation!.runs[0];
+      expect(answered).toBe(65);
+      expect(run).toMatchObject({
+        status: "completed",
+        text: "Build complete after 65 tools.",
+      });
+      expect(run.activities).toHaveLength(65);
+      expect(run.activities.every((step) => step.status === "done")).toBe(true);
+      expect(runtime.busy).toBe(false);
+    },
+  );
+
+  it("keeps a connected Muse build running beyond ten minutes and still stops on request", async () => {
+    vi.useFakeTimers();
+    const { runtime, owner, create } = setup(async (input) => {
+      await new Promise<void>((resolve) =>
+        input.signal.addEventListener("abort", () => resolve(), { once: true }),
+      );
+    });
+    const chat = await create();
+    runtime.start(owner, chat.id, {
+      requestId: crypto.randomUUID(),
+      message: "Build a large plant",
+    });
+    for (let heartbeat = 0; heartbeat < 24; heartbeat++) {
+      runtime.snapshot(owner);
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
+    expect(runtime.snapshot(owner, chat.id).conversation!.runs[0].status).toBe(
+      "running",
+    );
+    runtime.cancel(owner);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(
+      runtime.snapshot(owner, chat.id).conversation!.runs[0],
+    ).toMatchObject({ status: "cancelled", error: "Stopped by you." });
+    expect(runtime.busy).toBe(false);
+  });
+
+  it("clears unfinished calls when a parallel provider run fails", async () => {
+    const failures: unknown[] = [];
+    const { runtime, owner, create } = setup(async (input) => {
+      void input.call("get_project", {}).catch((error) => failures.push(error));
+      void input
+        .call("get_capabilities", {})
+        .catch((error) => failures.push(error));
+      throw new Error("Muse disconnected");
+    });
+    const chat = await create();
+    runtime.start(owner, chat.id, {
+      requestId: crypto.randomUUID(),
+      message: "Inspect",
+    });
+    await tick();
+    const snapshot = runtime.snapshot(owner, chat.id);
+    expect(snapshot.commands).toHaveLength(0);
+    expect(snapshot.conversation!.runs[0]).toMatchObject({
+      status: "failed",
+      error: "Muse disconnected",
+      activities: [{ status: "error" }, { status: "error" }],
+    });
+    expect(failures).toHaveLength(2);
+    expect(runtime.busy).toBe(false);
+  });
+
+  it("still fails an unanswered individual tool and releases the running slot", async () => {
+    vi.useFakeTimers();
+    const { runtime, owner, create } = setup(async (input) => {
+      await input.call("get_project", {});
+    });
+    const chat = await create();
+    runtime.start(owner, chat.id, {
+      requestId: crypto.randomUUID(),
+      message: "Inspect",
+    });
+    await vi.advanceTimersByTimeAsync(30_001);
+    const snapshot = runtime.snapshot(owner, chat.id);
+    expect(snapshot.commands).toHaveLength(0);
+    expect(snapshot.conversation!.runs[0]).toMatchObject({
+      status: "failed",
+      activities: [{ status: "error" }],
+    });
+    expect(snapshot.conversation!.runs[0].error).toContain(
+      "project did not answer",
+    );
+    expect(runtime.busy).toBe(false);
+  });
+
   it("keeps one run per project, delivers scoped tools, and deduplicates retried messages", async () => {
     const { runtime, owner, create } = setup(async (input) => {
       const value = await input.call("get_project", {});

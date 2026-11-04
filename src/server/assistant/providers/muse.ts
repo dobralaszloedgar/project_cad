@@ -164,9 +164,11 @@ export class MuseProvider implements AssistantProvider {
     input.signal.throwIfAborted();
     // Read through the connected website on every turn, including resumed
     // sessions, so an older installed connector cannot supply a stale guide.
-    const guide = await input.call("get_guide", {});
+    const [guide, prompt] = await Promise.all([
+      input.call("get_guide", {}),
+      currentProjectPrompt(input),
+    ]);
     input.signal.throwIfAborted();
-    const prompt = await currentProjectPrompt(input);
     const settings = this.settings();
     const files = new ProjectFiles(settings.projectsDirectory);
     // Never restore a session's former authority across a mode/folder change.

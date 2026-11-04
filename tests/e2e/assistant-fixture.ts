@@ -113,6 +113,16 @@ Code stays literal: ` + "`rhoV = P*Mavg/(R*T)`",
     }
     if (input.prompt.includes("fail"))
       throw new Error("Test provider connection failed.");
+    if (input.prompt === "batch build") {
+      await Promise.all(
+        Array.from({ length: 40 }, () => input.call("get_project", {})),
+      );
+      await Promise.all(
+        ["water", "ethanol", "methanol"].map((query) =>
+          input.call("search_chemicals", { query, model: "ideal-gas" }),
+        ),
+      );
+    }
     const value = (await input.call("get_project", {})) as {
       project: Project;
       revision: string;

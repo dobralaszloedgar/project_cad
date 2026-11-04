@@ -204,6 +204,30 @@ it("closes a running Muse host when cancelled", async () => {
   await expect(running).rejects.toThrow(/disconnected|abort/i);
 });
 
+it("loads Muse's guide and current project concurrently before starting the model", async () => {
+  const { value, call } = input();
+  const guide = Promise.withResolvers<{ name: string }>();
+  const project = Promise.withResolvers<{ name: string }>();
+  call.mockImplementation((name) =>
+    name === "get_guide" ? guide.promise : project.promise,
+  );
+  const running = new MuseProvider(value.cwd, () => ({
+    accessMode: "sandbox",
+    projectsDirectory: value.cwd,
+  })).run(value);
+  expect(call.mock.calls.map(([name]) => name)).toEqual([
+    "get_guide",
+    "get_project",
+  ]);
+  expect(fake.launches).toHaveLength(0);
+  project.resolve({ name: "Fresh project" });
+  guide.resolve({ name: "Current guide" });
+  await running;
+  const turn = fake.commands.find((command) => command.method === "turn/start");
+  expect(JSON.stringify(turn)).toContain("Fresh project");
+  expect(JSON.stringify(turn)).toContain("Current guide");
+});
+
 it("keeps sandbox folder/web access without shell and never resumes a YOLO session after switching", async () => {
   const { value } = input("auto");
   let accessMode: "yolo" | "sandbox" = "yolo";

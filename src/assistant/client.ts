@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Project } from "../domain/schema";
 import { executeProjectTool } from "./tools";
+import { ProjectToolQueue } from "./tool-queue";
 import type { ChatAttachment } from "./attachments";
 import {
   ASSISTANT_ENDPOINT,
@@ -251,7 +252,28 @@ export function useAssistant(
     let alive = true,
       hadPollError = false,
       timer: ReturnType<typeof setTimeout>;
-    const replies = new Map<string, { value?: unknown; error?: string }>();
+    const queue = new ProjectToolQueue(
+      (command) =>
+        executeProjectTool(command.name, command.arguments, {
+          projectId,
+          project: projectRef.current,
+          mode: command.mode,
+          commandId: command.id,
+          apply: (proposal) => {
+            if (!alive || !applyRef.current)
+              throw new Error("Open the project to apply assistant edits.");
+            return applyRef.current(proposal);
+          },
+        }),
+      (id, reply) =>
+        request(token, clientId, path("/tool-result"), { id, ...reply }),
+      (failure) => {
+        if (alive) {
+          hadPollError = true;
+          report(failure);
+        }
+      },
+    );
     const detach = () => {
       void request(token, clientId, path("/detach"), {}, true).catch(() => {});
     };
@@ -307,49 +329,9 @@ export function useAssistant(
           }
           loadLatest.current = false;
         }
-        for (const command of value.commands) {
-          if (!alive || command.projectId !== projectId) return;
-          let reply = replies.get(command.id);
-          if (!reply) {
-            try {
-              reply = {
-                value: await executeProjectTool(
-                  command.name,
-                  command.arguments,
-                  {
-                    projectId,
-                    project: projectRef.current,
-                    mode: command.mode,
-                    commandId: command.id,
-                    apply: (proposal) => {
-                      if (!applyRef.current)
-                        throw new Error(
-                          "Open the project to apply assistant edits.",
-                        );
-                      return applyRef.current(proposal);
-                    },
-                  },
-                ),
-              };
-            } catch (failure) {
-              reply = {
-                error:
-                  failure instanceof Error
-                    ? failure.message.slice(0, 2000)
-                    : "Project tool failed.",
-              };
-            }
-            replies.set(command.id, reply);
-          }
-          if (!alive) return;
-          await request(token, clientId, path("/tool-result"), {
-            id: command.id,
-            ...reply,
-          });
-        }
-        for (const id of replies.keys())
-          if (!value.commands.some((command) => command.id === id))
-            replies.delete(id);
+        queue.update(
+          value.commands.filter((command) => command.projectId === projectId),
+        );
       } catch (failure) {
         if (alive) {
           hadPollError = true;
@@ -364,6 +346,7 @@ export function useAssistant(
     window.addEventListener("pagehide", detach);
     return () => {
       alive = false;
+      queue.close();
       clearTimeout(timer);
       window.removeEventListener("pagehide", detach);
       detach();

@@ -1,32 +1,61 @@
-Project CAD Assistant 0.1.12: macOS and Linux build handoff
+Project CAD Assistant 0.1.13: macOS and Linux build handoff
 
-Source: https://github.com/dobralaszloedgar/project_cad/tree/v0.1.12
-Windows release: https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.12
+Source: https://github.com/dobralaszloedgar/project_cad/tree/v0.1.13
+Windows release: https://github.com/dobralaszloedgar/project_cad/releases/tag/v0.1.13
 
-This release optimizes the shared Muse adapter used by Wonder 1 and Spark 1.3
-Contributor. It sends the current website guide once, explains Muse's JSON-string
-plans, provides compact action-specific capabilities, and tells Auto mode to
-apply coherent batches as it builds. Verified chemical selections remain in the
-adapter and are passed by catalogRef, avoiding coefficient rounding and omitted
-fields. Catalog checksums are still enforced. Old incompatible Muse sessions
-restart with recent conversation context; the app's saved history is preserved.
+This release fixes Muse builds stopping after 30 project tool calls. It removes
+the shared connector's per-run call cap and ten-minute wall-clock cutoff. The
+user's Stop action, disconnected-project lease and individual tool deadlines
+remain active. Failed or completed runs release outstanding calls so they cannot
+leave stale commands in the browser. The old Claude-specific turn cap is also
+removed; the distributed companion uses Muse Code.
+
+Muse reads the current guide and project concurrently at startup. Wonder and
+Spark receive explicit guidance to request independent reads together, combine
+chemical IDs in one selection, and submit coherent plans of up to 100 actions.
+The website executes up to four reads concurrently while continuing its state
+polls. Project edits remain sequential. Failed result delivery retries the saved
+reply without replaying the edit. Existing catalogRef and revision validation
+remain intact. Models decide whether to request multiple tools in a response;
+the connector now executes independent requests concurrently when they do.
 
 Windows is published separately. macOS and Linux have not been rebuilt or
-runtime-verified for 0.1.12. Existing downloads for those systems remain on their
+runtime-verified for 0.1.13. Existing downloads for those systems remain on their
 previous versions. No live Wonder or Spark inference was used for this change.
+
+ACTIVATION AND VERIFICATION
+
+Installed connectors must be rebuilt and updated: a website-only deployment
+cannot remove a limit compiled into an older companion. Source users can restart
+npm run assistant. Deploy/reload the website as well to enable browser batching
+and independent polling. Keep the project tab connected during a build.
+
+Regression coverage verifies 65 calls in one Muse run (sequential and parallel),
+a connected run lasting twelve simulated minutes, Stop, individual tool expiry,
+failed-run cleanup, parallel reads, ordered edits and retry deduplication. The
+browser regression performs more than 40 calls, holds three catalog searches
+open concurrently, confirms polling continues, then applies and saves once.
+The 32 focused unit tests and three targeted browser checks passed on Windows,
+as did TypeScript, targeted lint, formatting, generated-guide verification and
+the production website build. Native Windows x64 package checks passed for the
+launcher, install, update of a running companion, restart, shutdown and settings/
+history preservation. The interactive NSIS wizard and ARM64 hardware were not
+tested. Archive integrity and CPU architecture are checked separately.
 
 PREPARE A CLEAN BUILD CHECKOUT
 
 Use a fresh clone or worktree so downloads.json contains only the platforms you
 actually build. Do not copy old binaries into the new version's inventory.
 
-  git clone https://github.com/dobralaszloedgar/project_cad.git project-cad-0.1.12
-  cd project-cad-0.1.12
-  git checkout v0.1.12
+  git clone https://github.com/dobralaszloedgar/project_cad.git project-cad-0.1.13
+  cd project-cad-0.1.13
+  git checkout v0.1.13
   npm ci
   npm run typecheck
-  npx vitest run tests/assistant-muse.test.ts tests/assistant-muse-tools.test.ts tests/assistant.test.ts tests/catalog.test.ts
+  npx vitest run tests/assistant-muse.test.ts tests/assistant-muse-tools.test.ts tests/assistant.test.ts tests/assistant-tool-queue.test.ts
   npm run docs:ai-guide:check
+  npx playwright install chromium
+  npx playwright test tests/e2e/assistant.spec.ts --grep "Muse builds past|auto applies by default|stale proposals cannot apply"
 
 Use Node.js 24 or newer for the build. Packaging downloads the pinned private
 Node runtimes from scripts/assistant/releases.json and verifies their checksums.
@@ -73,8 +102,8 @@ credits. On macOS, the Linux .run and archive permissions can still be verified.
 
 PUBLICATION AFTER BUILDING
 
-The Windows v0.1.12 assets and checksum manifest describe a Windows-only release.
-Do not overwrite them or silently relabel older macOS/Linux binaries as 0.1.12.
+The Windows v0.1.13 assets and checksum manifest describe a Windows-only release.
+Do not overwrite them or silently relabel older macOS/Linux binaries as 0.1.13.
 For a later combined release, use a new release version and commit, build the
 selected targets, verify them, and preserve the already published Windows entry
 with its own version when staging a mixed-version website manifest. The existing
@@ -82,10 +111,10 @@ publishers enforce immutable artifacts; read their --help/source and README.txt
 for the selected destination. Publishing source/assets and deploying the website
 download manifest are separate steps.
 
-The website shared-guide changes take effect after a website deployment. The
-new desktop adapter also supplies its Muse-specific workflow to older compatible
-websites, so its catalog references, compact schemas and incremental-apply
-instructions do not require a new website tool schema.
+The website shared-guide and parallel execution changes take effect after a
+website deployment. The desktop update independently removes the call/time caps
+and supplies Muse batching guidance to older compatible websites, but those
+websites continue executing browser tools sequentially until they are updated.
 
 SMALL PROCESS TO CHECK MANUALLY
 

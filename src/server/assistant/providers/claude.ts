@@ -62,7 +62,6 @@ const baseOptions: Options = {
   strictMcpConfig: true,
   permissionMode: "dontAsk",
   systemPrompt: assistantInstructions,
-  maxTurns: 16,
   includePartialMessages: true,
 };
 export class ClaudeProvider implements AssistantProvider {

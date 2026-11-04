@@ -194,6 +194,49 @@ test("auto applies by default, saves once, and preserves the edit after reload",
   ).toHaveCount(1);
 });
 
+test("Muse builds past 30 calls, batches lookups and keeps polling while tools run", async ({
+  page,
+}) => {
+  const release = Promise.withResolvers<void>();
+  const lookups = new Set<string>();
+  let polls = 0;
+  page.on("request", (request) => {
+    if (request.url().startsWith("http://127.0.0.1:43118/state?")) polls++;
+  });
+  await page.route("**/api/chemicals?**", async (route) => {
+    const query = new URL(route.request().url()).searchParams.get("query");
+    if (!query || !["water", "ethanol", "methanol"].includes(query))
+      return route.fallback();
+    lookups.add(query);
+    await release.promise;
+    await route.fulfill({ json: { chemicals: [] } });
+  });
+  try {
+    await start(page, "auto");
+    await send(page, "batch build");
+    await expect.poll(() => lookups.size, { timeout: 15000 }).toBe(3);
+    const before = polls;
+    await expect.poll(() => polls).toBeGreaterThan(before + 1);
+    release.resolve();
+    await expect(
+      page.getByRole("region", { name: "Review proposed changes" }),
+    ).toContainText("Applied and saved");
+    await expect(
+      page.getByRole("button", { name: "Stop response" }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Close assistant panel" }).click();
+    await page.getByRole("button", { name: "Results", exact: true }).click();
+    await page.getByRole("button", { name: /^Revisions/ }).click();
+    await expect(
+      page
+        .locator(".revision-row")
+        .filter({ hasText: "Apply assistant changes" }),
+    ).toHaveCount(1);
+  } finally {
+    release.resolve();
+  }
+});
+
 test("reviews changes, saves one revision, resumes history, and reads the latest project", async ({
   page,
 }) => {

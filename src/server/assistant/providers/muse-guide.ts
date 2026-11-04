@@ -18,6 +18,15 @@ Its actionSchema is the PLAN schema. The adapter omits redundant full-project,
 equipment and HTTP schemas. Request additional action types only when needed.
 Use the connected project tools to edit the flowsheet. File tools and stateless
 HTTP endpoints do not apply changes to the connected canvas.
+Request independent project reads in parallel in the same model turn, especially
+capability discovery and separate chemical searches. The browser runs up to four
+reads together. Collect every result before dependent work; search results must
+arrive before selecting their chemical IDs. Group 2-40 IDs into one selection.
+Keep propose_actions calls sequential and wait for applied:true before reading
+the new revision. Never race an edit with reads or calculations that depend on it.
+Combine related equipment, parameter and connection actions in one plan (up to
+100 actions). There is no connector cutoff at 30 tools or ten minutes; finish
+the requested build in this turn while the project remains connected.
 
 MUSE WIRE FORMAT
 preview_actions, simulate and propose_actions take baseRevision and a plan
