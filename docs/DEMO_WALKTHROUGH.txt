@@ -4,6 +4,10 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 REPRODUCIBLE DEMO
 
+Historical walkthrough for the original synthetic binary demonstration.
+The interface and assistant described below predate the current application.
+Use GETTING_STARTED.md, ASSISTANT.md and PROJECT_STORAGE.md for current usage.
+
 1. Run npm run dev and open http://127.0.0.1:3000.
 2. The heated reactor template loads without AI. Choose Simulate. At 450 K,
    residence time 10 s and secondary outlet fraction 0.5, overall A conversion

@@ -2,22 +2,46 @@
 # Applies only to copyrightable Project CAD material owned by this holder.
 # See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
+# Dependencies and build output
 node_modules/
 .next/
+/dist/
+*.tsbuildinfo
+rust/thermo/target/
+
+# Local configuration and credentials
 .env*
 !.env.example
-*.tsbuildinfo
+/.vercel/
+supabase/.temp/
+
+# Test reports, caches and scratch files
 playwright-report/
 .playwright-mcp/
 test-results/
-rust/thermo/target/
-.DS_Store
-supabase/.temp/
-scripts/catalog/__pycache__/
+coverage/
+/.tmp/
+/tmp/
+__pycache__/
+*.py[cod]
+*.log
 
-# Local documentation and agent tooling
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+/.idea/
+
+# Track published Markdown and the Next.js agent instructions.
+# Other Markdown remains local planning material unless explicitly allowlisted.
 *.[mM][dD]
 *.[mM][dD][xX]
+!/README.md
+!/AGENTS.md
+!/docs/**/*.md
+!/.github/**/*.md
+
+# Local agent tooling
 .agents/
 .agent/
 .codex/
@@ -37,11 +61,9 @@ muse-debug.log*
 muse-error.log*
 muse.local.*
 
-# Generated native assistant packages and staged website downloads
-dist/assistant/
+# Staged assistant downloads; only the published manifest belongs in Git
 public/downloads/assistant/*
 !public/downloads/assistant/downloads.json
-.vercel
 !public/downloads/assistant/downloads.json.license
 
 # Native 4K/120 FPS review exports are regenerated locally; deploy the smaller web derivatives.

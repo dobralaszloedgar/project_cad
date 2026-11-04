@@ -13,15 +13,15 @@ puts exact matches before prefixes and other matches, then favors common process
 chemicals and broader model coverage. Short searches match name prefixes or whole
 identifiers. The sort preference is remembered. Results are paged 20 at a time
 after filtering and ordering the full catalog, and include only chemicals with
-the data needed by the selected model. Add chemicals to slots A and B; remove a
-selection to replace it.
-Apply components downloads and verifies both records and any necessary activity
-parameters. There is no database-source selector or local-database fallback.
+the data needed by the selected model. Add the chemicals needed by the process;
+catalog projects support 2–40 components.
+Apply components downloads and verifies the selected records and any necessary
+activity parameters. There is no database-source selector or local-database fallback.
 Operating conditions and project files remain in local project storage.
 
-The current flowsheet editor has two component slots. This change expands the
-chemical catalog, not the number of component slots or reactor kinetics.
-The existing synthetic A/B reactor and bundled sample mixtures still work.
+New blank projects start without assumed chemistry. Define project components
+and reactor kinetics explicitly; selecting chemicals does not create reactions.
+Existing synthetic A/B examples and bundled sample mixtures remain supported.
 The 2D, 3D and Split views share the same saved project and selected model.
 
 Published release:
@@ -80,8 +80,8 @@ supported for older service-role-only installations; they must never be sent to
 the browser or included in desktop companion packages. No project data is sent
 to Supabase. GET /api/chemicals/models returns the registry and coverage counts.
 
-The browser saves selected data with the project and revision history. JSON
-export/import and offline recalculation preserve the selected record hashes.
+The browser saves selected data with the project and revision history. Portable
+.pcad documents and offline recalculation preserve the selected record hashes.
 New releases do not replace data in old projects. SHA-256 detects accidental
 changes; it is not a digital signature authenticating arbitrary imported files.
 Provenance records model version, catalog release, kernel hash and parameter

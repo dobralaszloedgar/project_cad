@@ -170,7 +170,7 @@ GET /api/ai returns legacy server planner availability. POST /api/ai accepts
 {prompt,project} and returns a validated plan and model; it is not a project-save
 API or an arbitrary tool gateway. It requires explicit server model configuration,
 same-origin localhost use and rate limits. The desktop companion's authenticated
-loopback protocol on 127.0.0.1:43118 is separate; see README.txt for pairing.
+loopback protocol on 127.0.0.1:43118 is separate; see docs/ASSISTANT.md for pairing.
 
 ENGINEERING CONTRACT
 All serialized inputs and outputs use SI, regardless of the user's display units:

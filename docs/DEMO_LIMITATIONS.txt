@@ -4,16 +4,22 @@ See the root LICENSE and THIRD_PARTY_NOTICES.txt for scope and exceptions.
 
 SCIENCE AND GEOMETRY LIMITS
 
-The default reactor template uses synthetic species A and B. Both have molecular weight
+Current scope: catalog projects support 2–40 components. New blank projects start
+without assumed chemistry; define components and reactions explicitly. Bundled
+reaction templates include real chemical records and published kinetics. See
+EQUIPMENT.txt and REACTION_TEMPLATES.txt for configurable reactor behavior.
+
+The original reactor template uses synthetic species A and B. Both have molecular weight
 0.028 kg/mol and constant heat capacity 30 J/(mol K). These are original teaching
 parameters, not measured properties of real chemicals. Allowed input ranges are
 numerical guardrails, not experimentally validated physical ranges.
 
 There are exactly three thermodynamic models: ideal gas, ideal solution using
-Raoult's law, and Modified UNIFAC 2.0. Six sample chemical records are bundled.
+Raoult's law, and Modified UNIFAC 2.0. Six original sample chemical records are
+bundled, alongside the real-chemical reaction templates.
 Real-mixture phase results and the single TP separation use the selected model.
 See THERMODYNAMICS.txt for parameter ranges, extrapolation, source notices,
-caloric approximations and the future database provider boundary.
+caloric approximations. CHEMICAL_CATALOG.txt describes the configured catalog.
 
 Reference temperature: 298.15 K. Species A formation enthalpy is defined as zero;
 species B is -20000 J/mol. Stream enthalpy rate in W is
@@ -23,12 +29,13 @@ R = 8.314462618 J/(mol K). This is not a liquid volume estimate.
 
 Feed: user-specified flow, composition, temperature and pressure.
 Product: terminal stream sink.
-Mixer: two physical inlets; component and enthalpy sums; minimum inlet pressure.
+Mixer: one to four physical inlets; component and enthalpy sums;
+minimum flowing inlet pressure.
 Heater/Cooler: outlet-temperature mode computes selected-model enthalpy duty;
 specified-duty mode solves temperature for ideal gas only. Wrong-direction
 targets, wrong-sign duties and unsupported calculated states are rejected.
-PBR: an isothermal first-order synthetic reaction with two available bases.
-New units integrate dFA/dW=-k(T)CA against catalyst mass, where
+Legacy synthetic PBR: an isothermal first-order reaction with two stored bases.
+The catalyst-mass example integrates dFA/dW=-k(T)CA, where
   CA = FA P/(Ftotal R T), k450 = 0.01 m3/(kg-cat s) by default.
 The profile is checked against X=1-exp[-k(T)PW/(Ftotal RT)]. Multiple feeds
 combine by component and enthalpy balance in an upstream mixer before entering
@@ -38,9 +45,14 @@ the original recycle template retain residence time in seconds:
   X = 1 - exp(-k tau); extent = FA,in X
 Duty includes reaction heat and sensible heating. There is no bed-geometry
 calculation, pressure drop, transport resistance, changing residence time with flow,
-kinetic regression, equilibrium reversal or mechanical sizing.
-Splitter: equal composition in both outlets. The secondary fraction is bounded
-0..0.95. It recycles A and B together, not selectively unreacted A.
+kinetic regression, equilibrium reversal or mechanical sizing in this legacy model.
+Configurable PBRs support explicit multicomponent reactions, reversible and
+inhibition terms, prescribed pressure drop, and catalyst-mass or target-conversion
+sizing. These capabilities do not infer missing kinetics or transport properties;
+see EQUIPMENT.txt and REACTION_TEMPLATES.txt for their equations and limits.
+Splitter: equal composition in up to four outlets with fractions summing to one.
+Legacy projects retain the secondary fraction bounded 0..0.95. All components
+split proportionally; this is not selective recovery of an unreacted species.
 Legacy distillation (no explicit FUG/MESH configuration): one ideal binary equilibrium contact with fixed distillate cut d and
 constant relative volatility alpha. Solve zA = d*yA + (1-d)*xA with
   yA = alpha*xA / (1 + (alpha-1)*xA).
@@ -60,28 +72,31 @@ separation, pressure profile or duties; see DISTILLATION.txt and AI_GUIDE.txt.
 
 Recycle: automatically tear a stream returning to a mixer, topologically solve,
 and use direct substitution for up to 500 iterations. Convergence requires the
-maximum scaled change in A flow, B flow, T and P to be below 1e-9. Multiple
+maximum scaled change in component flows, T and P to be below 1e-9. Multiple
 independent cycles are rejected. Non-convergence is displayed honestly; values
 are the last iterate. Mass and energy residuals are independently reported.
 
 3D: schematic source/sink arrows, manifolds, heat exchangers, packed vessels,
 tray columns and pipes derived from graph positions and material ports.
-No dimensions, collisions, pressure-vessel certification, fabrication data or
-mechanical CAD claims. A WebGL fallback preserves the 2D editor.
+No pressure-vessel certification, fabrication data or mechanical CAD claims.
+Equipment geometry is illustrative, including when model dimensions are entered.
+3D prefers WebGPU with WebGL 2 fallback; the 2D editor remains available when
+neither graphics backend starts. See BROWSER_SUPPORT.md.
 
-Deferred: the planned approximately 2,000-chemical database; validated
-real-fluid models; selective recovery model; multiple recycle loops;
-industrial column hydraulics and efficiencies; sketch import; image/segmentation AI; public AI hosting;
-arbitrary pipe rerouting; full multi-selection UI; multitab edit
-conflict resolution.
+Remaining limits include general real-fluid models, multiple independent recycle
+loops, industrial column efficiencies, sketch import, and multitab edit conflict
+resolution. The published chemical catalog and current editing tools are described
+in CHEMICAL_CATALOG.txt and GETTING_STARTED.md. Optional sieve-tray ratings remain
+post-solve diagnostics, without feedback into separation or pressure calculations.
 
-Rainbow flow is an illustrative stream animation; it does not encode calculated
-flow speed or composition. Reduced-motion preferences stop the moving dashes.
+Animated flow is illustrative and does not encode calculated velocity.
+Reduced-motion preferences stop moving stream effects.
 
-Storage: multiple local projects per browser origin, one open at a time. Each
-project supports up to 250 revisions in a version-1 JSON envelope. The IndexedDB
-version-2 library preserves existing single-project saves. Imported project files
-retain their included history; restore appends snapshots without deleting later
-work. Clearing the current project leaves other projects available. Export before
-clearing storage. No cross-device sync, encryption, accounts, folders/trash, or
-multitab conflict resolution. Unknown project-file versions are rejected.
+Storage: multiple local projects, one open at a time, with up to 250 revisions.
+Named .pcad documents include the graph, chemical data and revision history;
+legacy project.json documents remain readable. Direct folder access depends on
+browser capability; browser-only storage belongs to its website/profile. Imported
+project files retain their history, and restore appends snapshots without deleting
+later work. Export before clearing browser storage. Folder organization and trash
+are supported; automatic cross-device sync and multitab conflict resolution are
+not provided. Unknown project-file versions are rejected. See PROJECT_STORAGE.md.

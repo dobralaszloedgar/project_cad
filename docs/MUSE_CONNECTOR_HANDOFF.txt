@@ -89,7 +89,8 @@ Outputs in dist/assistant:
 The universal package contains Apple silicon and Intel runtimes. The local build
 is ad-hoc signed, not notarized. assistant:verify checks the native launcher,
 package, installation and update lifecycle in temporary locations. It does not
-make model inference calls. Read README.txt before optional signing/notarization.
+make model inference calls. Read docs/ASSISTANT_RELEASES.md before optional
+signing/notarization.
 
 LINUX (BUILD LATER ON LINUX OR A MAC)
 
@@ -117,7 +118,8 @@ The website manifest selects that metadata through release.manifestFilename and
 release.checksumsFilename. Future changed binaries require a new release version
 and commit. Preserve unchanged platforms with their actual release versions.
 Publishing source/assets and deploying the website download manifest are separate
-steps. Read README.txt and docs/RELEASE_CHECKS.txt for the selected publisher.
+steps. Read docs/ASSISTANT_RELEASES.md and docs/RELEASE_CHECKS.txt for the
+selected publisher.
 
 The website shared-guide and parallel execution changes take effect after a
 website deployment. The desktop update independently removes the call/time caps
